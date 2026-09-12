@@ -201,6 +201,23 @@ def test_clear_notes_finish_without_routine_questions(client):
         assert mapped["regions"]
 
 
+@pytest.mark.parametrize("posture", ["slept on my side and stomach", "sleep on my stomach", "lying on my stomach or side"])
+def test_sleeping_position_does_not_add_abdominal_discomfort(client, posture):
+    mapped = client.post("/api/map", json=note(note=f"My neck feels stiff after I {posture}.")).json()["map"]
+    assert mapped["regions"] == ["neck"]
+
+
+def test_abdominal_discomfort_is_kept_after_a_sleeping_position(client):
+    mapped = client.post("/api/map", json=note(note="I slept on my stomach. My stomach aches today.")).json()["map"]
+    assert mapped["regions"] == ["abdomen"]
+
+
+def test_demo_uses_pins_instead_of_regions_mentioned_in_movements(client):
+    pin = {"id": str(uuid.uuid4()), "region": "neck", "position": [0.1, 2.5, -0.1], "structure": "Selected surface"}
+    mapped = client.post("/api/map", json=note(note="The pinned spot feels stiff when moving my chin toward my chest after sleeping on my stomach.", points=[pin])).json()["map"]
+    assert mapped["regions"] == ["neck"]
+
+
 def test_surface_pins_anchor_region_and_validate_coordinates(client):
     pin = {"id": str(uuid.uuid4()), "region": "right_shoulder", "position": [-0.6, 2.1, -0.2], "structure": "Infraspinatus muscle"}
     second = {**pin, "id": str(uuid.uuid4()), "region": "left_shoulder", "position": [0.6, 2.1, -0.2]}

@@ -44,18 +44,28 @@ class DemoProvider:
         answers = {a.key: a.text for a in request.answers}
         text = (request.note + " " + " ".join(answers.values())).lower()
         location = (request.note + " " + answers.get("location", "")).lower()
+        # Sleeping positions describe posture, not additional painful regions.
+        location = re.sub(
+            r"\b(?:sleep(?:ing)?|slept|lying|lie|lay)\s+on\s+"
+            r"(?:(?:my|the|left|right)\s+)*(?:side|back|front|stomach)"
+            r"(?:\s+(?:and|or)\s+(?:(?:my|the|left|right)\s+)*(?:side|back|front|stomach))*\b",
+            "",
+            location,
+        )
         regions: list[Region] = [point.region for point in request.points]
         if request.selected_region:
             regions.append(request.selected_region)
-        for word, key in [("shoulder", "shoulder"), ("elbow", "elbow"), ("wrist", "wrist"), ("hand", "wrist"), ("hip", "hip"), ("thigh", "thigh"), ("knee", "knee"), ("calf", "calf"), ("calves", "calf"), ("ankle", "ankle"), ("foot", "foot"), ("feet", "foot")]:
-            matches = re.finditer(r"\b(left|right)\s+(?:\w+\s+){0,2}?" + re.escape(word) + r"s?\b", location)
-            for match in matches:
-                regions.append(Region(f"{match.group(1)}_{key}"))
-            if re.search(r"\bboth\s+(?:\w+\s+)?" + re.escape(word) + r"s?\b", location):
-                regions.extend([Region(f"left_{key}"), Region(f"right_{key}")])
-        for words, key in [(r"neck", "neck"), (r"lower back|low back|lumbar", "lower_back"), (r"upper back|shoulder blade", "upper_back"), (r"chest|pectoral", "chest"), (r"abdomen|abdominal|stomach", "abdomen")]:
-            if re.search(words, location):
-                regions.append(Region(key))
+        # In the offline demo, explicit pins take priority over keyword guesses.
+        if not request.points:
+            for word, key in [("shoulder", "shoulder"), ("elbow", "elbow"), ("wrist", "wrist"), ("hand", "wrist"), ("hip", "hip"), ("thigh", "thigh"), ("knee", "knee"), ("calf", "calf"), ("calves", "calf"), ("ankle", "ankle"), ("foot", "foot"), ("feet", "foot")]:
+                matches = re.finditer(r"\b(left|right)\s+(?:\w+\s+){0,2}?" + re.escape(word) + r"s?\b", location)
+                for match in matches:
+                    regions.append(Region(f"{match.group(1)}_{key}"))
+                if re.search(r"\bboth\s+(?:\w+\s+)?" + re.escape(word) + r"s?\b", location):
+                    regions.extend([Region(f"left_{key}"), Region(f"right_{key}")])
+            for words, key in [(r"neck", "neck"), (r"lower back|low back|lumbar", "lower_back"), (r"upper back|shoulder blade", "upper_back"), (r"chest|pectoral", "chest"), (r"abdomen|abdominal|stomach", "abdomen")]:
+                if re.search(words, location):
+                    regions.append(Region(key))
         regions = list(dict.fromkeys(regions))[:6]
         intensity_match = re.search(r"\b(10|[0-9])\s*(?:/\s*10|out of 10)\b", text)
         intensity_answer = re.match(r"^(10|[0-9])(?:\b|$)", answers.get("intensity", ""))

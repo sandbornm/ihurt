@@ -179,8 +179,12 @@ export default function App() {
       setAnswer("");
       setSession((s) => (s ? { ...s, remaining: response.remaining } : s));
       if (response.map.regions[0]) {
-        selectRegion(response.map.regions[0]);
-        action("focus");
+        if (points.length) {
+          setSelected(response.map.regions[0]);
+        } else {
+          selectRegion(response.map.regions[0]);
+          action("focus");
+        }
       }
     } catch (e) {
       setError(

@@ -1,0 +1,14 @@
+[
+  {
+    "file": "muscular.glb",
+    "source": "https://raw.githubusercontent.com/Liyucheng1997/242_lab-human-anatomy/322ba39e96ea91ce08601caad2c0aaade1dc99f0/public/models/muscular.glb",
+    "bytes": 8819872,
+    "sha256": "5234472152a791baf002bed614707c33ba3ab2b278e41f41899a79a453d40785"
+  },
+  {
+    "file": "skeleton.glb",
+    "source": "https://raw.githubusercontent.com/Liyucheng1997/242_lab-human-anatomy/322ba39e96ea91ce08601caad2c0aaade1dc99f0/public/models/skeleton.glb",
+    "bytes": 2722720,
+    "sha256": "9fa642cc4ba501c0512cf8a2ab074b0c6a03fdd5dad7ab28a0c139e70e10ae82"
+  }
+]

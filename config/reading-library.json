@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "nhs",
+      "name": "NHS",
+      "kind": "Public health",
+      "hosts": ["www.nhs.uk"],
+      "recommended": true
+    },
+    {
+      "id": "aaos",
+      "name": "AAOS / OrthoInfo",
+      "kind": "Orthopaedics",
+      "hosts": ["www.orthoinfo.org", "orthoinfo.aaos.org"],
+      "recommended": true
+    },
+    {
+      "id": "mayo",
+      "name": "Mayo Clinic",
+      "kind": "Clinical education",
+      "hosts": ["www.mayoclinic.org", "sportsmedicine.mayoclinic.org"],
+      "recommended": true
+    },
+    {
+      "id": "choosept",
+      "name": "APTA / ChoosePT",
+      "kind": "Physical therapy",
+      "hosts": ["www.choosept.com"],
+      "recommended": true
+    },
+    {
+      "id": "aota",
+      "name": "AOTA",
+      "kind": "Occupational therapy",
+      "hosts": ["www.aota.org"],
+      "recommended": true
+    },
+    {
+      "id": "berkeley",
+      "name": "UC Berkeley Health",
+      "kind": "University health",
+      "hosts": ["uhs.berkeley.edu"],
+      "recommended": true
+    },
+    {
+      "id": "stanford",
+      "name": "Stanford Human Performance",
+      "kind": "Sports science lab",
+      "hosts": ["humanperformance.stanford.edu", "med.stanford.edu"],
+      "recommended": false
+    },
+    {
+      "id": "ncaa",
+      "name": "NCAA Sport Science Institute",
+      "kind": "College athletics",
+      "hosts": ["www.ncaa.org"],
+      "recommended": false
+    }
+  ],
+  "resources": [
+    {
+      "title": "Neck pain, sleep positions, and when to get help",
+      "source": "nhs",
+      "type": "Overview",
+      "url": "https://www.nhs.uk/symptoms/neck-pain-and-stiff-neck/",
+      "regions": ["neck"],
+      "activities": ["sleep", "desk", "sitting"],
+      "id": "reading-1",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Neck mobility and flexibility exercises",
+      "source": "nhs",
+      "type": "Movement guide",
+      "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+      "regions": ["neck", "hip", "chest"],
+      "activities": ["sleep", "desk", "sitting"],
+      "id": "reading-2",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Cervical spondylosis: an introduction",
+      "source": "nhs",
+      "type": "Condition topic",
+      "url": "https://www.nhs.uk/conditions/cervical-spondylosis/",
+      "regions": ["neck"],
+      "id": "reading-3",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Shoulder pain: a general guide",
+      "source": "nhs",
+      "type": "Overview",
+      "url": "https://www.nhs.uk/symptoms/shoulder-pain/",
+      "regions": ["shoulder"],
+      "id": "reading-4",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Rotator cuff and shoulder conditioning",
+      "source": "aaos",
+      "type": "Movement guide",
+      "url": "https://www.orthoinfo.org/recovery/rotator-cuff-and-shoulder-conditioning-program/",
+      "regions": ["shoulder"],
+      "activities": ["tennis", "serve", "reach", "overhead"],
+      "id": "reading-5",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Rotator cuff tears and overhead activity",
+      "source": "aaos",
+      "type": "Condition topic",
+      "url": "https://www.orthoinfo.org/diseases--conditions/rotator-cuff-tears",
+      "regions": ["shoulder"],
+      "activities": ["tennis", "serve", "overhead"],
+      "id": "reading-6",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Tennis elbow: symptoms and general care",
+      "source": "nhs",
+      "type": "Condition topic",
+      "url": "https://www.nhs.uk/conditions/tennis-elbow/",
+      "regions": ["elbow", "wrist"],
+      "activities": ["tennis", "grip", "desk"],
+      "id": "reading-7",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Knee pain and other running injuries",
+      "source": "nhs",
+      "type": "Overview",
+      "url": "https://www.nhs.uk/live-well/exercise/knee-pain-and-other-running-injuries/",
+      "regions": ["knee", "thigh", "calf", "ankle", "foot"],
+      "activities": ["run", "walk"],
+      "id": "reading-8",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Knee stretching and conditioning guide",
+      "source": "aaos",
+      "type": "Movement guide",
+      "url": "https://www.orthoinfo.org/recovery/knee-conditioning-program/",
+      "regions": ["knee", "thigh"],
+      "id": "reading-9",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Back pain: a general guide",
+      "source": "nhs",
+      "type": "Overview",
+      "url": "https://www.nhs.uk/conditions/back-pain/",
+      "regions": ["back"],
+      "activities": ["desk", "sitting", "lift"],
+      "id": "reading-10",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Spine stretching and conditioning",
+      "source": "aaos",
+      "type": "Movement guide",
+      "url": "https://www.orthoinfo.org/recovery/spine-conditioning-program/",
+      "regions": ["back", "neck"],
+      "activities": ["desk", "sitting"],
+      "id": "reading-11",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "Peripheral neuropathy: what the term means",
+      "source": "nhs",
+      "type": "Condition topic",
+      "url": "https://www.nhs.uk/conditions/peripheral-neuropathy/",
+      "regions": ["wrist", "foot", "calf"],
+      "id": "reading-12",
+      "checked": "2026-09-12"
+    },
+    {
+      "title": "General flexibility exercises",
+      "source": "nhs",
+      "type": "Movement guide",
+      "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+      "regions": ["hip", "ankle", "foot", "calf", "abdomen", "elbow", "wrist"],
+      "id": "reading-13",
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "mayo-neck",
+      "title": "Neck pain: overview and when to seek care",
+      "source": "mayo",
+      "type": "Overview",
+      "url": "https://www.mayoclinic.org/symptoms/neck-pain/basics/causes/sym-20050882",
+      "regions": ["neck"],
+      "activities": ["sleep", "desk", "sitting"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "mayo-shoulder",
+      "title": "Rotator cuff tendonitis and tears: risk factors",
+      "source": "mayo",
+      "type": "Condition topic",
+      "url": "https://sportsmedicine.mayoclinic.org/condition/rotator-cuff-tendonitis-and-tears/page/1",
+      "regions": ["shoulder"],
+      "activities": ["tennis", "serve", "overhead"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "choosept-neck",
+      "title": "A physical therapist\u2019s guide to neck pain",
+      "source": "choosept",
+      "type": "Physical therapy",
+      "url": "https://www.choosept.com/guide/physical-therapy-guide-neck-pain",
+      "regions": ["neck"],
+      "activities": ["sleep", "desk", "sitting"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "aota-pain",
+      "title": "Occupational therapy and pain in daily activities",
+      "source": "aota",
+      "type": "Occupational therapy",
+      "url": "https://www.aota.org/practice/clinical-topics/pain-management",
+      "regions": ["neck", "back", "shoulder", "wrist", "hip", "knee"],
+      "activities": ["work", "desk", "sleep"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "aota-ergonomics",
+      "title": "Home office ergonomics \u00b7 PDF",
+      "source": "aota",
+      "type": "Movement guide",
+      "url": "https://www.aota.org/-/media/Corporate/Files/Practice/Manage/Home-Office-Ergonomics-Tips.pdf",
+      "regions": ["neck", "back", "shoulder", "wrist"],
+      "activities": ["desk", "sitting", "work"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "berkeley-neck",
+      "title": "Neck pain and exercise precautions \u00b7 PDF",
+      "source": "berkeley",
+      "type": "Movement guide",
+      "url": "https://uhs.berkeley.edu/sites/default/files/neckpain.pdf",
+      "regions": ["neck"],
+      "activities": ["sleep", "desk"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "berkeley-work",
+      "title": "Workplace stretching \u00b7 PDF",
+      "source": "berkeley",
+      "type": "Movement guide",
+      "url": "https://uhs.berkeley.edu/sites/default/files/wellness-generic_stretchingexerciseprogram.pdf",
+      "regions": ["neck", "back", "shoulder", "wrist"],
+      "activities": ["work", "desk", "sitting"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "stanford-lab",
+      "title": "Human Performance Lab: movement and sports research",
+      "source": "stanford",
+      "type": "Research program",
+      "url": "https://humanperformance.stanford.edu/research/hpl/",
+      "regions": ["shoulder", "hip", "knee", "thigh", "calf", "ankle"],
+      "activities": ["tennis", "serve", "run", "sport"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "choosept-shoulder",
+      "title": "A physical therapist\u2019s guide to rotator cuff tears",
+      "source": "choosept",
+      "type": "Physical therapy",
+      "url": "https://www.choosept.com/guide/physical-therapy-guide-rotator-cuff-tear",
+      "regions": ["shoulder"],
+      "activities": ["tennis", "serve", "overhead"],
+      "checked": "2026-09-12"
+    },
+    {
+      "id": "ncaa-sleep",
+      "title": "College athlete nutrition, hydration, and sleep resources",
+      "source": "ncaa",
+      "type": "College athletics",
+      "url": "https://www.ncaa.org/what-we-do/health-safety-and-performance/nutrition-hydration-sleep/",
+      "regions": [
+        "neck",
+        "back",
+        "shoulder",
+        "hip",
+        "knee",
+        "thigh",
+        "calf",
+        "ankle",
+        "foot"
+      ],
+      "activities": ["sleep", "tennis", "run", "sport"],
+      "checked": "2026-09-12"
+    }
+  ]
+}

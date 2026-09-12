@@ -1,0 +1,22 @@
+[project]
+name = "ihurt"
+version = "0.1.0"
+description = "An educational musculoskeletal discomfort journal and 3D hurt map"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
+  "openai>=2.0,<3",
+  "pydantic-settings>=2.8,<3",
+  "itsdangerous>=2.2,<3",
+  "python-multipart>=0.0.22,<1",
+  "httpx>=0.28,<1",
+  "anthropic>=1.5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

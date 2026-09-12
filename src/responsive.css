@@ -1,0 +1,501 @@
+/* Loaded last by main.tsx so viewport rules override the base theme. */
+@media (min-width: 1600px) {
+  .main-content {
+    padding: 40px 55px 25px !important;
+  }
+  .explorer-grid {
+    grid-template-columns: minmax(0, 1fr) 400px !important;
+  }
+  .anatomy-stage {
+    height: 620px !important;
+  }
+  .intake-panel {
+    min-height: 765px !important;
+  }
+  .intake-content {
+    padding: 30px !important;
+  }
+  .stage-intro p {
+    font-size: 31px !important;
+  }
+  .intake-content h3 {
+    font-size: 25px !important;
+  }
+  .note-field textarea {
+    font-size: 14px !important;
+  }
+}
+@media (max-width: 1200px) {
+  .main-content {
+    padding: 26px 24px 18px !important;
+  }
+  .explorer-grid {
+    gap: 15px !important;
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+  .stage-intro {
+    left: 18px !important;
+    top: 27px !important;
+  }
+  .stage-intro p {
+    font-size: 21px !important;
+  }
+  .stage-intro > span:not(.small-label) {
+    display: none !important;
+  }
+  .stage-intro .small-label {
+    font-size: 7px !important;
+  }
+  .anatomy-stage {
+    height: 563px !important;
+  }
+  .body-toolbar,
+  .body-footer {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+  .brand-caption {
+    display: none !important;
+  }
+  .topbar {
+    padding: 0 25px !important;
+  }
+  .body-side {
+    display: none !important;
+  }
+  .layer-toggle button {
+    padding: 7px 8px !important;
+  }
+}
+@media (max-width: 980px) {
+  .rail {
+    width: 60px !important;
+  }
+  .rail > button.active:before {
+    left: -9px !important;
+  }
+  .main-content {
+    width: calc(100% - 60px) !important;
+    padding: 22px 18px !important;
+  }
+  .explorer-grid {
+    grid-template-columns: minmax(0, 1fr) 315px !important;
+  }
+  .stage-intro {
+    top: 75px !important;
+  }
+  .stage-intro p {
+    font-size: 18px !important;
+  }
+  .stage-intro .small-label {
+    display: none !important;
+  }
+  .stage-intro button {
+    font-size: 9px !important;
+  }
+  .anatomy-stage {
+    height: 580px !important;
+  }
+  .heat-legend {
+    width: 85px !important;
+  }
+  .body-footer {
+    gap: 8px !important;
+  }
+  .anatomy-bottom > span:last-child {
+    display: none !important;
+  }
+  .intake-content {
+    padding: 22px 17px 16px !important;
+  }
+  .support-strip p {
+    max-width: 360px;
+    line-height: 1.6;
+  }
+  .page-heading h1 {
+    font-size: 30px !important;
+  }
+  .privacy-link {
+    display: none !important;
+  }
+}
+@media (max-width: 800px) {
+  .topbar {
+    height: 67px !important;
+    padding: 0 20px !important;
+  }
+  .brand {
+    font-size: 27px !important;
+  }
+  .top-actions {
+    gap: 14px !important;
+  }
+  .help-button {
+    border: 0 !important;
+    padding: 0 !important;
+  }
+  .help-button span {
+    display: none !important;
+  }
+  .avatar {
+    display: none !important;
+  }
+  .rail {
+    display: none !important;
+  }
+  .main-content {
+    width: 100% !important;
+    padding: 24px 20px 18px !important;
+  }
+  .page-heading {
+    margin-bottom: 19px !important;
+  }
+  .page-heading p {
+    font-size: 12px !important;
+    max-width: 270px;
+    line-height: 1.6;
+  }
+  .page-tabs {
+    gap: 22px !important;
+  }
+  .session-badge {
+    font-size: 9px !important;
+  }
+  .explorer-grid {
+    grid-template-columns: minmax(0, 1fr) 305px !important;
+    gap: 13px !important;
+  }
+  .body-toolbar h2 {
+    font-size: 12px !important;
+  }
+  .body-toolbar .small-label {
+    font-size: 8px !important;
+  }
+  .model-badge {
+    display: none !important;
+  }
+  .stage-intro {
+    top: 65px !important;
+  }
+  .stage-intro p {
+    font-size: 17px !important;
+  }
+  .anatomy-stage {
+    height: 576px !important;
+  }
+  .layer-toggle button {
+    font-size: 9px !important;
+    padding: 7px !important;
+  }
+  .layer-toggle button svg {
+    display: none !important;
+  }
+  .body-footer {
+    padding: 0 13px !important;
+  }
+  .heat-legend {
+    width: 75px !important;
+  }
+  .new-map-button {
+    font-size: 11px !important;
+    padding: 10px !important;
+  }
+  .support-strip > button {
+    font-size: 9px !important;
+  }
+  .page-footer {
+    align-items: start !important;
+    line-height: 1.6 !important;
+  }
+}
+@media (max-width: 670px) {
+  .main-content {
+    padding: 22px 16px 16px !important;
+  }
+  .page-heading h1 {
+    font-size: 30px !important;
+  }
+  .page-heading p {
+    max-width: 235px !important;
+    font-size: 11px !important;
+  }
+  .eyebrow {
+    font-size: 8px !important;
+    letter-spacing: 1.2px !important;
+  }
+  .new-map-button {
+    font-size: 0 !important;
+    gap: 0 !important;
+    padding: 10px !important;
+  }
+  .new-map-button svg {
+    width: 18px;
+    height: 18px;
+  }
+  .page-tabs {
+    gap: 22px !important;
+    margin-bottom: 17px !important;
+  }
+  .page-tabs > button {
+    font-size: 11px !important;
+  }
+  .session-badge {
+    margin-left: auto !important;
+    font-size: 8px !important;
+    max-width: 100px;
+    line-height: 1.4;
+  }
+  .session-badge > span {
+    display: none !important;
+  }
+  .explorer-grid {
+    grid-template-columns: 1fr !important;
+    gap: 18px !important;
+  }
+  .body-toolbar {
+    height: 65px !important;
+    padding: 0 20px !important;
+  }
+  .model-badge {
+    display: block !important;
+  }
+  .anatomy-stage {
+    height: 435px !important;
+    min-height: 435px !important;
+  }
+  .stage-intro {
+    top: 22px !important;
+    left: 20px !important;
+  }
+  .stage-intro p {
+    font-size: 23px !important;
+  }
+  .stage-intro .small-label {
+    display: block !important;
+    font-size: 7px !important;
+  }
+  .stage-intro > span:not(.small-label) {
+    display: block !important;
+    font-size: 10px !important;
+  }
+  .stage-intro button {
+    font-size: 10px !important;
+    margin-top: 8px !important;
+  }
+  .stage-cross {
+    display: none !important;
+  }
+  .body-side {
+    display: grid !important;
+    top: 48% !important;
+  }
+  .right-side {
+    left: 21% !important;
+  }
+  .left-side {
+    right: 19% !important;
+  }
+  .view-switch {
+    top: 17px !important;
+    left: auto !important;
+    right: 15px !important;
+    transform: none !important;
+  }
+  .anatomy-bottom {
+    font-size: 8px !important;
+    bottom: 13px !important;
+    left: 20px !important;
+  }
+  .anatomy-bottom > span:last-child {
+    display: block !important;
+  }
+  .body-footer {
+    height: 60px !important;
+    padding: 0 19px !important;
+  }
+  .layer-toggle button {
+    font-size: 10px !important;
+    padding: 7px 10px !important;
+  }
+  .layer-toggle button svg {
+    display: block !important;
+  }
+  .heat-legend {
+    width: 105px !important;
+  }
+  .region-callout {
+    bottom: 50px !important;
+    left: 18px !important;
+    padding: 10px !important;
+  }
+  .canvas-controls {
+    bottom: 54px !important;
+    right: 14px !important;
+  }
+  .intake-panel {
+    min-height: 0 !important;
+  }
+  .intake-header {
+    padding: 20px 22px !important;
+  }
+  .intake-header h2 {
+    font-size: 16px !important;
+  }
+  .intake-header p {
+    font-size: 12px !important;
+  }
+  .steps {
+    padding: 18px 23px !important;
+    gap: 9px !important;
+  }
+  .steps b {
+    font-size: 12px !important;
+  }
+  .steps > span {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 10px !important;
+  }
+  .intake-content {
+    padding: 24px 23px 21px !important;
+  }
+  .intake-content h3 {
+    font-size: 25px !important;
+  }
+  .intro-copy {
+    font-size: 14px !important;
+    max-width: none !important;
+  }
+  .note-field textarea {
+    font-size: 14px !important;
+  }
+  .note-tools {
+    padding: 11px 12px !important;
+  }
+  .voice-tools {
+    gap: 16px !important;
+  }
+  .voice-tools > button {
+    font-size: 11px !important;
+  }
+  .note-tools > span {
+    font-size: 9px !important;
+  }
+  .example-label {
+    font-size: 9px !important;
+  }
+  .example-chips button {
+    font-size: 11px !important;
+    padding: 8px 10px !important;
+  }
+  .provider-row {
+    font-size: 12px !important;
+  }
+  .provider-row select {
+    font-size: 12px !important;
+  }
+  .primary {
+    font-size: 14px !important;
+    padding: 14px 16px !important;
+  }
+  .intake-footnote {
+    font-size: 10px !important;
+    margin-top: 18px !important;
+  }
+  .summary {
+    font-size: 14px !important;
+  }
+  .answer-options button {
+    font-size: 12px !important;
+    padding: 11px !important;
+  }
+  .question-box h4 {
+    font-size: 16px !important;
+  }
+  .secondary {
+    font-size: 13px !important;
+  }
+  .consent {
+    font-size: 12px !important;
+  }
+  .consent button {
+    font-size: 12px !important;
+  }
+  .support-strip {
+    padding: 16px !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+  .support-strip > div:nth-child(2) {
+    flex: 1;
+    min-width: 220px;
+  }
+  .support-strip h3 {
+    font-size: 12px !important;
+  }
+  .support-strip p {
+    font-size: 11px !important;
+  }
+  .support-strip > button {
+    margin-left: 50px !important;
+    font-size: 11px !important;
+  }
+  .page-footer {
+    font-size: 9px !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  .page-footer > span {
+    align-items: flex-start !important;
+    line-height: 1.6;
+  }
+  .page-footer > span svg {
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .page-footer > button {
+    font-size: 10px !important;
+  }
+  .dialog {
+    padding: 23px !important;
+  }
+  .info-tabs {
+    gap: 15px !important;
+  }
+  .info-tabs button {
+    font-size: 11px !important;
+  }
+  .region-list {
+    grid-template-columns: 1fr !important;
+  }
+  .region-list button {
+    font-size: 14px !important;
+    padding: 13px !important;
+  }
+  .journal {
+    min-height: 550px !important;
+  }
+  .empty-journal {
+    padding: 85px 15px !important;
+  }
+  .journal-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .showcase-note {
+    font-size: 10px !important;
+    flex-wrap: wrap !important;
+  }
+  .showcase-note > a {
+    margin-left: 0 !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

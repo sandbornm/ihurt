@@ -1,0 +1,4 @@
+*.glb binary
+*.wasm binary
+# Preserve the upstream notice, including its Markdown hard line breaks.
+public/models/UPSTREAM-LICENSE.txt -whitespace

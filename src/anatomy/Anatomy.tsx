@@ -138,7 +138,7 @@ export default function Anatomy(props: Props) {
       hot = new T.Color("#ed6e42");
     let heat: HeatFunction = fallbackHeat;
     let disposed = false,
-      dirty = 100;
+      dirty = 2;
     const targetPosition = camera.position.clone(),
       targetLook = controls.target.clone();
     let easing = false;
@@ -246,7 +246,7 @@ export default function Anatomy(props: Props) {
         pin.position.set(...point.position);
         pinGroup.add(pin);
       }
-      dirty = 10;
+      dirty = 2;
     };
     const command = (type: string) => {
       const p = latest.current;
@@ -276,7 +276,7 @@ export default function Anatomy(props: Props) {
             .copy(targetLook)
             .add(new T.Vector3(0, 0.06, distance * sign));
           easing = true;
-          dirty = 100;
+          dirty = 2;
           update();
           return;
         }
@@ -301,7 +301,7 @@ export default function Anatomy(props: Props) {
               : new T.Vector3(0, 0.1, face === "posterior" ? -2.1 : 2.1);
         targetPosition.copy(targetLook).add(offset);
         easing = true;
-        dirty = 100;
+        dirty = 2;
         return;
       }
       if (
@@ -351,7 +351,7 @@ export default function Anatomy(props: Props) {
         targetPosition.set(0.25 * sign, 0.65, 10 * sign);
       }
       easing = true;
-      dirty = 100;
+      dirty = 2;
       if (reduced) {
         camera.position.copy(targetPosition);
         controls.target.copy(targetLook);
@@ -388,7 +388,7 @@ export default function Anatomy(props: Props) {
         body.group.visible = true;
         root.dataset.atlas = "schematic-fallback";
         setReady(true);
-        dirty = 10;
+        dirty = 2;
       });
     fetch("/heat.wasm")
       .then((r) => {
@@ -420,7 +420,7 @@ export default function Anatomy(props: Props) {
       renderer.setSize(width, height);
       camera.aspect = width / Math.max(1, height);
       camera.updateProjectionMatrix();
-      dirty = 10;
+      dirty = 2;
     };
     const observer = new ResizeObserver(resize);
     observer.observe(root);
@@ -489,7 +489,7 @@ export default function Anatomy(props: Props) {
     renderer.domElement.addEventListener("pointercancel", cancel);
     controls.addEventListener("start", stopEasing);
     const changed = () => {
-      dirty = 5;
+      dirty = 2;
     };
     controls.addEventListener("change", changed);
     renderer.setAnimationLoop(() => {
@@ -498,7 +498,7 @@ export default function Anatomy(props: Props) {
         camera.position.lerp(targetPosition, 0.1);
         controls.target.lerp(targetLook, 0.1);
         if (camera.position.distanceTo(targetPosition) < 0.003) easing = false;
-        dirty = 5;
+        dirty = 2;
       }
       controls.update();
       if (dirty > 0) {

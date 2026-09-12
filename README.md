@@ -172,6 +172,16 @@ npm run test:unit  # drag gestures and mirrored anatomy surfaces
 npm run check      # app build and tests
 ```
 
+GitHub Actions runs the build, backend tests, and browser checks on pushes and pull requests. You can also start it from the Actions tab. Browser checks use a fresh headless Chromium instance and a temporary demo server with cloud keys disabled. They check desktop and phone layouts after refresh, atlas loading, drag gestures, multiple pins, and JSON export. Screenshots and failure traces are available as workflow artifacts for three days.
+
+To run the same browser checks locally without changing your open preview:
+
+```bash
+npx playwright install chromium
+npm run build
+npm run test:browser
+```
+
 To serve the built app from Python on one port:
 
 ```bash
@@ -195,6 +205,7 @@ tests/                Flow, limits, privacy, and mocked adapter checks
 ### Troubleshooting
 
 - **API unavailable:** use `npm run dev`, not just `npm run dev:web`. The full command starts both services.
+- **Preview looks like a phone:** the app uses one column below 670 pixels. Widen the browser panel or open the local URL in a full browser window. Automated browser checks use separate headless windows and never resize your preview.
 - **Provider is disabled:** fill its key or local model name in `.env` and restart the Python server. Keys never go in the UI.
 - **Grok reports no credits or a spending limit:** check billing in your xAI account. A valid key alone does not fund API requests. Retrying the same map keeps its activity allowance.
 - **Local mapping times out:** confirm the model server is running, the name matches its loaded model, and your hardware can run it. Choose a model that can follow a JSON schema.

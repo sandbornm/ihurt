@@ -14,7 +14,8 @@
     "setup": "node scripts/setup.mjs",
     "check": "npm run build && npm run test:unit && npm test",
     "format": "prettier --write src scripts assembly *.json *.ts .github",
-    "test:unit": "node --experimental-strip-types --test tests/*.test.ts"
+    "test:unit": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:browser": "node scripts/browser-check.mjs"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",
@@ -31,6 +32,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "assemblyscript": "^0.28.9",
     "concurrently": "^9.2.1",
+    "playwright": "1.63.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"

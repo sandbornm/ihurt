@@ -39,7 +39,7 @@ export default function Resources({
               ? `Reading for ${regionName(region).toLowerCase()}`
               : "Related reading"}
           </h3>
-          <p>Choose the sources you want to consult.</p>
+          <p>Choose your sources.</p>
         </div>
       </div>
       <details className="source-picker">
@@ -74,7 +74,6 @@ export default function Resources({
         <button onClick={() => onSources(recommendedSources)}>
           Use recommended list
         </button>
-        <p>The recommended list is a starting point for reading.</p>
       </details>
       <label className="resource-search">
         <Search size={14} />
@@ -84,7 +83,7 @@ export default function Resources({
             setQuery(e.target.value);
             setExpanded(false);
           }}
-          placeholder="Look up a topic, like neck or stretching"
+          placeholder="Search topics or exercises"
           aria-label="Search educational resources"
         />
       </label>

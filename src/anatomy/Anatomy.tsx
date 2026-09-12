@@ -5,6 +5,7 @@ import { createBody } from "./model";
 import { regions, type RegionId, type PainPoint } from "../types";
 import { loadAtlas, regionAt } from "./atlas";
 import { PinGesture } from "./gesture";
+import { advanceCamera } from "./motion";
 
 interface Props {
   selected: RegionId | null;
@@ -66,7 +67,10 @@ export default function Anatomy(props: Props) {
     camera.position.set(0.25, 0.65, 10);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 0.4, 0);
-    controls.enableDamping = true;
+    const motionPreference = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    );
+    controls.enableDamping = !motionPreference.matches;
     controls.dampingFactor = 0.1;
     controls.enablePan = true;
     controls.screenSpacePanning = true;
@@ -151,9 +155,25 @@ export default function Anatomy(props: Props) {
           mesh.geometry.boundingBox!.getCenter(new T.Vector3()).x *
             inspectedSide >
             0));
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    const stepCamera = (elapsedSeconds: number) =>
+      advanceCamera(
+        camera.position,
+        controls.target,
+        targetPosition,
+        targetLook,
+        elapsedSeconds,
+        motionPreference.matches,
+      );
+    const startTransition = () => {
+      easing = stepCamera(0);
+      dirty = 2;
+    };
+    const motionChanged = () => {
+      controls.enableDamping = !motionPreference.matches;
+      if (easing) easing = stepCamera(0);
+      dirty = 2;
+    };
+    motionPreference.addEventListener("change", motionChanged);
     const update = () => {
       const p = latest.current;
       root.dataset.inspected = inspected || "none";
@@ -275,8 +295,7 @@ export default function Anatomy(props: Props) {
           targetPosition
             .copy(targetLook)
             .add(new T.Vector3(0, 0.06, distance * sign));
-          easing = true;
-          dirty = 2;
+          startTransition();
           update();
           return;
         }
@@ -300,8 +319,7 @@ export default function Anatomy(props: Props) {
               ? new T.Vector3(side * 2.1, 0.1, 0)
               : new T.Vector3(0, 0.1, face === "posterior" ? -2.1 : 2.1);
         targetPosition.copy(targetLook).add(offset);
-        easing = true;
-        dirty = 2;
+        startTransition();
         return;
       }
       if (
@@ -350,13 +368,7 @@ export default function Anatomy(props: Props) {
         targetLook.set(0, 0.4, 0);
         targetPosition.set(0.25 * sign, 0.65, 10 * sign);
       }
-      easing = true;
-      dirty = 2;
-      if (reduced) {
-        camera.position.copy(targetPosition);
-        controls.target.copy(targetLook);
-        easing = false;
-      }
+      startTransition();
     };
     engine.current = { update, command };
     update();
@@ -492,12 +504,13 @@ export default function Anatomy(props: Props) {
       dirty = 2;
     };
     controls.addEventListener("change", changed);
-    renderer.setAnimationLoop(() => {
+    let previousFrame = performance.now();
+    renderer.setAnimationLoop((time) => {
+      const elapsedSeconds = (time - previousFrame) / 1000;
+      previousFrame = time;
       if (document.hidden) return;
       if (easing) {
-        camera.position.lerp(targetPosition, 0.1);
-        controls.target.lerp(targetLook, 0.1);
-        if (camera.position.distanceTo(targetPosition) < 0.003) easing = false;
+        easing = stepCamera(elapsedSeconds);
         dirty = 2;
       }
       controls.update();
@@ -510,6 +523,7 @@ export default function Anatomy(props: Props) {
       disposed = true;
       engine.current = null;
       observer.disconnect();
+      motionPreference.removeEventListener("change", motionChanged);
       controls.dispose();
       renderer.setAnimationLoop(null);
       renderer.domElement.removeEventListener("pointerdown", down);

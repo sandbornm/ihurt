@@ -183,7 +183,7 @@ try {
           .getByRole("button", { name: "Make my map", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "Explore related reading" })
+          .getByRole("button", { name: "Browse related reading" })
           .waitFor();
         assert.equal(
           await page
@@ -239,7 +239,7 @@ try {
         );
         assert.ok(svgText.includes("Not medical advice"));
         await page
-          .getByRole("button", { name: "Explore related reading" })
+          .getByRole("button", { name: "Browse related reading" })
           .click();
         await page
           .getByRole("textbox", { name: "Search educational resources" })

@@ -341,19 +341,17 @@ export default function App() {
           {tab === "journal" ? (
             <section className="journal">
               <div className="journal-heading">
-                <h2>Your maps, for this visit.</h2>
+                <h2>Your saved maps</h2>
                 <p>
-                  Download anything you want to keep. Closing or refreshing this
-                  tab clears this journal.
+                  These maps clear when you refresh or close the tab. Download
+                  anything you want to keep.
                 </p>
               </div>
               {saved.length === 0 ? (
                 <div className="empty-journal">
                   <BookOpen size={40} strokeWidth={1} />
-                  <h3>A place to put the pieces together.</h3>
-                  <p>
-                    Your saved hurt maps will appear here during this visit.
-                  </p>
+                  <h3>No saved maps yet.</h3>
+                  <p>Make a map, then choose “Save for this visit.”</p>
                   <button className="primary" onClick={() => setTab("explore")}>
                     Make your first map
                     <ArrowRight size={16} />
@@ -521,9 +519,7 @@ export default function App() {
                   <FeatureBoundary label="The 3D view">
                     <Suspense
                       fallback={
-                        <div className="canvas-loading">
-                          Preparing your anatomy view…
-                        </div>
+                        <div className="canvas-loading">Loading anatomy…</div>
                       }
                     >
                       <Anatomy
@@ -721,7 +717,7 @@ export default function App() {
                     <>
                       <div className="mapped-heading">
                         <span className="small-label">
-                          {completed ? "YOUR HURT MAP" : "TAKING SHAPE"}
+                          {completed ? "YOUR HURT MAP" : "YOUR MAP SO FAR"}
                         </span>
                         <h3>{result.title}</h3>
                       </div>
@@ -777,7 +773,7 @@ export default function App() {
                     >
                       {result?.question && (
                         <div className="question-box">
-                          <span className="small-label">ONE USEFUL DETAIL</span>
+                          <span className="small-label">ONE MORE DETAIL</span>
                           <h4>{result.question.prompt}</h4>
                           <div className="answer-options">
                             {result.question.options.map((option) => (
@@ -809,7 +805,7 @@ export default function App() {
                           }
                           placeholder={
                             result
-                              ? "Or tell us in your own words…"
+                              ? "Or type your answer…"
                               : "“My shoulder feels tight when I reach overhead. It started a few days ago…”"
                           }
                           maxLength={result ? 500 : 3000}
@@ -897,12 +893,11 @@ export default function App() {
                             onChange={(e) => setConsent(e.target.checked)}
                           />
                           <span>
-                            I agree to send my note to{" "}
                             {live
-                              ? providerNames[provider]
-                              : "the selected provider"}
-                            {session?.transcription_available
-                              ? " and voice recordings to OpenAI for transcription"
+                              ? `I agree to send my note, pins, and answers to ${providerNames[provider]}`
+                              : "I agree to send voice recordings to OpenAI for transcription"}
+                            {live && session?.transcription_available
+                              ? ", and voice recordings to OpenAI for transcription"
                               : ""}
                             .{" "}
                             <button
@@ -975,7 +970,7 @@ export default function App() {
                           }
                         >
                           <BookOpen size={16} />
-                          Explore related reading
+                          Browse related reading
                           <ArrowRight size={15} />
                         </button>
                       )}
@@ -1002,7 +997,7 @@ export default function App() {
                           setAnswers([]);
                         }}
                       >
-                        Edit or add context
+                        Edit your note
                         <Plus size={13} />
                       </button>
                       <button
@@ -1023,7 +1018,7 @@ export default function App() {
                           ? "Your text goes to your configured local model."
                           : "Demo mode · no AI requests."}
                       <br />
-                      Your notes clear when you close this tab.
+                      Notes clear on refresh or when you close this tab.
                     </span>
                   </div>
                 </div>
@@ -1109,11 +1104,12 @@ export default function App() {
             <span className="dialog-emblem">
               <Activity size={28} />
             </span>
-            <h2>A record of what you feel.</h2>
+            <h2>Show where. Say how.</h2>
             <p>
-              Describe discomfort, point to a region, and answer a few
-              questions. Your hurt map brings those observations together. You
-              can download it to keep or discuss with a clinician.
+              Pin where you feel discomfort and describe what brings it on.
+              ihurt puts your notes and pins into a hurt map, with up to two
+              follow-up questions. Download it to keep or share with a
+              clinician.
             </p>
             <h3>This is not medical advice whatsoever.</h3>
             <p>
@@ -1144,7 +1140,7 @@ export default function App() {
             </a>
             <details>
               <summary>
-                Learn some everyday anatomy
+                Anatomy basics
                 <ChevronDown size={15} />
               </summary>
               <p>
@@ -1176,12 +1172,12 @@ export default function App() {
             <span className="dialog-emblem">
               <LockKeyhole size={26} />
             </span>
-            <h2>Your body. Your choice.</h2>
+            <h2>Privacy and AI use</h2>
             <p>
-              No account, name, or email is required. Notes, answers, and maps
-              stay in this tab’s memory. We do not save their content to our
-              database or browser storage. Downloaded files contain your symptom
-              information.
+              No account is required. The app stores notes, answers, and maps in
+              this tab’s memory; they clear on refresh or close. The database
+              and browser storage hold no symptom content. Downloads contain
+              your symptom information.
             </p>
             <h3>What goes to an AI provider?</h3>
             <p>
@@ -1199,7 +1195,7 @@ export default function App() {
               text on your local server with simple rules and makes no AI
               requests.
             </p>
-            <h3>Anonymous does not mean untraceable.</h3>
+            <h3>What providers may keep</h3>
             <p>
               Symptom notes are health-related information. Leave out names,
               contact details, and other identifying information. Each AI
@@ -1214,7 +1210,7 @@ export default function App() {
               the host and bot-check service can receive technical data such as
               your IP. We use no analytics or session replay.
             </p>
-            <h3>Usage limits.</h3>
+            <h3>Usage limits</h3>
             <p>
               The default is three new activities per day; you can change this
               in your local settings. Limits apply to your visitor session and

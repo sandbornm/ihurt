@@ -70,7 +70,7 @@ class DemoProvider:
         intensity_match = re.search(r"\b(10|[0-9])\s*(?:/\s*10|out of 10)\b", text)
         intensity_answer = re.match(r"^(10|[0-9])(?:\b|$)", answers.get("intensity", ""))
         intensity = int((intensity_answer or intensity_match).group(1)) if (intensity_answer or intensity_match) else None
-        qualities = [q for q in ("aching", "ache", "crick", "sharp", "burning", "tingling", "numb", "stiff", "tight", "dull", "throbbing") if q in text]
+        qualities = [q for q in ("aching", "ache", "crick", "sharp", "burning", "tingling", "numb", "stiff", "tight", "dull", "throbbing") if re.search(rf"\b{q}(?:s|ness)?\b", text)]
         quality = answers.get("quality", ", ".join(qualities) or "Not described yet")
         activity = answers.get("activity", "")
         if not activity:

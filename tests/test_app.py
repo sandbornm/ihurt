@@ -218,6 +218,16 @@ def test_demo_uses_pins_instead_of_regions_mentioned_in_movements(client):
     assert mapped["regions"] == ["neck"]
 
 
+@pytest.mark.parametrize("description,quality", [
+    ("My shoulder feels tight when reaching overhead.", "tight"),
+    ("I notice stiffness and numbness in my right shoulder when lifting.", "numb, stiff"),
+    ("My right shoulder aches when lifting.", "ache"),
+])
+def test_demo_matches_reported_feelings_as_words(client, description, quality):
+    mapped = client.post("/api/map", json=note(note=description)).json()["map"]
+    assert mapped["quality"] == quality
+
+
 def test_surface_pins_anchor_region_and_validate_coordinates(client):
     pin = {"id": str(uuid.uuid4()), "region": "right_shoulder", "position": [-0.6, 2.1, -0.2], "structure": "Infraspinatus muscle"}
     second = {**pin, "id": str(uuid.uuid4()), "region": "left_shoulder", "position": [0.6, 2.1, -0.2]}

@@ -205,6 +205,11 @@ try {
         assert.equal(report.note, note);
         assert.equal(report.provider, "Demo · no AI");
         assert.equal(report.map.intensity, null);
+        assert.equal(
+          report.map.quality,
+          "tight",
+          "Reaching was misread as aching",
+        );
         assert.ok(report.points.every((point) => point.position[2] < 0));
         assert.deepEqual(
           [...report.map.regions].sort(),

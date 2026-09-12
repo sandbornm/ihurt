@@ -6,7 +6,7 @@ The muscle and skeleton models are third-party works, separate from ihurt's MIT-
 - **Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0**. Design, 3D, and anatomy: Gauthier Kervyn and the Z-Anatomy contributors. [Project](https://www.z-anatomy.com/). [Source repository](https://github.com/Z-Anatomy/Models-of-human-anatomy). [License](https://creativecommons.org/licenses/by-sa/4.0/).
 - GLB conversion distributed by [Liyucheng1997/242_lab-human-anatomy](https://github.com/Liyucheng1997/242_lab-human-anatomy/tree/322ba39e96ea91ce08601caad2c0aaade1dc99f0). Exact file URLs, sizes, and SHA-256 hashes are in [sources.json](sources.json).
 
-The bundled GLB files are unchanged. At runtime, ihurt normalizes their scale and position, filters annotation and connective-tissue meshes, recolors surfaces, and adds location labels and heat overlays. Adaptations of the anatomy assets remain subject to CC BY-SA 4.0 and the upstream attribution requirements. Attribution does not imply endorsement or clinical validation.
+The bundled GLB files are unchanged. At runtime, ihurt normalizes their scale and position, preserves outward-facing triangles on mirrored meshes, filters annotation and connective-tissue meshes, recolors surfaces, and adds location labels and heat overlays. Adaptations of the anatomy assets remain subject to CC BY-SA 4.0 and the upstream attribution requirements. Attribution does not imply endorsement or clinical validation.
 
 The complete upstream notice, including its component-specific attributions, is preserved in [UPSTREAM-LICENSE.txt](UPSTREAM-LICENSE.txt). This distribution uses the muscular and skeletal asset files, not the separately distributed organ or nervous-system assets. Original definitions and Wikipedia text are not bundled.
 

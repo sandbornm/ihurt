@@ -40,7 +40,18 @@ Open **http://127.0.0.1:5173**. You can use the complete mapping flow immediatel
 3. Get an initial map immediately when the location and activity are clear. The app asks at most two useful clarifying questions. You can edit or add context afterward.
 4. Choose reading sources, then download the map as an **SVG image** or **JSON file**. SVGs open in a browser and can be printed or saved as PDFs through the browser’s print dialog.
 
-“Keep in this session” adds a map to the in-memory journal. **Refresh or close the tab and the journal clears.** Download anything you want to keep. There is no email delivery or persistent symptom database.
+“Save for this visit” adds a map to the in-memory journal. **Refresh or close the tab and the journal clears.** Download anything you want to keep. There is no email delivery or persistent symptom database.
+
+## Start with Grok
+
+After setup, open `.env` in the project folder and set:
+
+```dotenv
+LLM_PROVIDER=grok
+XAI_API_KEY=your-xai-api-key
+```
+
+Keep the key in this ignored local file. Restart `npm run dev` after saving. The default model is `grok-4.20-0309-non-reasoning`; override `XAI_MODEL` if needed. The app shows Grok as the selected provider and asks for consent before sending your note. A short exchange is estimated around $0.005 with 2,000 input and 1,000 output tokens; see the cost table below. API calls are billed to your xAI account.
 
 ## Use a local model
 
@@ -68,7 +79,7 @@ LOCAL_MODEL=your-loaded-model-id
 
 Other OpenAI-compatible servers use the same settings. Set `LOCAL_API_KEY` if your server requires a token. Set `LOCAL_JSON_MODE=false` only if it rejects `response_format: json_object`; the prompt still requests JSON and the backend still validates it. Malformed responses produce a recoverable error, not an unvalidated map. Local requests have a 120-second timeout. Model capability and speed depend on your hardware; compatibility does not establish medical reliability.
 
-For text that stays on your hardware, use a genuinely local endpoint, a locally running model, and **typed notes**. A remote URL or a model server configured to forward requests changes that boundary. Voice-note transcription currently uses OpenAI; browser dictation may use a remote speech service.
+For text that stays on your hardware, use a local endpoint, a locally running model, and **typed notes**. A remote URL or a model server configured to forward requests changes that boundary. Voice-note transcription currently uses OpenAI; browser dictation may use a remote speech service.
 
 ## Use your own cloud API keys
 
@@ -157,6 +168,7 @@ The API also has signed HTTP-only cookies, exact-origin checks, byte and field l
 ```bash
 npm run build       # app → dist/app
 npm test           # backend and provider-contract tests; no paid API requests
+npm run test:unit  # drag gestures and mirrored anatomy surfaces
 npm run check      # app build and tests
 ```
 
@@ -167,7 +179,7 @@ npm run build
 uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --no-proxy-headers --no-access-log
 ```
 
-Open http://127.0.0.1:8000. The app is a React/TypeScript client. Three.js renders the detailed muscle and skeleton models with WebGL, using a self-hosted Draco WebAssembly decoder; a small AssemblyScript module compiled to WebAssembly computes the regional heat falloff. Graphics render on changes instead of continuously repainting an idle model. A schematic appears while about 11.5 MB of model files load progressively. If the atlas fails, that schematic remains available. If WASM fails, the heat computation has a JavaScript fallback; if WebGL fails, the app’s region picker and note flow remain available.
+Open http://127.0.0.1:8000. The app is a React/TypeScript client. Three.js renders the detailed muscle and skeleton models with WebGL, using a self-hosted Draco WebAssembly decoder; a small AssemblyScript module compiled to WebAssembly computes the regional heat falloff. Graphics render on changes instead of continuously repainting an idle model. The viewer loads about 11.5 MB of model files progressively. If the atlas fails, a schematic fallback appears. If WASM fails, the heat computation has a JavaScript fallback; if WebGL fails, the app’s region picker and note flow remain available.
 
 ```text
 src/anatomy/          Shared Three.js model, interaction, WASM integration
@@ -184,6 +196,7 @@ tests/                Flow, limits, privacy, and mocked adapter checks
 
 - **API unavailable:** use `npm run dev`, not just `npm run dev:web`. The full command starts both services.
 - **Provider is disabled:** fill its key or local model name in `.env` and restart the Python server. Keys never go in the UI.
+- **Grok reports no credits or a spending limit:** check billing in your xAI account. A valid key alone does not fund API requests. Retrying the same map keeps its activity allowance.
 - **Local mapping times out:** confirm the model server is running, the name matches its loaded model, and your hardware can run it. Choose a model that can follow a JSON schema.
 - **An activity expired after a restart:** setup creates a stable session secret. If you skipped setup and left `SESSION_SECRET` blank, the development secret changes at startup. Keep a stable random secret in `.env` for quota sessions across restarts. Symptom notes still clear on page refresh.
 - **Daily allowance reached:** the development guard is intentional; adjust `.env` for your own use. It resets at midnight UTC.

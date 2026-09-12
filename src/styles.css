@@ -1738,3 +1738,15 @@ h1 > span {
   color: #bfceb3;
   overflow-wrap: anywhere;
 }
+
+.intake-panel {
+  min-height: 0;
+  align-self: start;
+}
+.anatomy-bottom a {
+  pointer-events: auto;
+}
+.stage-intro .small-label {
+  line-height: 1.5;
+  max-width: 120px;
+}

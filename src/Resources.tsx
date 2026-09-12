@@ -36,10 +36,10 @@ export default function Resources({
         <div>
           <h3>
             {region
-              ? `Explore ${regionName(region).toLowerCase()}`
-              : "Explore the reading library"}
+              ? `Reading for ${regionName(region).toLowerCase()}`
+              : "Related reading"}
           </h3>
-          <p>Curated clinical, PT, OT, and sports science references.</p>
+          <p>Choose the sources you want to consult.</p>
         </div>
       </div>
       <details className="source-picker">
@@ -74,10 +74,7 @@ export default function Resources({
         <button onClick={() => onSources(recommendedSources)}>
           Use recommended list
         </button>
-        <p>
-          Only checked sources appear. Recommended means an editorial starting
-          list, not clinical endorsement.
-        </p>
+        <p>The recommended list is a starting point for reading.</p>
       </details>
       <label className="resource-search">
         <Search size={14} />
@@ -94,7 +91,7 @@ export default function Resources({
       {matches.length ? (
         <>
           <div className="resource-links">
-            {(expanded ? matches : matches.slice(0, 6)).map((resource) => (
+            {(expanded ? matches : matches.slice(0, 4)).map((resource) => (
               <a
                 key={resource.id}
                 href={resource.url}
@@ -113,7 +110,7 @@ export default function Resources({
               </a>
             ))}
           </div>
-          {matches.length > 6 && (
+          {matches.length > 4 && (
             <button
               className="text-button"
               onClick={() => setExpanded((v) => !v)}
@@ -134,10 +131,8 @@ export default function Resources({
         </p>
       )}
       <p className="resource-notice">
-        Matched by region and activity; these references do not establish a
-        cause. The app has not assessed whether a stretch or treatment is
-        appropriate for you. Read the source’s precautions and consult a
-        qualified clinician.
+        Related reading, not a diagnosis or treatment plan. Check the source’s
+        precautions before trying an exercise.
       </p>
     </section>
   );

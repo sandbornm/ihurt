@@ -4,6 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createBody } from "./model";
 import { regions, type RegionId, type PainPoint } from "../types";
 import { loadAtlas, regionAt } from "./atlas";
+import { PinGesture } from "./gesture";
 
 interface Props {
   selected: RegionId | null;
@@ -53,7 +54,7 @@ export default function Anatomy(props: Props) {
     renderer.setClearColor(0x111a18, 0);
     renderer.outputColorSpace = T.SRGBColorSpace;
     renderer.toneMapping = T.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.45;
+    renderer.toneMappingExposure = 1.08;
     renderer.domElement.setAttribute(
       "aria-label",
       "Interactive anatomy. Click to pin a spot. Drag to rotate; use landmarks or the region picker for keyboard access.",
@@ -70,24 +71,28 @@ export default function Anatomy(props: Props) {
     controls.enablePan = true;
     controls.screenSpacePanning = true;
     controls.zoomToCursor = true;
-    controls.minDistance = 0.12;
+    controls.minDistance = 0.35;
     controls.maxDistance = 13;
     controls.zoomSpeed = 0.65;
     controls.panSpeed = 0.7;
+    controls.rotateSpeed = 0.65;
+    controls.maxTargetRadius = 4;
+    controls.cursor.set(0, 0.4, 0);
     controls.maxPolarAngle = Math.PI - 0.04;
     controls.minPolarAngle = 0.04;
     controls.enableZoom = true;
-    scene.add(new T.HemisphereLight(0xe2eddc, 0x293b35, 2.1));
-    const key = new T.DirectionalLight(0xe6edd6, 3);
+    scene.add(new T.HemisphereLight(0xe2eddc, 0x293b35, 1.5));
+    const key = new T.DirectionalLight(0xe6edd6, 2.4);
     key.position.set(-3, 5, 5);
     scene.add(key);
-    const rim = new T.DirectionalLight(0x9ad7b5, 2.6);
+    const rim = new T.DirectionalLight(0x9ad7b5, 1.6);
     rim.position.set(3, 2, -3);
     scene.add(rim);
     const fill = new T.DirectionalLight(0x899caf, 0.8);
     fill.position.set(1, 1, 4);
     scene.add(fill);
     let body = createBody();
+    body.group.visible = false;
     scene.add(body.group);
     const pinGroup = new T.Group();
     scene.add(pinGroup);
@@ -309,11 +314,11 @@ export default function Anatomy(props: Props) {
         update();
       }
       if (type === "zoom-in" || type === "zoom-out") {
-        const offset = camera.position
+        const offset = (easing ? targetPosition : camera.position)
           .clone()
-          .sub(controls.target)
+          .sub(easing ? targetLook : controls.target)
           .multiplyScalar(type === "zoom-in" ? 0.8 : 1.25);
-        offset.clampLength(0.12, 13);
+        offset.clampLength(0.35, 13);
         targetPosition.copy(controls.target).add(offset);
         targetLook.copy(controls.target);
       } else if (
@@ -373,12 +378,17 @@ export default function Anatomy(props: Props) {
         body.group.add(body.fibers);
         scene.add(body.group);
         root.dataset.atlas = "z-anatomy";
+        setReady(true);
         update();
         if (latest.current.command.type.startsWith("muscle:"))
           command(latest.current.command.type);
       })
       .catch(() => {
+        if (disposed) return;
+        body.group.visible = true;
         root.dataset.atlas = "schematic-fallback";
+        setReady(true);
+        dirty = 10;
       });
     fetch("/heat.wasm")
       .then((r) => {
@@ -417,17 +427,26 @@ export default function Anatomy(props: Props) {
     resize();
     const raycaster = new T.Raycaster(),
       pointer = new T.Vector2();
-    let pointerDown = [0, 0];
-    const down = (event: PointerEvent) => {
-      pointerDown = [event.clientX, event.clientY];
+    const gesture = new PinGesture();
+    const stopEasing = () => {
       easing = false;
     };
+    const down = (event: PointerEvent) => {
+      gesture.down(event.pointerId, event.clientX, event.clientY);
+      stopEasing();
+    };
+    const move = (event: PointerEvent) =>
+      gesture.move(event.pointerId, event.clientX, event.clientY);
+    const cancel = (event: PointerEvent) => gesture.cancel(event.pointerId);
     const click = (event: PointerEvent) => {
       if (
-        Math.hypot(
-          event.clientX - pointerDown[0],
-          event.clientY - pointerDown[1],
-        ) > 5
+        !gesture.up(
+          event.pointerId,
+          event.clientX,
+          event.clientY,
+          event.button,
+        ) ||
+        !root.dataset.atlas
       )
         return;
       const rect = renderer.domElement.getBoundingClientRect();
@@ -442,7 +461,7 @@ export default function Anatomy(props: Props) {
           : body.bones;
       const hit = raycaster
         .intersectObjects(
-          meshes.filter((mesh) => mesh.material.opacity > 0.5),
+          meshes.filter((mesh) => mesh.visible && mesh.material.opacity > 0.5),
           false,
         )
         .find((hit) => hit.object.userData.region);
@@ -466,6 +485,9 @@ export default function Anatomy(props: Props) {
     };
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("pointerup", click);
+    renderer.domElement.addEventListener("pointermove", move);
+    renderer.domElement.addEventListener("pointercancel", cancel);
+    controls.addEventListener("start", stopEasing);
     const changed = () => {
       dirty = 5;
     };
@@ -484,7 +506,6 @@ export default function Anatomy(props: Props) {
         dirty--;
       }
     });
-    setReady(true);
     return () => {
       disposed = true;
       engine.current = null;
@@ -493,6 +514,9 @@ export default function Anatomy(props: Props) {
       renderer.setAnimationLoop(null);
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
+      renderer.domElement.removeEventListener("pointermove", move);
+      renderer.domElement.removeEventListener("pointercancel", cancel);
+      controls.removeEventListener("start", stopEasing);
       scene.traverse((object) => {
         if (object instanceof T.Mesh || object instanceof T.LineSegments) {
           object.geometry.dispose();
@@ -527,7 +551,7 @@ export default function Anatomy(props: Props) {
       ) : (
         !ready && (
           <div className="canvas-loading">
-            Preparing your anatomy view
+            Loading the body…
             <span />
           </div>
         )

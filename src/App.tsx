@@ -80,7 +80,7 @@ export default function App() {
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">("front");
   const [command, setCommand] = useState({ type: "", id: 0 });
-  const [landmarks, setLandmarks] = useState(() => window.innerWidth > 670);
+  const [landmarks, setLandmarks] = useState(false);
   const [points, setPoints] = useState<PainPoint[]>([]);
   const [readingSources, setReadingSources] = useState(recommendedSources);
   const [note, setNote] = useState(""),
@@ -237,7 +237,7 @@ export default function App() {
     if (!result) return;
     const item = currentMap();
     setSaved((old) => [...old.filter((m) => m.id !== item.id), item]);
-    setToast("Added to this session. Download it before closing this tab.");
+    setToast("Saved for this visit. Download it to keep it.");
   }
   const disabled =
     busy ||
@@ -255,11 +255,11 @@ export default function App() {
           </span>
           ihurt<span className="brand-period">.</span>
         </a>
-        <span className="brand-caption">A LITTLE MORE BODY AWARENESS</span>
+        <span className="brand-caption">SHOW WHERE. SAY HOW.</span>
         <div className="top-actions">
           <button onClick={() => showInfo("privacy")} className="privacy-link">
             <ShieldCheck size={15} />
-            Anonymous by design
+            Privacy
           </button>
           <button className="help-button" onClick={() => showInfo("about")}>
             <CircleHelp size={18} />
@@ -301,11 +301,11 @@ export default function App() {
         <main className="main-content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">YOUR PERSONAL BODY ATLAS</div>
+              <div className="eyebrow">YOUR BODY MAP</div>
               <h1>
                 Map how you feel<span>.</span>
               </h1>
-              <p>A little context for the things your body is telling you.</p>
+              <p>Pin the spots. Tell us what you notice.</p>
             </div>
             <button className="new-map-button" onClick={newMap} disabled={busy}>
               <Plus size={17} />
@@ -508,16 +508,7 @@ export default function App() {
                   <div className="stage-cross top-left">+</div>
                   <div className="stage-cross bottom-right">+</div>
                   <div className="stage-intro">
-                    <span className="small-label">START WITH A SPOT</span>
-                    <p>
-                      Every body has
-                      <br />a story.
-                    </p>
-                    <span>
-                      Pin a spot.
-                      <br />
-                      Add what you notice.
-                    </span>
+                    <span className="small-label">CLICK TO ADD A PIN</span>
                     <button onClick={() => regionDialog.current?.showModal()}>
                       <Search size={14} />
                       Find a region
@@ -543,7 +534,7 @@ export default function App() {
                         onPoint={(point) => {
                           if (points.length >= 6) {
                             setToast(
-                              "Six spots per map. Remove one to add another.",
+                              "Up to six pins. Remove one to add another.",
                             );
                             return;
                           }
@@ -568,12 +559,6 @@ export default function App() {
                       Back
                     </button>
                   </div>
-                  <span className="body-side right-side">
-                    {view === "front" ? "R" : "L"}
-                  </span>
-                  <span className="body-side left-side">
-                    {view === "front" ? "L" : "R"}
-                  </span>
                   {selected && (
                     <div className="region-callout">
                       <span className="callout-dot" />
@@ -669,13 +654,15 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-                <Resources
-                  region={selected ?? result?.regions[0] ?? null}
-                  activity={`${note} ${result?.activity ?? ""}`}
-                  urgent={result?.urgent ?? false}
-                  selectedSources={readingSources}
-                  onSources={setReadingSources}
-                />
+                {result && (
+                  <Resources
+                    region={selected ?? result?.regions[0] ?? null}
+                    activity={`${note} ${result?.activity ?? ""}`}
+                    urgent={result?.urgent ?? false}
+                    selectedSources={readingSources}
+                    onSources={setReadingSources}
+                  />
+                )}
               </section>
               <aside className="intake-panel">
                 <div className="intake-header">
@@ -683,29 +670,15 @@ export default function App() {
                     <Sparkles size={17} />
                   </span>
                   <div>
-                    <h2>Let’s connect the dots</h2>
-                    <p>Your words. A clearer picture.</p>
+                    <h2>Your note</h2>
+                    <p>Add context to your pins.</p>
                   </div>
-                </div>
-                <div className="steps">
-                  <span className="done">
-                    {result ? <Check size={12} /> : 1}
-                  </span>
-                  <b>Describe</b>
-                  <i />
-                  <span className={result ? "done" : ""}>
-                    {completed ? <Check size={12} /> : 2}
-                  </span>
-                  <b className={result ? "" : "muted"}>Refine</b>
-                  <i />
-                  <span className={completed ? "done" : ""}>3</span>
-                  <b className={completed ? "" : "muted"}>Your map</b>
                 </div>
                 <div className="intake-content">
                   {points.length > 0 && (
                     <div className="pin-list">
                       <span className="small-label">
-                        YOUR PRECISE SPOTS · {points.length}/6
+                        PINNED SPOTS · {points.length}/6
                       </span>
                       {points.map((point, i) => (
                         <div key={point.id}>
@@ -735,13 +708,9 @@ export default function App() {
                   )}
                   {!result ? (
                     <>
-                      <h3>
-                        What’s on your mind
-                        <br />— or in your muscles?
-                      </h3>
+                      <h3>What’s bothering you?</h3>
                       <p className="intro-copy">
-                        Pin the exact spot on the body. Then describe the
-                        feeling and what you were doing.
+                        Describe the feeling and when you notice it.
                       </p>
                     </>
                   ) : (
@@ -864,9 +833,7 @@ export default function App() {
                       </div>
                       {!result && (
                         <>
-                          <div className="example-label">
-                            NEED A STARTING POINT?
-                          </div>
+                          <div className="example-label">TRY AN EXAMPLE</div>
                           <div className="example-chips">
                             {examples.map((example) => (
                               <button
@@ -961,12 +928,12 @@ export default function App() {
                         {busy ? (
                           <>
                             <LoaderCircle size={17} className="spin" />
-                            Connecting the dots…
+                            Making your map…
                           </>
                         ) : (
                           <>
                             <span>
-                              {result ? "Add to my map" : "Create my hurt map"}
+                              {result ? "Update my map" : "Make my map"}
                             </span>
                             <ArrowRight size={17} />
                           </>
@@ -987,12 +954,30 @@ export default function App() {
                   )}
                   {result && (
                     <div className="report-actions">
-                      <button
-                        className={completed ? "primary" : "secondary"}
-                        onClick={saveMap}
-                      >
+                      {!result.urgent && (
+                        <button
+                          className="primary"
+                          onClick={() =>
+                            document
+                              .querySelector(".resource-panel")
+                              ?.scrollIntoView({
+                                behavior: window.matchMedia(
+                                  "(prefers-reduced-motion: reduce)",
+                                ).matches
+                                  ? "instant"
+                                  : "smooth",
+                                block: "start",
+                              })
+                          }
+                        >
+                          <BookOpen size={16} />
+                          Explore related reading
+                          <ArrowRight size={15} />
+                        </button>
+                      )}
+                      <button className="secondary" onClick={saveMap}>
                         <Check size={16} />
-                        Keep in this session
+                        Save for this visit
                       </button>
                       <button
                         className="secondary"
@@ -1041,27 +1026,10 @@ export default function App() {
               </aside>
             </div>
           )}
-          <section className="support-strip">
-            <div className="support-icon">
-              <Activity size={21} />
-            </div>
-            <div>
-              <h3>Awareness starts with noticing.</h3>
-              <p>
-                Your hurt map puts what you feel into words and a place on the
-                body.
-              </p>
-            </div>
-            <button onClick={() => showInfo("about")}>
-              A note on hurt maps
-              <ArrowUpRight size={15} />
-            </button>
-          </section>
           <footer className="page-footer">
             <span>
               <ShieldCheck size={13} />
-              For education and personal reflection. Not medical advice,
-              diagnosis, or treatment.
+              Not medical advice, diagnosis, or treatment.
             </span>
             <button onClick={() => showInfo("privacy")}>
               Privacy & AI use

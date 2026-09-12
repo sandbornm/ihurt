@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n web,api \"vite --host 127.0.0.1\" \"uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload --no-proxy-headers\"",
+    "dev": "concurrently -k -n web,api \"vite --host 127.0.0.1\" \"uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload --reload-include .env --no-proxy-headers\"",
     "dev:web": "vite --host 127.0.0.1",
     "build:wasm": "asc assembly/heat.ts --outFile public/heat.wasm --optimize --noAssert --runtime stub",
     "build": "npm run build:wasm && tsc -b && vite build",
@@ -12,8 +12,9 @@
     "test": "uv run pytest -q",
     "preview": "vite preview --host 127.0.0.1",
     "setup": "node scripts/setup.mjs",
-    "check": "npm run build && npm test",
-    "format": "prettier --write src scripts assembly *.json *.ts .github"
+    "check": "npm run build && npm run test:unit && npm test",
+    "format": "prettier --write src scripts assembly *.json *.ts .github",
+    "test:unit": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",

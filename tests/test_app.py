@@ -4,6 +4,8 @@ import io
 import uuid
 import wave
 import pytest
+import httpx
+from openai import APIStatusError
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -143,6 +145,23 @@ def test_request_rate_limit(settings):
         assert client.get("/api/session").status_code == 429
 
 
+def test_grok_billing_error_is_actionable_without_exposing_account_data(settings, monkeypatch):
+    class UnfundedProvider:
+        async def map(self, request):
+            body = {"error": "Team PRIVATE-ACCOUNT has used all available credits. PRIVATE-NOTE"}
+            raise APIStatusError("private provider response", response=httpx.Response(403, request=httpx.Request("POST", "https://api.x.ai/v1/chat/completions")), body=body)
+    monkeypatch.setattr("backend.app.create_providers", lambda _: {"grok": UnfundedProvider()})
+    with TestClient(create_app(settings)) as client:
+        client.headers.update(ORIGIN)
+        client.get("/api/session")
+        response = client.post("/api/map", json=note(provider="grok", consent=True))
+        assert response.status_code == 502
+        assert "billing" in response.json()["detail"]
+        assert "xAI / Grok" in response.json()["detail"]
+        assert "PRIVATE" not in response.text
+        assert response.json()["activity_id"]
+
+
 def test_production_fails_without_secure_configuration(settings):
     with pytest.raises(ValidationError):
         Settings(_env_file=None, app_env="production", session_secret="short")
@@ -184,9 +203,10 @@ def test_clear_notes_finish_without_routine_questions(client):
 
 def test_surface_pins_anchor_region_and_validate_coordinates(client):
     pin = {"id": str(uuid.uuid4()), "region": "right_shoulder", "position": [-0.6, 2.1, -0.2], "structure": "Infraspinatus muscle"}
-    result = client.post("/api/map", json=note(note="Tight here when serving in tennis.", points=[pin]))
+    second = {**pin, "id": str(uuid.uuid4()), "region": "left_shoulder", "position": [0.6, 2.1, -0.2]}
+    result = client.post("/api/map", json=note(note="Tight in both pinned spots when serving in tennis.", points=[pin, second]))
     assert result.status_code == 200
-    assert result.json()["map"]["regions"] == ["right_shoulder"]
+    assert result.json()["map"]["regions"] == ["right_shoulder", "left_shoulder"]
     assert result.json()["map"]["question"] is None
     assert client.post("/api/map", json=note(points=[{**pin, "position": [0, 900, 0]}])).status_code == 422
     assert client.post("/api/map", json=note(points=[pin, pin])).status_code == 422

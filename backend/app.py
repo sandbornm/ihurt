@@ -13,7 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .config import Settings
 from .limits import Limits
 from .models import MapRequest
-from .providers import create_providers, possible_emergency, SAFETY_MESSAGE
+from .providers import create_providers, possible_emergency, provider_error_message, SAFETY_MESSAGE
 
 
 class RequestBoundary:
@@ -146,7 +146,7 @@ def create_app(settings: Settings | None = None, provider=None):
                 # Do not include provider errors or user content in logs or responses.
                 if isinstance(exc, HTTPException):
                     raise
-                return JSONResponse({"detail": "The mapping service could not finish. Please retry this activity.", "activity_id": activity_id, "remaining": limits.remaining(owner, ip)}, status_code=502)
+                return JSONResponse({"detail": provider_error_message(exc, body.provider), "activity_id": activity_id, "remaining": limits.remaining(owner, ip)}, status_code=502)
             finally:
                 limits.release(activity_id)
 

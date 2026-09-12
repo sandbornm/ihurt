@@ -10,7 +10,7 @@
     height: 620px !important;
   }
   .intake-panel {
-    min-height: 765px !important;
+    min-height: 0 !important;
   }
   .intake-content {
     padding: 30px !important;

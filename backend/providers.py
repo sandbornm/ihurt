@@ -1,13 +1,29 @@
 import json
 import re
 from typing import Protocol
-from openai import AsyncOpenAI
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI, APIStatusError
+from anthropic import AsyncAnthropic, APIStatusError as AnthropicStatusError
 from .config import Settings
 from .models import HurtMap, MapRequest, Question, Region
 
 
 SAFETY_MESSAGE = "Some symptoms need prompt medical attention. If you have sudden chest pain, trouble breathing, new weakness, or loss of bladder or bowel control, contact local emergency services now. Do not wait for this map."
+
+
+def provider_error_message(error: Exception, provider: str) -> str:
+    name = {"openai": "OpenAI", "anthropic": "Anthropic", "grok": "xAI / Grok", "local": "Your local model"}.get(provider, "The mapping service")
+    if isinstance(error, (APIStatusError, AnthropicStatusError)):
+        # Classify the failure without exposing the provider's response or account IDs.
+        detail = str(error.body).lower()
+        if error.status_code in (402, 403, 429) and any(word in detail for word in ("credits", "spending limit", "insufficient_quota", "credit balance")):
+            return f"{name} reports no available credits or a spending limit. Check your provider account's billing before retrying."
+        if error.status_code == 401:
+            return f"{name} rejected the API key. Check the key in your local .env file and restart the app."
+        if error.status_code in (403, 404):
+            return f"{name} did not allow this request. Check the configured model and your API key's permissions."
+        if error.status_code == 429:
+            return f"{name} is limiting requests. Wait a moment before retrying this map."
+    return "The mapping service could not finish. Please retry this activity."
 
 
 def possible_emergency(text: str) -> bool:

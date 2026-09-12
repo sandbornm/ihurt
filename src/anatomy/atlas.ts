@@ -2,6 +2,7 @@ import * as T from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { BodyMesh } from "./model";
+import { bakeGeometry } from "./geometry";
 import type { RegionId } from "../types";
 
 export function regionAt(point: T.Vector3, structure = ""): RegionId {
@@ -62,9 +63,7 @@ export async function loadAtlas() {
           object.geometry.dispose();
           return;
         }
-        const geometry = object.geometry
-          .clone()
-          .applyMatrix4(object.matrixWorld);
+        const geometry = bakeGeometry(object.geometry, object.matrixWorld);
         geometry.computeBoundingBox();
         bounds.union(geometry.boundingBox!);
         meshes.push({ geometry, name, layer: index === 0 ? "muscle" : "bone" });
@@ -85,7 +84,8 @@ export async function loadAtlas() {
         .translate(-center.x, -bounds.min.y, -center.z)
         .scale(scale, scale, scale)
         .translate(0, -2.5, 0);
-      item.geometry.computeVertexNormals();
+      if (!item.geometry.getAttribute("normal"))
+        item.geometry.computeVertexNormals();
       item.geometry.computeBoundingBox();
       const p = item.geometry.boundingBox!.getCenter(new T.Vector3());
       const mesh = new BodyMesh(

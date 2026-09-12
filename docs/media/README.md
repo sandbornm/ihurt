@@ -1,6 +1,6 @@
 # Neck and tennis case study
 
-[← ihurt](../../README.md)
+[← iHurt](../../README.md)
 
 The project creator shared this case study for the README: stiffness in the left upper trap and high neck after sleeping on the side and stomach, followed by tennis serves. The note also records discomfort when lowering the chin toward the chest and turning left more than about 10 degrees. These are reported observations, not measurements or an assessment.
 

@@ -101,7 +101,7 @@ export function renderMapSvg(map: SavedMap) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="${height}" viewBox="0 0 1000 ${height}">
 <defs><radialGradient id="heat"><stop stop-color="#e17c49" stop-opacity=".85"/><stop offset="1" stop-color="#e17c49" stop-opacity="0"/></radialGradient></defs>
 <rect width="1000" height="${height}" fill="#f5f6ef"/><g font-family="Arial,sans-serif" fill="#23382e">
-<text x="55" y="75" font-size="30" font-weight="700">ihurt<tspan fill="#768870">.app</tspan></text><text x="55" y="125" font-size="14">PERSONAL HURT MAP · ${escape(new Date(map.created).toLocaleDateString())}</text>
+<text x="55" y="75" font-size="30" font-weight="700">iHurt<tspan fill="#768870">.app</tspan></text><text x="55" y="125" font-size="14">PERSONAL HURT MAP · ${escape(new Date(map.created).toLocaleDateString())}</text>
 ${textLines(wrap(map.map.title, 65), 55, 180, 24, 31)}
 <defs><g id="body" fill="#c0c9bc" stroke="#f5f6ef" stroke-width="3"><ellipse cx="210" cy="261" rx="23" ry="30"/><path d="M198 286L194 303L162 310L145 370L121 440L130 470L142 450L154 391L173 349L180 430L176 484L180 540L180 613L169 634L195 634L204 538L210 474L216 538L226 634L250 634L239 613L240 540L243 484L240 430L247 349L266 391L278 450L290 470L299 440L275 370L258 310L226 303L222 286Z"/></g></defs>
 <use href="#body" transform="translate(-15 165) scale(.639)"/><use href="#body" transform="translate(149 165) scale(.639)"/>

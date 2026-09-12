@@ -1,6 +1,6 @@
-# Using ihurt
+# Using iHurt
 
-[← ihurt](../README.md)
+[← iHurt](../README.md)
 
 ## Anatomy navigation and exports
 
@@ -17,6 +17,6 @@ Edit [`config/reading-library.json`](../config/reading-library.json), then rebui
 
 The initial library includes NHS, AAOS/OrthoInfo, Mayo Clinic, APTA/ChoosePT, AOTA, UC Berkeley, Stanford's Human Performance Lab, and the NCAA Sport Science Institute. General clinical/PT/OT sources are selected by default; users can opt into the broader sports research and college-athletics sources. **Sources → Use recommended list** restores the curated default. Selections clear on refresh.
 
-The app shows only listed HTTPS links on each publisher’s allowed hosts. Sources match by region and activity, with related activity tags ranked first. Search and source filtering happen locally. It makes no live web searches and sends no symptom text to search engines. The LLM cannot add reference URLs. A reference is related reading, not evidence that the user has the named condition or should perform its exercises. The source has not endorsed ihurt. `checked` records a link check, not a clinical review.
+The app shows only listed HTTPS links on each publisher’s allowed hosts. Sources match by region and activity, with related activity tags ranked first. Search and source filtering happen locally. It makes no live web searches and sends no symptom text to search engines. The LLM cannot add reference URLs. A reference is related reading, not evidence that the user has the named condition or should perform its exercises. The source has not endorsed iHurt. `checked` records a link check, not a clinical review.
 
-To add a college athletics program, open PT resource, or sports science lab, add its publisher and the specific pages you have reviewed. Prefer publicly readable original clinical/educational material. Preserve authorship, dates, precautions, and distinctions between research, general education, and individualized care. The test suite checks URL/host consistency and unique reference IDs. Publishers retain copyright; ihurt links to their pages rather than republishing their content.
+To add a college athletics program, open PT resource, or sports science lab, add its publisher and the specific pages you have reviewed. Prefer publicly readable original clinical/educational material. Preserve authorship, dates, precautions, and distinctions between research, general education, and individualized care. The test suite checks URL/host consistency and unique reference IDs. Publishers retain copyright; iHurt links to their pages rather than republishing their content.

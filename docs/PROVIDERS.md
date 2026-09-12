@@ -1,6 +1,6 @@
 # AI providers and voice input
 
-[← ihurt](../README.md)
+[← iHurt](../README.md)
 
 ## Start with Grok
 

@@ -253,13 +253,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a href="/" className="brand" aria-label="ihurt home">
+        <a href="/" className="brand" aria-label="iHurt home">
           <span className="brand-mark">
-            <Activity size={23} strokeWidth={2} />
+            <img src="/favicon.svg" width="34" height="34" alt="" />
           </span>
-          ihurt<span className="brand-period">.</span>
+          iHurt<span className="brand-period">.</span>
         </a>
-        <span className="brand-caption">SHOW WHERE. SAY HOW.</span>
         <div className="top-actions">
           <button onClick={() => showInfo("privacy")} className="privacy-link">
             <ShieldCheck size={15} />
@@ -1104,16 +1103,16 @@ export default function App() {
             <span className="dialog-emblem">
               <Activity size={28} />
             </span>
-            <h2>Show where. Say how.</h2>
+            <h2>About iHurt</h2>
             <p>
               Pin where you feel discomfort and describe what brings it on.
-              ihurt puts your notes and pins into a hurt map, with up to two
+              iHurt puts your notes and pins into a hurt map, with up to two
               follow-up questions. Download it to keep or share with a
               clinician.
             </p>
             <h3>This is not medical advice whatsoever.</h3>
             <p>
-              ihurt does not diagnose, treat, cure, or prevent any disease or
+              iHurt does not diagnose, treat, cure, or prevent any disease or
               condition. It is not intended as a medical device or a substitute
               for professional care. Do not use it to decide whether you need
               medical attention.

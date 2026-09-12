@@ -1,6 +1,6 @@
-# Install and run ihurt
+# Install and run iHurt
 
-[← ihurt](../README.md)
+[← iHurt](../README.md)
 
 ## Quick start
 

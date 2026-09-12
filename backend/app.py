@@ -78,7 +78,7 @@ def create_app(settings: Settings | None = None, provider=None):
             if hasattr(provider, "client"):
                 await provider.client.close()
 
-    app = FastAPI(title="ihurt", docs_url="/api/docs" if settings.app_env == "development" else None, redoc_url=None, openapi_url="/api/openapi.json" if settings.app_env == "development" else None, lifespan=lifespan)
+    app = FastAPI(title="iHurt", docs_url="/api/docs" if settings.app_env == "development" else None, redoc_url=None, openapi_url="/api/openapi.json" if settings.app_env == "development" else None, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     app.add_middleware(RequestBoundary, settings=settings)
     app.state.limits = limits

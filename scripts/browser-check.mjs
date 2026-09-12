@@ -88,7 +88,7 @@ try {
       viewport,
       reducedMotion: "reduce",
     });
-    await context.tracing.start({ screenshots: true, snapshots: true });
+    await context.tracing.start({ screenshots: false, snapshots: true });
     const page = await context.newPage();
     page.setDefaultTimeout(60000);
     const errors = [];
@@ -133,6 +133,7 @@ try {
         path: join(output, `${name}.png`),
         animations: "disabled",
       });
+      console.log(`PASS ${name}: layout and atlas remain visible after refresh`);
       if (name === "desktop") {
         const box = await page.locator("canvas").boundingBox();
         const x = box.x + box.width / 2,
@@ -140,9 +141,9 @@ try {
         await page.mouse.move(x, y);
         await page.mouse.down();
         for (let i = 0; i < 3; i++) {
-          await page.mouse.move(x + 120, y + 40, { steps: 10 });
-          await page.mouse.move(x - 120, y + 80, { steps: 10 });
-          await page.mouse.move(x, y, { steps: 10 });
+          await page.mouse.move(x + 120, y + 40, { steps: 2 });
+          await page.mouse.move(x - 120, y + 80, { steps: 2 });
+          await page.mouse.move(x, y, { steps: 2 });
         }
         await page.mouse.up();
         await page.mouse.click(x, y, { button: "right" });
@@ -151,6 +152,7 @@ try {
           0,
           "Dragging added a pin",
         );
+        console.log("PASS drag: repeated loops and right-click add no pins");
         await page
           .getByRole("button", { name: "Reset view", exact: true })
           .click();

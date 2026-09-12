@@ -172,7 +172,7 @@ npm run test:unit  # drag gestures and mirrored anatomy surfaces
 npm run check      # app build and tests
 ```
 
-GitHub Actions runs the build, backend tests, and browser checks on pushes and pull requests. You can also start it from the Actions tab. Browser checks use a fresh headless Chromium instance and a temporary demo server with cloud keys disabled. They check desktop and phone layouts after refresh, atlas loading, drag gestures, multiple pins, and JSON export. Screenshots and failure traces are available as workflow artifacts for three days.
+GitHub Actions runs the build, backend tests, and browser checks on pushes and pull requests. You can also start it from the Actions tab. Browser checks use a fresh headless Chromium instance and a temporary demo server with cloud keys disabled. They check desktop and phone layouts after refresh, the 670-pixel layout boundary, atlas loading, drag gestures, and multiple rear-view pins. They also verify that submission preserves the rear view, movement descriptions do not add unpinned regions in demo mode, SVG/JSON exports keep the full note, and resource searches respect selected publishers. Screenshots and failure traces are available as workflow artifacts for three days.
 
 To run the same browser checks locally without changing your open preview:
 

@@ -133,7 +133,9 @@ try {
         path: join(output, `${name}.png`),
         animations: "disabled",
       });
-      console.log(`PASS ${name}: layout and atlas remain visible after refresh`);
+      console.log(
+        `PASS ${name}: layout and atlas remain visible after refresh`,
+      );
       if (name === "desktop") {
         const box = await page.locator("canvas").boundingBox();
         const x = box.x + box.width / 2,
@@ -156,6 +158,7 @@ try {
         await page
           .getByRole("button", { name: "Reset view", exact: true })
           .click();
+        await page.getByRole("button", { name: "Back", exact: true }).click();
         await page.evaluate(
           () =>
             new Promise((done) =>
@@ -172,7 +175,7 @@ try {
         );
         await page.getByText("PINNED SPOTS · 2/6").waitFor();
         const note =
-          "Both pinned spots feel tight when reaching overhead after tennis yesterday.";
+          "Both pinned spots feel tight when reaching overhead. I slept on my stomach. Moving my chin toward my chest also brings it on.";
         await page
           .getByRole("textbox", { name: "Describe your discomfort" })
           .fill(note);
@@ -182,6 +185,13 @@ try {
         await page
           .getByRole("button", { name: "Explore related reading" })
           .waitFor();
+        assert.equal(
+          await page
+            .getByRole("button", { name: "Back", exact: true })
+            .getAttribute("aria-pressed"),
+          "true",
+          "Submitting a pinned map changed the rear view",
+        );
         const downloaded = page.waitForEvent("download");
         await page
           .getByRole("button", { name: "Export map data (.json)" })
@@ -193,17 +203,107 @@ try {
         assert.equal(report.schema_version, 1);
         assert.equal(report.points.length, 2);
         assert.equal(report.note, note);
+        assert.equal(report.provider, "Demo · no AI");
+        assert.equal(report.map.intensity, null);
+        assert.ok(report.points.every((point) => point.position[2] < 0));
+        assert.deepEqual(
+          [...report.map.regions].sort(),
+          [...new Set(report.points.map((point) => point.region))].sort(),
+          "Movement descriptions added unpinned pain regions",
+        );
         assert.ok(report.references.length > 0);
+        const svgDownload = page.waitForEvent("download");
+        await page.getByRole("button", { name: "Download hurt map" }).click();
+        const svgPath = join(output, "example-map.svg");
+        await (await svgDownload).saveAs(svgPath);
+        const svg = await readFile(svgPath, "utf8");
+        const svgText = await page.evaluate((markup) => {
+          const document = new DOMParser().parseFromString(
+            markup,
+            "image/svg+xml",
+          );
+          if (document.querySelector("parsererror"))
+            throw new Error("Invalid SVG export");
+          return [...document.querySelectorAll("text")]
+            .map((text) => text.textContent)
+            .join(" ");
+        }, svg);
+        assert.ok(
+          svgText.includes(note),
+          "SVG export dropped part of the note",
+        );
+        assert.ok(svgText.includes("Not medical advice"));
+        await page
+          .getByRole("button", { name: "Explore related reading" })
+          .click();
+        await page
+          .getByRole("textbox", { name: "Search educational resources" })
+          .fill("exercise");
+        const nhsGuide = page.getByRole("link", {
+          name: /NHS · Movement guide Neck mobility/,
+        });
+        await nhsGuide.waitFor();
+        assert.equal(
+          await nhsGuide.getAttribute("href"),
+          "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+        );
+        await page.locator(".source-picker summary").click();
+        await page.getByRole("checkbox", { name: /^NHS / }).uncheck();
+        assert.equal(
+          await nhsGuide.count(),
+          0,
+          "An excluded publisher still appears",
+        );
+        await page
+          .getByRole("button", { name: "Use recommended list" })
+          .click();
+        await nhsGuide.waitFor();
+        await page.locator(".source-picker summary").click();
+        await page
+          .getByRole("textbox", { name: "Search educational resources" })
+          .fill("no-matching-reference-123");
+        await page
+          .getByText(
+            "No match in the curated library. Try another topic or source.",
+          )
+          .waitFor();
+        await page
+          .getByRole("textbox", { name: "Search educational resources" })
+          .fill("");
         assert.equal(await page.evaluate(() => innerWidth), viewport.width);
         await page.screenshot({
           path: join(output, "two-pin-map.png"),
           fullPage: true,
         });
+        for (const width of [761, 671, 670]) {
+          await page.setViewportSize({ width, height: viewport.height });
+          const layout = await page.evaluate(() => ({
+            width: innerWidth,
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            columns: getComputedStyle(
+              document.querySelector(".explorer-grid"),
+            ).gridTemplateColumns.split(" ").length,
+          }));
+          assert.equal(layout.width, width);
+          assert.equal(
+            layout.overflow,
+            false,
+            `Layout overflows at ${width}px`,
+          );
+          assert.equal(
+            layout.columns,
+            width > 670 ? 2 : 1,
+            `Wrong layout at ${width}px`,
+          );
+        }
+        console.log(
+          "PASS boundaries: two columns at 761/671px, one column at 670px",
+        );
       }
       assert.deepEqual(errors, [], "Browser errors");
       assert.deepEqual(external, [], "The demo contacted an external service");
       console.log(
-        `PASS ${name}: atlas, WASM, stable layout after refresh${name === "desktop" ? ", drag, two pins, note, JSON export" : ""}`,
+        `PASS ${name}: atlas, WASM, stable layout after refresh${name === "desktop" ? ", drag, rear pins, note, SVG/JSON exports, source filters" : ""}`,
       );
       await context.tracing.stop();
     } catch (error) {

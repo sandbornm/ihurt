@@ -80,7 +80,7 @@ export default function App() {
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">("front");
   const [command, setCommand] = useState({ type: "", id: 0 });
-  const [landmarks, setLandmarks] = useState(true);
+  const [landmarks, setLandmarks] = useState(() => window.innerWidth > 670);
   const [points, setPoints] = useState<PainPoint[]>([]);
   const [readingSources, setReadingSources] = useState(recommendedSources);
   const [note, setNote] = useState(""),
@@ -137,6 +137,8 @@ export default function App() {
     regionDialog.current?.close();
   }
   function action(type: string) {
+    if (window.innerWidth <= 670 && /^(focus|muscle:|surface:)/.test(type))
+      setLandmarks(false);
     setCommand((v) => ({ type, id: v.id + 1 }));
   }
   function resetChallenge() {

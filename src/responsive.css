@@ -499,3 +499,10 @@
     scroll-behavior: auto !important;
   }
 }
+
+@media (max-width: 670px) {
+  .stage-intro p {
+    max-width: 126px;
+    font-size: 18px !important;
+  }
+}

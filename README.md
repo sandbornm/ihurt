@@ -14,10 +14,10 @@ iHurt helps you describe discomfort when words alone are hard to get right. Plac
 
 ## Keep a visual journal
 
-- Place several pins and add a comment to each spot.
+- Place up to ten pins and add a comment to each spot.
 - Keep multiple entries, edit them later, and choose any sport or activity.
 - Explore reading from your selected sources.
-- Print a heatmap or export JSON with notes, coordinates, and anatomy references.
+- Print a heatmap or share an [.ihm map](docs/IHM.md) or JSON with notes, coordinates, and anatomy references.
 
 **[Open the browser notebook →](https://ihurt.app/try/)** · [Install locally](docs/SETUP.md) · [Optional AI tools](docs/PROVIDERS.md)
 
@@ -33,6 +33,6 @@ Entries stay in this browser on this device. Export a backup before clearing bro
 
 ## About the project
 
-React, TypeScript, Three.js, and WebAssembly, with an optional Python backend for AI tools. The website for `ihurt.app` lives in a separate repository.
+React, TypeScript, Three.js, and WebAssembly, with an optional Python backend for AI tools.
 
 [Usage and source curation](docs/GUIDE.md) · [Development and tests](docs/DEVELOPMENT.md) · [MIT code license](LICENSE)

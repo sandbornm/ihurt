@@ -74,3 +74,50 @@ export const removeEntry = (id: string) =>
   mutate(["entries"], (tx) => {
     tx.objectStore("entries").delete(id);
   });
+
+export async function saveResearch(
+  entryId: string,
+  research: NonNullable<SavedMap["research"]>,
+): Promise<SavedMap | undefined> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(["entries", "settings"], "readwrite");
+    const saved = tx.objectStore("entries").get(entryId);
+    const draft = tx.objectStore("settings").get("draft");
+    let complete = 0,
+      updated: SavedMap | undefined;
+    const merge = () => {
+      if (++complete !== 2) return;
+      const currentDraft = draft.result as Draft | undefined;
+      const matches = currentDraft?.entry.id === entryId;
+      const entry = matches
+        ? currentDraft.entry
+        : (saved.result as SavedMap | undefined);
+      // A deleted entry must stay deleted when an earlier search finishes.
+      if (!entry) return;
+      const references = [
+        ...research.references,
+        ...(entry.references ?? []),
+      ].filter(
+        (r, i, all) => all.findIndex((other) => other.url === r.url) === i,
+      );
+      updated = {
+        ...entry,
+        research,
+        references,
+        updated: new Date().toISOString(),
+      };
+      tx.objectStore("entries").put(updated);
+      if (matches)
+        tx.objectStore("settings").put(
+          { ...currentDraft, entry: updated },
+          "draft",
+        );
+    };
+    saved.onsuccess = merge;
+    draft.onsuccess = merge;
+    tx.oncomplete = () => resolve(updated);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}

@@ -1,5 +1,10 @@
 import { regionName, regions, type SavedMap } from "./types.ts";
-import { stringifyNotebook } from "./notebook-data.ts";
+import {
+  stringifyNotebook,
+  exportNotebook,
+  aiPrompt,
+} from "./notebook-data.ts";
+import { intensityColor } from "./anatomy/intensity.ts";
 
 const escape = (s: string) =>
   s.replace(
@@ -107,7 +112,7 @@ export function renderMapSvg(map: SavedMap) {
     })
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="${height}" viewBox="0 0 1000 ${height}">
-<defs><radialGradient id="heat"><stop stop-color="#e17c49" stop-opacity=".85"/><stop offset="1" stop-color="#e17c49" stop-opacity="0"/></radialGradient></defs>
+<defs><radialGradient id="heat"><stop stop-color="${intensityColor(map.map.intensity)}" stop-opacity=".85"/><stop offset="1" stop-color="${intensityColor(map.map.intensity)}" stop-opacity="0"/></radialGradient></defs>
 <rect width="1000" height="${height}" fill="#f5f6ef"/><g font-family="Arial,sans-serif" fill="#23382e">
 <text x="55" y="75" font-size="30" font-weight="700">iHurt<tspan fill="#768870">.app</tspan></text><text x="55" y="125" font-size="14">PERSONAL HURT MAP · ${escape(new Date(map.created).toLocaleDateString())}</text>
 ${textLines(wrap(map.map.title, 65), 55, 180, 24, 31)}
@@ -123,9 +128,28 @@ ${circles}${points}<text x="99" y="604" font-size="11">FRONT</text><text x="265"
 <text x="55" y="${height - 53}" font-size="12">Colors show reported discomfort. Reading links are not a diagnosis or a personalized treatment plan.</text>
 <text x="55" y="${height - 30}" font-size="12">${map.map.urgent ? "Potential urgent symptoms were reported. Seek urgent medical help; do not wait for this map." : "This file contains personal symptom information. Keep and share it carefully."}</text></g></svg>`;
 }
-export function download(map: SavedMap, format: "svg" | "json") {
-  const content =
-    format === "svg" ? renderMapSvg(map) : stringifyNotebook([map]);
+export function stringifyIhm(map: SavedMap) {
+  return JSON.stringify(
+    {
+      ...exportNotebook([map]),
+      bundle: { kind: "ihurt.map", version: 1 },
+      review_request: aiPrompt,
+      materials: [
+        {
+          name: "hurt-map.svg",
+          media_type: "image/svg+xml",
+          purpose:
+            "Derived heatmap preview. The highlights contain the original anatomy coordinates.",
+          content: renderMapSvg(map),
+        },
+      ],
+    },
+    null,
+    2,
+  );
+}
+export function download(map: SavedMap, format: "svg" | "json" | "ihm") {
+  const content = format === "svg" ? renderMapSvg(map) : stringifyIhm(map);
   const blob = new Blob([content], {
     type: format === "svg" ? "image/svg+xml" : "application/json",
   });

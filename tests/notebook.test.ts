@@ -95,3 +95,19 @@ test("ten pins and a reviewed search description survive export and import", () 
   entry.points.push({ ...entry.points[0], id: crypto.randomUUID() });
   assert.throws(() => parseNotebook(stringifyNotebook([entry])));
 });
+
+test("ihm packages remain ordinary JSON with inert derived materials", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const entry = finishEntry(exampleEntry());
+  const content = stringifyIhm(entry),
+    bundle = JSON.parse(content);
+  assert.equal(bundle.bundle.kind, "ihurt.map");
+  assert.equal(bundle.bundle.version, 1);
+  assert.equal(bundle.materials[0].media_type, "image/svg+xml");
+  assert.ok(bundle.materials[0].content.startsWith("<svg"));
+  assert.equal(parseNotebook(content)[0].note, entry.note);
+  bundle.materials[0].content = "<script>untrusted</script>";
+  assert.equal(parseNotebook(JSON.stringify(bundle))[0].note, entry.note);
+  bundle.bundle.version = 999;
+  assert.throws(() => parseNotebook(JSON.stringify(bundle)), /bundle version/);
+});

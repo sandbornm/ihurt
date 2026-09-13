@@ -91,6 +91,44 @@ try {
     await picker.getByRole("button", { name: "Pin this structure" }).click();
     await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Layers", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Muscle list", exact: true })
+      .click();
+    await page
+      .getByRole("textbox", { name: "Find a muscle" })
+      .fill("biceps brachii");
+    const muscle = page.locator(".muscle-browser-list button").first();
+    await muscle.click();
+    assert.equal(await muscle.getAttribute("aria-pressed"), "true");
+    await page
+      .getByRole("button", { name: "Add pin to muscle", exact: true })
+      .click();
+    await picker.waitFor();
+    await page.screenshot({ path: join(output, `layers-${width}.png`) });
+    await picker.getByRole("button", { name: "Pin this structure" }).click();
+    await page.getByText("PINNED SPOTS · 2/10", { exact: true }).waitFor();
+    await page
+      .getByRole("button", { name: "Add pin in selected region" })
+      .click();
+    await picker.waitFor();
+    await picker.getByRole("button", { name: "Pin this structure" }).click();
+    await page.getByText("PINNED SPOTS · 3/10", { exact: true }).waitFor();
+    await page
+      .getByRole("slider", { name: "Reported intensity", exact: true })
+      .fill("7");
+    const bundleDownload = page.waitForEvent("download");
+    await page
+      .getByText("Full report with Grok or another AI", { exact: true })
+      .click();
+    await page.getByRole("button", { name: "Download .ihm map" }).click();
+    const bundleFile = await bundleDownload;
+    const bundlePath = join(output, `map-${width}.ihm`);
+    await bundleFile.saveAs(bundlePath);
+    const bundle = JSON.parse(await readFile(bundlePath, "utf8"));
+    assert.equal(bundle.entries[0].context.intensity, 7);
+    assert.equal(bundle.entries[0].highlights.length, 3);
+    assert.equal(bundle.materials[0].media_type, "image/svg+xml");
+    await page.getByRole("button", { name: "Reset view", exact: true }).click();
     const note = page.getByRole("textbox", {
       name: "Describe your discomfort",
     });

@@ -4,12 +4,15 @@
 
 ## Anatomy navigation and exports
 
-Use **Landmarks** to choose a region, view it from the front, back, top, or outer side, then inspect a named muscle group. Shoulder landmarks include the deltoid and rotator-cuff muscles; neck landmarks include sternocleidomastoid, upper trapezius, levator scapulae, and splenius capitis. Inspecting a muscle hides surrounding muscles; **Show surrounding anatomy** restores them. Scroll toward the cursor to zoom, drag to orbit, and right-drag to pan. The buttons ease the camera into position and support keyboard access. Reduced-motion settings skip camera transitions.
+Use **Landmarks** to choose a region and view it from the front, back, top, or outer side. **Muscle list** searches the atlas by name and isolates the selected structure. Adjust **Surrounding anatomy** to show nearby structures faintly, or choose **Show whole body** to restore the view. Use **Add pin to muscle** to preview a surface point before placing it.
+
+Choose **Turn** or **Move**, then use the arrows or drag. Scroll or use the zoom buttons to zoom around the current focus. The buttons support keyboard access. Reduced-motion settings skip camera transitions.
 
 A click places a precise surface pin. The 3D overlay spreads heat around your pin; it does not infer tissue damage or a diagnosis. Coarse regions are approximate and can misclassify boundaries. The GLB meshes have finite detail: close zoom does not reveal microscopic anatomy. Detailed nerve pathways and motion analysis are outside this version.
 
 - **SVG:** a standalone visual report with front/back projections, numbered pins, context, and clickable reading citations. Projection onto the report silhouette is approximate.
 - **JSON:** `schema_version: 2` in an `ihurt.notebook` envelope. Each entry includes the original note, timestamps, activity, pin comments, normalized 3D coordinates and named structures. Anatomy metadata includes GLB source URLs, SHA-256 hashes, coordinate axes and normalization. New pins include their original mesh node reference. Optional AI interpretations remain separate from your notes. Import restores compatible version 2 files without overwriting existing entries.
+- **IHM:** the same JSON journal with a review prompt and an embedded SVG preview. See [the map format](IHM.md). Single-entry JSON exports contain the same bundle; a notebook backup contains all saved entries.
 
 ## Curate the reading sources
 
@@ -23,4 +26,4 @@ To add a college athletics program, open PT resource, or sports science lab, add
 
 ## Easier model controls
 
-Choose **Turn** or **Move**, then use the arrows or drag. The zoom buttons keep the view centered. **Layers** lets you click a spot, preview nearby surfaces along the view, and pin the structure you choose. This is model geometry, not a measurement of tissue depth or the cause of discomfort. Each entry supports ten pins.
+**Layers** lets you click a spot, preview nearby surfaces along the view, and pin the structure you choose. This is model geometry, not a measurement of tissue depth or the cause of discomfort. Each entry supports ten pins. The intensity control records a value from 0 to 10 and colors the heatmap from blue to red. Leave it unrated when you do not want to record a number.

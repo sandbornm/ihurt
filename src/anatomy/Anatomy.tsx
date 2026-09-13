@@ -6,7 +6,8 @@ import { regions, type RegionId, type PainPoint } from "../types";
 import { loadAtlas, regionAt } from "./atlas";
 import { PinGesture } from "./gesture";
 import { advanceCamera, nudgeCamera } from "./motion";
-import { nearbySurfaces } from "./selection";
+import { nearbySurfaces, surfaceNearViewCenter } from "./selection";
+import { intensityColor } from "./intensity";
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,8 +52,16 @@ export default function Anatomy(props: Props) {
   const [layers, setLayers] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidateIndex, setCandidateIndex] = useState(0);
-  const interaction = useRef({ dragMode, layers });
-  interaction.current = { dragMode, layers };
+  const [muscleBrowser, setMuscleBrowser] = useState(false);
+  const [muscleQuery, setMuscleQuery] = useState("");
+  const [muscleOptions, setMuscleOptions] = useState<
+    { id: string; name: string; region: RegionId }[]
+  >([]);
+  const [activeMuscle, setActiveMuscle] = useState("");
+  const [surroundings, setSurroundings] = useState(0);
+  const [pickHint, setPickHint] = useState("");
+  const interaction = useRef({ dragMode, layers, surroundings });
+  interaction.current = { dragMode, layers, surroundings };
   const picker = useRef<HTMLDivElement>(null);
   const layersButton = useRef<HTMLButtonElement>(null);
   const closePicker = () => {
@@ -163,8 +172,7 @@ export default function Anatomy(props: Props) {
     scene.add(outerRing);
     const heatColor = new T.Color();
     const cool = new T.Color("#c4ed76"),
-      warm = new T.Color("#ffb265"),
-      hot = new T.Color("#ed6e42");
+      warm = new T.Color("#ffb265");
     let heat: HeatFunction = fallbackHeat;
     let disposed = false,
       dirty = 2;
@@ -172,15 +180,18 @@ export default function Anatomy(props: Props) {
       targetLook = controls.target.clone();
     let easing = false;
     let inspected = "";
+    let exactMesh = "";
     let inspectedSide = 0;
     let previewMesh: T.Object3D | null = null;
     const matchesInspection = (mesh: T.Mesh) =>
-      !inspected ||
-      (mesh.name.toLowerCase().includes(inspected) &&
-        (!inspectedSide ||
-          mesh.geometry.boundingBox!.getCenter(new T.Vector3()).x *
-            inspectedSide >
-            0));
+      exactMesh
+        ? mesh.uuid === exactMesh
+        : !inspected ||
+          (mesh.name.toLowerCase().includes(inspected) &&
+            (!inspectedSide ||
+              mesh.geometry.boundingBox!.getCenter(new T.Vector3()).x *
+                inspectedSide >
+                0));
     const stepCamera = (elapsedSeconds: number) =>
       advanceCamera(
         camera.position,
@@ -205,13 +216,15 @@ export default function Anatomy(props: Props) {
       controls.mouseButtons.LEFT =
         interaction.current.dragMode === "move" ? T.MOUSE.PAN : T.MOUSE.ROTATE;
       root.dataset.dragMode = interaction.current.dragMode;
-      root.dataset.inspected = inspected || "none";
+      root.dataset.inspected = exactMesh || inspected || "none";
       for (const mesh of body.muscles) {
-        mesh.visible = p.layer === "muscle" && matchesInspection(mesh);
         const matches = matchesInspection(mesh);
-        const faded = !!previewMesh && mesh !== previewMesh;
-        mesh.material.transparent = faded || (!!inspected && !matches);
-        mesh.material.opacity = faded ? 0.08 : matches ? 1 : 0.055;
+        const faded = (!!previewMesh && mesh !== previewMesh) || !matches;
+        mesh.visible =
+          p.layer === "muscle" &&
+          (!faded || interaction.current.surroundings > 0);
+        mesh.material.transparent = faded;
+        mesh.material.opacity = faded ? interaction.current.surroundings : 1;
         mesh.material.depthWrite = !faded && matches;
         mesh.material.emissive.set(
           mesh === previewMesh
@@ -269,15 +282,7 @@ export default function Anatomy(props: Props) {
           }
           color.copy(base);
           if (amount > 0.02) {
-            const severity = (p.intensity ?? 3) / 10;
-            if (p.intensity === null) heatColor.copy(cool);
-            else
-              heatColor
-                .copy(severity < 0.5 ? cool : warm)
-                .lerp(
-                  severity < 0.5 ? warm : hot,
-                  severity < 0.5 ? severity * 2 : (severity - 0.5) * 2,
-                );
+            heatColor.set(intensityColor(p.intensity));
             color.lerp(heatColor, Math.min(1, amount * 1.6 + 0.15));
           }
           colors.setXYZ(i, color.r, color.g, color.b);
@@ -286,9 +291,11 @@ export default function Anatomy(props: Props) {
       }
       body.fibers.visible = p.layer === "muscle";
       for (const bone of body.bones) {
-        const faded = !!previewMesh && bone !== previewMesh;
+        const faded =
+          (!!previewMesh && bone !== previewMesh) || !!exactMesh || !!inspected;
+        bone.visible = !faded || interaction.current.surroundings > 0;
         bone.material.transparent = faded || !!inspected;
-        bone.material.opacity = faded ? 0.08 : inspected ? 0.15 : 1;
+        bone.material.opacity = faded ? interaction.current.surroundings : 1;
         bone.material.depthWrite = !faded && !inspected;
         bone.material.color.copy(bone.userData.base);
         if (bone === previewMesh) bone.material.color.lerp(cool, 0.8);
@@ -312,16 +319,46 @@ export default function Anatomy(props: Props) {
     const command = (type: string) => {
       previewMesh = null;
       setCandidates([]);
+      setPickHint("");
+      if (
+        ["context", "reset", "view", "focus"].includes(type) ||
+        type.startsWith("muscle:") ||
+        type.startsWith("surface:") ||
+        type.startsWith("point:")
+      ) {
+        exactMesh = "";
+        setActiveMuscle("");
+      }
       update();
       const p = latest.current;
       const sign = p.view === "back" ? -1 : 1;
+      if (type === "pin-center") {
+        if (!exactMesh && p.selected) command("focus");
+        if (easing) {
+          camera.position.copy(targetPosition);
+          controls.target.copy(targetLook);
+          easing = false;
+          controls.update();
+        }
+        camera.updateMatrixWorld();
+        const rect = renderer.domElement.getBoundingClientRect();
+        pickAt(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+          true,
+          exactMesh ? undefined : (p.selected ?? undefined),
+        );
+        return;
+      }
       if (type === "context") {
         inspected = "";
         update();
         return;
       }
-      if (type.startsWith("muscle:")) {
-        inspected = type.slice(7);
+      if (type.startsWith("muscle:") || type.startsWith("mesh:")) {
+        exactMesh = type.startsWith("mesh:") ? type.slice(5) : "";
+        setActiveMuscle(exactMesh);
+        inspected = exactMesh ? "" : type.slice(7);
         inspectedSide = p.selected?.startsWith("left")
           ? 1
           : p.selected?.startsWith("right")
@@ -329,6 +366,7 @@ export default function Anatomy(props: Props) {
             : 0;
         const matching = body.muscles.filter(matchesInspection);
         if (matching.length) {
+          if (exactMesh) latest.current.onSelect(matching[0].userData.region!);
           const box = new T.Box3();
           matching.forEach((mesh) => box.union(mesh.geometry.boundingBox!));
           box.getCenter(targetLook);
@@ -457,6 +495,21 @@ export default function Anatomy(props: Props) {
             new T.LineBasicMaterial(),
           ),
         };
+        setMuscleOptions(
+          body.muscles
+            .map((mesh) => ({
+              id: mesh.uuid,
+              name:
+                mesh.name.replace(/\.[lr]\.\d+$/, "").replace(/_/g, " ") +
+                (/\.l\./.test(mesh.name)
+                  ? " · Left"
+                  : /\.r\./.test(mesh.name)
+                    ? " · Right"
+                    : ""),
+              region: mesh.userData.region!,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
         body.group.add(body.fibers);
         scene.add(body.group);
         root.dataset.atlas = "z-anatomy";
@@ -536,22 +589,61 @@ export default function Anatomy(props: Props) {
         !root.dataset.atlas
       )
         return;
+      pickAt(event.clientX, event.clientY);
+    };
+    function pickAt(
+      clientX: number,
+      clientY: number,
+      forcePicker = false,
+      targetRegion?: RegionId,
+    ) {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        (-(event.clientY - rect.top) / rect.height) * 2 + 1,
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        (-(clientY - rect.top) / rect.height) * 2 + 1,
       );
       raycaster.setFromCamera(pointer, camera);
       const meshes =
         latest.current.layer === "muscle"
           ? [...body.muscles, ...body.bones]
           : body.bones;
-      const hits = raycaster
+      let hits = raycaster
         .intersectObjects(
           meshes.filter((mesh) => mesh.visible && mesh.material.opacity > 0.5),
           false,
         )
-        .filter((hit) => hit.object.userData.region);
+        .filter(
+          (hit) =>
+            hit.object.userData.region &&
+            (!targetRegion ||
+              regionAt(hit.point, hit.object.name) === targetRegion),
+        );
+      if (!hits.length && forcePicker && (exactMesh || targetRegion)) {
+        const surfaces = meshes.filter(
+          (mesh) =>
+            mesh.visible &&
+            mesh.material.opacity > 0.5 &&
+            (exactMesh
+              ? mesh.uuid === exactMesh
+              : mesh.userData.region === targetRegion),
+        );
+        let closest = Infinity;
+        for (const mesh of surfaces) {
+          const surface = surfaceNearViewCenter(mesh, camera);
+          if (
+            !surface ||
+            (targetRegion &&
+              regionAt(surface.point, mesh.name) !== targetRegion)
+          )
+            continue;
+          const projected = surface.point.clone().project(camera);
+          const distance = projected.x ** 2 + projected.y ** 2;
+          if (distance < closest) {
+            closest = distance;
+            hits = [surface];
+          }
+        }
+      }
       const options = nearbySurfaces(hits).map((hit): Candidate => {
         const region =
           root.dataset.atlas === "z-anatomy"
@@ -579,17 +671,21 @@ export default function Anatomy(props: Props) {
       if (
         options.length &&
         latest.current.navigation &&
-        interaction.current.layers
+        (interaction.current.layers || forcePicker)
       ) {
         setCandidateIndex(0);
         setCandidates(options);
+        setMuscleBrowser(false);
         previewMesh = options[0].mesh;
         update();
       } else if (options[0]) {
         latest.current.onSelect(options[0].point.region);
         latest.current.onPoint?.(options[0].point);
+      } else if (forcePicker) {
+        setLayers(true);
+        setPickHint("Click the visible muscle to choose a pin location");
       }
-    };
+    }
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("pointerup", click);
     renderer.domElement.addEventListener("pointermove", move);
@@ -648,11 +744,12 @@ export default function Anatomy(props: Props) {
       props.layer,
       props.points,
       dragMode,
+      surroundings,
     ],
   );
   useEffect(() => {
     setCandidates([]);
-    engine.current?.preview(null);
+    engine.current?.command("context");
   }, [props.layer, layers]);
   useEffect(() => {
     if (candidates.length)
@@ -670,6 +767,16 @@ export default function Anatomy(props: Props) {
         <>
           <div className="anatomy-navigation" aria-label="Model controls">
             <div className="navigation-modes">
+              <button
+                aria-pressed={muscleBrowser}
+                onClick={() => {
+                  setMuscleBrowser((v) => !v);
+                  setCandidates([]);
+                  engine.current?.preview(null);
+                }}
+              >
+                Muscle list
+              </button>
               {(["turn", "move"] as const).map((mode) => (
                 <button
                   key={mode}
@@ -706,11 +813,92 @@ export default function Anatomy(props: Props) {
               ))}
             </div>
             <small>
-              {layers
-                ? "Click the body to choose a layer"
-                : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Click to pin`}
+              {pickHint ||
+                (layers
+                  ? "Click the body to choose a layer"
+                  : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Click to pin`)}
             </small>
           </div>
+          {muscleBrowser && (
+            <div
+              className="anatomy-layer-picker"
+              role="dialog"
+              aria-label="Muscle browser"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setMuscleBrowser(false);
+              }}
+            >
+              <div className="layer-picker-heading">
+                <strong>Choose a muscle</strong>
+                <button
+                  aria-label="Close muscle list"
+                  onClick={() => setMuscleBrowser(false)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <input
+                className="notebook-input"
+                aria-label="Find a muscle"
+                placeholder="Search muscle names…"
+                value={muscleQuery}
+                onChange={(event) => setMuscleQuery(event.target.value)}
+              />
+              <label className="layer-context-control">
+                Surrounding anatomy
+                <input
+                  type="range"
+                  min="0"
+                  max="0.3"
+                  step="0.05"
+                  value={surroundings}
+                  onChange={(event) =>
+                    setSurroundings(Number(event.target.value))
+                  }
+                />
+              </label>
+              <div className="muscle-browser-list">
+                {muscleOptions
+                  .filter((muscle) =>
+                    muscleQuery
+                      ? muscle.name
+                          .toLowerCase()
+                          .includes(muscleQuery.toLowerCase())
+                      : !props.selected || muscle.region === props.selected,
+                  )
+                  .slice(0, 60)
+                  .map((muscle) => (
+                    <button
+                      key={muscle.id}
+                      aria-pressed={activeMuscle === muscle.id}
+                      onClick={() =>
+                        engine.current?.command("mesh:" + muscle.id)
+                      }
+                    >
+                      {muscle.name}
+                    </button>
+                  ))}
+              </div>
+              <div className="muscle-browser-actions">
+                <button
+                  className="secondary"
+                  disabled={!activeMuscle}
+                  onClick={() => {
+                    setMuscleBrowser(false);
+                    engine.current?.command("pin-center");
+                  }}
+                >
+                  Add pin to muscle
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() => engine.current?.command("context")}
+                >
+                  Show whole body
+                </button>
+              </div>
+            </div>
+          )}
           {!!candidates.length && (
             <div
               className="anatomy-layer-picker"
@@ -728,6 +916,19 @@ export default function Anatomy(props: Props) {
                 </button>
               </div>
               <p>Surfaces along this view. Choose one to see its shape.</p>
+              <label className="layer-context-control">
+                Surrounding anatomy
+                <input
+                  type="range"
+                  min="0"
+                  max="0.3"
+                  step="0.05"
+                  value={surroundings}
+                  onChange={(event) =>
+                    setSurroundings(Number(event.target.value))
+                  }
+                />
+              </label>
               <div className="layer-choices">
                 {candidates.map((candidate, index) => (
                   <button

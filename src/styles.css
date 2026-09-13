@@ -2098,3 +2098,141 @@ h1 > span {
   font: inherit;
   line-height: 1.5;
 }
+.intensity-control {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #142018;
+}
+.intensity-dial {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 225deg,
+    var(--intensity-color) 0deg var(--dial-angle),
+    #42523a var(--dial-angle) 270deg,
+    transparent 270deg
+  );
+  display: grid;
+  place-items: center;
+}
+.intensity-dial strong {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #142018;
+  color: var(--intensity-color);
+  font-size: 25px;
+}
+.intensity-dial small {
+  font-size: 9px;
+  color: #abbda0;
+  font-weight: 400;
+}
+.intensity-adjust {
+  min-width: 0;
+  flex: 1;
+}
+.intensity-adjust > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+.intensity-adjust .text-button {
+  font-size: 10px;
+  padding: 0;
+}
+.intensity-adjust > small {
+  display: block;
+  color: #9dae96;
+  font-size: 9px;
+  margin-top: 6px;
+}
+.intensity-adjust input {
+  width: 100%;
+  height: 18px;
+  margin: 10px 0 3px;
+  accent-color: var(--intensity-color);
+}
+.intensity-adjust input::-webkit-slider-runnable-track {
+  height: 7px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, #62baf0, #9fd982, #ffb265, #ed5b44);
+}
+.intensity-adjust input::-webkit-slider-thumb {
+  margin-top: -5px;
+}
+.intensity-scale {
+  color: #adbea1;
+}
+.layer-context-control {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  color: #bdcbb1;
+  gap: 8px;
+  margin: 14px 0;
+}
+.layer-context-control input {
+  width: 100%;
+  accent-color: #c4ed76;
+}
+.muscle-browser-list {
+  display: grid;
+  max-height: 235px;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.muscle-browser-list button {
+  padding: 10px 8px;
+  text-align: left;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.muscle-browser-list button[aria-pressed="true"] {
+  color: #c4ed76;
+  background: #c4ed7620;
+}
+.muscle-browser-actions {
+  display: grid;
+  gap: 6px;
+}
+.region-callout button {
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.heat-legend > div {
+  background: linear-gradient(90deg, #62baf0, #9fd982, #ffb265, #ed5b44);
+}
+@media (max-width: 670px) {
+  .navigation-modes button {
+    padding: 5px 6px;
+    min-width: 33px;
+    font-size: 10px;
+  }
+}
+.anatomy-stage:has(.anatomy-navigation) .region-callout {
+  bottom: 172px !important;
+  z-index: 4;
+}
+@media (max-width: 670px) {
+  .anatomy-stage:has(.anatomy-navigation) .region-callout {
+    bottom: 162px !important;
+    gap: 6px;
+    max-width: calc(100% - 36px);
+  }
+}

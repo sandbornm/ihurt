@@ -48,6 +48,7 @@ import {
 import {
   loadNotebook,
   saveDraft,
+  saveResearch,
   storeEntries,
   removeEntry,
   type Draft,
@@ -57,6 +58,7 @@ import { exampleEntry } from "./example";
 import { prepareOffline } from "./offline";
 import FeatureBoundary from "./FeatureBoundary";
 import Resources from "./Resources";
+import IntensityDial from "./IntensityDial";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
@@ -75,7 +77,7 @@ export default function Notebook({
   Research?: ComponentType<{
     entry: SavedMap;
     sources: string[];
-    onSave: (research: NonNullable<SavedMap["research"]>) => void;
+    onSave: (research: NonNullable<SavedMap["research"]>) => Promise<void>;
   }>;
 }) {
   const [offline, setOffline] = useState(false);
@@ -502,12 +504,12 @@ export default function Notebook({
                     disabled={busy}
                   >
                     <Upload size={16} />
-                    Import JSON
+                    Import map
                   </button>
                   <input
                     ref={importInput}
                     type="file"
-                    accept=".json,application/json"
+                    accept=".ihm,.json,application/json"
                     hidden
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -682,8 +684,6 @@ export default function Notebook({
                       </div>
                     )}
                   </div>
-                  <div className="stage-cross top-left">+</div>
-                  <div className="stage-cross bottom-right">+</div>
                   <div className="stage-intro">
                     <span className="small-label">CLICK TO ADD A PIN</span>
                     <button onClick={() => regionDialog.current?.showModal()}>
@@ -751,7 +751,13 @@ export default function Notebook({
                         aria-label="Focus on selected region"
                         onClick={() => action("focus")}
                       >
-                        <Crosshair size={17} />
+                        <span>Focus</span>
+                      </button>
+                      <button
+                        onClick={() => action("pin-center")}
+                        aria-label="Add pin in selected region"
+                      >
+                        <Plus size={14} /> Add pin
                       </button>
                       <button
                         title="Clear selection"
@@ -965,6 +971,10 @@ export default function Notebook({
                       ))}
                     </div>
                   )}
+                  <IntensityDial
+                    value={entry.map.intensity}
+                    onChange={(value) => context("intensity", value)}
+                  />
                   <details className="entry-context">
                     <summary>
                       More context <span>optional</span>
@@ -991,34 +1001,18 @@ export default function Notebook({
                       maxLength={200}
                       onChange={(e) => context("duration", e.target.value)}
                     />
-                    <label className="field-label" htmlFor="intensity">
-                      Intensity, if you want to record it
-                    </label>
-                    <select
-                      className="notebook-input"
-                      id="intensity"
-                      value={entry.map.intensity ?? ""}
-                      onChange={(e) =>
-                        context(
-                          "intensity",
-                          e.target.value === "" ? null : Number(e.target.value),
-                        )
-                      }
-                    >
-                      <option value="">Not recorded</option>
-                      {Array.from({ length: 11 }, (_, n) => (
-                        <option key={n} value={n}>
-                          {n}/10
-                        </option>
-                      ))}
-                    </select>
                   </details>
                   {Research && (
                     <Research
                       key={entry.id}
                       entry={currentEntry()}
                       sources={readingSources}
-                      onSave={(research) =>
+                      onSave={async (research) => {
+                        const updated = await saveResearch(entry.id, research);
+                        if (!updated)
+                          throw Error(
+                            "This entry was removed before the search finished.",
+                          );
                         setEntry((e) =>
                           e.id === entry.id
                             ? {
@@ -1027,8 +1021,12 @@ export default function Notebook({
                                 updated: new Date().toISOString(),
                               }
                             : e,
-                        )
-                      }
+                        );
+                        setSaved((old) => [
+                          ...old.filter((e) => e.id !== updated.id),
+                          updated,
+                        ]);
+                      }}
                     />
                   )}
                   <div className="report-actions">
@@ -1098,11 +1096,18 @@ export default function Notebook({
                     <ArrowUpRight size={14} />
                   </button>
                   <details className="share-with-ai">
-                    <summary>Share with an AI</summary>
+                    <summary>Full report with Grok or another AI</summary>
+                    <button
+                      className="secondary"
+                      disabled={!valid}
+                      onClick={() => download(currentEntry(), "ihm")}
+                    >
+                      <ArrowDownToLine size={15} /> Download .ihm map
+                    </button>
                     <p>
-                      Export JSON and attach it to Grok, ChatGPT, Claude, or a
-                      local model. It includes your notes, highlighted regions,
-                      and anatomy references.
+                      One file with your notes, pins, anatomy references,
+                      heatmap and review prompt. Attach it in your AI chat; use
+                      Export JSON if the chat does not accept .ihm files.
                     </p>
                     <textarea
                       aria-label="Suggested AI prompt"

@@ -1,0 +1,18 @@
+[
+  {
+    "file": "reference-male.glb",
+    "source": "https://raw.githubusercontent.com/hubmapconsortium/ccf-3d-reference-object-library/f1a3a63f110e27ff0736047d52d04dba5d3087f9/VH_Male/v1.2/VH_M_Skin.glb",
+    "bytes": 100204,
+    "sha256": "2244f49bc4314f311723e5bb141b173da1384a52a32a92368f55402d01d4909d",
+    "license": "CC BY 4.0",
+    "changes": "glTF Transform 4.2.1 optimize --compress draco --simplify-ratio 0.2 --simplify-error 0.001"
+  },
+  {
+    "file": "reference-female.glb",
+    "source": "https://raw.githubusercontent.com/hubmapconsortium/ccf-3d-reference-object-library/f1a3a63f110e27ff0736047d52d04dba5d3087f9/VH_Female/v1.3/VH_F_skin.glb",
+    "bytes": 194568,
+    "sha256": "2e8925c40d4ec96de09f5422ef7b37977674ead4ac3e04c9e6a863cf95a2ac9f",
+    "license": "CC BY 4.0",
+    "changes": "glTF Transform 4.2.1 optimize --compress draco --simplify-ratio 0.2 --simplify-error 0.001"
+  }
+]

@@ -1,0 +1,20 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { MarkHistory } from "../src/anatomy/history.ts";
+import { exampleEntry } from "../src/example.ts";
+test("undo and redo restore deleted marks without reverting comments on remaining marks", () => {
+  const history = new MarkHistory();
+  history.select("first");
+  const points = exampleEntry().points!;
+  history.record([]);
+  assert.deepEqual(history.undo(points), []);
+  assert.deepEqual(history.redo([]), points);
+  history.record(points);
+  const remaining = [{ ...points[1], comment: "A newer note" }];
+  const restored = history.undo(remaining);
+  assert.equal(restored[0].id, points[0].id);
+  assert.equal(restored[1].comment, "A newer note");
+  history.select("second");
+  assert.equal(history.canUndo, false);
+  assert.equal(history.canRedo, false);
+});

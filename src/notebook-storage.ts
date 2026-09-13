@@ -4,6 +4,7 @@ export interface Draft {
   selected: RegionId | null;
   view: "front" | "back";
   layer: "muscle" | "bone";
+  showSkeleton?: boolean;
   sources: string[];
 }
 let database: Promise<IDBDatabase> | undefined;

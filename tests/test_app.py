@@ -242,3 +242,12 @@ def test_surface_pins_anchor_region_and_validate_coordinates(client):
 def test_two_answer_limit_stops_further_questions(client):
     mapped = client.post("/api/map", json=note(note="Something feels off", answers=[{"key": "location", "text": "I cannot localize it"}, {"key": "activity", "text": "Unsure"}])).json()["map"]
     assert mapped["question"] is None
+
+
+def test_surface_area_validation():
+    from backend.models import PointObservation
+    data = dict(id=str(uuid.uuid4()), region="neck", position=(0, 2, 0), structure="Area on neck", area={"path": [(0, 2, 0), (0.1, 2, 0)], "radius": 0.12})
+    assert len(PointObservation(**data).area.path) == 2
+    for area in ({"path": [(0, 2, 0)] * 49, "radius": .12}, {"path": [(0, 2, 0), (3, 3, 3)], "radius": .12}, {"path": [(0, 2, 0), (.1, 2, 0)], "radius": float("nan")}):
+        with pytest.raises(ValidationError):
+            PointObservation(**{**data, "area": area})

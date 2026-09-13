@@ -194,6 +194,34 @@ function parsePoint(v: unknown): PainPoint {
     position: coords as [number, number, number],
   };
   if (p.comment !== undefined) point.comment = text(p.comment, 1000);
+  if (p.area !== undefined) {
+    const area = object(p.area);
+    const path = array(area.path, 48).map((value) => {
+      const xyz = array(value, 3);
+      if (
+        xyz.length !== 3 ||
+        !xyz.every(
+          (n) =>
+            typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 10,
+        )
+      )
+        throw new Error("Invalid highlighted area.");
+      return xyz as [number, number, number];
+    });
+    if (
+      path.length < 2 ||
+      JSON.stringify(path[0]) !== JSON.stringify(point.position) ||
+      typeof area.radius !== "number" ||
+      !Number.isFinite(area.radius) ||
+      area.radius < 0.03 ||
+      area.radius > 0.25
+    )
+      throw new Error("Invalid highlighted area.");
+    for (let i = 1; i < path.length; i++)
+      if (Math.hypot(...path[i].map((n, j) => n - path[i - 1][j])) > 0.5)
+        throw new Error("Highlighted area has a gap.");
+    point.area = { path, radius: area.radius };
+  }
   if (p.source !== undefined) {
     const s = object(p.source);
     if (

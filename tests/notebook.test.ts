@@ -111,3 +111,75 @@ test("ihm packages remain ordinary JSON with inert derived materials", async () 
   bundle.bundle.version = 999;
   assert.throws(() => parseNotebook(JSON.stringify(bundle)), /bundle version/);
 });
+
+test("print uses a local viewport capture and escapes its labels", async () => {
+  const { renderPrintHtml } = await import("../src/export.ts");
+  const entry = finishEntry(exampleEntry());
+  const view = {
+    image: "data:image/png;base64,aGVsbG8=",
+    width: 100,
+    height: 100,
+    visiblePins: [1],
+    caption: "<caption>",
+  };
+  const html = renderPrintHtml(entry, view);
+  assert.ok(html.includes(view.image));
+  assert.ok(html.includes("&lt;caption&gt;"));
+  assert.ok(!html.includes("<svg"));
+  assert.ok(
+    !renderPrintHtml(entry, {
+      ...view,
+      image: "https://tracking.example/image.png",
+    }).includes("https://tracking.example"),
+  );
+  assert.ok(renderPrintHtml(entry).includes("No 3D capture"));
+});
+
+test("surface highlights round trip and reject oversized or disconnected paths", () => {
+  const entry = finishEntry(exampleEntry()),
+    point = entry.points![0];
+  point.area = {
+    path: [
+      point.position,
+      [point.position[0] + 0.1, point.position[1], point.position[2]],
+    ],
+    radius: 0.12,
+  };
+  assert.deepEqual(
+    parseNotebook(stringifyNotebook([entry]))[0].points![0].area,
+    point.area,
+  );
+  const make = () => JSON.parse(stringifyNotebook([entry]));
+  for (const change of [
+    (v: any) => v.entries[0].highlights[0].area.path.push([9, 9, 9]),
+    (v: any) => (v.entries[0].highlights[0].area.radius = 5),
+    (v: any) =>
+      (v.entries[0].highlights[0].area.path = Array(49).fill(point.position)),
+  ]) {
+    const value = make();
+    change(value);
+    assert.throws(() => parseNotebook(JSON.stringify(value)));
+  }
+});
+
+test("AI notes print readable headings and links while keeping supplied HTML inert", async () => {
+  const { renderPrintHtml } = await import("../src/export.ts");
+  const entry = finishEntry(exampleEntry());
+  entry.ai = {
+    provider: "Test",
+    created: entry.created,
+    based_on: "test",
+    answers: [],
+    map: {
+      ...entry.map,
+      summary:
+        "## Reading\n\n**A note** and [source](https://example.com/page). <script>alert(1)</script>\n\n- One\n- Two",
+    },
+  };
+  const html = renderPrintHtml(entry);
+  assert.ok(html.includes("<h3>Reading</h3>"));
+  assert.ok(html.includes("<strong>A note</strong>"));
+  assert.ok(html.includes('<a href="https://example.com/page">source</a>'));
+  assert.ok(html.includes("&lt;script&gt;"));
+  assert.ok(!html.includes("<script>"));
+});

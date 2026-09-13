@@ -4,6 +4,7 @@ import {
   exportNotebook,
   aiPrompt,
 } from "./notebook-data.ts";
+import type { ViewportCapture } from "./anatomy/capture";
 import { intensityColor } from "./anatomy/intensity.ts";
 
 const escape = (s: string) =>
@@ -170,11 +171,54 @@ export function downloadNotebook(entries: SavedMap[]) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export function renderPrintHtml(entry: SavedMap): string {
-  const svg = renderMapSvg(entry).replace(
-    /width="1000" height="\d+" viewBox="0 0 1000 \d+"/,
-    'width="340" height="370" viewBox="35 280 315 340"',
-  );
+export function downloadViewport(view: ViewportCapture, created: string) {
+  const link = document.createElement("a");
+  link.href = view.image;
+  link.download = `ihurt-view-${created.slice(0, 10)}.png`;
+  link.click();
+}
+function printProse(text: string) {
+  const inline = (value: string) =>
+    escape(value)
+      .replace(
+        /\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g,
+        (match, title: string, href: string) => {
+          try {
+            const url = new URL(href.replaceAll("&amp;", "&"));
+            if (url.protocol !== "https:" || url.username || url.password)
+              return match;
+            return `<a href="${href}">${title}</a>`;
+          } catch {
+            return match;
+          }
+        },
+      )
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  return text
+    .split(/\n\s*\n/)
+    .map((block) => {
+      if (/^#{1,3} /.test(block))
+        return `<h3>${inline(block.replace(/^#{1,3} /, ""))}</h3>`;
+      const lines = block.split("\n");
+      if (lines.every((line) => /^[-*] /.test(line)))
+        return `<ul>${lines.map((line) => `<li>${inline(line.slice(2))}</li>`).join("")}</ul>`;
+      if (lines.every((line) => /^\d+\. /.test(line)))
+        return `<ol>${lines.map((line) => `<li>${inline(line.replace(/^\d+\. /, ""))}</li>`).join("")}</ol>`;
+      return `<p>${lines.map(inline).join("<br/>")}</p>`;
+    })
+    .join("");
+}
+export function renderPrintHtml(
+  entry: SavedMap,
+  view?: ViewportCapture,
+): string {
+  const validImage =
+    view &&
+    view.image.length < 8_000_000 &&
+    /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(view.image);
+  const figure = validImage
+    ? `<figure><img src="${view.image}" alt="Captured 3D anatomy view with numbered pins"/><figcaption>${escape(view.caption)}<br/>${view.visiblePins.length ? `Visible pins: ${view.visiblePins.join(", ")}.` : "No pins are visible from this angle."} All pin notes are listed below.</figcaption></figure>`
+    : '<p class="context">No 3D capture is available. Open the body map to include its current view.</p>';
   const facts = [
     entry.map.activity,
     entry.map.quality,
@@ -182,14 +226,26 @@ export function renderPrintHtml(entry: SavedMap): string {
     entry.map.intensity === null ? "" : `${entry.map.intensity}/10`,
   ].filter(Boolean);
   return `<!doctype html><html><head><meta charset="utf-8"><title>iHurt - ${escape(entry.map.title)}</title><style>
-  *{box-sizing:border-box}body{margin:0;color:#24382a;font:11pt/1.5 Arial,sans-serif;background:white}main{max-width:780px;margin:auto;padding:30px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #9eae94;padding-bottom:16px;margin-bottom:24px}.brand{font-size:25pt;font-weight:bold}small{font-size:9pt;color:#5b6c57}h1{font-size:23pt;line-height:1.15;margin:12px 0}h2{font-size:10pt;letter-spacing:.08em;text-transform:uppercase;margin:24px 0 12px}p{white-space:pre-wrap;overflow-wrap:anywhere}figure{margin:0;padding:12px;background:#f5f6ef;border-radius:14px;float:left;width:44%;margin-right:24px;margin-bottom:16px}figure svg{width:100%;height:auto;display:block}figcaption{font-size:8pt;text-align:center;color:#64745b}.context{color:#5b6c57}.pins{clear:both;padding-top:8px}.pin{break-inside:avoid;display:flex;gap:14px;margin:12px 0;padding:12px 0;border-top:1px solid #dfe5d9}.pin b{display:grid;place-items:center;border-radius:50%;width:26px;height:26px;flex-shrink:0;background:#d9eac7}.pin p{margin:3px 0}.reference{break-inside:avoid;margin:14px 0}a{color:#365b25;overflow-wrap:anywhere}.notice{clear:both;font-size:9pt;border-top:1px solid #ccd7c3;margin-top:28px;padding-top:12px}h1,h2{break-after:avoid}@page{size:A4;margin:18mm 16mm}@media print{main{padding:0}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}}button{cursor:pointer;padding:10px 16px;margin-bottom:18px;border:1px solid #687d5d;border-radius:8px;background:#edf5e5}</style></head><body><main><header><span class="brand">iHurt.</span><small>PERSONAL JOURNAL<br/>${escape(new Date(entry.created).toLocaleDateString())}</small></header><h1>${escape(entry.map.title)}</h1><p class="context">${escape(facts.join(" · "))}</p><figure>${svg}<figcaption>Front and back · approximate pin locations</figcaption></figure><h2>Your note</h2><p>${escape(entry.note || "No note recorded.")}</p><section class="pins"><h2>Highlighted spots</h2>${(entry.points ?? []).map((p, i) => `<div class="pin"><b>${i + 1}</b><div><strong>${escape(p.structure)}</strong><small> · ${escape(regionName(p.region))}</small><p>${escape(p.comment || "No comment recorded.")}</p></div></div>`).join("") || "<p>No surface pins recorded.</p>"}</section>${entry.ai ? `<section><h2>Optional AI note · ${escape(entry.ai.provider)}</h2><p>${escape(entry.ai.map.summary)}</p><small>AI interpretation; it may refer to an earlier version of this entry.</small></section>` : ""}<section><h2>Related reading</h2>${(entry.references ?? []).map((r, i) => `<div class="reference"><strong>${i + 1}. ${escape(r.title)}</strong><br/><small>${escape(r.publisher)} · checked ${escape(r.checked)}</small><br/><a href="${escape(r.url)}">${escape(r.url)}</a></div>`).join("") || "<p>No reading links saved.</p>"}</section><p class="notice">Not medical advice. iHurt does not diagnose, treat, cure, or prevent disease. Colors show reported discomfort, not a cause. Independent reading links are not a personal treatment plan. This report contains personal information.</p></main></body></html>`;
+  *{box-sizing:border-box}body{margin:0;color:#24382a;font:11pt/1.5 Arial,sans-serif;background:white}main{max-width:780px;margin:auto;padding:30px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #9eae94;padding-bottom:16px;margin-bottom:24px}.brand{font-size:25pt;font-weight:bold}small{font-size:9pt;color:#5b6c57}h1{font-size:23pt;line-height:1.15;margin:12px 0}h2{font-size:10pt;letter-spacing:.08em;text-transform:uppercase;margin:24px 0 12px}p{white-space:pre-wrap;overflow-wrap:anywhere}figure{margin:0;padding:12px;background:#f5f6ef;border-radius:14px;width:100%;margin-bottom:20px;break-inside:avoid}figure img{width:100%;max-height:390px;object-fit:contain;display:block;border-radius:8px}figcaption{font-size:8pt;text-align:center;color:#64745b}.context{color:#5b6c57}.pins{clear:both;padding-top:8px}.pin{break-inside:avoid;display:flex;gap:14px;margin:12px 0;padding:12px 0;border-top:1px solid #dfe5d9}.pin b{display:grid;place-items:center;border-radius:50%;width:26px;height:26px;flex-shrink:0;background:#d9eac7}.pin p{margin:3px 0}.reference{break-inside:avoid;margin:14px 0}a{color:#365b25;overflow-wrap:anywhere}.notice{clear:both;font-size:9pt;border-top:1px solid #ccd7c3;margin-top:28px;padding-top:12px}h1,h2,h3{break-after:avoid}h3{font-size:12pt;margin:22px 0 10px}li{margin:7px 0;overflow-wrap:anywhere}ul,ol{padding-left:22px}@page{size:A4;margin:18mm 16mm}@media print{main{padding:0}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}}button{cursor:pointer;padding:10px 16px;margin-bottom:18px;border:1px solid #687d5d;border-radius:8px;background:#edf5e5}</style></head><body><main><header><span class="brand">iHurt.</span><small>PERSONAL JOURNAL<br/>${escape(new Date(entry.created).toLocaleDateString())}</small></header><h1>${escape(entry.map.title)}</h1><p class="context">${escape(facts.join(" · "))}</p>${figure}<h2>Your note</h2><p>${escape(entry.note || "No note recorded.")}</p><section class="pins"><h2>Highlighted spots</h2>${(entry.points ?? []).map((p, i) => `<div class="pin"><b>${i + 1}</b><div><strong>${escape(p.structure)}</strong><small> · ${escape(regionName(p.region))}</small><p>${escape(p.comment || "No comment recorded.")}</p></div></div>`).join("") || "<p>No surface pins recorded.</p>"}</section>${entry.ai ? `<section><h2>Optional AI note · ${escape(entry.ai.provider)}</h2>${printProse(entry.ai.map.summary)}<small>AI interpretation; it may refer to an earlier version of this entry.</small></section>` : ""}<section><h2>Related reading</h2>${(entry.references ?? []).map((r, i) => `<div class="reference"><strong>${i + 1}. ${escape(r.title)}</strong><br/><small>${escape(r.publisher)} · checked ${escape(r.checked)}</small><br/><a href="${escape(r.url)}">${escape(r.url)}</a></div>`).join("") || "<p>No reading links saved.</p>"}</section><p class="notice">Not medical advice. iHurt does not diagnose, treat, cure, or prevent disease. Colors show reported discomfort, not a cause. Independent reading links are not a personal treatment plan. This report contains personal information.<br/>Anatomy: Z-Anatomy / BodyParts3D, CC BY-SA 4.0 and CC BY-SA 2.1 JP. Rendering by iHurt. <a href="https://github.com/sandbornm/ihurt/blob/main/public/models/ATTRIBUTION.md">Credits and licenses</a>.</p></main></body></html>`;
 }
-export function printMap(entry: SavedMap): boolean {
+export function printMap(entry: SavedMap, view?: ViewportCapture): boolean {
   const popup = window.open("", "_blank");
   if (!popup) return false;
   popup.opener = null;
-  popup.addEventListener("load", () => popup.print(), { once: true });
-  popup.document.write(renderPrintHtml(entry));
+  popup.addEventListener(
+    "load",
+    () => {
+      void Promise.all(
+        [...popup.document.images].map((image) =>
+          image.decode().catch(() => {}),
+        ),
+      ).then(() => {
+        if (!popup.closed) popup.print();
+      });
+    },
+    { once: true },
+  );
+  popup.document.write(renderPrintHtml(entry, view));
   popup.document.close();
   return true;
 }

@@ -93,6 +93,10 @@ export interface PainPoint {
   position: [number, number, number];
   structure: string;
   comment?: string;
+  area?: {
+    path: [number, number, number][];
+    radius: number;
+  };
   source?: {
     atlas: "z-anatomy-v1" | "schematic-v1";
     layer: "muscle" | "bone";

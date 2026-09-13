@@ -28,6 +28,8 @@ import {
   Upload,
   Copy,
   X,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 import {
   regionName,
@@ -36,7 +38,13 @@ import {
   type SavedMap,
   type PainPoint,
 } from "./types";
-import { download, downloadNotebook, printMap } from "./export";
+import {
+  download,
+  downloadNotebook,
+  downloadViewport,
+  printMap,
+} from "./export";
+import type { ViewportCapture } from "./anatomy/capture";
 import {
   blankEntry,
   finishEntry,
@@ -59,9 +67,11 @@ import { prepareOffline } from "./offline";
 import FeatureBoundary from "./FeatureBoundary";
 import Resources from "./Resources";
 import IntensityDial from "./IntensityDial";
+import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
+const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 type AssistantProps = {
   entry: SavedMap;
   onSave: (analysis: NonNullable<SavedMap["ai"]>) => void;
@@ -81,6 +91,12 @@ export default function Notebook({
   }>;
 }) {
   const [offline, setOffline] = useState(false);
+  const [bodyReference, setBodyReference] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  const [orientation, setOrientation] = useState<"front" | "back" | null>(
+    example ? "back" : "front",
+  );
+  const capture = useRef<(() => ViewportCapture | null) | null>(null);
   useEffect(() => {
     void prepareOffline()
       .then(setOffline)
@@ -115,7 +131,13 @@ export default function Notebook({
     result = finishEntry(entry).map;
   const noRegions: RegionId[] = [];
   const valid = hasContent(entry);
-  const setPoints = (updater: (old: PainPoint[]) => PainPoint[]) =>
+  const markHistory = useRef(new MarkHistory());
+  markHistory.current.select(entry.id);
+  const setPoints = (
+    updater: (old: PainPoint[]) => PainPoint[],
+    remember = true,
+  ) => {
+    if (remember) markHistory.current.record(points);
     setEntry((old) => {
       const next = updater(old.points ?? []);
       return {
@@ -125,6 +147,7 @@ export default function Notebook({
         map: { ...old.map, regions: [...new Set(next.map((p) => p.region))] },
       };
     });
+  };
   function change(patch: Partial<SavedMap>) {
     setEntry((e) => ({ ...e, ...patch, updated: new Date().toISOString() }));
   }
@@ -150,6 +173,7 @@ export default function Notebook({
           setSelected(d.selected);
           setView(d.view);
           setLayer(d.layer);
+          setShowSkeleton(d.showSkeleton !== false);
           setReadingSources(d.sources);
         }
         setHydrated(true);
@@ -174,6 +198,7 @@ export default function Notebook({
       entry,
       selected,
       layer,
+      showSkeleton,
       view,
       sources: readingSources,
     };
@@ -195,7 +220,16 @@ export default function Notebook({
     return () => {
       cancelled = true;
     };
-  }, [entry, selected, layer, view, readingSources, hydrated, example]);
+  }, [
+    entry,
+    selected,
+    layer,
+    showSkeleton,
+    view,
+    readingSources,
+    hydrated,
+    example,
+  ]);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 6000);
@@ -699,10 +733,13 @@ export default function Notebook({
                     >
                       <Anatomy
                         navigation
+                        captureRef={capture}
                         selected={selected}
                         mapped={result?.regions ?? noRegions}
                         intensity={result?.intensity ?? null}
                         layer={layer}
+                        showSkeleton={showSkeleton}
+                        onOrientation={setOrientation}
                         view={view}
                         command={command}
                         onSelect={setSelected}
@@ -721,16 +758,22 @@ export default function Notebook({
                   </FeatureBoundary>
                   <div className="view-switch" aria-label="Body orientation">
                     <button
-                      aria-pressed={view === "front"}
-                      className={view === "front" ? "active" : ""}
-                      onClick={() => setView("front")}
+                      aria-pressed={orientation === "front"}
+                      className={orientation === "front" ? "active" : ""}
+                      onClick={() => {
+                        setView("front");
+                        action("view");
+                      }}
                     >
                       Front
                     </button>
                     <button
-                      aria-pressed={view === "back"}
-                      className={view === "back" ? "active" : ""}
-                      onClick={() => setView("back")}
+                      aria-pressed={orientation === "back"}
+                      className={orientation === "back" ? "active" : ""}
+                      onClick={() => {
+                        setView("back");
+                        action("view");
+                      }}
                     >
                       Back
                     </button>
@@ -820,7 +863,27 @@ export default function Notebook({
                     >
                       Skeleton
                     </button>
+                    <button onClick={() => setBodyReference(true)}>
+                      Body reference
+                    </button>
                   </div>
+                  {layer === "muscle" && (
+                    <label className="bones-toggle">
+                      <input
+                        type="checkbox"
+                        checked={showSkeleton}
+                        onChange={(event) =>
+                          setShowSkeleton(event.target.checked)
+                        }
+                      />{" "}
+                      Show bones
+                    </label>
+                  )}
+                  {bodyReference && (
+                    <Suspense fallback={<span>Loading reference…</span>}>
+                      <BodyReference onClose={() => setBodyReference(false)} />
+                    </Suspense>
+                  )}
                   <div className="heat-legend">
                     <span>
                       {result?.intensity != null
@@ -924,6 +987,33 @@ export default function Notebook({
                       <span>{note.length}/3000</span>
                     </div>
                   </div>
+                  <IntensityDial
+                    value={entry.map.intensity}
+                    onChange={(value) => context("intensity", value)}
+                  />
+                  <div className="mark-history" aria-label="Undo map changes">
+                    <span>Pins & highlights</span>
+                    <button
+                      disabled={!markHistory.current.canUndo}
+                      aria-label="Undo last mark"
+                      onClick={() => {
+                        const restored = markHistory.current.undo(points);
+                        setPoints(() => restored, false);
+                      }}
+                    >
+                      <Undo2 size={14} /> Undo
+                    </button>
+                    <button
+                      disabled={!markHistory.current.canRedo}
+                      aria-label="Redo last mark"
+                      onClick={() => {
+                        const restored = markHistory.current.redo(points);
+                        setPoints(() => restored, false);
+                      }}
+                    >
+                      <Redo2 size={14} /> Redo
+                    </button>
+                  </div>
                   {points.length > 0 && (
                     <div className="pin-list">
                       <span className="small-label">
@@ -942,6 +1032,22 @@ export default function Notebook({
                             <small>{point.structure}</small>
                           </button>
                           <button
+                            className="pin-layers"
+                            aria-label={`Explore layers at spot ${i + 1}`}
+                            onClick={() => {
+                              setSelected(point.region);
+                              action("layers:" + point.id);
+                              document
+                                .querySelector(".anatomy-stage")
+                                ?.scrollIntoView({
+                                  block: "center",
+                                  behavior: "instant",
+                                });
+                            }}
+                          >
+                            <Layers3 size={14} />
+                          </button>
+                          <button
                             aria-label={`Remove spot ${i + 1}`}
                             onClick={() =>
                               setPoints((old) =>
@@ -958,12 +1064,14 @@ export default function Notebook({
                             maxLength={1000}
                             rows={2}
                             onChange={(e) =>
-                              setPoints((old) =>
-                                old.map((p) =>
-                                  p.id === point.id
-                                    ? { ...p, comment: e.target.value }
-                                    : p,
-                                ),
+                              setPoints(
+                                (old) =>
+                                  old.map((p) =>
+                                    p.id === point.id
+                                      ? { ...p, comment: e.target.value }
+                                      : p,
+                                  ),
+                                false,
                               )
                             }
                           />
@@ -971,10 +1079,6 @@ export default function Notebook({
                       ))}
                     </div>
                   )}
-                  <IntensityDial
-                    value={entry.map.intensity}
-                    onChange={(value) => context("intensity", value)}
-                  />
                   <details className="entry-context">
                     <summary>
                       More context <span>optional</span>
@@ -1050,7 +1154,14 @@ export default function Notebook({
                       </button>
                       <button
                         className="secondary"
-                        onClick={() => download(currentEntry(), "svg")}
+                        onClick={() => {
+                          const image = capture.current?.();
+                          if (image) downloadViewport(image, entry.created);
+                          else
+                            setError(
+                              "The 3D view is not ready for a picture yet.",
+                            );
+                        }}
                         disabled={!valid}
                       >
                         Map image
@@ -1086,7 +1197,12 @@ export default function Notebook({
                     className="text-button"
                     disabled={!valid}
                     onClick={() => {
-                      if (!printMap(currentEntry()))
+                      if (
+                        !printMap(
+                          currentEntry(),
+                          capture.current?.() ?? undefined,
+                        )
+                      )
                         setError(
                           "Allow the print window, or download the map image to print it.",
                         );

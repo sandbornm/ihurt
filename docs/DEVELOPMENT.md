@@ -19,6 +19,7 @@ To run the same browser checks locally without changing your open preview:
 npx playwright install chromium
 npm run build
 npm run test:browser
+npm run test:controls
 ```
 
 To serve the built app from Python on one port:
@@ -34,7 +35,7 @@ Open http://127.0.0.1:8000. The app is a React/TypeScript client. Three.js rende
 src/anatomy/          Shared Three.js model, interaction, WASM integration
 src/Notebook.tsx      Offline journal, pins, editing and sharing
 src/AIOptions.tsx     Optional local API integration
-src/export.ts         Standalone SVG and JSON downloads
+src/export.ts         JSON bundles, viewport PNG, and print/PDF output
 public/models/        Licensed anatomy assets and attribution
 config/reading-library.json  Configurable source and reference catalog
 assembly/heat.ts      Heat kernel source; public/heat.wasm is built from it

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createBody } from "./model";
@@ -8,6 +8,8 @@ import { PinGesture } from "./gesture";
 import { advanceCamera, nudgeCamera } from "./motion";
 import { nearbySurfaces, surfaceNearViewCenter } from "./selection";
 import { intensityColor } from "./intensity";
+import { captureViewport, type ViewportCapture } from "./capture";
+import { LayerSpread } from "./spread";
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,6 +30,9 @@ interface Props {
   points?: PainPoint[];
   onPoint?: (point: PainPoint) => void;
   navigation?: boolean;
+  captureRef?: RefObject<(() => ViewportCapture | null) | null>;
+  showSkeleton?: boolean;
+  onOrientation?: (view: "front" | "back" | null) => void;
 }
 type Candidate = { mesh: T.Object3D; point: PainPoint };
 type HeatFunction = (...values: number[]) => number;
@@ -40,6 +45,15 @@ const fallbackHeat: HeatFunction = (x, y, z, cx, cy, cz, r, i) =>
   ) * i;
 
 export default function Anatomy(props: Props) {
+  const mappedKey = props.mapped.join("|");
+  const pointsKey = JSON.stringify(
+    props.points?.map((point) => [
+      point.id,
+      point.region,
+      point.position,
+      point.area,
+    ]),
+  );
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   latest.current = props;
@@ -47,8 +61,11 @@ export default function Anatomy(props: Props) {
     update: () => void;
     command: (type: string) => void;
     preview: (candidate: Candidate | null) => void;
+    spread: (amount: number, options: Candidate[]) => void;
   } | null>(null);
-  const [dragMode, setDragMode] = useState<"turn" | "move">("turn");
+  const [dragMode, setDragMode] = useState<"turn" | "move" | "highlight">(
+    "turn",
+  );
   const [layers, setLayers] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -60,12 +77,14 @@ export default function Anatomy(props: Props) {
   const [activeMuscle, setActiveMuscle] = useState("");
   const [surroundings, setSurroundings] = useState(0);
   const [pickHint, setPickHint] = useState("");
+  const [spreadAmount, setSpreadAmount] = useState(0);
   const interaction = useRef({ dragMode, layers, surroundings });
   interaction.current = { dragMode, layers, surroundings };
   const picker = useRef<HTMLDivElement>(null);
   const layersButton = useRef<HTMLButtonElement>(null);
   const closePicker = () => {
     setCandidates([]);
+    setSpreadAmount(0);
     engine.current?.preview(null);
     layersButton.current?.focus({ preventScroll: true });
   };
@@ -74,6 +93,8 @@ export default function Anatomy(props: Props) {
   useEffect(() => {
     if (!host.current) return;
     const root = host.current;
+    delete root.dataset.atlas;
+    delete root.dataset.heatEngine;
     let renderer: T.WebGLRenderer;
     try {
       renderer = new T.WebGLRenderer({
@@ -134,6 +155,9 @@ export default function Anatomy(props: Props) {
     scene.add(body.group);
     const pinGroup = new T.Group();
     scene.add(pinGroup);
+    const spread = new LayerSpread();
+    scene.add(spread.group);
+    let beforeSpread: { position: T.Vector3; look: T.Vector3 } | null = null;
     const colorCache = new WeakMap<T.Object3D, string>();
     const meshBounds = new WeakMap<T.Object3D, T.Box3>();
     const disposeGroup = (group: T.Group) =>
@@ -213,13 +237,19 @@ export default function Anatomy(props: Props) {
     motionPreference.addEventListener("change", motionChanged);
     const update = () => {
       const p = latest.current;
+      controls.enabled = interaction.current.dragMode !== "highlight";
       controls.mouseButtons.LEFT =
         interaction.current.dragMode === "move" ? T.MOUSE.PAN : T.MOUSE.ROTATE;
       root.dataset.dragMode = interaction.current.dragMode;
       root.dataset.inspected = exactMesh || inspected || "none";
+      root.dataset.exploded = spread.active ? "true" : "false";
+      root.dataset.bones =
+        p.layer === "bone" || p.showSkeleton !== false ? "visible" : "hidden";
+      pinGroup.visible = !spread.active;
       for (const mesh of body.muscles) {
         const matches = matchesInspection(mesh);
-        const faded = (!!previewMesh && mesh !== previewMesh) || !matches;
+        const faded =
+          spread.active || (!!previewMesh && mesh !== previewMesh) || !matches;
         mesh.visible =
           p.layer === "muscle" &&
           (!faded || interaction.current.surroundings > 0);
@@ -243,15 +273,27 @@ export default function Anatomy(props: Props) {
           meshBounds.set(mesh, bounds);
         }
         const points =
-          p.points?.filter(
-            (point) =>
-              bounds.distanceToPoint(new T.Vector3(...point.position)) < 0.6,
-          ) ?? [];
+          p.points
+            ?.flatMap((point) =>
+              (point.area?.path ?? [point.position]).map((position) => ({
+                position,
+                radius: point.area?.radius ?? 0.27,
+              })),
+            )
+            .filter(
+              (point) =>
+                bounds.distanceToPoint(new T.Vector3(...point.position)) < 0.6,
+            ) ?? [];
         const cacheKey = JSON.stringify([
           isSelected,
           p.mapped,
           p.intensity,
-          p.points?.map((point) => [point.id, point.region, point.position]),
+          p.points?.map((point) => [
+            point.id,
+            point.region,
+            point.position,
+            point.area,
+          ]),
         ]);
         if (colorCache.get(mesh) === cacheKey) continue;
         colorCache.set(mesh, cacheKey);
@@ -268,7 +310,14 @@ export default function Anatomy(props: Props) {
           for (const point of points)
             amount = Math.max(
               amount,
-              heat(vertex.x, vertex.y, vertex.z, ...point.position, 0.27, 1),
+              heat(
+                vertex.x,
+                vertex.y,
+                vertex.z,
+                ...point.position,
+                point.radius,
+                1,
+              ),
             );
           for (const regionId of p.mapped.filter(
             (id) => !p.points?.some((point) => point.region === id),
@@ -292,8 +341,13 @@ export default function Anatomy(props: Props) {
       body.fibers.visible = p.layer === "muscle";
       for (const bone of body.bones) {
         const faded =
-          (!!previewMesh && bone !== previewMesh) || !!exactMesh || !!inspected;
-        bone.visible = !faded || interaction.current.surroundings > 0;
+          spread.active ||
+          (!!previewMesh && bone !== previewMesh) ||
+          !!exactMesh ||
+          !!inspected;
+        bone.visible =
+          (p.layer === "bone" || p.showSkeleton !== false) &&
+          (!faded || interaction.current.surroundings > 0);
         bone.material.transparent = faded || !!inspected;
         bone.material.opacity = faded ? interaction.current.surroundings : 1;
         bone.material.depthWrite = !faded && !inspected;
@@ -317,6 +371,22 @@ export default function Anatomy(props: Props) {
       dirty = 2;
     };
     const command = (type: string) => {
+      clearStroke();
+      if (
+        !root.dataset.atlas &&
+        /^(layers:|point:|muscle:|mesh:|pin-center)/.test(type)
+      )
+        return;
+      if (spread.active) {
+        spread.clear();
+        setSpreadAmount(0);
+        if (beforeSpread) {
+          camera.position.copy(beforeSpread.position);
+          controls.target.copy(beforeSpread.look);
+          beforeSpread = null;
+          controls.update();
+        }
+      }
       previewMesh = null;
       setCandidates([]);
       setPickHint("");
@@ -332,6 +402,24 @@ export default function Anatomy(props: Props) {
       update();
       const p = latest.current;
       const sign = p.view === "back" ? -1 : 1;
+      if (type.startsWith("layers:")) {
+        const point = p.points?.find((item) => item.id === type.slice(7));
+        if (!point) return;
+        command("point:" + point.id);
+        camera.position.copy(targetPosition);
+        controls.target.copy(targetLook);
+        easing = false;
+        controls.update();
+        camera.updateMatrixWorld();
+        const projected = new T.Vector3(...point.position).project(camera);
+        const rect = renderer.domElement.getBoundingClientRect();
+        pickAt(
+          rect.left + ((projected.x + 1) * rect.width) / 2,
+          rect.top + ((1 - projected.y) * rect.height) / 2,
+          true,
+        );
+        return;
+      }
       if (type === "pin-center") {
         if (!exactMesh && p.selected) command("focus");
         if (easing) {
@@ -475,10 +563,119 @@ export default function Anatomy(props: Props) {
       update,
       command,
       preview: (candidate) => {
+        if (!candidate) {
+          spread.clear();
+          setSpreadAmount(0);
+          if (beforeSpread) {
+            targetPosition.copy(beforeSpread.position);
+            targetLook.copy(beforeSpread.look);
+            beforeSpread = null;
+            startTransition();
+          }
+        }
         previewMesh = candidate?.mesh ?? null;
+        spread.highlight((candidate?.mesh as T.Mesh) ?? null);
+        update();
+      },
+      spread: (amount, options) => {
+        if (amount > 0 && !spread.active) {
+          beforeSpread = {
+            position: camera.position.clone(),
+            look: controls.target.clone(),
+          };
+          const right = new T.Vector3(1, 0, 0).applyQuaternion(
+              camera.quaternion,
+            ),
+            up = new T.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+          spread.set(
+            options.map((o) => o.mesh as T.Mesh),
+            right,
+            up,
+          );
+          spread.setAmount(1);
+          spread.tick(1, true);
+          const box = new T.Box3().setFromObject(spread.group),
+            size = box.getSize(new T.Vector3());
+          box.getCenter(targetLook);
+          const mobile = root.clientWidth <= 670;
+          const reserved = mobile ? 0 : 330 / root.clientWidth;
+          const tangent = Math.tan(T.MathUtils.degToRad(camera.fov / 2));
+          const distance =
+            Math.max(
+              2.3,
+              size.length() /
+                (2 *
+                  tangent *
+                  Math.min(1, camera.aspect * (1 - reserved - 0.08))),
+            ) * (mobile ? 1.6 : 1);
+          targetLook.addScaledVector(
+            right,
+            reserved * distance * tangent * camera.aspect,
+          );
+          if (mobile) targetLook.addScaledVector(up, -distance * tangent * 0.5);
+          targetPosition
+            .copy(targetLook)
+            .addScaledVector(
+              camera.position.clone().sub(controls.target).normalize(),
+              distance,
+            );
+          spread.setAmount(0);
+          spread.tick(1, true);
+          startTransition();
+        }
+        spread.setAmount(amount);
+        if (!amount && beforeSpread) {
+          targetPosition.copy(beforeSpread.position);
+          targetLook.copy(beforeSpread.look);
+          beforeSpread = null;
+          startTransition();
+        }
+        spread.highlight(previewMesh as T.Mesh | null);
         update();
       },
     };
+    if (latest.current.captureRef)
+      latest.current.captureRef.current = () => {
+        if (!root.dataset.atlas) return null;
+        camera.updateMatrixWorld();
+        // Reports show the actual anatomy at this angle, without display-only offsets.
+        const wasSpread = spread.active;
+        const visibility = [...body.muscles, ...body.bones].map(
+          (mesh) => [mesh, mesh.visible] as const,
+        );
+        try {
+          if (wasSpread) {
+            spread.group.visible = false;
+            for (const mesh of [...body.muscles, ...body.bones]) {
+              mesh.visible =
+                mesh.userData.layer === "bone"
+                  ? latest.current.layer === "bone" ||
+                    latest.current.showSkeleton !== false
+                  : latest.current.layer === "muscle";
+              mesh.material.opacity = 1;
+              mesh.material.transparent = false;
+              mesh.material.depthWrite = true;
+            }
+            pinGroup.visible = true;
+          }
+          return captureViewport(
+            renderer,
+            scene,
+            camera,
+            latest.current.points ?? [],
+            [...body.muscles, ...body.bones].filter(
+              (mesh) => mesh.visible && mesh.material.opacity > 0.5,
+            ),
+            `${wasSpread ? "3D view with layers returned to their anatomical positions" : "Current 3D view"} · ${latest.current.layer === "muscle" ? (latest.current.showSkeleton === false ? "Muscles, bones hidden" : "Muscles and skeleton") : "Skeleton"} · ${root.dataset.atlas === "z-anatomy" ? "Z-Anatomy / BodyParts3D" : "Schematic fallback"}`,
+          );
+        } finally {
+          if (wasSpread) {
+            for (const [mesh, visible] of visibility) mesh.visible = visible;
+            spread.group.visible = true;
+            update();
+          }
+        }
+      };
     update();
     loadAtlas()
       .then((atlas) => {
@@ -515,8 +712,7 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "z-anatomy";
         setReady(true);
         update();
-        if (latest.current.command.type.startsWith("muscle:"))
-          command(latest.current.command.type);
+        if (latest.current.command.id) command(latest.current.command.type);
       })
       .catch(() => {
         if (disposed) return;
@@ -563,22 +759,122 @@ export default function Anatomy(props: Props) {
     const raycaster = new T.Raycaster(),
       pointer = new T.Vector2();
     const gesture = new PinGesture();
+    let strokePointer: number | null = null;
+    let stroke: Candidate[] = [];
+    const strokeLine = new T.Line(
+      new T.BufferGeometry(),
+      new T.LineBasicMaterial({ color: "#f4bc71", depthTest: false }),
+    );
+    strokeLine.renderOrder = 5;
+    scene.add(strokeLine);
+    const clearStroke = () => {
+      if (
+        strokePointer !== null &&
+        renderer.domElement.hasPointerCapture(strokePointer)
+      )
+        renderer.domElement.releasePointerCapture(strokePointer);
+      strokePointer = null;
+      stroke = [];
+      strokeLine.geometry.dispose();
+      strokeLine.geometry = new T.BufferGeometry();
+      dirty = 2;
+    };
+    const paint = (event: PointerEvent) => {
+      if (!root.dataset.atlas || stroke.length >= 48) return;
+      camera.updateMatrixWorld();
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        1 - ((event.clientY - rect.top) / rect.height) * 2,
+      );
+      raycaster.setFromCamera(pointer, camera);
+      const surfaces =
+        latest.current.layer === "muscle"
+          ? [...body.muscles, ...body.bones]
+          : body.bones;
+      const hit = raycaster.intersectObjects(
+        surfaces.filter((mesh) => mesh.visible && mesh.material.opacity > 0.5),
+        false,
+      )[0];
+      if (!hit) return;
+      const previous = stroke.at(-1);
+      if (previous) {
+        const distance = hit.point.distanceTo(
+          new T.Vector3(...previous.point.position),
+        );
+        if (distance < 0.045 || distance > 0.5) return;
+      }
+      stroke.push(candidateAt(hit));
+      strokeLine.geometry.dispose();
+      strokeLine.geometry = new T.BufferGeometry().setFromPoints(
+        stroke.map((item) => new T.Vector3(...item.point.position)),
+      );
+      dirty = 2;
+    };
     const stopEasing = () => {
       easing = false;
       if (previewMesh) {
         previewMesh = null;
         setCandidates([]);
+        spread.clear();
+        setSpreadAmount(0);
+        beforeSpread = null;
         update();
       }
     };
     const down = (event: PointerEvent) => {
+      if (interaction.current.dragMode === "highlight") {
+        event.preventDefault();
+        if (!event.isPrimary || event.button !== 0) {
+          clearStroke();
+          return;
+        }
+        stopEasing();
+        clearStroke();
+        strokePointer = event.pointerId;
+        renderer.domElement.setPointerCapture(event.pointerId);
+        paint(event);
+        return;
+      }
+      const choosing = !!previewMesh;
       gesture.down(event.pointerId, event.clientX, event.clientY);
       stopEasing();
+      if (choosing) gesture.cancel(event.pointerId);
     };
-    const move = (event: PointerEvent) =>
+    const move = (event: PointerEvent) => {
+      if (event.pointerId === strokePointer) {
+        paint(event);
+        return;
+      }
       gesture.move(event.pointerId, event.clientX, event.clientY);
-    const cancel = (event: PointerEvent) => gesture.cancel(event.pointerId);
+    };
+    const cancel = (event: PointerEvent) => {
+      gesture.cancel(event.pointerId);
+      if (event.pointerId === strokePointer) clearStroke();
+    };
     const click = (event: PointerEvent) => {
+      if (event.pointerId === strokePointer) {
+        paint(event);
+        const first = stroke[0]?.point;
+        if (first) {
+          const point: PainPoint =
+            stroke.length > 1
+              ? {
+                  ...first,
+                  structure: `Area starting at ${first.structure}`,
+                  area: {
+                    path: stroke.map((item) => item.point.position),
+                    radius: 0.12,
+                  },
+                }
+              : first;
+          latest.current.onSelect(point.region);
+          latest.current.onPoint?.(point);
+        }
+        clearStroke();
+        return;
+      }
+      if (interaction.current.dragMode === "highlight") return;
       if (
         !gesture.up(
           event.pointerId,
@@ -591,12 +887,36 @@ export default function Anatomy(props: Props) {
         return;
       pickAt(event.clientX, event.clientY);
     };
+    function candidateAt(hit: T.Intersection): Candidate {
+      return {
+        mesh: hit.object,
+        point: {
+          id: crypto.randomUUID(),
+          region:
+            root.dataset.atlas === "z-anatomy"
+              ? regionAt(hit.point, hit.object.name)
+              : hit.object.userData.region,
+          position: hit.point.toArray() as [number, number, number],
+          source: hit.object.userData.source ?? {
+            atlas: "schematic-v1",
+            layer: hit.object.userData.layer,
+            mesh_name: hit.object.name,
+          },
+          structure:
+            hit.object.name
+              .replace(/\.[lr]\.\d+$/, "")
+              .replace(/\.\d+$/, "")
+              .replace(/_/g, " ") || "Selected surface",
+        },
+      };
+    }
     function pickAt(
       clientX: number,
       clientY: number,
       forcePicker = false,
       targetRegion?: RegionId,
     ) {
+      if (!root.dataset.atlas) return;
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -644,30 +964,7 @@ export default function Anatomy(props: Props) {
           }
         }
       }
-      const options = nearbySurfaces(hits).map((hit): Candidate => {
-        const region =
-          root.dataset.atlas === "z-anatomy"
-            ? regionAt(hit.point, hit.object.name)
-            : hit.object.userData.region;
-        return {
-          mesh: hit.object,
-          point: {
-            id: crypto.randomUUID(),
-            region,
-            position: hit.point.toArray() as [number, number, number],
-            source: hit.object.userData.source ?? {
-              atlas: "schematic-v1",
-              layer: hit.object.userData.layer,
-              mesh_name: hit.object.name,
-            },
-            structure:
-              hit.object.name
-                .replace(/\.[lr]\.\d+$/, "")
-                .replace(/\.\d+$/, "")
-                .replace(/_/g, " ") || "Selected surface",
-          },
-        };
-      });
+      const options = nearbySurfaces(hits).map(candidateAt);
       if (
         options.length &&
         latest.current.navigation &&
@@ -686,12 +983,24 @@ export default function Anatomy(props: Props) {
         setPickHint("Click the visible muscle to choose a pin location");
       }
     }
-    renderer.domElement.addEventListener("pointerdown", down);
+    renderer.domElement.addEventListener("pointerdown", down, true);
     renderer.domElement.addEventListener("pointerup", click);
     renderer.domElement.addEventListener("pointermove", move);
     renderer.domElement.addEventListener("pointercancel", cancel);
     controls.addEventListener("start", stopEasing);
+    let orientation: "front" | "back" | null | undefined;
     const changed = () => {
+      const offset = camera.position.clone().sub(controls.target);
+      const next =
+        Math.abs(offset.x) < Math.abs(offset.z) * 0.16
+          ? offset.z >= 0
+            ? "front"
+            : "back"
+          : null;
+      if (next !== orientation) {
+        orientation = next;
+        latest.current.onOrientation?.(next);
+      }
       dirty = 2;
     };
     controls.addEventListener("change", changed);
@@ -704,6 +1013,7 @@ export default function Anatomy(props: Props) {
         easing = stepCamera(elapsedSeconds);
         dirty = 2;
       }
+      if (spread.tick(elapsedSeconds, motionPreference.matches)) dirty = 2;
       controls.update();
       if (dirty > 0) {
         renderer.render(scene, camera);
@@ -712,18 +1022,21 @@ export default function Anatomy(props: Props) {
     });
     return () => {
       disposed = true;
+      clearStroke();
       engine.current = null;
+      spread.clear();
+      if (latest.current.captureRef) latest.current.captureRef.current = null;
       observer.disconnect();
       motionPreference.removeEventListener("change", motionChanged);
       controls.dispose();
       renderer.setAnimationLoop(null);
-      renderer.domElement.removeEventListener("pointerdown", down);
+      renderer.domElement.removeEventListener("pointerdown", down, true);
       renderer.domElement.removeEventListener("pointerup", click);
       renderer.domElement.removeEventListener("pointermove", move);
       renderer.domElement.removeEventListener("pointercancel", cancel);
       controls.removeEventListener("start", stopEasing);
       scene.traverse((object) => {
-        if (object instanceof T.Mesh || object instanceof T.LineSegments) {
+        if (object instanceof T.Mesh || object instanceof T.Line) {
           object.geometry.dispose();
           const materials = Array.isArray(object.material)
             ? object.material
@@ -733,16 +1046,19 @@ export default function Anatomy(props: Props) {
       });
       renderer.dispose();
       renderer.domElement.remove();
+      delete root.dataset.atlas;
+      delete root.dataset.heatEngine;
     };
   }, []);
   useEffect(
     () => engine.current?.update(),
     [
       props.selected,
-      props.mapped,
+      mappedKey,
       props.intensity,
       props.layer,
-      props.points,
+      props.showSkeleton,
+      pointsKey,
       dragMode,
       surroundings,
     ],
@@ -750,7 +1066,7 @@ export default function Anatomy(props: Props) {
   useEffect(() => {
     setCandidates([]);
     engine.current?.command("context");
-  }, [props.layer, layers]);
+  }, [props.layer, props.showSkeleton, layers, dragMode]);
   useEffect(() => {
     if (candidates.length)
       picker.current
@@ -777,13 +1093,17 @@ export default function Anatomy(props: Props) {
               >
                 Muscle list
               </button>
-              {(["turn", "move"] as const).map((mode) => (
+              {(["turn", "move", "highlight"] as const).map((mode) => (
                 <button
                   key={mode}
                   aria-pressed={dragMode === mode}
                   onClick={() => setDragMode(mode)}
                 >
-                  {mode === "turn" ? "Turn" : "Move"}
+                  {mode === "turn"
+                    ? "Turn"
+                    : mode === "move"
+                      ? "Move"
+                      : "Highlight"}
                 </button>
               ))}
               <button
@@ -805,7 +1125,7 @@ export default function Anatomy(props: Props) {
               ).map(([direction, Icon]) => (
                 <button
                   key={direction}
-                  aria-label={`${dragMode === "turn" ? "Turn" : "Move"} ${direction}`}
+                  aria-label={`${dragMode === "move" ? "Move" : "Turn"} ${direction}`}
                   onClick={() => engine.current?.command(`nudge:${direction}`)}
                 >
                   <Icon size={17} />
@@ -814,9 +1134,11 @@ export default function Anatomy(props: Props) {
             </div>
             <small>
               {pickHint ||
-                (layers
-                  ? "Click the body to choose a layer"
-                  : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Click to pin`)}
+                (dragMode === "highlight"
+                  ? "Drag over the body to highlight an area"
+                  : layers
+                    ? "Click the body to choose a layer"
+                    : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Click to pin`)}
             </small>
           </div>
           {muscleBrowser && (
@@ -934,6 +1256,10 @@ export default function Anatomy(props: Props) {
                   <button
                     key={candidate.point.id}
                     aria-pressed={candidateIndex === index}
+                    onMouseEnter={() => {
+                      setCandidateIndex(index);
+                      engine.current?.preview(candidate);
+                    }}
                     onClick={() => {
                       setCandidateIndex(index);
                       engine.current?.preview(candidate);
@@ -956,8 +1282,43 @@ export default function Anatomy(props: Props) {
                   </button>
                 ))}
               </div>
+              {candidates.length > 1 && (
+                <div className="layer-spread-control">
+                  <button
+                    className="secondary"
+                    aria-pressed={spreadAmount > 0}
+                    onClick={() => {
+                      const amount = spreadAmount > 0 ? 0 : 0.8;
+                      setSpreadAmount(amount);
+                      engine.current?.spread(amount, candidates);
+                    }}
+                  >
+                    Spread layers
+                  </button>
+                  {spreadAmount > 0 && (
+                    <label className="layer-context-control">
+                      Separation
+                      <input
+                        type="range"
+                        aria-label="Layer separation"
+                        min="0.1"
+                        max="1"
+                        step="0.1"
+                        value={spreadAmount}
+                        onChange={(event) => {
+                          const amount = Number(event.target.value);
+                          setSpreadAmount(amount);
+                          engine.current?.spread(amount, candidates);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
               <p className="layer-picker-note">
-                Model depth helps locate a pin. It does not identify what hurts.
+                {spreadAmount > 0
+                  ? "Spreading the view does not move your saved marks."
+                  : "Model depth helps locate a pin. It does not identify what hurts."}
               </p>
               <button
                 className="primary"

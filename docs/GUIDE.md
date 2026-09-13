@@ -8,6 +8,8 @@ Use **Landmarks** to choose a region and view it from the front, back, top, or o
 
 Choose **Turn** or **Move**, then use the arrows or drag. Scroll or use the zoom buttons to zoom around the current focus. The buttons support keyboard access. Reduced-motion settings skip camera transitions.
 
+Turn off **Show bones** to hide the skeleton while viewing muscles. This preference stays with your browser draft. Hidden bones are excluded from layer picking and viewport pictures; existing marks stay saved.
+
 A click places a precise surface pin. The 3D overlay spreads heat around your pin; it does not infer tissue damage or a diagnosis. Coarse regions are approximate and can misclassify boundaries. The GLB meshes have finite detail: close zoom does not reveal microscopic anatomy. Detailed nerve pathways and motion analysis are outside this version.
 
 - **SVG:** a standalone visual report with front/back projections, numbered pins, context, and clickable reading citations. Projection onto the report silhouette is approximate.
@@ -27,3 +29,11 @@ To add a college athletics program, open PT resource, or sports science lab, add
 ## Easier model controls
 
 **Layers** lets you click a spot, preview nearby surfaces along the view, and pin the structure you choose. This is model geometry, not a measurement of tissue depth or the cause of discomfort. Each entry supports ten pins. The intensity control records a value from 0 to 10 and colors the heatmap from blue to red. Leave it unrated when you do not want to record a number.
+
+Use the layer icon beside a saved pin to explore that spot. When several surfaces overlap, **Spread layers** separates them for viewing. Hover over a name or select it to highlight its shape; the **Separation** slider adjusts the spread. Closing the picker restores the anatomy. Pin coordinates stay on the original model.
+
+**Map image** saves a PNG of the current 3D view. **Print / Save PDF** uses the same view with numbered visible pins and all written notes. Rotate or focus the map before exporting. Hidden pins remain in the notes; the picture does not reveal structures behind opaque anatomy. Spread layers return to their anatomical positions for the picture.
+
+**Body reference** opens optional male and female outer-body models. These references have no muscle layers and do not display or move your journal pins.
+
+Choose **Highlight**, then drag across the visible body to mark a small area. Each stroke counts as one of the ten marks. The brush follows visible surfaces and has a fixed width; it does not measure the extent of pain. **Undo** removes the latest mark or restores a deleted one. **Redo** reapplies it. Undo history lasts while you work on the current entry; saved marks persist as usual.

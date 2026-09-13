@@ -1,4 +1,5 @@
 from enum import StrEnum
+from math import dist
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -55,6 +56,20 @@ class Answer(BaseModel):
     text: str = Field(min_length=1, max_length=500)
 
 
+class SurfaceArea(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: list[tuple[float, float, float]] = Field(min_length=2, max_length=48)
+    radius: float = Field(ge=0.03, le=0.25, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def bound_path(self):
+        if any(not -4 <= n <= 4 for point in self.path for n in point):
+            raise ValueError("Highlighted area lies outside the body atlas.")
+        if any(dist(a, b) > 0.5 for a, b in zip(self.path, self.path[1:])):
+            raise ValueError("Highlighted area has a gap.")
+        return self
+
+
 class PointObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=r"^[a-f0-9-]{36}$")
@@ -62,11 +77,14 @@ class PointObservation(BaseModel):
     position: tuple[float, float, float]
     structure: str = Field(max_length=150)
     comment: str = Field(default="", max_length=1000)
+    area: SurfaceArea | None = None
 
     @model_validator(mode="after")
     def bound_position(self):
         if any(not -4 <= value <= 4 for value in self.position):
             raise ValueError("Point lies outside the body atlas.")
+        if self.area and self.area.path[0] != self.position:
+            raise ValueError("Highlighted area must start at its pin.")
         return self
 
 

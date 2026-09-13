@@ -85,12 +85,13 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
         challenge_token: token,
         provider,
         points: (entry.points ?? []).map(
-          ({ id, region, position, structure, comment }) => ({
+          ({ id, region, position, structure, comment, area }) => ({
             id: /^[a-f0-9-]{36}$/.test(id) ? id : crypto.randomUUID(),
             region,
             position,
             structure: structure.slice(0, 150),
             comment: comment ?? "",
+            area,
           }),
         ),
       });

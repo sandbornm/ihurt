@@ -12,7 +12,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,10 +28,14 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Check layouts, body controls, and exports
         run: npm run test:browser
+      - name: Check painting, undo, layers, and viewport captures
+        run: npm run test:controls
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: browser-check
-          path: output/browser-check/
+          path: |
+            output/browser-check/
+            output/controls/
           retention-days: 3
           if-no-files-found: ignore

@@ -1792,6 +1792,22 @@ h1 > span {
 .notebook-shell .pin-list .notebook-pin {
   flex-wrap: wrap;
 }
+.notebook-pin > button:first-child {
+  min-width: 0;
+}
+.notebook-pin .pin-layers,
+.notebook-pin > button[aria-label^="Remove spot"] {
+  flex: 0 0 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #b3c69e;
+}
+.notebook-pin .pin-layers:hover {
+  background: #bedb9b26;
+  color: #dbf7b5;
+}
 .notebook-pin textarea {
   flex: 0 0 100%;
   width: 100%;
@@ -1804,6 +1820,36 @@ h1 > span {
   font-size: 12px;
   resize: vertical;
   line-height: 1.5;
+}
+.mark-history {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 16px;
+  font-size: 11px;
+}
+.mark-history > span {
+  margin-right: auto;
+  color: var(--muted);
+}
+.mark-history button {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.mark-history button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.anatomy-canvas[data-drag-mode="highlight"] > canvas {
+  cursor: crosshair;
+  touch-action: none;
+}
+.navigation-modes {
+  flex-wrap: wrap;
 }
 .entry-context,
 .activity-explore,
@@ -2012,6 +2058,11 @@ h1 > span {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+  background: #17231b;
+  padding: 8px 0;
 }
 .layer-picker-heading button {
   padding: 7px;
@@ -2060,6 +2111,83 @@ h1 > span {
   font-size: 12px;
   min-height: 36px;
 }
+.layer-spread-control {
+  margin-top: 12px;
+}
+.body-reference {
+  width: min(850px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 24px;
+  background: #14211b;
+  border: 1px solid #617655;
+  border-radius: 16px;
+  color: var(--text);
+}
+.body-reference::backdrop {
+  background: #080e0bba;
+}
+.body-reference-heading,
+.body-reference-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.body-reference h2 {
+  font-size: 22px;
+  margin: 0;
+}
+.body-reference p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.body-reference .layer-toggle {
+  margin: 10px 0;
+  width: fit-content;
+}
+.body-reference-canvas {
+  height: min(54dvh, 520px);
+  position: relative;
+}
+.body-reference-canvas > p {
+  position: absolute;
+  z-index: 1;
+  left: 20px;
+  top: 20px;
+}
+.body-reference-controls {
+  margin-top: 10px;
+  font-size: 11px;
+}
+.body-reference-note {
+  margin-bottom: 0;
+}
+.bones-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.bones-toggle input {
+  accent-color: #b5df79;
+}
+.body-footer {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.layer-spread-control > button {
+  width: 100%;
+  min-height: 36px;
+  font-size: 12px;
+}
+.layer-spread-control > button[aria-pressed="true"] {
+  border-color: #b5df79;
+  background: #bad78f1f;
+}
 .offline-reading > summary {
   cursor: pointer;
   padding: 20px 24px;
@@ -2075,6 +2203,11 @@ h1 > span {
     right: 12px;
     top: 70px;
     max-height: calc(100% - 85px);
+  }
+  .anatomy-canvas[data-exploded="true"] .anatomy-layer-picker {
+    top: auto;
+    bottom: 8px;
+    max-height: 46%;
   }
 }
 .research-description {

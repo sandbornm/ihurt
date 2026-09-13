@@ -64,6 +64,8 @@ try {
       '[data-atlas="z-anatomy"][data-heat-engine="wasm"]',
     );
     await atlas.waitFor();
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
+    await page.getByRole("button", { name: "Turn", exact: true }).click();
     await page.getByRole("button", { name: "Turn right", exact: true }).click();
     await page.getByRole("button", { name: "Turn left", exact: true }).click();
     await page.getByRole("button", { name: "Move", exact: true }).click();

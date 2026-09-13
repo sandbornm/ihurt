@@ -1,0 +1,232 @@
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line, #91ac6c35);
+  border-radius: 10px;
+  color: inherit;
+  white-space: nowrap;
+}
+.creator-credit {
+  font-size: 12px;
+  color: var(--muted);
+}
+.creator-credit a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:root[data-theme="light"] {
+  color: #243627;
+  background: #f4f6f0;
+  --lime: #376b22;
+  --muted: #52664e;
+  --line: #cbd5c5;
+  --panel: #ffffff;
+  --soft: #344d33;
+  color-scheme: light;
+}
+[data-theme="light"] body {
+  background: #f4f6f0;
+}
+[data-theme="light"]
+  :is(
+    .topbar,
+    .rail,
+    .body-workspace,
+    .intake-panel,
+    .journal-card,
+    .dialog,
+    .anatomy-navigation,
+    .anatomy-layer-picker,
+    .layer-picker-heading,
+    .landmark-content,
+    .region-callout,
+    .toast,
+    .body-reference,
+    .site-dialog,
+    .example-cards article
+  ) {
+  background: #fff;
+  color: #243627;
+  border-color: #c5d1be;
+}
+[data-theme="light"] :is(.anatomy-stage, .stage-glow) {
+  background: radial-gradient(ellipse at center, #e2ecd6 0%, #f1f5eb 70%);
+}
+[data-theme="light"]
+  :is(
+    .body-toolbar,
+    .body-footer,
+    .intake-header,
+    .page-tabs,
+    .site-nav,
+    .site-footer
+  ) {
+  background: transparent;
+  border-color: #cbd5c5;
+}
+[data-theme="light"]
+  :is(
+    .small-label,
+    .eyebrow,
+    .page-heading p,
+    .page-tabs button,
+    .privacy-link,
+    .page-footer,
+    .heat-legend,
+    .field-label,
+    .field-label span,
+    .notebook-pin small,
+    .notebook-pin p,
+    .intake-header p,
+    .anatomy-bottom,
+    .anatomy-navigation small,
+    .layer-choices small,
+    .anatomy-layer-picker p,
+    .layer-context-control,
+    .intake-footnote,
+    .entry-context summary,
+    .activity-explore summary,
+    .share-with-ai summary,
+    .saved-ai summary,
+    .share-with-ai p,
+    .ai-tools p,
+    .saved-ai p,
+    .dialog p,
+    .dialog-caption,
+    .intensity-adjust > small,
+    .intensity-scale,
+    .intensity-dial small,
+    .region-callout strong,
+    .section-eyebrow,
+    .examples-caption,
+    .example-download
+  ) {
+  color: #52664e;
+}
+[data-theme="light"] .subtle {
+  color: #52664e !important;
+}
+[data-theme="light"]
+  :is(
+    input,
+    textarea,
+    select,
+    .notebook-input,
+    .notebook-note,
+    .pin-comment,
+    .research-description textarea,
+    .share-with-ai textarea,
+    .ai-tools textarea
+  ) {
+  background: #f5f8f0;
+  color: #243627;
+  border-color: #becbb7;
+}
+[data-theme="light"]
+  :is(
+    .view-switch,
+    .layer-toggle,
+    .intensity-control,
+    .intensity-dial strong,
+    .region-search,
+    .region-tags button,
+    .selection-chip
+  ) {
+  background: #edf3e5;
+  color: #243627;
+  border-color: #bdcbb5;
+}
+[data-theme="light"]
+  :is(
+    .view-switch .active,
+    .layer-toggle .active,
+    .navigation-modes button[aria-pressed="true"],
+    .muscle-browser-list button[aria-pressed="true"],
+    .layer-choices button[aria-pressed="true"],
+    .landmark-active
+  ) {
+  background: #dceacb;
+  color: #294f1c;
+}
+[data-theme="light"] :is(.primary, .new-map-button, .cta-primary) {
+  background: #376b22;
+  color: #fff;
+  border-color: #376b22;
+}
+[data-theme="light"]
+  :is(
+    .secondary,
+    .text-button,
+    .notebook-tools button,
+    .export-pair button,
+    .model-badge,
+    .landmark-menu > button,
+    .region-callout button,
+    .canvas-controls button
+  ) {
+  color: #345928;
+  border-color: #aebfa4;
+}
+[data-theme="light"] .secondary {
+  background: #edf4e5;
+}
+[data-theme="light"] .stage-grid {
+  opacity: 0.14;
+}
+[data-theme="light"] ::selection {
+  background: #c1dfac;
+  color: #20341a;
+}
+@media (max-width: 600px) {
+  .theme-toggle span {
+    display: none;
+  }
+}
+
+[data-theme="light"]
+  :is(
+    .brand,
+    .theme-toggle,
+    .intensity-scale button,
+    .stage-intro button,
+    .privacy-link,
+    .top-actions,
+    .rail button.active
+  ) {
+  color: #355329;
+}
+[data-theme="light"]
+  :is(
+    .canvas-controls,
+    .note-tools,
+    .text-input-area,
+    .source-picker,
+    .resource-panel,
+    .resource-links a,
+    .region-list button
+  ) {
+  background: #f5f8f0;
+  border-color: #bdcbb4;
+  color: #355329;
+}
+[data-theme="light"]
+  :is(
+    .source-picker small,
+    .source-picker > button,
+    .resource-links small,
+    .resource-links strong,
+    .resource-notice,
+    .note-tools,
+    .session-badge,
+    .map-facts dd
+  ) {
+  color: #52664e;
+}
+[data-theme="light"] .spark-icon {
+  background: #e7f0db;
+  color: #426732;
+}

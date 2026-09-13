@@ -15,6 +15,7 @@ iHurt helps you describe discomfort when words alone are hard to get right. Plac
 ## Keep a visual journal
 
 - Place pins or drag to highlight an area, with up to ten marks per entry. Undo mistakes and add a comment to each spot.
+- Start with **Quick tour**, switch between light and dark, and open **More tools** when you need muscle layers.
 - Keep multiple entries, edit them later, and choose any sport or activity.
 - Explore reading from your selected sources.
 - Print the current 3D view or share an [.ihm map](docs/IHM.md) or JSON with notes, coordinates, and anatomy references.
@@ -32,6 +33,8 @@ Entries stay in this browser on this device. Export a backup before clearing bro
 ## Not medical advice
 
 **iHurt is not medical advice whatsoever. It does not diagnose, treat, cure, mitigate, or prevent any disease, injury, or condition.** It is an experimental educational journal. Maps and reading links do not establish a cause or a personal treatment plan. Do not delay professional care based on its output. [Read the full limitations](docs/SAFETY.md).
+
+Pins describe locations on a shared reference model. They do not measure your body or identify the source of pain. [Mapping limitations](docs/GUIDE.md#mapping-a-location).
 
 ## About the project
 

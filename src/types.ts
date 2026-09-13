@@ -156,6 +156,8 @@ export interface SavedMap {
     url: string;
     publisher: string;
     checked: string;
+    kind?: "article" | "video";
+    context_url?: string;
   }[];
 }
 export const regionName = (id: string) =>

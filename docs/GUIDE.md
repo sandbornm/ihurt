@@ -37,3 +37,11 @@ Use the layer icon beside a saved pin to explore that spot. When several surface
 **Body reference** opens optional male and female outer-body models. These references have no muscle layers and do not display or move your journal pins.
 
 Choose **Highlight**, then drag across the visible body to mark a small area. Each stroke counts as one of the ten marks. The brush follows visible surfaces and has a fixed width; it does not measure the extent of pain. **Undo** removes the latest mark or restores a deleted one. **Redo** reapplies it. Undo history lasts while you work on the current entry; saved marks persist as usual.
+
+## Mapping a location
+
+Use **Quick tour** to walk through the controls without changing your entry. Choose **Pin** to mark a surface, **Turn** to rotate without placing pins, or **Highlight** to draw an area. The front/back buttons and zoom buttons also work without dragging. **More tools** reveals muscle browsing, overlapping layers, bones, and outer-body references. The light/dark switch remembers your preference on this device.
+
+The atlas is a shared reference, not a calibrated scan. Height and weight do not determine individual limb lengths, proportions, or internal tissue positions. No distances in centimeters are inferred. Left/right use the reference body's perspective. Confirm the general region and use the pin comment for details such as “just above the shoulder blade.” A selected mesh does not identify the source of pain.
+
+Reports begin with the medical limitation, preserve your own notes, and list the selected surfaces separately. When hosted source search is used, the report retains the exact reviewed search description. Video resources link to publisher context and precautions. .ihm imports preserve those links; videos are not embedded in the file.

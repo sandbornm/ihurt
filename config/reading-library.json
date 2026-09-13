@@ -56,6 +56,20 @@
       "kind": "College athletics",
       "hosts": ["www.ncaa.org"],
       "recommended": false
+    },
+    {
+      "id": "nhs_physio",
+      "name": "NHS physiotherapy videos",
+      "kind": "Physiotherapy",
+      "hosts": ["www.lincsphysio.nhs.uk", "www.torbayandsouthdevon.nhs.uk"],
+      "recommended": true
+    },
+    {
+      "id": "csp",
+      "name": "Chartered Society of Physiotherapy",
+      "kind": "Physiotherapy",
+      "hosts": ["www.csp.org.uk"],
+      "recommended": true
     }
   ],
   "resources": [
@@ -293,6 +307,33 @@
       ],
       "activities": ["sleep", "tennis", "run", "sport"],
       "checked": "2026-09-12"
+    },
+    {
+      "id": "video-0",
+      "title": "Neck and upper back: NHS physiotherapy videos",
+      "source": "nhs_physio",
+      "type": "Video",
+      "url": "https://www.lincsphysio.nhs.uk/self-care/specific-conditions/neck-and-upper-back-pain",
+      "regions": ["neck", "upper_back"],
+      "checked": "2026-09-13"
+    },
+    {
+      "id": "video-1",
+      "title": "Neck movement demonstrations",
+      "source": "csp",
+      "type": "Video",
+      "url": "https://www.csp.org.uk/conditions/neck-pain/video-exercises-neck-pain",
+      "regions": ["neck"],
+      "checked": "2026-09-13"
+    },
+    {
+      "id": "video-2",
+      "title": "Shoulder rehabilitation programme and precautions",
+      "source": "nhs_physio",
+      "type": "Video",
+      "url": "https://www.torbayandsouthdevon.nhs.uk/services/physiotherapy/support-videos/torbay-shoulder-exercise-programme/",
+      "regions": ["left_shoulder", "right_shoulder"],
+      "checked": "2026-09-13"
     }
   ]
 }

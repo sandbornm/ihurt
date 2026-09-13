@@ -67,6 +67,8 @@ import { prepareOffline } from "./offline";
 import FeatureBoundary from "./FeatureBoundary";
 import Resources from "./Resources";
 import IntensityDial from "./IntensityDial";
+import ThemeToggle from "./ThemeToggle";
+import Tutorial from "./Tutorial";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
@@ -90,6 +92,8 @@ export default function Notebook({
     onSave: (research: NonNullable<SavedMap["research"]>) => Promise<void>;
   }>;
 }) {
+  const [tutorial, setTutorial] = useState(false);
+  const [advancedControls, setAdvancedControls] = useState(false);
   const [offline, setOffline] = useState(false);
   const [bodyReference, setBodyReference] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -257,6 +261,7 @@ export default function Notebook({
           readingSources,
         ).map((r) => ({
           title: r.title,
+          kind: r.type === "Video" ? ("video" as const) : ("article" as const),
           url: r.url,
           publisher: sources.find((s) => s.id === r.source)!.name,
           checked: r.checked,
@@ -422,6 +427,13 @@ export default function Notebook({
           iHurt<span className="brand-period">.</span>
         </a>
         <div className="top-actions">
+          <ThemeToggle />
+          <button
+            className="privacy-link tour-button"
+            onClick={() => setTutorial(true)}
+          >
+            <CircleHelp size={18} /> Quick tour
+          </button>
           {example && (
             <a
               className="privacy-link"
@@ -615,18 +627,19 @@ export default function Notebook({
                 <div className="body-toolbar">
                   <div>
                     <span className="small-label">EXPLORE YOUR ANATOMY</span>
-                    <h2>
-                      {layer === "muscle"
-                        ? "Musculoskeletal view"
-                        : "Skeletal view"}
-                      <ChevronDown size={14} />
-                    </h2>
+                    <h2>Body map</h2>
                   </div>
-                  <span className="model-badge">3D ATLAS</span>
+                  <button
+                    className="secondary more-tools"
+                    aria-expanded={advancedControls}
+                    onClick={() => setAdvancedControls(!advancedControls)}
+                  >
+                    More tools <ChevronDown size={16} />
+                  </button>
                 </div>
                 <div className="anatomy-stage">
                   <div className="stage-grid" />
-                  <div className="landmark-menu">
+                  <div className="landmark-menu" hidden={!advancedControls}>
                     <button
                       className={landmarks ? "landmark-active" : ""}
                       onClick={() => setLandmarks((v) => !v)}
@@ -719,7 +732,6 @@ export default function Notebook({
                     )}
                   </div>
                   <div className="stage-intro">
-                    <span className="small-label">CLICK TO ADD A PIN</span>
                     <button onClick={() => regionDialog.current?.showModal()}>
                       <Search size={14} />
                       Find a region
@@ -733,6 +745,7 @@ export default function Notebook({
                     >
                       <Anatomy
                         navigation
+                        advancedControls={advancedControls}
                         captureRef={capture}
                         selected={selected}
                         mapped={result?.regions ?? noRegions}
@@ -778,39 +791,6 @@ export default function Notebook({
                       Back
                     </button>
                   </div>
-                  {selected && (
-                    <div className="region-callout">
-                      <span className="callout-dot" />
-                      <div>
-                        <span>
-                          {result?.regions.includes(selected)
-                            ? "REPORTED REGION"
-                            : "SELECTED REGION"}
-                        </span>
-                        <strong>{regionName(selected)}</strong>
-                      </div>
-                      <button
-                        title="Focus on region"
-                        aria-label="Focus on selected region"
-                        onClick={() => action("focus")}
-                      >
-                        <span>Focus</span>
-                      </button>
-                      <button
-                        onClick={() => action("pin-center")}
-                        aria-label="Add pin in selected region"
-                      >
-                        <Plus size={14} /> Add pin
-                      </button>
-                      <button
-                        title="Clear selection"
-                        aria-label="Clear selection"
-                        onClick={() => setSelected(null)}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
                   <div className="canvas-controls">
                     <button
                       onClick={() => action("zoom-in")}
@@ -833,10 +813,7 @@ export default function Notebook({
                     </button>
                   </div>
                   <div className="anatomy-bottom">
-                    <span>
-                      <RotateCcw size={12} />
-                      Use arrows to turn · Move to reposition · + / − to zoom
-                    </span>
+                    <span>Reference body · your left and right</span>
                     <a
                       href="/models/ATTRIBUTION.md"
                       target="_blank"
@@ -846,8 +823,41 @@ export default function Notebook({
                     </a>
                   </div>
                 </div>
+                {selected && (
+                  <div className="region-callout">
+                    <span className="callout-dot" />
+                    <div>
+                      <span>
+                        {result?.regions.includes(selected)
+                          ? "REPORTED REGION"
+                          : "SELECTED REGION"}
+                      </span>
+                      <strong>{regionName(selected)}</strong>
+                    </div>
+                    <button
+                      title="Focus on region"
+                      aria-label="Focus on selected region"
+                      onClick={() => action("focus")}
+                    >
+                      <span>Focus</span>
+                    </button>
+                    <button
+                      onClick={() => action("pin-center")}
+                      aria-label="Add pin in selected region"
+                    >
+                      <Plus size={14} /> Add pin
+                    </button>
+                    <button
+                      title="Clear selection"
+                      aria-label="Clear selection"
+                      onClick={() => setSelected(null)}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 <div className="body-footer">
-                  <div className="layer-toggle">
+                  <div className="layer-toggle" hidden={!advancedControls}>
                     <button
                       className={layer === "muscle" ? "active" : ""}
                       aria-pressed={layer === "muscle"}
@@ -867,7 +877,7 @@ export default function Notebook({
                       Body reference
                     </button>
                   </div>
-                  {layer === "muscle" && (
+                  {advancedControls && layer === "muscle" && (
                     <label className="bones-toggle">
                       <input
                         type="checkbox"
@@ -1300,8 +1310,15 @@ export default function Notebook({
             <span>
               <ShieldCheck size={13} />A personal journal. Not medical advice.
             </span>
-            <span>
-              {offline ? "Available offline" : "Hurt less. Feel better."}
+            <span className="creator-credit">
+              Made by{" "}
+              <a
+                href="https://x.com/msxndborn"
+                target="_blank"
+                rel="noreferrer"
+              >
+                @msxndborn
+              </a>
             </span>
             <button onClick={() => infoDialog.current?.showModal()}>
               Privacy & limitations
@@ -1310,6 +1327,7 @@ export default function Notebook({
           </footer>
         </main>
       </div>
+      {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
       <dialog ref={regionDialog} className="dialog region-dialog">
         <div className="dialog-heading">
           <h2>Where do you feel it?</h2>
@@ -1372,7 +1390,9 @@ export default function Notebook({
         <p>
           iHurt is not medical advice whatsoever. It does not diagnose, treat,
           cure, mitigate, or prevent any disease, injury, or condition. Anatomy
-          labels and highlights are approximate.
+          labels and highlights are approximate. Pins refer to a shared anatomy
+          model, not measurements of your body. Height and weight alone cannot
+          establish your proportions or the tissue causing discomfort.
         </p>
         <p>
           Linked resources are published independently and may change. Inclusion

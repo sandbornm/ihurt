@@ -43,6 +43,7 @@ try {
     const context = await browser.newContext({
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
+      colorScheme: "dark",
     });
     const page = await context.newPage();
     page.setDefaultTimeout(60000);
@@ -51,6 +52,48 @@ try {
     await page.goto(origin);
     const atlas = page.locator('[data-atlas="z-anatomy"]');
     await atlas.waitFor();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Muscle list", exact: true })
+        .isVisible(),
+      false,
+    );
+    assert.equal(await atlas.getAttribute("data-drag-mode"), "pin");
+    await page.getByRole("button", { name: "Quick tour", exact: true }).click();
+    for (let i = 0; i < 3; i++)
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Start mapping", exact: true })
+      .click();
+    assert.equal(
+      await page.locator(".notebook-pin").count(),
+      0,
+      "Tutorial changed the journal",
+    );
+    await page
+      .getByRole("button", { name: "Switch to light mode", exact: true })
+      .click();
+    assert.equal(
+      await page.locator("html").getAttribute("data-theme"),
+      "light",
+    );
+    await page.screenshot({
+      path: `${output}/simple-light-${width}.png`,
+      animations: "disabled",
+    });
+    await page.reload();
+    await atlas.waitFor();
+    assert.equal(
+      await page.locator("html").getAttribute("data-theme"),
+      "light",
+    );
+    await page.getByRole("button", { name: "Quick tour", exact: true }).click();
+    await page.screenshot({ path: `${output}/tour-${width}.png` });
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Switch to dark mode", exact: true })
+      .click();
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
       .getByRole("checkbox", { name: "Show bones", exact: true })
       .uncheck();
@@ -102,6 +145,17 @@ try {
     assert.ok(data.entries[0].highlights[1].area.path.length > 1);
     assert.equal(data.entries[0].highlights[1].area.radius, 0.12);
     await page.getByRole("button", { name: "Turn", exact: true }).click();
+    await canvas.scrollIntoViewIfNeeded();
+    const turnBox = await canvas.boundingBox();
+    await page.mouse.click(
+      turnBox.x + turnBox.width * 0.5,
+      turnBox.y + turnBox.height * 0.5,
+    );
+    assert.equal(
+      await page.locator(".notebook-pin").count(),
+      2,
+      "Turning placed an unwanted pin",
+    );
     await page
       .getByRole("button", { name: "Explore layers at spot 1", exact: true })
       .click();
@@ -138,6 +192,11 @@ try {
       .click();
     const popup = await popupPromise;
     await popup.locator("figure img").waitFor();
+    assert.ok(
+      (await popup.locator(".medical-notice").innerText()).startsWith(
+        "Not medical advice. Not a prescription.",
+      ),
+    );
     await popup.waitForFunction(
       () => document.querySelector("figure img")?.naturalWidth > 0,
     );
@@ -174,7 +233,7 @@ try {
     );
     assert.deepEqual(errors, []);
     console.log(
-      `PASS controls ${width}: paint, undo/redo, bone visibility, viewport PNG, print image, reference models, refresh`,
+      `PASS controls ${width}: simple controls, tutorial, light mode, turn without pins, paint, undo/redo, bone visibility, viewport PNG, print image, reference models, refresh`,
     );
     await context.close();
   }

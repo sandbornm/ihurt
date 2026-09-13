@@ -115,7 +115,7 @@
   .page-heading h1 {
     font-size: 30px !important;
   }
-  .privacy-link {
+  .privacy-link:not(.tour-button) {
     display: none !important;
   }
 }

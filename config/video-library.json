@@ -1,0 +1,27 @@
+[
+  {
+    "title": "Neck and upper back: NHS physiotherapy videos",
+    "source": "nhs_physio",
+    "publisher": "Lincolnshire Community Health Services NHS Trust",
+    "page_url": "https://www.lincsphysio.nhs.uk/self-care/specific-conditions/neck-and-upper-back-pain",
+    "video_url": "https://www.youtube.com/playlist?list=PLB1Z7vPRwrbnsgbbfPJrBtEyd0II01lu3",
+    "regions": ["neck", "upper_back"],
+    "checked": "2026-09-13"
+  },
+  {
+    "title": "Neck movement demonstrations",
+    "source": "csp",
+    "publisher": "Chartered Society of Physiotherapy",
+    "page_url": "https://www.csp.org.uk/conditions/neck-pain/video-exercises-neck-pain",
+    "regions": ["neck"],
+    "checked": "2026-09-13"
+  },
+  {
+    "title": "Shoulder rehabilitation programme and precautions",
+    "source": "nhs_physio",
+    "publisher": "Torbay and South Devon NHS Foundation Trust",
+    "page_url": "https://www.torbayandsouthdevon.nhs.uk/services/physiotherapy/support-videos/torbay-shoulder-exercise-programme/",
+    "regions": ["left_shoulder", "right_shoulder"],
+    "checked": "2026-09-13"
+  }
+]

@@ -30,6 +30,7 @@ interface Props {
   points?: PainPoint[];
   onPoint?: (point: PainPoint) => void;
   navigation?: boolean;
+  advancedControls?: boolean;
   captureRef?: RefObject<(() => ViewportCapture | null) | null>;
   showSkeleton?: boolean;
   onOrientation?: (view: "front" | "back" | null) => void;
@@ -63,9 +64,9 @@ export default function Anatomy(props: Props) {
     preview: (candidate: Candidate | null) => void;
     spread: (amount: number, options: Candidate[]) => void;
   } | null>(null);
-  const [dragMode, setDragMode] = useState<"turn" | "move" | "highlight">(
-    "turn",
-  );
+  const [dragMode, setDragMode] = useState<
+    "pin" | "turn" | "move" | "highlight"
+  >(props.navigation ? "pin" : "turn");
   const [layers, setLayers] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -238,6 +239,8 @@ export default function Anatomy(props: Props) {
     const update = () => {
       const p = latest.current;
       controls.enabled = interaction.current.dragMode !== "highlight";
+      controls.enableRotate = interaction.current.dragMode !== "pin";
+      controls.enablePan = interaction.current.dragMode !== "pin";
       controls.mouseButtons.LEFT =
         interaction.current.dragMode === "move" ? T.MOUSE.PAN : T.MOUSE.ROTATE;
       root.dataset.dragMode = interaction.current.dragMode;
@@ -885,6 +888,12 @@ export default function Anatomy(props: Props) {
         !root.dataset.atlas
       )
         return;
+      if (
+        latest.current.navigation &&
+        interaction.current.dragMode !== "pin" &&
+        !interaction.current.layers
+      )
+        return;
       pickAt(event.clientX, event.clientY);
     };
     function candidateAt(hit: T.Intersection): Candidate {
@@ -1077,6 +1086,13 @@ export default function Anatomy(props: Props) {
   useEffect(() => {
     if (props.command.id) engine.current?.command(props.command.type);
   }, [props.command]);
+  useEffect(() => {
+    if (props.advancedControls === false) {
+      setLayers(false);
+      setMuscleBrowser(false);
+      if (dragMode === "move") setDragMode("pin");
+    }
+  }, [props.advancedControls]);
   return (
     <div className="anatomy-canvas" ref={host}>
       {props.navigation && ready && !failure && (
@@ -1084,6 +1100,7 @@ export default function Anatomy(props: Props) {
           <div className="anatomy-navigation" aria-label="Model controls">
             <div className="navigation-modes">
               <button
+                hidden={props.advancedControls === false}
                 aria-pressed={muscleBrowser}
                 onClick={() => {
                   setMuscleBrowser((v) => !v);
@@ -1093,28 +1110,35 @@ export default function Anatomy(props: Props) {
               >
                 Muscle list
               </button>
-              {(["turn", "move", "highlight"] as const).map((mode) => (
+              {(["pin", "turn", "highlight", "move"] as const).map((mode) => (
                 <button
                   key={mode}
+                  hidden={mode === "move" && props.advancedControls === false}
                   aria-pressed={dragMode === mode}
                   onClick={() => setDragMode(mode)}
                 >
-                  {mode === "turn"
-                    ? "Turn"
-                    : mode === "move"
-                      ? "Move"
-                      : "Highlight"}
+                  {mode === "pin"
+                    ? "Pin"
+                    : mode === "turn"
+                      ? "Turn"
+                      : mode === "move"
+                        ? "Move"
+                        : "Highlight"}
                 </button>
               ))}
               <button
                 ref={layersButton}
+                hidden={props.advancedControls === false}
                 aria-pressed={layers}
                 onClick={() => setLayers((v) => !v)}
               >
                 <Layers3 size={14} /> Layers
               </button>
             </div>
-            <div className="navigation-arrows">
+            <div
+              className="navigation-arrows"
+              hidden={dragMode === "pin" || dragMode === "highlight"}
+            >
               {(
                 [
                   ["left", ArrowLeft],
@@ -1138,7 +1162,9 @@ export default function Anatomy(props: Props) {
                   ? "Drag over the body to highlight an area"
                   : layers
                     ? "Click the body to choose a layer"
-                    : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Click to pin`)}
+                    : dragMode === "pin"
+                      ? "Tap the body to add a pin"
+                      : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Switch to Pin to mark a spot`)}
             </small>
           </div>
           {muscleBrowser && (

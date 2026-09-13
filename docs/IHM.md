@@ -13,3 +13,5 @@ The file includes personal information. It has no encryption or access controls.
 Imports remain limited to 10 MB and must match a supported schema and anatomy coordinate system. Unknown metadata is ignored; original journal fields are validated before saving. Older version 2 JSON exports still open normally.
 
 A highlight may include an optional `area` object: `path` contains 2–48 surface positions and `radius` records the brush width in model units. The first path position matches the pin's `position`. These are author-selected locations; the path can cross more than one structure, so the pin's named mesh identifies only its starting surface. Current imports restore these fields. Older iHurt versions may omit area details; retain the original file.
+
+References may include `kind: "video"` and a `context_url` pointing to the publisher’s page and precautions. A saved source search also records the reviewed description (up to 4,000 characters). These optional fields survive export and import; earlier maps remain valid.

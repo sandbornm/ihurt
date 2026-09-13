@@ -2369,3 +2369,205 @@ h1 > span {
     max-width: calc(100% - 36px);
   }
 }
+
+/* Keep secondary tools out of the initial map view. */
+[hidden] {
+  display: none !important;
+}
+.notebook-shell .body-toolbar .more-tools {
+  min-height: 44px;
+  padding: 8px 14px;
+}
+.notebook-shell .navigation-modes button,
+.notebook-shell .navigation-arrows button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+  padding: 8px 13px;
+}
+.notebook-shell .canvas-controls button {
+  width: 44px;
+  height: 44px;
+}
+.notebook-shell .view-switch button {
+  min-width: 62px;
+  min-height: 44px;
+  font-size: 14px;
+}
+.notebook-shell .landmark-menu > button,
+.notebook-shell .region-callout button,
+.notebook-shell .notebook-pin button {
+  min-height: 40px;
+}
+.notebook-shell .field-label,
+.notebook-shell .notebook-input,
+.notebook-shell .notebook-note,
+.notebook-shell .pin-comment {
+  font-size: 16px;
+}
+.notebook-shell .top-actions {
+  gap: 14px;
+}
+.notebook-shell .top-actions .tour-button {
+  min-height: 44px;
+}
+.notebook-shell .page-footer {
+  flex-wrap: wrap;
+}
+.anatomy-canvas[data-drag-mode="pin"] > canvas {
+  cursor: crosshair;
+}
+.tutorial {
+  max-width: 520px;
+  width: calc(100% - 32px);
+  padding: 28px;
+}
+.tutorial .dialog-heading {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+.tutorial h2 {
+  margin: 14px 0;
+  font-size: 28px;
+}
+.tutorial p {
+  font-size: 17px;
+  line-height: 1.65;
+  margin: 12px 0;
+}
+.tutorial .tutorial-limit {
+  font-size: 13px;
+  color: var(--muted);
+}
+.tutorial-picture {
+  height: 180px;
+  background: var(--panel);
+  border-radius: 16px;
+}
+.tutorial-picture svg {
+  width: 100%;
+  height: 100%;
+}
+.tutorial-body {
+  fill: #71886b;
+  stroke: #a8c799;
+  stroke-width: 2;
+}
+.tutorial-pin {
+  fill: #efab68;
+  stroke: #fff;
+  stroke-width: 3;
+}
+.tutorial-line {
+  fill: none;
+  stroke: #95b783;
+  stroke-width: 2;
+  stroke-dasharray: 4 5;
+}
+.tutorial-sheet {
+  fill: #e5efd9;
+  stroke: #8aa778;
+  stroke-width: 2;
+}
+.tutorial-writing {
+  fill: none;
+  stroke: #526b43;
+  stroke-width: 3;
+}
+.tutorial-locate :is(.tutorial-sheet, .tutorial-line, .tutorial-writing) {
+  opacity: 0.2;
+}
+.tutorial-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 24px;
+}
+.tutorial-actions button {
+  min-height: 48px;
+  padding: 12px 22px;
+}
+@media (max-width: 670px) {
+  .notebook-shell .topbar {
+    height: auto;
+    min-height: 72px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+  }
+  .notebook-shell .top-actions {
+    gap: 8px;
+  }
+  .notebook-shell .top-actions > .privacy-link:not(.tour-button) {
+    display: none;
+  }
+  .notebook-shell .navigation-modes button {
+    min-width: 44px;
+    padding: 6px 10px;
+  }
+  .notebook-shell .anatomy-navigation {
+    max-width: calc(100% - 72px);
+  }
+  .tutorial {
+    padding: 20px;
+  }
+}
+
+.research-video-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 14px;
+  margin: 12px 0;
+}
+.research-video-choice input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--lime);
+}
+.publisher-context {
+  display: block;
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+.notebook-shell .view-switch {
+  left: auto;
+  right: 24px;
+  transform: none;
+}
+.notebook-shell .stage-intro .small-label {
+  display: none;
+}
+.notebook-shell .stage-intro button {
+  min-height: 44px;
+  font-size: 14px;
+}
+@media (max-width: 670px) {
+  .notebook-shell .view-switch {
+    left: auto;
+    right: 12px;
+    top: 12px;
+  }
+  .notebook-shell .stage-intro {
+    top: 12px;
+    left: 12px;
+  }
+  .notebook-shell
+    .anatomy-stage:has(.landmark-menu:not([hidden]))
+    .view-switch {
+    top: 62px;
+  }
+}
+
+.notebook-shell .body-workspace > .region-callout {
+  position: static;
+  margin: 12px 16px 0;
+  max-width: none;
+  box-shadow: none;
+  flex-wrap: wrap;
+}
+.notebook-shell .body-workspace > .region-callout > div {
+  margin-right: auto;
+}

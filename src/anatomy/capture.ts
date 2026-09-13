@@ -33,7 +33,8 @@ export function captureViewport(
   canvas.width = Math.round(source.width * scale);
   canvas.height = Math.round(source.height * scale);
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#14211b";
+  const light = document.documentElement.dataset.theme === "light";
+  ctx.fillStyle = light ? "#f1f5eb" : "#14211b";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   const ray = new Raycaster(),
@@ -83,7 +84,7 @@ export function captureViewport(
     }
     labels.push({ x: lx, y: ly });
     visiblePins.push(index + 1);
-    ctx.strokeStyle = "#e5f5d5";
+    ctx.strokeStyle = light ? "#395a2c" : "#e5f5d5";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(x, y);

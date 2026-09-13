@@ -14,3 +14,13 @@ The GIF is trimmed from the original recording, reduced to 1120 pixels wide at 8
 Anatomy visuals: Z-Anatomy, Gauthier Kervyn and contributors, CC BY-SA 4.0; BodyParts3D, Database Center for Life Science and Kousaku Okubo, CC BY-SA 2.1 Japan. GLB conversion: Liyucheng1997/242_lab-human-anatomy. Rendering changes scale, color, and pin overlays. Adapted anatomy visuals remain under CC BY-SA 4.0. See the [complete credits](../../public/models/ATTRIBUTION.md) and [upstream notice](../../public/models/UPSTREAM-LICENSE.txt). Attribution does not imply endorsement.
 
 Not medical advice, diagnosis, or treatment. Colors show reported discomfort, not a cause or disease probability.
+
+## Fictional notebook examples
+
+These three desktop recordings use invented notes and local anatomy selection. Each is 38 seconds at 1920 × 1080, sped up from the browser recording and labeled throughout. No AI requests or live searches were made. Links shown in the notebook come from the local reading library.
+
+- [Desk shoulders](desk-shoulders.mp4): intensity, layer spread, an area highlight, undo/redo, and hidden bones. [Preview GIF](desk-shoulders.gif) · [Import the journal](../examples/desk-shoulders.json).
+- [After a run](running-calf.mp4): a calf pin, intensity, and overlapping structures. [Import the journal](../examples/running-calf.json).
+- [Gaming break](gaming-forearm.mp4): a forearm pin, notes, layers, and image export. [Import the journal](../examples/gaming-forearm.json).
+
+The same anatomy credits and licenses above apply. These are interface demonstrations, not exercise recommendations or medical case reports. The recordings predate the correction to the Front/Back indicator after focusing a pin.

@@ -85,10 +85,14 @@ try {
   const atlas = page.locator('[data-atlas="z-anatomy"]');
   await atlas.waitFor();
   for (const [index, example] of examples.entries()) {
-    if (index)
+    if (index) {
       await page
         .getByRole("button", { name: "New entry", exact: true })
         .click();
+      await page.waitForFunction(
+        () => document.querySelector("#pain-note")?.value === "",
+      );
+    }
     await atlas.waitFor();
     await page
       .getByRole("textbox", { name: "Describe your discomfort" })

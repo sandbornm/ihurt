@@ -25,6 +25,8 @@ Entries stay in this browser on this device. Export a backup before clearing bro
 
 [Example report (PDF)](docs/examples/neck-tennis.pdf) · [Example journal (JSON)](docs/examples/neck-tennis.json)
 
+[Fictional walkthroughs: desk work, running, and gaming](docs/media/README.md#fictional-notebook-examples)
+
 **Hurt less. Feel better.**
 
 ## Not medical advice

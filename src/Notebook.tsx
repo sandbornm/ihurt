@@ -607,7 +607,7 @@ export default function Notebook({
               )}
             </section>
           ) : (
-            <div className="explorer-grid">
+            <div className="explorer-grid" inert={busy || !hydrated}>
               <section
                 className="body-workspace"
                 aria-label="Interactive body map"

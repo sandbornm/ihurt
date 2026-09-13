@@ -110,6 +110,9 @@
 [data-theme="light"] .subtle {
   color: #52664e !important;
 }
+[data-theme="light"] .page-tabs > button.selected {
+  color: #355329;
+}
 [data-theme="light"]
   :is(
     input,

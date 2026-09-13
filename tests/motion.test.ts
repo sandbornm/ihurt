@@ -61,3 +61,22 @@ test("a long frame gap cannot jump straight to the target", () => {
   );
   assert.ok(position.z > 7 && position.z < 10);
 });
+
+test("button turns preserve the focus and distance; move shifts both together", async () => {
+  const { nudgeCamera } = await import("../src/anatomy/motion.ts");
+  const position = new Vector3(0, 1, 3),
+    look = new Vector3(0, 1, 0);
+  const right = nudgeCamera(position, look, "right", false);
+  assert.deepEqual(right.look, look);
+  assert.ok(Math.abs(right.position.distanceTo(look) - 3) < 1e-10);
+  const back = nudgeCamera(right.position, right.look, "left", false);
+  assert.ok(back.position.distanceTo(position) < 1e-10);
+  const moved = nudgeCamera(position, look, "up", true);
+  assert.ok(moved.look.y > look.y);
+  assert.ok(
+    moved.position
+      .clone()
+      .sub(moved.look)
+      .distanceTo(position.clone().sub(look)) < 1e-10,
+  );
+});

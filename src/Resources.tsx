@@ -39,7 +39,10 @@ export default function Resources({
               ? `Reading for ${regionName(region).toLowerCase()}`
               : "Related reading"}
           </h3>
-          <p>Choose your sources.</p>
+          <p>
+            Curated links matched on this device. These are not live search
+            results.
+          </p>
         </div>
       </div>
       <details className="source-picker">

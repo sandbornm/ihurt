@@ -40,7 +40,7 @@ class HurtMap(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(max_length=80)
     summary: str = Field(max_length=1000)
-    regions: list[Region] = Field(max_length=6)
+    regions: list[Region] = Field(max_length=10)
     quality: str = Field(max_length=80)
     intensity: int | None = Field(ge=0, le=10)
     activity: str = Field(max_length=120)
@@ -76,7 +76,7 @@ class MapRequest(BaseModel):
     activity_id: str | None = Field(default=None, pattern=r"^[a-f0-9-]{36}$")
     note: str = Field(min_length=3, max_length=3000)
     selected_region: Region | None = None
-    points: list[PointObservation] = Field(default_factory=list, max_length=6)
+    points: list[PointObservation] = Field(default_factory=list, max_length=10)
     answers: list[Answer] = Field(default_factory=list, max_length=5)
     consent: bool = False
     provider: Literal["demo", "openai", "anthropic", "grok", "local"] = "demo"

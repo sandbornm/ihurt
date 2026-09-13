@@ -127,6 +127,7 @@ export interface Session {
 export interface SavedMap {
   research?: {
     activity: string;
+    description?: string;
     regions: RegionId[];
     checked: string;
     references: NonNullable<SavedMap["references"]>;

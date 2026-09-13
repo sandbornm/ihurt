@@ -20,3 +20,7 @@ The initial library includes NHS, AAOS/OrthoInfo, Mayo Clinic, APTA/ChoosePT, AO
 The app shows only listed HTTPS links on each publisher’s allowed hosts. Sources match by region and activity, with related activity tags ranked first. Search and source filtering happen locally. It makes no live web searches and sends no symptom text to search engines. The LLM cannot add reference URLs. A reference is related reading, not evidence that the user has the named condition or should perform its exercises. The source has not endorsed iHurt. `checked` records a link check, not a clinical review.
 
 To add a college athletics program, open PT resource, or sports science lab, add its publisher and the specific pages you have reviewed. Prefer publicly readable original clinical/educational material. Preserve authorship, dates, precautions, and distinctions between research, general education, and individualized care. The test suite checks URL/host consistency and unique reference IDs. Publishers retain copyright; iHurt links to their pages rather than republishing their content.
+
+## Easier model controls
+
+Choose **Turn** or **Move**, then use the arrows or drag. The zoom buttons keep the view centered. **Layers** lets you click a spot, preview nearby surfaces along the view, and pin the structure you choose. This is model geometry, not a measurement of tissue depth or the cause of discomfort. Each entry supports ten pins.

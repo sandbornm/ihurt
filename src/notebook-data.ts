@@ -313,7 +313,7 @@ export function parseNotebook(content: string): SavedMap[] {
       note: text(e.note),
       provider: "Your notes",
       answers: [],
-      points: array(e.highlights, 6).map(parsePoint),
+      points: array(e.highlights, 10).map(parsePoint),
       references: parseReferences(e.related_reading),
       map: {
         title: text(e.title, 200),
@@ -339,6 +339,9 @@ export function parseNotebook(content: string): SavedMap[] {
       const research = object(e.research);
       entry.research = {
         activity: text(research.activity, 200),
+        ...(research.description !== undefined
+          ? { description: text(research.description, 500) }
+          : {}),
         regions: array(research.regions, 23).map(region),
         checked: date(research.checked),
         references: parseReferences(research.references),

@@ -64,6 +64,33 @@ try {
       '[data-atlas="z-anatomy"][data-heat-engine="wasm"]',
     );
     await atlas.waitFor();
+    await page.getByRole("button", { name: "Turn right", exact: true }).click();
+    await page.getByRole("button", { name: "Turn left", exact: true }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
+    assert.equal(await atlas.getAttribute("data-drag-mode"), "move");
+    await page.getByRole("button", { name: "Move up", exact: true }).click();
+    await page.getByRole("button", { name: "Move down", exact: true }).click();
+    await page.getByRole("button", { name: "Reset view", exact: true }).click();
+    await page.getByRole("button", { name: "Layers", exact: true }).click();
+    const canvas = atlas.locator("canvas");
+    await canvas.scrollIntoViewIfNeeded();
+    const box = await canvas.boundingBox();
+    const picker = page.getByRole("dialog", { name: "Choose anatomy layer" });
+    for (const [x, y] of [
+      [0.5, 0.36],
+      [0.53, 0.42],
+      [0.55, 0.33],
+    ]) {
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      if (await picker.isVisible()) break;
+    }
+    await picker.waitFor();
+    const choices = picker.locator(".layer-choices button");
+    assert.ok((await choices.count()) > 0);
+    await choices.last().click();
+    await picker.getByRole("button", { name: "Pin this structure" }).click();
+    await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Layers", exact: true }).click();
     const note = page.getByRole("textbox", {
       name: "Describe your discomfort",
     });

@@ -5,7 +5,16 @@ import { createBody } from "./model";
 import { regions, type RegionId, type PainPoint } from "../types";
 import { loadAtlas, regionAt } from "./atlas";
 import { PinGesture } from "./gesture";
-import { advanceCamera } from "./motion";
+import { advanceCamera, nudgeCamera } from "./motion";
+import { nearbySurfaces } from "./selection";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  Layers3,
+  X,
+} from "lucide-react";
 
 interface Props {
   selected: RegionId | null;
@@ -17,7 +26,9 @@ interface Props {
   onSelect: (region: RegionId) => void;
   points?: PainPoint[];
   onPoint?: (point: PainPoint) => void;
+  navigation?: boolean;
 }
+type Candidate = { mesh: T.Object3D; point: PainPoint };
 type HeatFunction = (...values: number[]) => number;
 const fallbackHeat: HeatFunction = (x, y, z, cx, cy, cz, r, i) =>
   Math.exp(
@@ -34,7 +45,21 @@ export default function Anatomy(props: Props) {
   const engine = useRef<{
     update: () => void;
     command: (type: string) => void;
+    preview: (candidate: Candidate | null) => void;
   } | null>(null);
+  const [dragMode, setDragMode] = useState<"turn" | "move">("turn");
+  const [layers, setLayers] = useState(false);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const interaction = useRef({ dragMode, layers });
+  interaction.current = { dragMode, layers };
+  const picker = useRef<HTMLDivElement>(null);
+  const layersButton = useRef<HTMLButtonElement>(null);
+  const closePicker = () => {
+    setCandidates([]);
+    engine.current?.preview(null);
+    layersButton.current?.focus({ preventScroll: true });
+  };
   const [failure, setFailure] = useState(false);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -58,7 +83,7 @@ export default function Anatomy(props: Props) {
     renderer.toneMappingExposure = 1.08;
     renderer.domElement.setAttribute(
       "aria-label",
-      "Interactive anatomy. Click to pin a spot. Drag to rotate; use landmarks or the region picker for keyboard access.",
+      "Interactive anatomy. Click to pin a spot. Use Turn or Move and the arrow buttons to adjust the view. Layers lets you choose overlapping structures.",
     );
     renderer.domElement.setAttribute("role", "img");
     root.appendChild(renderer.domElement);
@@ -74,12 +99,12 @@ export default function Anatomy(props: Props) {
     controls.dampingFactor = 0.1;
     controls.enablePan = true;
     controls.screenSpacePanning = true;
-    controls.zoomToCursor = true;
+    controls.zoomToCursor = false;
     controls.minDistance = 0.35;
     controls.maxDistance = 13;
-    controls.zoomSpeed = 0.65;
-    controls.panSpeed = 0.7;
-    controls.rotateSpeed = 0.65;
+    controls.zoomSpeed = 0.4;
+    controls.panSpeed = 0.5;
+    controls.rotateSpeed = 0.4;
     controls.maxTargetRadius = 4;
     controls.cursor.set(0, 0.4, 0);
     controls.maxPolarAngle = Math.PI - 0.04;
@@ -148,6 +173,7 @@ export default function Anatomy(props: Props) {
     let easing = false;
     let inspected = "";
     let inspectedSide = 0;
+    let previewMesh: T.Object3D | null = null;
     const matchesInspection = (mesh: T.Mesh) =>
       !inspected ||
       (mesh.name.toLowerCase().includes(inspected) &&
@@ -176,15 +202,23 @@ export default function Anatomy(props: Props) {
     motionPreference.addEventListener("change", motionChanged);
     const update = () => {
       const p = latest.current;
+      controls.mouseButtons.LEFT =
+        interaction.current.dragMode === "move" ? T.MOUSE.PAN : T.MOUSE.ROTATE;
+      root.dataset.dragMode = interaction.current.dragMode;
       root.dataset.inspected = inspected || "none";
       for (const mesh of body.muscles) {
         mesh.visible = p.layer === "muscle" && matchesInspection(mesh);
         const matches = matchesInspection(mesh);
-        mesh.material.transparent = !!inspected && !matches;
-        mesh.material.opacity = matches ? 1 : 0.055;
-        mesh.material.depthWrite = matches;
+        const faded = !!previewMesh && mesh !== previewMesh;
+        mesh.material.transparent = faded || (!!inspected && !matches);
+        mesh.material.opacity = faded ? 0.08 : matches ? 1 : 0.055;
+        mesh.material.depthWrite = !faded && matches;
         mesh.material.emissive.set(
-          matches && inspected ? "#426020" : "#000000",
+          mesh === previewMesh
+            ? "#91c655"
+            : matches && inspected
+              ? "#426020"
+              : "#000000",
         );
         mesh.material.emissiveIntensity = 0.2;
         const region = mesh.userData.region;
@@ -252,10 +286,12 @@ export default function Anatomy(props: Props) {
       }
       body.fibers.visible = p.layer === "muscle";
       for (const bone of body.bones) {
-        bone.material.transparent = !!inspected;
-        bone.material.opacity = inspected ? 0.15 : 1;
-        bone.material.depthWrite = !inspected;
+        const faded = !!previewMesh && bone !== previewMesh;
+        bone.material.transparent = faded || !!inspected;
+        bone.material.opacity = faded ? 0.08 : inspected ? 0.15 : 1;
+        bone.material.depthWrite = !faded && !inspected;
         bone.material.color.copy(bone.userData.base);
+        if (bone === previewMesh) bone.material.color.lerp(cool, 0.8);
         if (p.mapped.includes(bone.userData.region!))
           bone.material.color.lerp(warm, 0.8);
         else if (bone.userData.region === p.selected)
@@ -274,6 +310,9 @@ export default function Anatomy(props: Props) {
       dirty = 2;
     };
     const command = (type: string) => {
+      previewMesh = null;
+      setCandidates([]);
+      update();
       const p = latest.current;
       const sign = p.view === "back" ? -1 : 1;
       if (type === "context") {
@@ -336,7 +375,26 @@ export default function Anatomy(props: Props) {
         inspected = "";
         update();
       }
-      if (type === "zoom-in" || type === "zoom-out") {
+      if (type.startsWith("nudge:")) {
+        const next = nudgeCamera(
+          easing ? targetPosition : camera.position,
+          easing ? targetLook : controls.target,
+          type.slice(6),
+          interaction.current.dragMode === "move",
+        );
+        // The drag controls and buttons share the same pan boundary.
+        const correction = next.look.clone().sub(controls.cursor);
+        if (correction.length() > controls.maxTargetRadius) {
+          const bounded = correction
+            .clone()
+            .clampLength(0, controls.maxTargetRadius)
+            .add(controls.cursor);
+          next.position.add(bounded.clone().sub(next.look));
+          next.look.copy(bounded);
+        }
+        targetPosition.copy(next.position);
+        targetLook.copy(next.look);
+      } else if (type === "zoom-in" || type === "zoom-out") {
         const offset = (easing ? targetPosition : camera.position)
           .clone()
           .sub(easing ? targetLook : controls.target)
@@ -375,7 +433,14 @@ export default function Anatomy(props: Props) {
       }
       startTransition();
     };
-    engine.current = { update, command };
+    engine.current = {
+      update,
+      command,
+      preview: (candidate) => {
+        previewMesh = candidate?.mesh ?? null;
+        update();
+      },
+    };
     update();
     loadAtlas()
       .then((atlas) => {
@@ -447,6 +512,11 @@ export default function Anatomy(props: Props) {
     const gesture = new PinGesture();
     const stopEasing = () => {
       easing = false;
+      if (previewMesh) {
+        previewMesh = null;
+        setCandidates([]);
+        update();
+      }
     };
     const down = (event: PointerEvent) => {
       gesture.down(event.pointerId, event.clientX, event.clientY);
@@ -476,33 +546,48 @@ export default function Anatomy(props: Props) {
         latest.current.layer === "muscle"
           ? [...body.muscles, ...body.bones]
           : body.bones;
-      const hit = raycaster
+      const hits = raycaster
         .intersectObjects(
           meshes.filter((mesh) => mesh.visible && mesh.material.opacity > 0.5),
           false,
         )
-        .find((hit) => hit.object.userData.region);
-      if (hit) {
+        .filter((hit) => hit.object.userData.region);
+      const options = nearbySurfaces(hits).map((hit): Candidate => {
         const region =
           root.dataset.atlas === "z-anatomy"
             ? regionAt(hit.point, hit.object.name)
             : hit.object.userData.region;
-        latest.current.onSelect(region);
-        latest.current.onPoint?.({
-          id: crypto.randomUUID(),
-          region,
-          position: hit.point.toArray() as [number, number, number],
-          source: hit.object.userData.source ?? {
-            atlas: "schematic-v1",
-            layer: hit.object.userData.layer,
-            mesh_name: hit.object.name,
+        return {
+          mesh: hit.object,
+          point: {
+            id: crypto.randomUUID(),
+            region,
+            position: hit.point.toArray() as [number, number, number],
+            source: hit.object.userData.source ?? {
+              atlas: "schematic-v1",
+              layer: hit.object.userData.layer,
+              mesh_name: hit.object.name,
+            },
+            structure:
+              hit.object.name
+                .replace(/\.[lr]\.\d+$/, "")
+                .replace(/\.\d+$/, "")
+                .replace(/_/g, " ") || "Selected surface",
           },
-          structure:
-            hit.object.name
-              .replace(/\.[lr]\.\d+$/, "")
-              .replace(/\.\d+$/, "")
-              .replace(/_/g, " ") || "Selected surface",
-        });
+        };
+      });
+      if (
+        options.length &&
+        latest.current.navigation &&
+        interaction.current.layers
+      ) {
+        setCandidateIndex(0);
+        setCandidates(options);
+        previewMesh = options[0].mesh;
+        update();
+      } else if (options[0]) {
+        latest.current.onSelect(options[0].point.region);
+        latest.current.onPoint?.(options[0].point);
       }
     };
     renderer.domElement.addEventListener("pointerdown", down);
@@ -556,14 +641,138 @@ export default function Anatomy(props: Props) {
   }, []);
   useEffect(
     () => engine.current?.update(),
-    [props.selected, props.mapped, props.intensity, props.layer, props.points],
+    [
+      props.selected,
+      props.mapped,
+      props.intensity,
+      props.layer,
+      props.points,
+      dragMode,
+    ],
   );
+  useEffect(() => {
+    setCandidates([]);
+    engine.current?.preview(null);
+  }, [props.layer, layers]);
+  useEffect(() => {
+    if (candidates.length)
+      picker.current
+        ?.querySelector<HTMLButtonElement>("[aria-pressed=true]")
+        ?.focus({ preventScroll: true });
+  }, [candidates]);
   useEffect(() => engine.current?.command("view"), [props.view]);
   useEffect(() => {
     if (props.command.id) engine.current?.command(props.command.type);
   }, [props.command]);
   return (
     <div className="anatomy-canvas" ref={host}>
+      {props.navigation && ready && !failure && (
+        <>
+          <div className="anatomy-navigation" aria-label="Model controls">
+            <div className="navigation-modes">
+              {(["turn", "move"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  aria-pressed={dragMode === mode}
+                  onClick={() => setDragMode(mode)}
+                >
+                  {mode === "turn" ? "Turn" : "Move"}
+                </button>
+              ))}
+              <button
+                ref={layersButton}
+                aria-pressed={layers}
+                onClick={() => setLayers((v) => !v)}
+              >
+                <Layers3 size={14} /> Layers
+              </button>
+            </div>
+            <div className="navigation-arrows">
+              {(
+                [
+                  ["left", ArrowLeft],
+                  ["up", ArrowUp],
+                  ["down", ArrowDown],
+                  ["right", ArrowRight],
+                ] as const
+              ).map(([direction, Icon]) => (
+                <button
+                  key={direction}
+                  aria-label={`${dragMode === "turn" ? "Turn" : "Move"} ${direction}`}
+                  onClick={() => engine.current?.command(`nudge:${direction}`)}
+                >
+                  <Icon size={17} />
+                </button>
+              ))}
+            </div>
+            <small>
+              {layers
+                ? "Click the body to choose a layer"
+                : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Click to pin`}
+            </small>
+          </div>
+          {!!candidates.length && (
+            <div
+              className="anatomy-layer-picker"
+              role="dialog"
+              aria-label="Choose anatomy layer"
+              ref={picker}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") closePicker();
+              }}
+            >
+              <div className="layer-picker-heading">
+                <strong>At this spot</strong>
+                <button aria-label="Close layers" onClick={closePicker}>
+                  <X size={16} />
+                </button>
+              </div>
+              <p>Surfaces along this view. Choose one to see its shape.</p>
+              <div className="layer-choices">
+                {candidates.map((candidate, index) => (
+                  <button
+                    key={candidate.point.id}
+                    aria-pressed={candidateIndex === index}
+                    onClick={() => {
+                      setCandidateIndex(index);
+                      engine.current?.preview(candidate);
+                    }}
+                  >
+                    <span
+                      className="layer-depth"
+                      style={{ marginLeft: index * 3 }}
+                    >
+                      {index + 1}
+                    </span>
+                    <span>
+                      {candidate.point.structure}
+                      <small>
+                        {index === 0
+                          ? "Closest to you"
+                          : "Behind the first surface"}
+                      </small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="layer-picker-note">
+                Model depth helps locate a pin. It does not identify what hurts.
+              </p>
+              <button
+                className="primary"
+                onClick={() => {
+                  const { point } = candidates[candidateIndex];
+                  latest.current.onSelect(point.region);
+                  latest.current.onPoint?.(point);
+                  closePicker();
+                }}
+              >
+                Pin this structure
+              </button>
+            </div>
+          )}
+        </>
+      )}
       {failure ? (
         <div className="canvas-fallback">
           <strong>Use the region picker to make your map.</strong>

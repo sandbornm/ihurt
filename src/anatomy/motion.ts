@@ -1,4 +1,38 @@
-import type { Vector3 } from "three";
+import { Spherical, Vector3 } from "three";
+
+export function nudgeCamera(
+  position: Vector3,
+  look: Vector3,
+  direction: string,
+  pan: boolean,
+) {
+  const offset = position.clone().sub(look);
+  if (pan) {
+    const right = new Vector3(0, 1, 0).cross(offset).normalize();
+    const up = offset.clone().cross(right).normalize();
+    const delta = (
+      direction === "left" || direction === "right" ? right : up
+    ).multiplyScalar(
+      offset.length() *
+        0.12 *
+        (direction === "left" || direction === "down" ? -1 : 1),
+    );
+    return {
+      position: position.clone().add(delta),
+      look: look.clone().add(delta),
+    };
+  }
+  const sphere = new Spherical().setFromVector3(offset);
+  if (direction === "left") sphere.theta -= Math.PI / 12;
+  if (direction === "right") sphere.theta += Math.PI / 12;
+  if (direction === "up") sphere.phi -= Math.PI / 18;
+  if (direction === "down") sphere.phi += Math.PI / 18;
+  sphere.phi = Math.max(0.04, Math.min(Math.PI - 0.04, sphere.phi));
+  return {
+    position: look.clone().add(offset.setFromSpherical(sphere)),
+    look: look.clone(),
+  };
+}
 
 export function advanceCamera(
   position: Vector3,

@@ -66,7 +66,7 @@ class DemoProvider:
             for words, key in [(r"neck", "neck"), (r"lower back|low back|lumbar", "lower_back"), (r"upper back|shoulder blade", "upper_back"), (r"chest|pectoral", "chest"), (r"abdomen|abdominal|stomach", "abdomen")]:
                 if re.search(words, location):
                     regions.append(Region(key))
-        regions = list(dict.fromkeys(regions))[:6]
+        regions = list(dict.fromkeys(regions))[:10]
         intensity_match = re.search(r"\b(10|[0-9])\s*(?:/\s*10|out of 10)\b", text)
         intensity_answer = re.match(r"^(10|[0-9])(?:\b|$)", answers.get("intensity", ""))
         intensity = int((intensity_answer or intensity_match).group(1)) if (intensity_answer or intensity_match) else None

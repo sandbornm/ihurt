@@ -30,3 +30,5 @@ The API also has signed HTTP-only cookies, exact-origin checks, byte and field l
 Independent publishers provide the linked articles and exercise material. Their content, availability, and terms can change. A link does not mean the publisher endorses iHurt or that a resource is appropriate for you. Read its precautions and seek qualified guidance about exercises or treatment.
 
 The hosted site uses Cloudflare for delivery and abuse protection. Cloudflare processes network information and its security checks may set cookies. Journal entries remain on your device unless you choose to share them.
+
+On ihurt.app, optional Grok source search sends the activity, region names, and a description you review first. It uses a signed, seven-day browser cookie and a rolling allowance of one search per 24 hours. A shared ledger retains hashed browser/network identifiers, timestamps and costs for up to 24 hours plus the hourly cleanup interval; current aggregate spending counters remain. It stores no search descriptions or journal content. The notebook itself works without search.

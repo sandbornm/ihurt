@@ -698,6 +698,7 @@ export default function Notebook({
                       }
                     >
                       <Anatomy
+                        navigation
                         selected={selected}
                         mapped={result?.regions ?? noRegions}
                         intensity={result?.intensity ?? null}
@@ -707,9 +708,9 @@ export default function Notebook({
                         onSelect={setSelected}
                         points={points}
                         onPoint={(point) => {
-                          if (points.length >= 6) {
+                          if (points.length >= 10) {
                             setToast(
-                              "Up to six pins. Remove one to add another.",
+                              "Up to ten pins. Remove one to add another.",
                             );
                             return;
                           }
@@ -785,7 +786,7 @@ export default function Notebook({
                   <div className="anatomy-bottom">
                     <span>
                       <RotateCcw size={12} />
-                      Drag to orbit · Scroll to zoom · Right-drag to pan
+                      Use arrows to turn · Move to reposition · + / − to zoom
                     </span>
                     <a
                       href="/models/ATTRIBUTION.md"
@@ -830,13 +831,16 @@ export default function Notebook({
                   </div>
                 </div>
                 {result && (
-                  <Resources
-                    region={selected ?? result?.regions[0] ?? null}
-                    activity={`${note} ${result?.activity ?? ""}`}
-                    urgent={result?.urgent ?? false}
-                    selectedSources={readingSources}
-                    onSources={setReadingSources}
-                  />
+                  <details className="offline-reading">
+                    <summary>Offline reading</summary>
+                    <Resources
+                      region={selected ?? result?.regions[0] ?? null}
+                      activity={`${note} ${result?.activity ?? ""}`}
+                      urgent={result?.urgent ?? false}
+                      selectedSources={readingSources}
+                      onSources={setReadingSources}
+                    />
+                  </details>
                 )}
               </section>
               <aside className="intake-panel">
@@ -917,7 +921,7 @@ export default function Notebook({
                   {points.length > 0 && (
                     <div className="pin-list">
                       <span className="small-label">
-                        PINNED SPOTS · {points.length}/6
+                        PINNED SPOTS · {points.length}/10
                       </span>
                       {points.map((point, i) => (
                         <div className="notebook-pin" key={point.id}>
@@ -1009,6 +1013,24 @@ export default function Notebook({
                       ))}
                     </select>
                   </details>
+                  {Research && (
+                    <Research
+                      key={entry.id}
+                      entry={currentEntry()}
+                      sources={readingSources}
+                      onSave={(research) =>
+                        setEntry((e) =>
+                          e.id === entry.id
+                            ? {
+                                ...e,
+                                research,
+                                updated: new Date().toISOString(),
+                              }
+                            : e,
+                        )
+                      }
+                    />
+                  )}
                   <div className="report-actions">
                     <button
                       className="primary"
@@ -1040,20 +1062,25 @@ export default function Notebook({
                     <button
                       className="text-button"
                       onClick={() =>
-                        document
-                          .querySelector(".resource-panel")
-                          ?.scrollIntoView({
+                        (() => {
+                          const reading =
+                            document.querySelector<HTMLDetailsElement>(
+                              ".offline-reading",
+                            );
+                          if (reading) reading.open = true;
+                          reading?.scrollIntoView({
                             behavior: window.matchMedia(
                               "(prefers-reduced-motion: reduce)",
                             ).matches
                               ? "instant"
                               : "smooth",
                             block: "start",
-                          })
+                          });
+                        })()
                       }
                     >
                       <BookOpen size={15} />
-                      Browse related reading
+                      Offline reading
                       <ArrowRight size={14} />
                     </button>
                   </div>
@@ -1122,24 +1149,6 @@ export default function Notebook({
                       </button>
                     </details>
                   )}
-                  {Research && (
-                    <Research
-                      key={entry.id}
-                      entry={currentEntry()}
-                      sources={readingSources}
-                      onSave={(research) =>
-                        setEntry((e) =>
-                          e.id === entry.id
-                            ? {
-                                ...e,
-                                research,
-                                updated: new Date().toISOString(),
-                              }
-                            : e,
-                        )
-                      }
-                    />
-                  )}
                   {Assistant && (
                     <FeatureBoundary label="Optional AI tools">
                       <Assistant
@@ -1170,7 +1179,9 @@ export default function Notebook({
             <span>
               <ShieldCheck size={13} />A personal journal. Not medical advice.
             </span>
-            <span>{offline ? "Available offline" : "Hurt less. Feel better."}</span>
+            <span>
+              {offline ? "Available offline" : "Hurt less. Feel better."}
+            </span>
             <button onClick={() => infoDialog.current?.showModal()}>
               Privacy & limitations
               <ArrowUpRight size={12} />

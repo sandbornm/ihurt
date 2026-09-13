@@ -1,5 +1,5 @@
 import * as T from "three";
-import type { RegionId } from "../types";
+import type { RegionId, PainPoint } from "../types";
 
 type Point = [number, number, number];
 export class BodyMesh extends T.Mesh<T.BufferGeometry, T.MeshStandardMaterial> {
@@ -7,6 +7,7 @@ export class BodyMesh extends T.Mesh<T.BufferGeometry, T.MeshStandardMaterial> {
     region?: RegionId;
     base: T.Color;
     layer: "muscle" | "bone";
+    source?: PainPoint["source"];
   };
 }
 

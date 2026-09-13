@@ -11,7 +11,7 @@ npm run test:unit  # drag gestures and mirrored anatomy surfaces
 npm run check      # app build and tests
 ```
 
-GitHub Actions runs the build, backend tests, and browser checks on pushes and pull requests. You can also start it from the Actions tab. Browser checks use a fresh headless Chromium instance and a temporary demo server with cloud keys disabled. They check desktop and phone layouts after refresh, the 670-pixel layout boundary, atlas loading, drag gestures, and multiple rear-view pins. They also verify that submission preserves the rear view, movement descriptions do not add unpinned regions in demo mode, SVG/JSON exports keep the full note, and resource searches respect selected publishers. Screenshots and failure traces are available as workflow artifacts for three days.
+GitHub Actions builds the app and runs backend, unit, and isolated browser checks. Browser checks use a Node static preview with no API server. They cover multiple entries, editing, refresh, exports, offline anatomy and storage, and desktop/phone layout. Tests make no paid requests.
 
 To run the same browser checks locally without changing your open preview:
 
@@ -32,7 +32,8 @@ Open http://127.0.0.1:8000. The app is a React/TypeScript client. Three.js rende
 
 ```text
 src/anatomy/          Shared Three.js model, interaction, WASM integration
-src/App.tsx           Local intake, follow-ups, session journal
+src/Notebook.tsx      Offline journal, pins, editing and sharing
+src/AIOptions.tsx     Optional local API integration
 src/export.ts         Standalone SVG and JSON downloads
 public/models/        Licensed anatomy assets and attribution
 config/reading-library.json  Configurable source and reference catalog
@@ -48,7 +49,7 @@ For the current graphics stack and a plan for pose demos, see [Body animation](A
 
 This public repository contains the **local app**. The showcase at `ihurt.app` is maintained in a separate private `ihurt-site` repository. It uses a fixed commit of this repository’s anatomy viewer and assets.
 
-The showcase lets visitors explore anatomy and prepared neck/sleep and shoulder/tennis examples. It accepts no notes and performs no activity reviews or AI calls. Visitors install this app to make their own maps with their own model or API key.
+The site imports the shared notebook without the local provider integration. `/try/` starts with an editable example and stores entries in the visitor's browser. The landing page and deployment code remain in the private repository.
 
 ## License
 

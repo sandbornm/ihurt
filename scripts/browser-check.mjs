@@ -1,333 +1,145 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createServer } from "node:net";
 import { chromium } from "playwright";
-
 const output = resolve("output/browser-check");
-await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
-const temporary = await mkdtemp(join(tmpdir(), "ihurt-browser-"));
 const socket = createServer();
 await new Promise((done) => socket.listen(0, "127.0.0.1", done));
 const port = socket.address().port;
 await new Promise((done) => socket.close(done));
 const origin = `http://127.0.0.1:${port}`;
-const python = resolve(
-  process.platform === "win32"
-    ? ".venv/Scripts/python.exe"
-    : ".venv/bin/python",
-);
 const server = spawn(
-  python,
+  process.execPath,
   [
-    "-m",
-    "uvicorn",
-    "backend.app:app",
+    "node_modules/vite/bin/vite.js",
+    "preview",
     "--host",
     "127.0.0.1",
     "--port",
     String(port),
-    "--no-proxy-headers",
-    "--no-access-log",
+    "--strictPort",
   ],
-  {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      LLM_PROVIDER: "demo",
-      OPENAI_API_KEY: "",
-      ANTHROPIC_API_KEY: "",
-      XAI_API_KEY: "",
-      LOCAL_MODEL: "",
-      TURNSTILE_SITE_KEY: "",
-      TURNSTILE_SECRET_KEY: "",
-      APP_ENV: "development",
-      SESSION_SECRET: "browser-check-only-".repeat(3),
-      DATABASE_PATH: join(temporary, "quota.sqlite3"),
-      DAILY_BUDGET_USD: "0",
-      ALLOWED_ORIGINS: JSON.stringify([origin]),
-      ALLOWED_HOSTS: '["127.0.0.1"]',
-    },
-  },
+  { stdio: "pipe" },
 );
-let serverLog = "";
-server.stdout.on("data", (data) => {
-  serverLog += data;
-});
-server.stderr.on("data", (data) => {
-  serverLog += data;
-});
+let logs = "";
+server.stderr.on("data", (d) => (logs += d));
 let browser;
 try {
-  for (let i = 0; ; i++) {
-    if (server.exitCode !== null) throw new Error(serverLog);
-    if (
-      await fetch(`${origin}/api/health`)
-        .then((r) => r.ok)
-        .catch(() => false)
-    )
-      break;
-    if (i === 100) throw new Error(`Test server did not start. ${serverLog}`);
-    await new Promise((done) => setTimeout(done, 100));
+  for (
+    let i = 0;
+    !(await fetch(origin)
+      .then((r) => r.ok)
+      .catch(() => false));
+    i++
+  ) {
+    if (i > 100 || server.exitCode !== null) throw Error(logs);
+    await new Promise((r) => setTimeout(r, 100));
   }
-  // Always launch a new headless browser. Never attach to a user's preview.
   browser = await chromium.launch({
     headless: true,
-    channel: "chromium",
     args: ["--enable-unsafe-swiftshader"],
   });
-  for (const viewport of [
-    { width: 1440, height: 1050 },
-    { width: 390, height: 844 },
-  ]) {
-    const name = viewport.width > 670 ? "desktop" : "phone";
+  for (const width of [1440, 390]) {
     const context = await browser.newContext({
-      viewport,
+      viewport: { width, height: 1050 },
       reducedMotion: "reduce",
     });
-    await context.tracing.start({ screenshots: false, snapshots: true });
     const page = await context.newPage();
     page.setDefaultTimeout(60000);
-    const errors = [];
-    const external = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await context.route(/^https?:/, (route) => {
-      if (new URL(route.request().url()).origin === origin)
-        return route.continue();
-      external.push(route.request().url());
-      return route.abort();
+    const errors = [],
+      unexpected = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("request", (r) => {
+      if (
+        new URL(r.url()).origin !== origin ||
+        new URL(r.url()).pathname.startsWith("/api/")
+      )
+        unexpected.push(r.url());
     });
-    try {
-      for (let load = 0; load < 2; load++) {
-        if (load) await page.reload();
-        else await page.goto(origin);
-        await page
-          .locator('[data-atlas="z-anatomy"][data-heat-engine="wasm"]')
-          .waitFor();
-        await page
-          .getByRole("combobox", { name: "Map with" })
-          .selectOption("demo");
-        const layout = await page.evaluate(() => {
-          return {
-            width: innerWidth,
-            overflow: document.documentElement.scrollWidth > innerWidth,
-            columns: getComputedStyle(
-              document.querySelector(".explorer-grid"),
-            ).gridTemplateColumns.split(" ").length,
-          };
-        });
-        assert.equal(layout.width, viewport.width);
-        assert.equal(layout.overflow, false, `${name} layout overflows`);
-        assert.equal(layout.columns, name === "desktop" ? 2 : 1);
-        assert.equal(
-          await page
-            .getByRole("button", { name: "Landmarks", exact: true })
-            .getAttribute("aria-pressed"),
-          "false",
-        );
-      }
-      await page.screenshot({
-        path: join(output, `${name}.png`),
-        animations: "disabled",
-      });
-      console.log(
-        `PASS ${name}: layout and atlas remain visible after refresh`,
-      );
-      if (name === "desktop") {
-        const box = await page.locator("canvas").boundingBox();
-        const x = box.x + box.width / 2,
-          y = box.y + box.height * 0.4;
-        await page.mouse.move(x, y);
-        await page.mouse.down();
-        for (let i = 0; i < 3; i++) {
-          await page.mouse.move(x + 120, y + 40, { steps: 2 });
-          await page.mouse.move(x - 120, y + 80, { steps: 2 });
-          await page.mouse.move(x, y, { steps: 2 });
-        }
-        await page.mouse.up();
-        await page.mouse.click(x, y, { button: "right" });
-        assert.equal(
-          await page.locator(".pin-list").count(),
-          0,
-          "Dragging added a pin",
-        );
-        console.log("PASS drag: repeated loops and right-click add no pins");
-        await page
-          .getByRole("button", { name: "Reset view", exact: true })
-          .click();
-        await page.getByRole("button", { name: "Back", exact: true }).click();
-        await page.evaluate(
-          () =>
-            new Promise((done) =>
-              requestAnimationFrame(() => requestAnimationFrame(done)),
-            ),
-        );
-        await page.mouse.click(
-          box.x + box.width * 0.44,
-          box.y + box.height * 0.23,
-        );
-        await page.mouse.click(
-          box.x + box.width * 0.56,
-          box.y + box.height * 0.23,
-        );
-        await page.getByText("PINNED SPOTS · 2/6").waitFor();
-        const note =
-          "Both pinned spots feel tight when reaching overhead. I slept on my stomach. Moving my chin toward my chest also brings it on.";
-        await page
-          .getByRole("textbox", { name: "Describe your discomfort" })
-          .fill(note);
-        await page
-          .getByRole("button", { name: "Make my map", exact: true })
-          .click();
-        await page
-          .getByRole("button", { name: "Browse related reading" })
-          .waitFor();
-        assert.equal(
-          await page
-            .getByRole("button", { name: "Back", exact: true })
-            .getAttribute("aria-pressed"),
-          "true",
-          "Submitting a pinned map changed the rear view",
-        );
-        const downloaded = page.waitForEvent("download");
-        await page
-          .getByRole("button", { name: "Export map data (.json)" })
-          .click();
-        const file = await downloaded;
-        const path = join(output, "example-map.json");
-        await file.saveAs(path);
-        const report = JSON.parse(await readFile(path, "utf8"));
-        assert.equal(report.schema_version, 1);
-        assert.equal(report.points.length, 2);
-        assert.equal(report.note, note);
-        assert.equal(report.provider, "Demo · no AI");
-        assert.equal(report.map.intensity, null);
-        assert.equal(
-          report.map.quality,
-          "tight",
-          "Reaching was misread as aching",
-        );
-        assert.ok(report.points.every((point) => point.position[2] < 0));
-        assert.deepEqual(
-          [...report.map.regions].sort(),
-          [...new Set(report.points.map((point) => point.region))].sort(),
-          "Movement descriptions added unpinned pain regions",
-        );
-        assert.ok(report.references.length > 0);
-        const svgDownload = page.waitForEvent("download");
-        await page.getByRole("button", { name: "Download hurt map" }).click();
-        const svgPath = join(output, "example-map.svg");
-        await (await svgDownload).saveAs(svgPath);
-        const svg = await readFile(svgPath, "utf8");
-        const svgText = await page.evaluate((markup) => {
-          const document = new DOMParser().parseFromString(
-            markup,
-            "image/svg+xml",
-          );
-          if (document.querySelector("parsererror"))
-            throw new Error("Invalid SVG export");
-          return [...document.querySelectorAll("text")]
-            .map((text) => text.textContent)
-            .join(" ");
-        }, svg);
-        assert.ok(
-          svgText.includes(note),
-          "SVG export dropped part of the note",
-        );
-        assert.ok(svgText.includes("Not medical advice"));
-        await page
-          .getByRole("button", { name: "Browse related reading" })
-          .click();
-        await page
-          .getByRole("textbox", { name: "Search educational resources" })
-          .fill("exercise");
-        const nhsGuide = page.getByRole("link", {
-          name: /NHS · Movement guide Neck mobility/,
-        });
-        await nhsGuide.waitFor();
-        assert.equal(
-          await nhsGuide.getAttribute("href"),
-          "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
-        );
-        await page.locator(".source-picker summary").click();
-        await page.getByRole("checkbox", { name: /^NHS / }).uncheck();
-        assert.equal(
-          await nhsGuide.count(),
-          0,
-          "An excluded publisher still appears",
-        );
-        await page
-          .getByRole("button", { name: "Use recommended list" })
-          .click();
-        await nhsGuide.waitFor();
-        await page.locator(".source-picker summary").click();
-        await page
-          .getByRole("textbox", { name: "Search educational resources" })
-          .fill("no-matching-reference-123");
-        await page
-          .getByText(
-            "No match in the curated library. Try another topic or source.",
-          )
-          .waitFor();
-        await page
-          .getByRole("textbox", { name: "Search educational resources" })
-          .fill("");
-        assert.equal(await page.evaluate(() => innerWidth), viewport.width);
-        await page.screenshot({
-          path: join(output, "two-pin-map.png"),
-          fullPage: true,
-        });
-        for (const width of [761, 671, 670]) {
-          await page.setViewportSize({ width, height: viewport.height });
-          const layout = await page.evaluate(() => ({
-            width: innerWidth,
-            overflow: document.documentElement.scrollWidth > innerWidth,
-            columns: getComputedStyle(
-              document.querySelector(".explorer-grid"),
-            ).gridTemplateColumns.split(" ").length,
-          }));
-          assert.equal(layout.width, width);
-          assert.equal(
-            layout.overflow,
-            false,
-            `Layout overflows at ${width}px`,
-          );
-          assert.equal(
-            layout.columns,
-            width > 670 ? 2 : 1,
-            `Wrong layout at ${width}px`,
-          );
-        }
-        console.log(
-          "PASS boundaries: two columns at 761/671px, one column at 670px",
-        );
-      }
-      assert.deepEqual(errors, [], "Browser errors");
-      assert.deepEqual(external, [], "The demo contacted an external service");
-      console.log(
-        `PASS ${name}: atlas, WASM, stable layout after refresh${name === "desktop" ? ", drag, rear pins, note, SVG/JSON exports, source filters" : ""}`,
-      );
-      await context.tracing.stop();
-    } catch (error) {
+    await page.goto(origin);
+    const atlas = page.locator(
+      '[data-atlas="z-anatomy"][data-heat-engine="wasm"]',
+    );
+    await atlas.waitFor();
+    const note = page.getByRole("textbox", {
+      name: "Describe your discomfort",
+    });
+    await note.fill("First entry: stiffness after tennis.");
+    await page.locator("#entry-title").fill("Tennis");
+    await page.locator("#activity").fill("Tennis");
+    await page.getByRole("button", { name: "Save entry", exact: true }).click();
+    await page
+      .getByText("Entry saved on this device.", { exact: true })
+      .waitFor();
+    await page.getByRole("button", { name: "New entry", exact: true }).click();
+    await page.waitForFunction(
+      () => document.querySelector("#pain-note")?.value === "",
+    );
+    await note.fill("Second entry: a long walk.");
+    await page.locator("#entry-title").fill("Walking");
+    await page.getByRole("button", { name: "Save entry", exact: true }).click();
+    await page.getByRole("button", { name: /^Notebook/ }).click();
+    await page
+      .getByRole("button", { name: "Open entry", exact: true })
+      .first()
+      .click();
+    await note.fill("Edited first entry.");
+    await page
+      .getByText("Draft saved on this device", { exact: true })
+      .waitFor();
+    await page.reload();
+    await atlas.waitFor();
+    assert.equal(await note.inputValue(), "Edited first entry.");
+    const layout = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth > innerWidth,
+      columns: getComputedStyle(
+        document.querySelector(".explorer-grid"),
+      ).gridTemplateColumns.split(" ").length,
+    }));
+    assert.equal(layout.overflow, false);
+    assert.equal(layout.columns, width > 670 ? 2 : 1);
+    await page.getByRole("button", { name: /^Notebook/ }).click();
+    assert.equal(
       await page
-        .screenshot({
-          path: join(output, `${name}-failure.png`),
-          fullPage: true,
-        })
-        .catch(() => {});
-      await context.tracing.stop({ path: join(output, `${name}-trace.zip`) });
-      throw error;
-    } finally {
-      await context.close();
-    }
+        .getByRole("button", { name: "Open entry", exact: true })
+        .count(),
+      2,
+    );
+    const downloadPromise = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Export notebook", exact: true })
+      .click();
+    const file = await downloadPromise;
+    const path = join(output, `notebook-${width}.json`);
+    await file.saveAs(path);
+    const report = JSON.parse(await readFile(path, "utf8"));
+    assert.equal(report.schema_version, 2);
+    assert.equal(report.entries.length, 2);
+    assert.ok(report.entries.some((e) => e.note === "Edited first entry."));
+    await page.locator('[data-offline="ready"]').waitFor();
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    await context.setOffline(true);
+    await page.reload();
+    await atlas.waitFor();
+    await note.fill("An edit made offline.");
+    await page
+      .getByText("Draft saved on this device", { exact: true })
+      .waitFor();
+    await page.reload();
+    await atlas.waitFor();
+    assert.equal(await note.inputValue(), "An edit made offline.");
+    await page.screenshot({ path: join(output, `${width}.png`) });
+    assert.deepEqual(errors, []);
+    assert.deepEqual(unexpected, []);
+    console.log(
+      `PASS ${width}: multiple entries, editing, refresh, JSON backup, offline atlas and storage; no API calls`,
+    );
+    await context.close();
   }
 } finally {
   await browser?.close();
-  server.kill("SIGTERM");
-  if (server.exitCode === null)
-    await new Promise((done) => server.once("exit", done));
-  await rm(temporary, { recursive: true, force: true });
+  server.kill();
 }

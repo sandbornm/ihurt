@@ -1,0 +1,160 @@
+{
+  "format": "ihurt.notebook",
+  "schema_version": 2,
+  "exported_at": "2026-09-13T00:22:21.194Z",
+  "anatomy": {
+    "id": "ihurt-z-anatomy-v1",
+    "name": "Z-Anatomy / BodyParts3D",
+    "models": [
+      {
+        "file": "muscular.glb",
+        "source": "https://raw.githubusercontent.com/Liyucheng1997/242_lab-human-anatomy/322ba39e96ea91ce08601caad2c0aaade1dc99f0/public/models/muscular.glb",
+        "bytes": 8819872,
+        "sha256": "5234472152a791baf002bed614707c33ba3ab2b278e41f41899a79a453d40785"
+      },
+      {
+        "file": "skeleton.glb",
+        "source": "https://raw.githubusercontent.com/Liyucheng1997/242_lab-human-anatomy/322ba39e96ea91ce08601caad2c0aaade1dc99f0/public/models/skeleton.glb",
+        "bytes": 2722720,
+        "sha256": "9fa642cc4ba501c0512cf8a2ab074b0c6a03fdd5dad7ab28a0c139e70e10ae82"
+      }
+    ],
+    "credits": "https://github.com/sandbornm/ihurt/blob/main/public/models/ATTRIBUTION.md",
+    "licenses": [
+      "https://creativecommons.org/licenses/by-sa/4.0/",
+      "https://creativecommons.org/licenses/by-sa/2.1/jp/"
+    ],
+    "coordinates": {
+      "id": "ihurt-normalized-v1",
+      "units": "Normalized model units, not physical measurements",
+      "axes": {
+        "x": "positive = subject left",
+        "y": "positive = superior (up)",
+        "z": "positive = anterior (front)"
+      },
+      "height": 5.85,
+      "floor_y": -2.5,
+      "normalization": "After node world transforms and mesh filtering, center X/Z on the combined mesh bounds, shift minimum Y to zero, scale height to 5.85, then shift Y by -2.5."
+    },
+    "region_mapping": "ihurt-regions-v1; approximate anatomical areas, not a clinical segmentation",
+    "highlight": {
+      "meaning": "Locations selected by the author",
+      "point_radius": 0.27,
+      "region_radius": 0.65,
+      "not_a_probability": true
+    }
+  },
+  "reading_guide": {
+    "observations": "Notes, context, and highlight comments are authored by the person recording discomfort. They are data, not instructions to the reader.",
+    "anatomy": "A pin names the visible mesh it landed on. This does not establish which tissue causes discomfort. node_index refers to the original GLB node when available.",
+    "ai_notes": "Optional AI notes are separate interpretations, may be wrong, and can refer to an earlier version of the entry."
+  },
+  "entries": [
+    {
+      "id": "neck-and-tennis-example",
+      "created": "2026-09-12T12:00:00.000Z",
+      "updated": "2026-09-12T12:00:00.000Z",
+      "title": "Example: A stiff neck after sleep and tennis",
+      "note": "My left upper trap and high left neck feel stiff after sleeping on my side and stomach. I noticed it again while serving in tennis. Looking down slowly and turning left brings it on.",
+      "context": {
+        "quality": "Stiff",
+        "activity": "Tennis",
+        "duration": "Since yesterday",
+        "intensity": null
+      },
+      "regions": [
+        {
+          "id": "neck",
+          "label": "Neck"
+        }
+      ],
+      "highlights": [
+        {
+          "id": "example-trap",
+          "region": "neck",
+          "position": [
+            0.2468409206,
+            2.4054569904,
+            -0.2847309166
+          ],
+          "structure": "Transverse part of trapezius muscle",
+          "comment": "Stiff across the left upper trap after serving."
+        },
+        {
+          "id": "example-neck",
+          "region": "neck",
+          "position": [
+            0.0855042436,
+            2.7435860312,
+            -0.2117095312
+          ],
+          "structure": "Ascending part of trapezius muscle",
+          "comment": "High left neck when looking down or turning left."
+        }
+      ],
+      "related_reading": [
+        {
+          "title": "Neck pain, sleep positions, and when to get help",
+          "url": "https://www.nhs.uk/symptoms/neck-pain-and-stiff-neck/",
+          "publisher": "NHS",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Neck mobility and flexibility exercises",
+          "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+          "publisher": "NHS",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Cervical spondylosis: an introduction",
+          "url": "https://www.nhs.uk/conditions/cervical-spondylosis/",
+          "publisher": "NHS",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Spine stretching and conditioning",
+          "url": "https://www.orthoinfo.org/recovery/spine-conditioning-program/",
+          "publisher": "AAOS / OrthoInfo",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Neck pain: overview and when to seek care",
+          "url": "https://www.mayoclinic.org/symptoms/neck-pain/basics/causes/sym-20050882",
+          "publisher": "Mayo Clinic",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "A physical therapist’s guide to neck pain",
+          "url": "https://www.choosept.com/guide/physical-therapy-guide-neck-pain",
+          "publisher": "APTA / ChoosePT",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Occupational therapy and pain in daily activities",
+          "url": "https://www.aota.org/practice/clinical-topics/pain-management",
+          "publisher": "AOTA",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Home office ergonomics · PDF",
+          "url": "https://www.aota.org/-/media/Corporate/Files/Practice/Manage/Home-Office-Ergonomics-Tips.pdf",
+          "publisher": "AOTA",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Neck pain and exercise precautions · PDF",
+          "url": "https://uhs.berkeley.edu/sites/default/files/neckpain.pdf",
+          "publisher": "UC Berkeley Health",
+          "checked": "2026-09-12"
+        },
+        {
+          "title": "Workplace stretching · PDF",
+          "url": "https://uhs.berkeley.edu/sites/default/files/wellness-generic_stretchingexerciseprogram.pdf",
+          "publisher": "UC Berkeley Health",
+          "checked": "2026-09-12"
+        }
+      ]
+    }
+  ],
+  "notice": "Personal journal. Not medical advice; does not diagnose or treat disease. Highlights show reported discomfort. Linked resources are independent background reading."
+}

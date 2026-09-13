@@ -1,4 +1,5 @@
-import { regionName, regions, type SavedMap } from "./types";
+import { regionName, regions, type SavedMap } from "./types.ts";
+import { stringifyNotebook } from "./notebook-data.ts";
 
 const escape = (s: string) =>
   s.replace(
@@ -48,14 +49,21 @@ export function renderMapSvg(map: SavedMap) {
   const summaryTop = 350 + (regionLines.length - 1) * 24;
   const summaryLines = wrap(map.map.summary);
   const facts = wrap(
-    `Feeling: ${map.map.quality}. Activity: ${map.map.activity}. Timing: ${map.map.duration}. Intensity: ${map.map.intensity === null ? "not reported" : `${map.map.intensity}/10`}.`,
+    [
+      map.map.quality && `Feeling: ${map.map.quality}.`,
+      map.map.activity && `Activity: ${map.map.activity}.`,
+      map.map.duration && `Timing: ${map.map.duration}.`,
+      map.map.intensity !== null && `Intensity: ${map.map.intensity}/10.`,
+    ]
+      .filter(Boolean)
+      .join(" ") || "No additional context recorded.",
   );
   const factsTop = summaryTop + summaryLines.length * 25 + 34;
   let pinY = 670;
   const pinLabels = (map.points ?? [])
     .map((point, i) => {
       const lines = wrap(
-        `${i + 1}. ${regionName(point.region)} — ${point.structure}`,
+        `${i + 1}. ${regionName(point.region)} — ${point.structure}${point.comment ? `. ${point.comment}` : ""}`,
         37,
       );
       const markup = textLines(lines, 55, pinY, 12, 19);
@@ -110,27 +118,14 @@ ${circles}${points}<text x="99" y="604" font-size="11">FRONT</text><text x="265"
 <text x="380" y="${summaryTop - 28}" font-size="13" fill="#60715c">YOUR DESCRIPTION</text>${textLines(summaryLines, 380, summaryTop)}
 <text x="380" y="${factsTop - 26}" font-size="13" fill="#60715c">CONTEXT YOU PROVIDED</text>${textLines(facts, 380, factsTop, 14, 25)}
 <text x="55" y="${referenceTop}" font-size="13" fill="#60715c">${references ? "RELATED READING · SELECTED SOURCES" : "NO READING REFERENCES SELECTED"}</text>${references}
-<text x="55" y="${height - 128}" font-size="12">Organized with ${escape(map.provider)}. Review this record; it can contain errors.</text><path d="M55 ${height - 104}H945" stroke="#c7cec1"/>
+<text x="55" y="${height - 128}" font-size="12">Personal journal · your notes and selected locations.</text><path d="M55 ${height - 104}H945" stroke="#c7cec1"/>
 <text x="55" y="${height - 76}" font-size="13" font-weight="700">Not medical advice. Does not diagnose, treat, cure, or prevent any disease.</text>
 <text x="55" y="${height - 53}" font-size="12">Colors show reported discomfort. Reading links are not a diagnosis or a personalized treatment plan.</text>
 <text x="55" y="${height - 30}" font-size="12">${map.map.urgent ? "Potential urgent symptoms were reported. Seek urgent medical help; do not wait for this map." : "This file contains personal symptom information. Keep and share it carefully."}</text></g></svg>`;
 }
 export function download(map: SavedMap, format: "svg" | "json") {
   const content =
-    format === "svg"
-      ? renderMapSvg(map)
-      : JSON.stringify(
-          {
-            schema_version: 1,
-            ...map,
-            atlas:
-              "Z-Anatomy normalized coordinates: height 5.85, floor -2.5, subject left +x, anterior +z",
-            notice:
-              "For personal reflection and education only. Not medical advice. Does not diagnose, treat, cure, or prevent any disease. Heat shows reported discomfort, not disease likelihood. Reading links are educational references, not a personalized treatment plan.",
-          },
-          null,
-          2,
-        );
+    format === "svg" ? renderMapSvg(map) : stringifyNotebook([map]);
   const blob = new Blob([content], {
     type: format === "svg" ? "image/svg+xml" : "application/json",
   });
@@ -140,4 +135,37 @@ export function download(map: SavedMap, format: "svg" | "json") {
   a.download = `ihurt-map-${map.created.slice(0, 10)}.${format}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export function downloadNotebook(entries: SavedMap[]) {
+  const url = URL.createObjectURL(
+    new Blob([stringifyNotebook(entries)], { type: "application/json" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ihurt-notebook-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export function renderPrintHtml(entry: SavedMap): string {
+  const svg = renderMapSvg(entry).replace(
+    /width="1000" height="\d+" viewBox="0 0 1000 \d+"/,
+    'width="340" height="370" viewBox="35 280 315 340"',
+  );
+  const facts = [
+    entry.map.activity,
+    entry.map.quality,
+    entry.map.duration,
+    entry.map.intensity === null ? "" : `${entry.map.intensity}/10`,
+  ].filter(Boolean);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>iHurt - ${escape(entry.map.title)}</title><style>
+  *{box-sizing:border-box}body{margin:0;color:#24382a;font:11pt/1.5 Arial,sans-serif;background:white}main{max-width:780px;margin:auto;padding:30px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #9eae94;padding-bottom:16px;margin-bottom:24px}.brand{font-size:25pt;font-weight:bold}small{font-size:9pt;color:#5b6c57}h1{font-size:23pt;line-height:1.15;margin:12px 0}h2{font-size:10pt;letter-spacing:.08em;text-transform:uppercase;margin:24px 0 12px}p{white-space:pre-wrap;overflow-wrap:anywhere}figure{margin:0;padding:12px;background:#f5f6ef;border-radius:14px;float:left;width:44%;margin-right:24px;margin-bottom:16px}figure svg{width:100%;height:auto;display:block}figcaption{font-size:8pt;text-align:center;color:#64745b}.context{color:#5b6c57}.pins{clear:both;padding-top:8px}.pin{break-inside:avoid;display:flex;gap:14px;margin:12px 0;padding:12px 0;border-top:1px solid #dfe5d9}.pin b{display:grid;place-items:center;border-radius:50%;width:26px;height:26px;flex-shrink:0;background:#d9eac7}.pin p{margin:3px 0}.reference{break-inside:avoid;margin:14px 0}a{color:#365b25;overflow-wrap:anywhere}.notice{clear:both;font-size:9pt;border-top:1px solid #ccd7c3;margin-top:28px;padding-top:12px}h1,h2{break-after:avoid}@page{size:A4;margin:18mm 16mm}@media print{main{padding:0}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}}button{cursor:pointer;padding:10px 16px;margin-bottom:18px;border:1px solid #687d5d;border-radius:8px;background:#edf5e5}</style></head><body><main><header><span class="brand">iHurt.</span><small>PERSONAL JOURNAL<br/>${escape(new Date(entry.created).toLocaleDateString())}</small></header><h1>${escape(entry.map.title)}</h1><p class="context">${escape(facts.join(" · "))}</p><figure>${svg}<figcaption>Front and back · approximate pin locations</figcaption></figure><h2>Your note</h2><p>${escape(entry.note || "No note recorded.")}</p><section class="pins"><h2>Highlighted spots</h2>${(entry.points ?? []).map((p, i) => `<div class="pin"><b>${i + 1}</b><div><strong>${escape(p.structure)}</strong><small> · ${escape(regionName(p.region))}</small><p>${escape(p.comment || "No comment recorded.")}</p></div></div>`).join("") || "<p>No surface pins recorded.</p>"}</section>${entry.ai ? `<section><h2>Optional AI note · ${escape(entry.ai.provider)}</h2><p>${escape(entry.ai.map.summary)}</p><small>AI interpretation; it may refer to an earlier version of this entry.</small></section>` : ""}<section><h2>Related reading</h2>${(entry.references ?? []).map((r, i) => `<div class="reference"><strong>${i + 1}. ${escape(r.title)}</strong><br/><small>${escape(r.publisher)} · checked ${escape(r.checked)}</small><br/><a href="${escape(r.url)}">${escape(r.url)}</a></div>`).join("") || "<p>No reading links saved.</p>"}</section><p class="notice">Not medical advice. iHurt does not diagnose, treat, cure, or prevent disease. Colors show reported discomfort, not a cause. Independent reading links are not a personal treatment plan. This report contains personal information.</p></main></body></html>`;
+}
+export function printMap(entry: SavedMap): boolean {
+  const popup = window.open("", "_blank");
+  if (!popup) return false;
+  popup.opener = null;
+  popup.addEventListener("load", () => popup.print(), { once: true });
+  popup.document.write(renderPrintHtml(entry));
+  popup.document.close();
+  return true;
 }

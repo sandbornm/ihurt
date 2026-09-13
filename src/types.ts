@@ -92,6 +92,14 @@ export interface PainPoint {
   region: RegionId;
   position: [number, number, number];
   structure: string;
+  comment?: string;
+  source?: {
+    atlas: "z-anatomy-v1" | "schematic-v1";
+    layer: "muscle" | "bone";
+    asset?: string;
+    node_index?: number;
+    mesh_name?: string;
+  };
 }
 export interface HurtMap {
   title: string;
@@ -117,13 +125,27 @@ export interface Session {
   transcription_available: boolean;
 }
 export interface SavedMap {
+  research?: {
+    activity: string;
+    regions: RegionId[];
+    checked: string;
+    references: NonNullable<SavedMap["references"]>;
+  };
   id: string;
   created: string;
+  updated?: string;
   note: string;
   map: HurtMap;
   answers: Answer[];
   provider: string;
   points?: PainPoint[];
+  ai?: {
+    provider: string;
+    created: string;
+    based_on: string;
+    map: HurtMap;
+    answers: Answer[];
+  };
   references?: {
     title: string;
     url: string;

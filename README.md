@@ -4,7 +4,7 @@
 
 Sit like a shrimp all day? Wake up sore from apparently nothing? Unsure where to start reading about stretches and movement?
 
-iHurt helps you describe discomfort when words alone are hard to get right. Place pins on a 3D body, add what you notice during rest or activity, and build a **hurt map** with your chosen AI. Keep a visual record and explore references from sources you trust.
+iHurt helps you describe discomfort when words alone are hard to get right. Place pins on a 3D body, add what you notice during rest or activity, and keep an offline pain journal. Export a **hurt map** to print, share, or bring to an AI chat.
 
 [![A neck and tennis case study: two pins, a note, and exercise references](docs/media/neck-tennis-case-study.gif)](docs/media/neck-tennis-case-study.mp4)
 
@@ -12,16 +12,20 @@ iHurt helps you describe discomfort when words alone are hard to get right. Plac
 
 *Recorded in demo mode; no live AI response. Anatomy by Z-Anatomy and BodyParts3D — [credits and licenses](public/models/ATTRIBUTION.md).*
 
-## Make your map
+## Keep a visual journal
 
-- Zoom into the anatomy and place up to six pins.
-- Type a note, dictate, or record what you notice.
-- Use a local model, OpenAI, Anthropic, or Grok to organize the record.
-- Choose your reading sources and download an SVG or JSON report.
+- Place several pins and add a comment to each spot.
+- Keep multiple entries, edit them later, and choose any sport or activity.
+- Explore reading from your selected sources.
+- Print a heatmap or export JSON with notes, coordinates, and anatomy references.
 
-**[Install and run →](docs/SETUP.md)** · [Set up your AI](docs/PROVIDERS.md)
+**[Open the browser notebook →](https://ihurt.app/try/)** · [Install locally](docs/SETUP.md) · [Optional AI tools](docs/PROVIDERS.md)
 
-Notes clear on refresh, so download anything you want to keep. Cloud mapping sends your note and pins to the provider you choose. Voice transcription uses OpenAI; browser dictation may use a remote service. See [privacy and limitations](docs/SAFETY.md).
+Entries stay in this browser on this device. Export a backup before clearing browser data or switching devices. After the first complete load, the notebook works offline. AI sharing is optional. [Privacy and limitations](docs/SAFETY.md).
+
+[Example report (PDF)](docs/examples/neck-tennis.pdf) · [Example journal (JSON)](docs/examples/neck-tennis.json)
+
+**Hurt less. Feel better.**
 
 ## Not medical advice
 
@@ -29,6 +33,6 @@ Notes clear on refresh, so download anything you want to keep. Cloud mapping sen
 
 ## About the project
 
-React, TypeScript, Three.js, and WebAssembly, with a Python backend. The static showcase for `ihurt.app` lives in a separate repository.
+React, TypeScript, Three.js, and WebAssembly, with an optional Python backend for AI tools. The website for `ihurt.app` lives in a separate repository.
 
 [Usage and source curation](docs/GUIDE.md) · [Development and tests](docs/DEVELOPMENT.md) · [MIT code license](LICENSE)

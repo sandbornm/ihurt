@@ -1750,3 +1750,199 @@ h1 > span {
   line-height: 1.5;
   max-width: 120px;
 }
+
+/* Notebook fields stay compact beside the anatomy. */
+.notebook-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #6d805644;
+  border-radius: 8px;
+  background: #10191280;
+  color: var(--text);
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 13px;
+}
+.field-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 8px;
+  font-size: 12px;
+  color: #c5d2bc;
+}
+.field-label:first-child {
+  margin-top: 0;
+}
+.field-label span,
+.entry-context summary span {
+  color: #879a7c;
+  font-weight: 400;
+}
+.notebook-input:focus,
+.notebook-pin textarea:focus,
+.share-with-ai textarea:focus,
+.ai-tools textarea:focus {
+  outline: 1px solid var(--lime);
+}
+.notebook-shell .pin-list {
+  margin-top: 20px;
+}
+.notebook-shell .pin-list .notebook-pin {
+  flex-wrap: wrap;
+}
+.notebook-pin textarea {
+  flex: 0 0 100%;
+  width: 100%;
+  background: #10191266;
+  border: 1px solid #75886633;
+  color: #cedac4;
+  border-radius: 5px;
+  padding: 8px;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.entry-context,
+.activity-explore,
+.share-with-ai,
+.saved-ai {
+  padding: 15px 0;
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+}
+.entry-context summary,
+.activity-explore summary,
+.share-with-ai summary,
+.saved-ai summary {
+  font-size: 12px;
+  color: #c4d4b9;
+  cursor: pointer;
+}
+.activity-explore {
+  border-top: 0;
+  margin-top: 0;
+  padding: 8px 0 0;
+}
+.activity-explore summary {
+  font-size: 11px;
+  color: #93a883;
+}
+.activity-explore .region-tags {
+  margin-top: 10px;
+  gap: 5px;
+}
+.activity-explore .region-tags button {
+  padding: 5px 7px;
+  border: 1px solid #7b956633;
+}
+.export-pair,
+.notebook-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.export-pair > button {
+  flex: 1;
+  min-width: 100px;
+}
+.notebook-tools {
+  margin: 18px 0;
+}
+.notebook-tools button {
+  width: auto;
+  padding: 10px 14px;
+}
+.notebook-shell .report-actions {
+  margin-top: 20px;
+}
+.notebook-shell .report-actions .text-button {
+  margin-top: 2px;
+}
+.share-with-ai p,
+.ai-tools p,
+.saved-ai p {
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 12px 0;
+  color: #b2c1a6;
+}
+.share-with-ai textarea,
+.ai-tools textarea {
+  width: 100%;
+  background: #10191266;
+  color: #b5c4a9;
+  border: 1px solid #75886633;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.7;
+  padding: 10px;
+  margin-bottom: 10px;
+  resize: vertical;
+}
+.share-with-ai a,
+.ai-tools a {
+  color: var(--lime);
+  font-size: 12px;
+}
+.subtle {
+  font-size: 11px !important;
+  line-height: 1.7;
+  color: #92a186 !important;
+}
+.optional-ai {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+}
+.ai-tools .provider-row {
+  margin: 16px 0 8px;
+}
+.ai-result {
+  border-left: 2px solid #b9f88a66;
+  padding-left: 12px;
+  margin: 16px 0;
+}
+.ai-result strong {
+  font-size: 13px;
+}
+.notebook-shell .journal-card p {
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow: hidden;
+}
+.notebook-shell .journal-card .text-button {
+  margin-top: 12px;
+}
+.notebook-shell .toast button {
+  color: #b9f88a;
+  padding-left: 10px;
+}
+.notebook-shell .page-footer {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.notebook-shell .page-footer > span:nth-child(2) {
+  margin-left: auto;
+}
+@media (max-width: 670px) {
+  .notebook-shell .page-tabs {
+    flex-wrap: wrap;
+  }
+  .notebook-shell .session-badge {
+    margin-left: auto;
+    font-size: 9px;
+  }
+  .notebook-shell .intake-panel {
+    margin-top: 12px;
+  }
+  .notebook-shell .page-footer > span:nth-child(2) {
+    margin-left: 0;
+  }
+  .notebook-shell .page-heading h1 {
+    font-size: 28px;
+  }
+}

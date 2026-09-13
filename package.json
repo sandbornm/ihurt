@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n web,api \"vite --host 127.0.0.1\" \"uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload --reload-include .env --no-proxy-headers\"",
+    "dev": "vite --host 127.0.0.1",
     "dev:web": "vite --host 127.0.0.1",
     "build:wasm": "asc assembly/heat.ts --outFile public/heat.wasm --optimize --noAssert --runtime stub",
-    "build": "npm run build:wasm && tsc -b && vite build",
+    "build": "npm run build:wasm && tsc -b && vite build && node scripts/offline-build.mjs",
     "typecheck": "tsc -b",
     "test": "uv run pytest -q",
     "preview": "vite preview --host 127.0.0.1",
@@ -15,7 +15,10 @@
     "check": "npm run build && npm run test:unit && npm test",
     "format": "prettier --write src scripts assembly *.json *.ts .github",
     "test:unit": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:browser": "node scripts/browser-check.mjs"
+    "test:browser": "node scripts/browser-check.mjs",
+    "dev:ai": "concurrently -k -n web,api \"vite --host 127.0.0.1\" \"uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload --reload-include .env --no-proxy-headers\"",
+    "start": "npm run build && vite preview --host 127.0.0.1 --port 5173 --strictPort",
+    "setup:ai": "node scripts/setup-ai.mjs"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",

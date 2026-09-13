@@ -200,7 +200,12 @@ export default function Anatomy(props: Props) {
             (point) =>
               bounds.distanceToPoint(new T.Vector3(...point.position)) < 0.6,
           ) ?? [];
-        const cacheKey = `${isSelected}:${p.mapped.includes(region!)}:${p.intensity}:${points.map((p) => p.id).join(",")}`;
+        const cacheKey = JSON.stringify([
+          isSelected,
+          p.mapped,
+          p.intensity,
+          p.points?.map((point) => [point.id, point.region, point.position]),
+        ]);
         if (colorCache.get(mesh) === cacheKey) continue;
         colorCache.set(mesh, cacheKey);
         const base = mesh.userData.base.clone();
@@ -487,6 +492,11 @@ export default function Anatomy(props: Props) {
           id: crypto.randomUUID(),
           region,
           position: hit.point.toArray() as [number, number, number],
+          source: hit.object.userData.source ?? {
+            atlas: "schematic-v1",
+            layer: hit.object.userData.layer,
+            mesh_name: hit.object.name,
+          },
           structure:
             hit.object.name
               .replace(/\.[lr]\.\d+$/, "")

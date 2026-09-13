@@ -61,6 +61,7 @@ class PointObservation(BaseModel):
     region: Region
     position: tuple[float, float, float]
     structure: str = Field(max_length=150)
+    comment: str = Field(default="", max_length=1000)
 
     @model_validator(mode="after")
     def bound_position(self):

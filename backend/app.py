@@ -202,6 +202,9 @@ def create_app(settings: Settings | None = None, provider=None):
         @app.get("/heat.wasm")
         async def wasm():
             return FileResponse(dist / "heat.wasm", media_type="application/wasm")
+        @app.get("/sw.js")
+        async def service_worker():
+            return FileResponse(dist / "sw.js", media_type="application/javascript", headers={"Cache-Control": "no-cache"})
         @app.get("/favicon.svg")
         async def favicon():
             return FileResponse(dist / "favicon.svg", media_type="image/svg+xml")

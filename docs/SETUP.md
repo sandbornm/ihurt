@@ -1,36 +1,43 @@
-# Install and run iHurt
+# Run iHurt
 
 [← iHurt](../README.md)
 
-## Quick start
+The [browser notebook](https://ihurt.app/try/) opens with an editable example. Add as many entries as you need, keep notes on individual pins, and export a backup. No installation is required.
 
-Install [Node.js](https://nodejs.org/en/download) **22.12 or newer**, [uv](https://docs.astral.sh/uv/getting-started/installation/), and Git. uv uses Python 3.12 or newer and can install a suitable version if needed.
+## Install locally
+
+Install [Node.js](https://nodejs.org/en/download) **22.12 or newer** and Git.
 
 ```bash
 git clone https://github.com/sandbornm/ihurt.git
 cd ihurt
 npm run setup
-npm run dev
+npm start
 ```
 
-Open **http://127.0.0.1:5173**. **Demo mode** works without an account, model, or API key. It uses simple rules on your local server; it is not AI.
+Open **http://127.0.0.1:5173**. This runs the notebook without Python or an AI account. For development, use `npm run dev`.
 
-1. Zoom in and place up to six pins. Use landmarks or the region picker to find a spot. Add a note or choose an example.
-2. Choose demo mode or a configured AI provider. Review the data-use notice before sending a cloud request.
-3. Make your map. If the location or activity is unclear, the app asks up to two follow-up questions. You can edit the note afterward.
-4. Choose reading sources, then download the map as an **SVG image** or **JSON file**. SVGs open in a browser and can be printed or saved as PDFs through the browser’s print dialog.
+Entries and the current draft save in this browser. Use **Notebook → Export notebook** for a JSON backup. **Import JSON** restores a version 2 export. **Print / Save PDF** opens a printout you can save as PDF. The SVG download is also printable.
 
-“Save for this visit” keeps a map in the tab’s memory. **Refresh or close the tab and the journal clears.** Download anything you want to keep. There is no email delivery or persistent symptom database.
+The production build caches the app and anatomy files after its first complete load. Wait for the offline indicator before disconnecting. Browser storage can be cleared or evicted; private windows usually erase it when closed. Keep backups.
 
-To connect an AI model, follow the [provider guide](PROVIDERS.md).
+## Optional AI tools
+
+For manual AI sharing, export an entry as JSON and attach it to Grok, ChatGPT, Claude, or a local model. The entry includes anatomy model hashes, coordinates, pin labels, and comments. Copy the suggested prompt from **Share with AI** if helpful.
+
+For an integrated provider, install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
+
+```bash
+npm run setup:ai
+npm run dev:ai
+```
+
+Setup creates a private `.env` without overwriting existing keys. Put the Grok key in `XAI_API_KEY`; configure other providers using the [provider guide](PROVIDERS.md). Keys stay on the local Python server. Cloud providers charge separately for usage; local models use your hardware.
 
 ## Troubleshooting
 
-- **API unavailable:** use `npm run dev`, not just `npm run dev:web`. The full command starts both services.
-- **Preview looks like a phone:** the app uses one column below 670 pixels. Widen the browser panel or open the local URL in a full browser window. Automated browser checks use separate headless windows and never resize your preview.
-- **Provider is disabled:** fill its key or local model name in `.env` and restart the Python server. Keys never go in the UI.
-- **Grok reports no credits or a spending limit:** check billing in your xAI account. A valid key alone does not fund API requests. Retrying the same map keeps its activity allowance.
-- **Local mapping times out:** confirm the model server is running, the name matches its loaded model, and your hardware can run it. Choose a model that can follow a JSON schema.
-- **An activity expired after a restart:** setup creates a stable session secret. If you skipped setup and left `SESSION_SECRET` blank, the development secret changes at startup. Keep a stable random secret in `.env` for quota sessions across restarts. Symptom notes still clear on page refresh.
-- **Daily allowance reached:** the development guard is intentional; adjust `.env` for your own use. It resets at midnight UTC.
-- **Microphone unavailable:** try localhost/HTTPS and check browser permissions. You can always type.
+- **AI tools unavailable:** run `npm run dev:ai`. Saving, editing, and exports work without this server.
+- **Narrow layout:** the app uses one column below 670 pixels. Widen the browser panel or open the URL in a full browser window. Automated checks use their own browser.
+- **Storage unavailable:** export before closing. Check browser storage permissions and available disk space.
+- **Grok has no credits:** check xAI billing and spending limits. A key alone does not fund requests.
+- **Offline copy not ready:** leave the page open while its anatomy files finish downloading. Offline caching is enabled in production builds, not the development server.

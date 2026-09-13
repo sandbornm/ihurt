@@ -130,8 +130,8 @@ export default function Resources({
         </p>
       )}
       <p className="resource-notice">
-        Related reading, not a diagnosis or treatment plan. Check the source’s
-        precautions before trying an exercise.
+        Independent publishers provide these resources. Links are background
+        reading, not a personal treatment plan. Check the source’s precautions.
       </p>
     </section>
   );

@@ -1,4 +1,7 @@
-# AI providers and voice input
+# Optional AI providers
+
+The notebook works without AI. To use an AI chat, export JSON and attach it yourself. For integrated tools, run `npm run setup:ai`, configure `.env`, then run `npm run dev:ai`.
+
 
 [← iHurt](../README.md)
 
@@ -17,7 +20,7 @@ Keep the key in this ignored local file. Restart `npm run dev` after saving. The
 
 Start an OpenAI-compatible server on your own hardware. The server must accept `/v1/chat/completions` and the model must produce valid JSON matching the map schema.
 
-`npm run setup` creates a private `.env` file and a random session secret, without overwriting existing settings. Edit that file:
+`npm run setup:ai` creates a private `.env` file and a random session secret, without overwriting existing settings. Edit that file:
 
 For **Ollama**, set these in `.env`:
 
@@ -75,7 +78,7 @@ A ChatGPT or Claude chat subscription does not pay for API calls. Live cloud ada
 
 ### Costs and limits
 
-The public showcase makes no AI requests, so its AI cost is **$0**. Static hosting and the domain are separate; the hosting provider’s plan applies. The source and demo mode have no fee. Local inference uses your hardware and electricity.
+The browser notebook works without AI. Optional hosted source searches use a separate site key and shared allowance. Static hosting and the domain are separate; the hosting provider’s plan applies. The source and demo mode have no fee. Local inference uses your hardware and electricity.
 
 Illustrative cloud cost per exchange, assuming **2,000 input tokens and 1,000 output tokens**, at prices checked September 12, 2026:
 

@@ -1,4 +1,5 @@
-import catalog from "../config/reading-library.json";
+import catalog from "../config/reading-library.json" with { type: "json" };
+import { activityRegions, activitySearchText } from "./activities.ts";
 export interface ReadingSource {
   id: string;
   name: string;
@@ -37,8 +38,10 @@ export function findReadings(
   selectedSources: string[],
   query = "",
 ) {
-  const terms = regions.map((r) => r.replace(/^(left|right)_/, ""));
-  const text = activity.toLowerCase();
+  const terms = (regions.length ? regions : activityRegions(activity)).map(
+    (r) => r.replace(/^(left|right)_/, ""),
+  );
+  const text = activitySearchText(activity).toLowerCase();
   return readings
     .filter(
       (r) =>

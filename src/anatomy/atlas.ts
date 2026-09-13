@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { BodyMesh } from "./model";
 import { bakeGeometry } from "./geometry";
-import type { RegionId } from "../types";
+import type { RegionId, PainPoint } from "../types";
 
 export function regionAt(point: T.Vector3, structure = ""): RegionId {
   const side = point.x > 0 ? "left" : "right",
@@ -47,6 +47,7 @@ export async function loadAtlas() {
       geometry: T.BufferGeometry;
       name: string;
       layer: "muscle" | "bone";
+      source: PainPoint["source"];
     }[] = [];
     const bounds = new T.Box3();
     files.forEach((file, index) => {
@@ -66,7 +67,18 @@ export async function loadAtlas() {
         const geometry = bakeGeometry(object.geometry, object.matrixWorld);
         geometry.computeBoundingBox();
         bounds.union(geometry.boundingBox!);
-        meshes.push({ geometry, name, layer: index === 0 ? "muscle" : "bone" });
+        meshes.push({
+          geometry,
+          name,
+          layer: index === 0 ? "muscle" : "bone",
+          source: {
+            atlas: "z-anatomy-v1",
+            layer: index === 0 ? "muscle" : "bone",
+            asset: index === 0 ? "muscular.glb" : "skeleton.glb",
+            node_index: association?.nodes,
+            mesh_name: name,
+          },
+        });
         object.geometry.dispose();
         const materials = Array.isArray(object.material)
           ? object.material
@@ -108,6 +120,7 @@ export async function loadAtlas() {
         region: regionAt(p, item.name),
         base,
         layer: item.layer,
+        source: item.source,
       };
       group.add(mesh);
       (item.layer === "muscle" ? muscles : bones).push(mesh);

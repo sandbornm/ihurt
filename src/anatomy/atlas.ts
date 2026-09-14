@@ -91,7 +91,10 @@ export async function loadAtlas() {
     const group = new T.Group(),
       muscles: BodyMesh[] = [],
       bones: BodyMesh[] = [];
-    for (const item of meshes) {
+    const yieldFrame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    for (let i = 0; i < meshes.length; i++) {
+      const item = meshes[i];
       item.geometry
         .translate(-center.x, -bounds.min.y, -center.z)
         .scale(scale, scale, scale)
@@ -113,9 +116,10 @@ export async function loadAtlas() {
       const color = new Float32Array(
         item.geometry.attributes.position.count * 3,
       );
-      for (let i = 0; i < color.length; i += 3) base.toArray(color, i);
+      for (let c = 0; c < color.length; c += 3) base.toArray(color, c);
       item.geometry.setAttribute("color", new T.BufferAttribute(color, 3));
       mesh.name = item.name;
+      mesh.matrixAutoUpdate = false;
       mesh.userData = {
         region: regionAt(p, item.name),
         base,
@@ -124,6 +128,7 @@ export async function loadAtlas() {
       };
       group.add(mesh);
       (item.layer === "muscle" ? muscles : bones).push(mesh);
+      if (i > 0 && i % 40 === 0) await yieldFrame();
     }
     return { group, muscles, bones };
   } finally {

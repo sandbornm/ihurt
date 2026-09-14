@@ -9,6 +9,21 @@
       content="Pin discomfort on a 3D body, describe what brings it on, and save a hurt map with related reading. Free to run locally. Not medical advice."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="preload"
+      href="/models/muscular.glb"
+      as="fetch"
+      crossorigin
+      fetchpriority="high"
+    />
+    <link rel="preload" href="/models/skeleton.glb" as="fetch" crossorigin />
+    <link rel="preload" href="/heat.wasm" as="fetch" crossorigin />
+    <link
+      rel="preload"
+      href="/draco/draco_decoder.wasm"
+      as="fetch"
+      crossorigin
+    />
     <title>iHurt — Map how you feel</title>
   </head>
   <body>

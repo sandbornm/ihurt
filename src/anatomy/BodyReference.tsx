@@ -49,7 +49,8 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
     rim.position.set(3, 3, -3);
     scene.add(rim);
     let dirty = true,
-      disposed = false;
+      disposed = false,
+      looping = false;
     const release = (object: T.Object3D) =>
       object.traverse((child) => {
         if (child instanceof T.Mesh) {
@@ -106,27 +107,34 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
       renderer.setSize(root.clientWidth, root.clientHeight);
       camera.aspect = root.clientWidth / Math.max(1, root.clientHeight);
       camera.updateProjectionMatrix();
-      dirty = true;
+      kick();
     };
+    function kick() {
+      dirty = true;
+      if (looping || disposed) return;
+      looping = true;
+      renderer.setAnimationLoop(() => {
+        if (dirty) {
+          renderer.render(scene, camera);
+          dirty = false;
+        } else {
+          looping = false;
+          renderer.setAnimationLoop(null);
+        }
+      });
+    }
     const observer = new ResizeObserver(resize);
     observer.observe(root);
     resize();
-    controls.addEventListener("change", () => {
-      dirty = true;
-    });
+    controls.addEventListener("change", kick);
     turn.current = (angle) => {
       camera.position.applyAxisAngle(new T.Vector3(0, 1, 0), angle);
       controls.update();
-      dirty = true;
+      kick();
     };
-    renderer.setAnimationLoop(() => {
-      if (dirty) {
-        renderer.render(scene, camera);
-        dirty = false;
-      }
-    });
     return () => {
       disposed = true;
+      looping = false;
       observer.disconnect();
       controls.dispose();
       draco.dispose();

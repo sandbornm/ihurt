@@ -47,7 +47,9 @@
     .toast,
     .body-reference,
     .site-dialog,
-    .example-cards article
+    .example-cards article,
+    .hand-camera,
+    .more-tools-menu
   ) {
   background: #fff;
   color: #243627;
@@ -167,7 +169,7 @@
     .notebook-tools button,
     .export-pair button,
     .model-badge,
-    .landmark-menu > button,
+    .more-tools-menu > button,
     .region-callout button,
     .canvas-controls button
   ) {

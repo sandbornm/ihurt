@@ -73,8 +73,9 @@ try {
     await page.getByRole("button", { name: "Move up", exact: true }).click();
     await page.getByRole("button", { name: "Move down", exact: true }).click();
     await page.getByRole("button", { name: "Reset view", exact: true }).click();
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page.getByRole("button", { name: "Layers", exact: true }).click();
-    const canvas = atlas.locator("canvas");
+    const canvas = atlas.locator("canvas[data-engine]");
     await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
     const picker = page.getByRole("dialog", { name: "Choose anatomy layer" });
@@ -93,6 +94,7 @@ try {
     await picker.getByRole("button", { name: "Pin this structure" }).click();
     await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Layers", exact: true }).click();
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
       .getByRole("button", { name: "Muscle list", exact: true })
       .click();

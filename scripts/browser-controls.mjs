@@ -94,6 +94,70 @@ try {
       .getByRole("button", { name: "Switch to dark mode", exact: true })
       .click();
     await page.getByRole("button", { name: "More tools", exact: true }).click();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Hands", exact: true })
+        .isVisible(),
+      true,
+    );
+    await page.getByRole("button", { name: "Hands", exact: true }).click();
+    await page.locator(".hand-grabbers[data-hands-ready]").waitFor();
+    const openPalm = (x, y) => {
+      const points = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5 }));
+      points[0] = { x, y };
+      points[5] = { x: x + 0.04, y };
+      points[17] = { x: x - 0.04, y };
+      points[4] = { x: x - 0.12, y };
+      points[8] = { x: x + 0.12, y };
+      return points;
+    };
+    const pinched = (gap) => {
+      const points = openPalm(0.5, 0.5);
+      points[4] = { x: 0.5, y: 0.5 };
+      points[8] = { x: 0.5 + gap, y: 0.5 };
+      return points;
+    };
+    const spoof = (landmarks) =>
+      page.evaluate((hands) => {
+        window.dispatchEvent(
+          new CustomEvent("ihurt:hands", { detail: { landmarks: hands } }),
+        );
+      }, landmarks);
+    await spoof([openPalm(0.35, 0.5)]);
+    await spoof([openPalm(0.6, 0.5)]);
+    await page.locator(".hand-grabber.is-on").waitFor();
+    assert.equal(await atlas.getAttribute("data-hands-mode"), "turn");
+    assert.equal(await atlas.getAttribute("data-hands-moved"), "turn");
+    await spoof([pinched(0.05)]);
+    await spoof([pinched(0.03)]);
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector("[data-hands-mode]")
+          ?.getAttribute("data-hands-mode") === "zoom",
+    );
+    await spoof([openPalm(0.3, 0.4), openPalm(0.7, 0.4)]);
+    await spoof([openPalm(0.3, 0.58), openPalm(0.7, 0.58)]);
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector("[data-hands-grabbers]")
+          ?.getAttribute("data-hands-grabbers") === "2",
+    );
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
+    await page.getByRole("button", { name: "Find a region" }).focus();
+    await page.keyboard.press("Space");
+    const regionField = page.getByRole("textbox", {
+      name: "Search body regions",
+    });
+    await regionField.waitFor();
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.getAttribute("aria-label") ===
+        "Search body regions",
+    );
+    assert.equal(await regionField.inputValue(), "");
+    await page.keyboard.press("Escape");
     await page
       .getByRole("checkbox", { name: "Show bones", exact: true })
       .uncheck();
@@ -101,6 +165,10 @@ try {
     await page
       .getByRole("button", { name: "Muscle list", exact: true })
       .click();
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.getAttribute("aria-label") === "Find a muscle",
+    );
     await page
       .getByRole("textbox", { name: "Find a muscle" })
       .fill("biceps brachii");
@@ -123,7 +191,7 @@ try {
     await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
     // Paint over the isolated muscle without rotating the camera.
     await page.getByRole("button", { name: "Highlight", exact: true }).click();
-    const canvas = atlas.locator("canvas");
+    const canvas = atlas.locator("canvas[data-engine]");
     await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
     await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.46);
@@ -204,6 +272,7 @@ try {
       (await popup.locator("figcaption").innerText()).includes("bones hidden"),
     );
     await popup.close();
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
       .getByRole("button", { name: "Body reference", exact: true })
       .click();

@@ -103,6 +103,7 @@ try {
     await page
       .getByRole("textbox", { name: "Describe your discomfort" })
       .fill(example.note);
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
       .getByRole("button", { name: "Muscle list", exact: true })
       .click();
@@ -155,6 +156,7 @@ try {
     }
     await picker.getByRole("button", { name: "Close layers" }).click();
     await page.waitForTimeout(1400);
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
       .getByRole("checkbox", { name: "Show bones", exact: true })
       .uncheck();
@@ -163,7 +165,7 @@ try {
       await page
         .getByRole("button", { name: "Highlight", exact: true })
         .click();
-      const canvas = atlas.locator("canvas");
+      const canvas = atlas.locator("canvas[data-engine]");
       await canvas.scrollIntoViewIfNeeded();
       const box = await canvas.boundingBox();
       await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.46);

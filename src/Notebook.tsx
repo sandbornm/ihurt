@@ -74,6 +74,7 @@ import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
+void import("./anatomy/Anatomy");
 type AssistantProps = {
   entry: SavedMap;
   onSave: (analysis: NonNullable<SavedMap["ai"]>) => void;
@@ -94,6 +95,7 @@ export default function Notebook({
 }) {
   const [tutorial, setTutorial] = useState(false);
   const [advancedControls, setAdvancedControls] = useState(false);
+  const [toolsMenu, setToolsMenu] = useState(false);
   const [offline, setOffline] = useState(false);
   const [bodyReference, setBodyReference] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -106,6 +108,28 @@ export default function Notebook({
       .then(setOffline)
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!toolsMenu) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key !== "Escape" || document.querySelector("dialog[open]"))
+          return;
+      }
+      if (
+        event instanceof PointerEvent &&
+        (event.target as Element | null)?.closest(".more-tools-wrap")
+      )
+        return;
+      setToolsMenu(false);
+      setLandmarks(false);
+    };
+    window.addEventListener("keydown", close);
+    window.addEventListener("pointerdown", close);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("pointerdown", close);
+    };
+  }, [toolsMenu]);
   const [entry, setEntry] = useState<SavedMap>(() =>
     example ? exampleEntry() : blankEntry(),
   );
@@ -127,9 +151,32 @@ export default function Notebook({
   const [busy, setBusy] = useState(false),
     [draftStatus, setDraftStatus] = useState("Opening notebook…"),
     [removed, setRemoved] = useState<SavedMap | null>(null);
+  const draftRef = useRef<Draft>({
+    entry,
+    selected,
+    layer,
+    showSkeleton,
+    view,
+    sources: readingSources,
+  });
+  draftRef.current = {
+    entry,
+    selected,
+    layer,
+    showSkeleton,
+    view,
+    sources: readingSources,
+  };
   const infoDialog = useRef<HTMLDialogElement>(null),
     regionDialog = useRef<HTMLDialogElement>(null),
+    regionSearch = useRef<HTMLInputElement>(null),
     importInput = useRef<HTMLInputElement>(null);
+  function openRegions() {
+    regionDialog.current?.showModal();
+    requestAnimationFrame(() =>
+      regionSearch.current?.focus({ preventScroll: true }),
+    );
+  }
   const points = entry.points ?? [],
     note = entry.note,
     result = finishEntry(entry).map;
@@ -198,31 +245,38 @@ export default function Notebook({
     if (!hydrated) return;
     let cancelled = false;
     setDraftStatus("Saving draft…");
-    const draft: Draft = {
-      entry,
-      selected,
-      layer,
-      showSkeleton,
-      view,
-      sources: readingSources,
+    const persist = () =>
+      saveDraft(draftRef.current)
+        .then(() => {
+          if (!cancelled) {
+            setDraftStatus("Draft saved on this device");
+            setStorageError("");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setDraftStatus("Draft not saved");
+            setStorageError(
+              "This browser could not save your draft. Export JSON to keep it.",
+            );
+          }
+        });
+    const timer = setTimeout(() => {
+      void persist();
+    }, 280);
+    const flush = () => {
+      void saveDraft(draftRef.current);
     };
-    saveDraft(draft)
-      .then(() => {
-        if (!cancelled) {
-          setDraftStatus("Draft saved on this device");
-          setStorageError("");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDraftStatus("Draft not saved");
-          setStorageError(
-            "This browser could not save your draft. Export JSON to keep it.",
-          );
-        }
-      });
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHide);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHide);
     };
   }, [
     entry,
@@ -525,9 +579,7 @@ export default function Notebook({
               </button>
             </div>
           )}
-          {!hydrated ? (
-            <p className="subtle">Opening your notebook…</p>
-          ) : tab === "journal" ? (
+          {tab === "journal" ? (
             <section className="journal">
               <div className="journal-heading">
                 <h2>Your entries</h2>
@@ -629,110 +681,191 @@ export default function Notebook({
                     <span className="small-label">EXPLORE YOUR ANATOMY</span>
                     <h2>Body map</h2>
                   </div>
-                  <button
-                    className="secondary more-tools"
-                    aria-expanded={advancedControls}
-                    onClick={() => setAdvancedControls(!advancedControls)}
-                  >
-                    More tools <ChevronDown size={16} />
-                  </button>
-                </div>
-                <div className="anatomy-stage">
-                  <div className="stage-grid" />
-                  <div className="landmark-menu" hidden={!advancedControls}>
+                  <div className="more-tools-wrap">
                     <button
-                      className={landmarks ? "landmark-active" : ""}
-                      onClick={() => setLandmarks((v) => !v)}
-                      aria-pressed={landmarks}
+                      className="secondary more-tools"
+                      aria-expanded={toolsMenu}
+                      aria-controls="more-tools-menu"
+                      onClick={() => {
+                        setToolsMenu((open) => {
+                          if (open) {
+                            setLandmarks(false);
+                            return false;
+                          }
+                          setAdvancedControls(true);
+                          return true;
+                        });
+                      }}
                     >
-                      <Crosshair size={14} />
-                      Landmarks
+                      More tools <ChevronDown size={16} />
                     </button>
-                    {landmarks && (
-                      <div className="landmark-content">
-                        <div className="landmark-breadcrumb">
-                          <button
-                            onClick={() => {
-                              setSelected(null);
-                              action("reset");
-                            }}
-                          >
-                            Body
-                          </button>
-                          {selected && (
+                    <div
+                      id="more-tools-menu"
+                      className="more-tools-menu"
+                      hidden={!toolsMenu}
+                    >
+                      <button
+                        className={landmarks ? "landmark-active" : ""}
+                        onClick={() => setLandmarks((v) => !v)}
+                        aria-pressed={landmarks}
+                      >
+                        <Crosshair size={14} />
+                        Landmarks
+                      </button>
+                      <button
+                        onClick={() => {
+                          action("tools:muscle");
+                          setToolsMenu(false);
+                          setLandmarks(false);
+                        }}
+                      >
+                        Muscle list
+                      </button>
+                      <button
+                        onClick={() => {
+                          action("tools:layers");
+                          setToolsMenu(false);
+                          setLandmarks(false);
+                        }}
+                      >
+                        <Layers3 size={14} /> Layers
+                      </button>
+                      <button
+                        onClick={() => {
+                          action("tools:hands");
+                          setToolsMenu(false);
+                          setLandmarks(false);
+                        }}
+                      >
+                        Hands
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBodyReference(true);
+                          setToolsMenu(false);
+                          setLandmarks(false);
+                        }}
+                      >
+                        Body reference
+                      </button>
+                      <div className="layer-toggle">
+                        <button
+                          className={layer === "muscle" ? "active" : ""}
+                          aria-pressed={layer === "muscle"}
+                          onClick={() => setLayer("muscle")}
+                        >
+                          <Layers3 size={14} />
+                          Muscles
+                        </button>
+                        <button
+                          className={layer === "bone" ? "active" : ""}
+                          aria-pressed={layer === "bone"}
+                          onClick={() => setLayer("bone")}
+                        >
+                          Skeleton
+                        </button>
+                      </div>
+                      {layer === "muscle" && (
+                        <label className="bones-toggle">
+                          <input
+                            type="checkbox"
+                            checked={showSkeleton}
+                            onChange={(event) =>
+                              setShowSkeleton(event.target.checked)
+                            }
+                          />{" "}
+                          Show bones
+                        </label>
+                      )}
+                      {landmarks && (
+                        <div className="landmark-content">
+                          <div className="landmark-breadcrumb">
+                            <button
+                              onClick={() => {
+                                setSelected(null);
+                                action("reset");
+                              }}
+                            >
+                              Body
+                            </button>
+                            {selected && (
+                              <>
+                                <ChevronRight size={10} />
+                                <span>{regionName(selected)}</span>
+                              </>
+                            )}
+                          </div>
+                          {!selected ? (
+                            bodyAnchors.map((a) => (
+                              <button
+                                key={a.region}
+                                onClick={() => {
+                                  selectRegion(a.region);
+                                  action("focus");
+                                }}
+                              >
+                                {a.name}
+                                <ChevronRight size={12} />
+                              </button>
+                            ))
+                          ) : (
                             <>
-                              <ChevronRight size={10} />
-                              <span>{regionName(selected)}</span>
+                              <div className="surface-buttons">
+                                {[
+                                  ["anterior", "Front"],
+                                  ["posterior", "Back"],
+                                  ["superior", "Top"],
+                                  ["lateral", "Outer side"],
+                                ].map(([key, label]) => (
+                                  <button
+                                    key={key}
+                                    onClick={() => {
+                                      if (key === "anterior") setView("front");
+                                      if (key === "posterior") setView("back");
+                                      action("surface:" + key);
+                                    }}
+                                  >
+                                    {label}
+                                    <small>{key}</small>
+                                  </button>
+                                ))}
+                              </div>
+                              <span className="small-label">MUSCLE GROUPS</span>
+                              {muscleGroups(selected).map((m) => (
+                                <button
+                                  key={m.match}
+                                  className={
+                                    command.type === "muscle:" + m.match
+                                      ? "landmark-active"
+                                      : ""
+                                  }
+                                  onClick={() => {
+                                    setLayer("muscle");
+                                    setView(m.back ? "back" : "front");
+                                    action("muscle:" + m.match);
+                                  }}
+                                >
+                                  {m.name}
+                                  <ChevronRight size={12} />
+                                </button>
+                              ))}
+                              <button
+                                className="show-context"
+                                onClick={() => action("context")}
+                              >
+                                Show surrounding anatomy
+                              </button>
                             </>
                           )}
                         </div>
-                        {!selected ? (
-                          bodyAnchors.map((a) => (
-                            <button
-                              key={a.region}
-                              onClick={() => {
-                                selectRegion(a.region);
-                                action("focus");
-                              }}
-                            >
-                              {a.name}
-                              <ChevronRight size={12} />
-                            </button>
-                          ))
-                        ) : (
-                          <>
-                            <div className="surface-buttons">
-                              {[
-                                ["anterior", "Front"],
-                                ["posterior", "Back"],
-                                ["superior", "Top"],
-                                ["lateral", "Outer side"],
-                              ].map(([key, label]) => (
-                                <button
-                                  key={key}
-                                  onClick={() => {
-                                    if (key === "anterior") setView("front");
-                                    if (key === "posterior") setView("back");
-                                    action("surface:" + key);
-                                  }}
-                                >
-                                  {label}
-                                  <small>{key}</small>
-                                </button>
-                              ))}
-                            </div>
-                            <span className="small-label">MUSCLE GROUPS</span>
-                            {muscleGroups(selected).map((m) => (
-                              <button
-                                key={m.match}
-                                className={
-                                  command.type === "muscle:" + m.match
-                                    ? "landmark-active"
-                                    : ""
-                                }
-                                onClick={() => {
-                                  setLayer("muscle");
-                                  setView(m.back ? "back" : "front");
-                                  action("muscle:" + m.match);
-                                }}
-                              >
-                                {m.name}
-                                <ChevronRight size={12} />
-                              </button>
-                            ))}
-                            <button
-                              className="show-context"
-                              onClick={() => action("context")}
-                            >
-                              Show surrounding anatomy
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
+                </div>
+                <div className="anatomy-stage">
+                  <div className="stage-grid" />
                   <div className="stage-intro">
-                    <button onClick={() => regionDialog.current?.showModal()}>
+                    <button onClick={openRegions}>
                       <Search size={14} />
                       Find a region
                     </button>
@@ -740,7 +873,10 @@ export default function Notebook({
                   <FeatureBoundary label="The 3D view">
                     <Suspense
                       fallback={
-                        <div className="canvas-loading">Loading anatomy…</div>
+                        <div className="canvas-loading">
+                          Loading anatomy…
+                          <span />
+                        </div>
                       }
                     >
                       <Anatomy
@@ -857,38 +993,6 @@ export default function Notebook({
                   </div>
                 )}
                 <div className="body-footer">
-                  <div className="layer-toggle" hidden={!advancedControls}>
-                    <button
-                      className={layer === "muscle" ? "active" : ""}
-                      aria-pressed={layer === "muscle"}
-                      onClick={() => setLayer("muscle")}
-                    >
-                      <Layers3 size={14} />
-                      Muscles
-                    </button>
-                    <button
-                      className={layer === "bone" ? "active" : ""}
-                      aria-pressed={layer === "bone"}
-                      onClick={() => setLayer("bone")}
-                    >
-                      Skeleton
-                    </button>
-                    <button onClick={() => setBodyReference(true)}>
-                      Body reference
-                    </button>
-                  </div>
-                  {advancedControls && layer === "muscle" && (
-                    <label className="bones-toggle">
-                      <input
-                        type="checkbox"
-                        checked={showSkeleton}
-                        onChange={(event) =>
-                          setShowSkeleton(event.target.checked)
-                        }
-                      />{" "}
-                      Show bones
-                    </label>
-                  )}
                   {bodyReference && (
                     <Suspense fallback={<span>Loading reference…</span>}>
                       <BodyReference onClose={() => setBodyReference(false)} />
@@ -1341,7 +1445,7 @@ export default function Notebook({
         <div className="region-search">
           <Search size={17} />
           <input
-            autoFocus
+            ref={regionSearch}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search a body region"

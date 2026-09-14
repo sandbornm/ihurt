@@ -1,4 +1,5 @@
 import { Spherical, Vector3 } from "three";
+import type { HandDelta } from "./hands.ts";
 
 export function nudgeCamera(
   position: Vector3,
@@ -57,4 +58,54 @@ export function advanceCamera(
     return false;
   }
   return true;
+}
+
+export function applyHandDelta(
+  position: Vector3,
+  look: Vector3,
+  delta: HandDelta,
+  bounds: {
+    minDistance: number;
+    maxDistance: number;
+    maxTargetRadius: number;
+    cursor: Vector3;
+  } = {
+    minDistance: 0.35,
+    maxDistance: 13,
+    maxTargetRadius: 4,
+    cursor: new Vector3(0, 0.4, 0),
+  },
+) {
+  const nextLook = look.clone();
+  const offset = position.clone().sub(look);
+  if (delta.panX || delta.panY) {
+    const right = new Vector3(0, 1, 0).cross(offset).normalize();
+    const up = offset.clone().cross(right).normalize();
+    const shift = right
+      .multiplyScalar(delta.panX * offset.length())
+      .addScaledVector(up, -delta.panY * offset.length());
+    nextLook.add(shift);
+    offset.copy(position).sub(look);
+  }
+  const sphere = new Spherical().setFromVector3(offset);
+  sphere.theta += delta.rotateX;
+  sphere.phi = Math.max(
+    0.04,
+    Math.min(Math.PI - 0.04, sphere.phi + delta.rotateY),
+  );
+  const zoom = delta.zoom || 1;
+  sphere.radius = Math.max(
+    bounds.minDistance,
+    Math.min(bounds.maxDistance, sphere.radius / zoom),
+  );
+  const correction = nextLook.clone().sub(bounds.cursor);
+  if (correction.length() > bounds.maxTargetRadius) {
+    nextLook.copy(
+      correction.clampLength(0, bounds.maxTargetRadius).add(bounds.cursor),
+    );
+  }
+  return {
+    position: nextLook.clone().add(new Vector3().setFromSpherical(sphere)),
+    look: nextLook,
+  };
 }

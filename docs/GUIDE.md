@@ -8,6 +8,8 @@ Use **Landmarks** to choose a region and view it from the front, back, top, or o
 
 Choose **Turn** or **Move**, then use the arrows or drag. Scroll or use the zoom buttons to zoom around the current focus. The buttons support keyboard access. Reduced-motion settings skip camera transitions.
 
+**Hands** (under More tools) is optional camera control. A floating grabber follows each hand on the body: move it to turn, pinch it to zoom, or slide two grabbers to pan. The camera stays in this browser; frames are not saved or sent. Hands never place a pin. Mouse, trackpad, and buttons still work.
+
 Turn off **Show bones** to hide the skeleton while viewing muscles. This preference stays with your browser draft. Hidden bones are excluded from layer picking and viewport pictures; existing marks stay saved.
 
 A click places a precise surface pin. The 3D overlay spreads heat around your pin; it does not infer tissue damage or a diagnosis. Coarse regions are approximate and can misclassify boundaries. The GLB meshes have finite detail: close zoom does not reveal microscopic anatomy. Detailed nerve pathways and motion analysis are outside this version.

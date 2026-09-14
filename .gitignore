@@ -12,3 +12,6 @@ data/
 output/
 .playwright-cli/
 .DS_Store
+public/mediapipe/wasm/
+public/mediapipe/*.task
+public/mediapipe/*.tmp

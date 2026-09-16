@@ -39,7 +39,8 @@ try {
     headless: true,
     args: ["--enable-unsafe-swiftshader"],
   });
-  for (const width of [1440, 390]) {
+  const widths = process.argv.includes("--camera-lifecycle") ? [] : [1440, 390];
+  for (const width of widths) {
     const context = await browser.newContext({
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
@@ -569,8 +570,10 @@ try {
         () => typeof window.finishCamera === "function",
       );
       await toggle();
+      await page.locator(".hand-camera").waitFor({ state: "detached" });
+      if (phase === "pending play")
+        await page.waitForFunction(() => window.cameraStops === 1);
       await page.evaluate(() => window.finishCamera());
-      assert.equal(await page.locator(".hand-camera").count(), 0);
     }
     await page.waitForFunction(() => window.cameraStops === 1);
     assert.deepEqual(

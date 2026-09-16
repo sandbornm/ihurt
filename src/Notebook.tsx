@@ -82,10 +82,12 @@ type AssistantProps = {
 };
 export default function Notebook({
   example = false,
+  allowCamera = true,
   Assistant,
   Research,
 }: {
   example?: boolean;
+  allowCamera?: boolean;
   Assistant?: ComponentType<AssistantProps>;
   Research?: ComponentType<{
     entry: SavedMap;
@@ -731,6 +733,7 @@ export default function Notebook({
                         <Layers3 size={14} /> Layers
                       </button>
                       <button
+                        hidden={!allowCamera}
                         onClick={() => {
                           action("tools:hands");
                           setToolsMenu(false);

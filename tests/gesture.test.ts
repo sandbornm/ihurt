@@ -30,3 +30,23 @@ test("a canceled gesture does not place a pin and the next tap works", () => {
   g.down(2, 10, 10);
   assert.equal(g.up(2, 10, 10, 0), true);
 });
+
+test("losing focus clears all pointers and allows a fresh tap", () => {
+  const g = new PinGesture();
+  g.down(1, 10, 10);
+  g.down(2, 20, 20);
+  g.reset();
+  assert.equal(g.up(1, 10, 10, 0), false);
+  g.down(3, 10, 10);
+  assert.equal(g.up(3, 10, 10, 0), true);
+});
+test("lifting one finger never turns the rest of a pinch into a pin", () => {
+  const g = new PinGesture();
+  g.down(1, 10, 10);
+  g.down(2, 20, 20);
+  assert.equal(g.up(2, 20, 20, 0), false);
+  g.move(1, 30, 30);
+  assert.equal(g.up(1, 30, 30, 0), false);
+  g.down(1, 30, 30);
+  assert.equal(g.up(1, 30, 30, 0), true);
+});

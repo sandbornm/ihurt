@@ -1,3 +1,4 @@
+import { PinMarkers } from "./pins";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -168,11 +169,8 @@ export default function Anatomy(props: Props) {
     body.group.add(body.fibers);
     body.group.visible = false;
     scene.add(body.group);
-    const pinGroup = new T.Group();
+    const pinGroup = new PinMarkers();
     scene.add(pinGroup);
-    const pinGeometry = new T.SphereGeometry(0.025, 12, 10);
-    const pinMaterial = new T.MeshBasicMaterial({ color: "#f9c68a" });
-    const pins: T.Mesh[] = [];
     const spread = new LayerSpread();
     scene.add(spread.group);
     let beforeSpread: { position: T.Vector3; look: T.Vector3 } | null = null;
@@ -338,7 +336,9 @@ export default function Anatomy(props: Props) {
           p.intensity,
           mappedKey,
           nearby.length,
-          nearby.map((sample) => sample.position.join()).join(";"),
+          nearby
+            .map((sample) => [...sample.position, sample.radius].join())
+            .join(";"),
           regionHeat?.id ?? "",
         ].join("|");
         if (colorCache.get(mesh) === cacheKey) continue;
@@ -384,19 +384,7 @@ export default function Anatomy(props: Props) {
         else if (bone.userData.region === p.selected)
           bone.material.color.lerp(cool, 0.7);
       }
-      const points = p.points ?? [];
-      while (pins.length < points.length) {
-        const pin = new T.Mesh(pinGeometry, pinMaterial);
-        pins.push(pin);
-        pinGroup.add(pin);
-      }
-      while (pins.length > points.length) {
-        const pin = pins.pop()!;
-        pinGroup.remove(pin);
-      }
-      points.forEach((point, index) =>
-        pins[index].position.set(...point.position),
-      );
+      pinGroup.setPoints(p.points ?? []);
       kick();
     };
     const command = (type: string) => {
@@ -1091,8 +1079,7 @@ export default function Anatomy(props: Props) {
           materials.forEach((m) => m.dispose());
         }
       });
-      pinGeometry.dispose();
-      pinMaterial.dispose();
+      pinGroup.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       delete root.dataset.atlas;

@@ -25,6 +25,7 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
     [nonce, setNonce] = useState(0);
   const submitted = useRef(false),
     snapshot = useRef("");
+  const tooManyPins = (entry.points?.length ?? 0) > 10;
   const live = provider !== "local" && provider !== "demo";
   const resetChallenge = () => {
     setToken("");
@@ -47,7 +48,7 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
     }
   }
   async function submit(value = answer) {
-    if (!session || submitted.current) return;
+    if (!session || submitted.current || tooManyPins) return;
     if (activityId && snapshot.current !== entryFingerprint(entry)) {
       setError(
         "Your entry changed. Start a new AI review to include the edits.",
@@ -128,6 +129,7 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
     }
   }
   const disabled =
+    tooManyPins ||
     busy ||
     !session ||
     (live && !consent) ||
@@ -190,6 +192,13 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
                 {session.remaining} AI activities left today. Journaling is
                 unlimited.
               </p>
+              {tooManyPins && (
+                <p role="status">
+                  This API accepts up to 10 pins per review. Export the entry to
+                  review all its pins in your own AI chat. Your notebook keeps
+                  every pin.
+                </p>
+              )}
               {(live || session.transcription_available) && (
                 <label className="consent">
                   <input

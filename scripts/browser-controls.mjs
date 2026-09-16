@@ -179,16 +179,16 @@ try {
     const picker = page.getByRole("dialog", { name: "Choose anatomy layer" });
     await picker.waitFor();
     await picker.getByRole("button", { name: "Pin this structure" }).click();
-    await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 1", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Undo last mark" }).click();
     assert.equal(await page.locator(".notebook-pin").count(), 0);
     await page.getByRole("button", { name: "Redo last mark" }).click();
-    await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 1", { exact: true }).waitFor();
     await page
       .getByRole("button", { name: "Remove spot 1", exact: true })
       .click();
     await page.getByRole("button", { name: "Undo last mark" }).click();
-    await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 1", { exact: true }).waitFor();
     // Paint over the isolated muscle without rotating the camera.
     await page.getByRole("button", { name: "Highlight", exact: true }).click();
     const canvas = atlas.locator("canvas[data-engine]");
@@ -200,7 +200,7 @@ try {
       steps: 10,
     });
     await page.mouse.up();
-    await page.getByText("PINNED SPOTS · 2/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 2", { exact: true }).waitFor();
     const bundleDownload = page.waitForEvent("download");
     await page
       .getByText("Full report with Grok or another AI", { exact: true })
@@ -299,6 +299,41 @@ try {
         () => document.documentElement.scrollWidth > innerWidth,
       ),
       false,
+    );
+    // Keep marking after the old ten-pin limit, then verify durable storage.
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Muscle list", exact: true })
+      .click();
+    await page
+      .getByRole("textbox", { name: "Find a muscle" })
+      .fill("biceps brachii");
+    await page.locator(".muscle-browser-list button").first().click();
+    for (let i = 2; i < 12; i++) {
+      await page
+        .getByRole("button", {
+          name: i === 2 ? "Add pin to muscle" : "Add pin in selected region",
+          exact: true,
+        })
+        .click();
+      await picker.waitFor();
+      await picker.getByRole("button", { name: "Pin this structure" }).click();
+    }
+    await page.getByText("PINNED SPOTS · 12", { exact: true }).waitFor();
+    await page
+      .getByRole("textbox", { name: "Note for spot 12", exact: true })
+      .fill("Twelfth example spot");
+    await page
+      .getByText("Draft saved on this device", { exact: true })
+      .waitFor();
+    await page.reload();
+    await atlas.waitFor();
+    assert.equal(await page.locator(".notebook-pin").count(), 12);
+    assert.equal(
+      await page
+        .getByRole("textbox", { name: "Note for spot 12", exact: true })
+        .inputValue(),
+      "Twelfth example spot",
     );
     assert.deepEqual(errors, []);
     console.log(

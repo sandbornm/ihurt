@@ -363,7 +363,8 @@ export function parseNotebook(content: string): SavedMap[] {
       note: text(e.note),
       provider: "Your notes",
       answers: [],
-      points: array(e.highlights, 10).map(parsePoint),
+      // The whole import is byte-limited; local marks have no count quota.
+      points: array(e.highlights, Infinity).map(parsePoint),
       references: parseReferences(e.related_reading),
       map: {
         title: text(e.title, 200),

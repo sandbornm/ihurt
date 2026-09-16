@@ -8,7 +8,7 @@ import { loadAtlas, regionAt } from "./atlas";
 import { PinGesture } from "./gesture";
 import { advanceCamera, applyHandDelta, nudgeCamera } from "./motion";
 import HandCamera from "./HandCamera";
-import type { HandDelta } from "./hands";
+import type { HandDelta, HandTap } from "./hands";
 import { nearbySurfaces, surfaceNearViewCenter } from "./selection";
 import { captureViewport, type ViewportCapture } from "./capture";
 import { LayerSpread } from "./spread";
@@ -64,6 +64,8 @@ export default function Anatomy(props: Props) {
     preview: (candidate: Candidate | null) => void;
     spread: (amount: number, options: Candidate[]) => void;
     hands: (delta: HandDelta) => void;
+    handsAim: (point: HandTap | null) => void;
+    handsTap: (point: HandTap) => void;
   } | null>(null);
   const [dragMode, setDragMode] = useState<
     "pin" | "turn" | "move" | "highlight"
@@ -253,6 +255,8 @@ export default function Anatomy(props: Props) {
     let exactMesh = "";
     let inspectedSide = 0;
     let previewMesh: T.Object3D | null = null;
+    let aimMesh: T.Object3D | null = null;
+    let lastHandsHint = "";
     const inspectCenter = new T.Vector3();
     const matchesInspection = (mesh: T.Mesh) =>
       exactMesh
@@ -319,7 +323,7 @@ export default function Anatomy(props: Props) {
         mesh.material.opacity = faded ? interaction.current.surroundings : 1;
         mesh.material.depthWrite = !faded && matches;
         mesh.material.emissive.set(
-          mesh === previewMesh
+          mesh === previewMesh || mesh === aimMesh
             ? "#91c655"
             : matches && inspected
               ? "#426020"
@@ -385,7 +389,8 @@ export default function Anatomy(props: Props) {
         bone.material.opacity = faded ? interaction.current.surroundings : 1;
         bone.material.depthWrite = !faded && !inspected;
         bone.material.color.copy(bone.userData.base);
-        if (bone === previewMesh) bone.material.color.lerp(cool, 0.8);
+        if (bone === previewMesh || bone === aimMesh)
+          bone.material.color.lerp(cool, 0.8);
         if (p.mapped.includes(bone.userData.region!))
           bone.material.color.lerp(warm, 0.8);
         else if (bone.userData.region === p.selected)
@@ -587,6 +592,7 @@ export default function Anatomy(props: Props) {
       update,
       command,
       hands: (delta: HandDelta) => {
+        if (previewMesh || spread.active) return;
         easing = false;
         const next = applyHandDelta(camera.position, controls.target, delta, {
           minDistance: controls.minDistance,
@@ -670,6 +676,8 @@ export default function Anatomy(props: Props) {
         spread.highlight(previewMesh as T.Mesh | null);
         update();
       },
+      handsAim: () => {},
+      handsTap: () => {},
     };
     if (latest.current.captureRef)
       latest.current.captureRef.current = () => {
@@ -971,8 +979,10 @@ export default function Anatomy(props: Props) {
       clientY: number,
       forcePicker = false,
       targetRegion?: RegionId,
+      intent: "commit" | "preview" | "pick" = "commit",
     ) {
       if (!root.dataset.atlas) return;
+      camera.updateMatrixWorld();
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -1020,11 +1030,30 @@ export default function Anatomy(props: Props) {
           }
         }
       }
+      if (intent === "preview") {
+        const surface = hits[0]?.object ?? null;
+        const name =
+          surface?.name
+            .replace(/\.[lr]\.\d+$/, "")
+            .replace(/\.\d+$/, "")
+            .replace(/_/g, " ") || "Selected surface";
+        const hint = surface
+          ? `Pointing at ${name} · tap thumb to index to pin`
+          : "Point at the body, then tap thumb to index";
+        if (aimMesh === surface && lastHandsHint === hint) return;
+        lastHandsHint = hint;
+        setPickHint(hint);
+        setAim(surface);
+        return;
+      }
       const options = nearbySurfaces(hits).map(candidateAt);
+      if (intent === "pick") clearAim();
       if (
         options.length &&
         latest.current.navigation &&
-        (interaction.current.layers || forcePicker)
+        (interaction.current.layers ||
+          forcePicker ||
+          (intent === "pick" && options.length > 1))
       ) {
         setCandidateIndex(0);
         setCandidates(options);
@@ -1032,12 +1061,84 @@ export default function Anatomy(props: Props) {
         previewMesh = options[0].mesh;
         update();
       } else if (options[0]) {
+        aimMesh = null;
         latest.current.onSelect(options[0].point.region);
         latest.current.onPoint?.(options[0].point);
-      } else if (forcePicker) {
-        setLayers(true);
-        setPickHint("Click the visible muscle to choose a pin location");
+      } else if (forcePicker || intent === "pick") {
+        setLayers(intent !== "pick");
+        setPickHint(
+          intent === "pick"
+            ? "Point at the body, then tap thumb to index"
+            : "Click the visible muscle to choose a pin location",
+        );
       }
+    }
+    function setAim(mesh: T.Object3D | null) {
+      const previous = aimMesh;
+      aimMesh = mesh;
+      for (const item of [previous, mesh]) {
+        if (
+          !(item instanceof T.Mesh) ||
+          !(item.material instanceof T.MeshStandardMaterial)
+        )
+          continue;
+        if (item.userData.layer === "bone") {
+          item.material.color.copy(item.userData.base);
+          if (item === aimMesh || item === previewMesh)
+            item.material.color.lerp(cool, 0.8);
+          if (latest.current.mapped.includes(item.userData.region))
+            item.material.color.lerp(warm, 0.8);
+          else if (item.userData.region === latest.current.selected)
+            item.material.color.lerp(cool, 0.7);
+        } else {
+          item.material.emissive.set(
+            item === aimMesh || item === previewMesh
+              ? "#91c655"
+              : matchesInspection(item) && inspected
+                ? "#426020"
+                : "#000000",
+          );
+        }
+      }
+      kick();
+    }
+    function clearAim() {
+      if (!aimMesh && !lastHandsHint) return;
+      lastHandsHint = "";
+      setAim(null);
+      setPickHint("");
+    }
+    const overlayPoint = (point: HandTap) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      return {
+        x: rect.left + point.x * rect.width,
+        y: rect.top + point.y * rect.height,
+      };
+    };
+    if (engine.current) {
+      engine.current.handsAim = (point) => {
+        if (
+          !point ||
+          interaction.current.dragMode === "highlight" ||
+          previewMesh ||
+          spread.active
+        ) {
+          clearAim();
+          return;
+        }
+        const at = overlayPoint(point);
+        pickAt(at.x, at.y, false, undefined, "preview");
+      };
+      engine.current.handsTap = (point) => {
+        if (
+          interaction.current.dragMode === "highlight" ||
+          previewMesh ||
+          spread.active
+        )
+          return;
+        const at = overlayPoint(point);
+        pickAt(at.x, at.y, false, undefined, "pick");
+      };
     }
     renderer.domElement.addEventListener("pointerdown", down, true);
     renderer.domElement.addEventListener("pointerup", click);
@@ -1227,7 +1328,7 @@ export default function Anatomy(props: Props) {
             <small>
               {pickHint ||
                 (hands
-                  ? "Grabbers follow your hands · Move to turn · Pinch to zoom · Two hands slide"
+                  ? "Fist to turn · Two fists pull to zoom · Point and tap thumb to index to pin"
                   : dragMode === "highlight"
                     ? "Drag over the body to highlight an area"
                     : layers
@@ -1240,6 +1341,8 @@ export default function Anatomy(props: Props) {
           <HandCamera
             active={hands}
             onMotion={(delta) => engine.current?.hands(delta)}
+            onAim={(point) => engine.current?.handsAim(point)}
+            onTap={(point) => engine.current?.handsTap(point)}
           />
           {muscleBrowser && (
             <div

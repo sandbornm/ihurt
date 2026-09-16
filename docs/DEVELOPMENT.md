@@ -13,6 +13,12 @@ npm run check      # app build and tests
 
 `npm run build` fetches the MediaPipe hand landmarker into `public/mediapipe/` (SIMD wasm from the npm package, model from Google). Hands control is optional and runs in the browser. Browser checks spoof landmarks with a `window` `ihurt:hands` event so they do not need a camera.
 
+### Hands test notes
+
+- Thresholds live in `HAND_TUNING` in `src/anatomy/hands.ts`.
+- During a Hands session, **Copy hands log** copies a local TSV of pose/action labels and normalized cursor positions. It contains no images or recordings. Add a note about what you intended when reporting a gesture issue.
+- Camera checks use synthetic landmarks and mocked media streams. They cover pinch hysteresis, hand-size changes, tracking loss, and camera cleanup. Confirm recognition with a real camera before changing pose thresholds.
+
 GitHub Actions builds the app and runs backend, unit, and isolated browser checks. Browser checks use a Node static preview with no API server. They cover multiple entries, editing, refresh, exports, offline anatomy and storage, and desktop/phone layout. Tests make no paid requests.
 
 To run the same browser checks locally without changing your open preview:
@@ -44,7 +50,6 @@ assembly/heat.ts      Heat kernel source; public/heat.wasm is built from it
 backend/              FastAPI, validated provider adapters, quota store
 tests/                Flow, limits, privacy, and mocked adapter checks
 ```
-
 
 ## App and website
 

@@ -425,6 +425,12 @@ h1 > span {
 .hand-grabber.is-on {
   display: flex;
 }
+.hand-grabber[data-mode="rest"] {
+  border-color: #8aa37c;
+  background: #8aa37c14;
+  box-shadow: none;
+  transform: scale(0.82);
+}
 .hand-grabber[data-mode="zoom"] {
   border-color: #f4bc71;
   background: #f4bc7118;
@@ -434,6 +440,14 @@ h1 > span {
   border-color: #8ec8e8;
   background: #8ec8e818;
   box-shadow: 0 0 18px #8ec8e840;
+}
+.hand-grabber[data-mode="point"] {
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-color: #f4bc71;
+  background: #f4bc7128;
+  box-shadow: 0 0 16px #f4bc7160;
 }
 .hand-grabber b {
   width: 10px;
@@ -450,6 +464,16 @@ h1 > span {
 .hand-grabber[data-mode="slide"] b {
   color: #8ec8e8;
   box-shadow: 0 0 0 3px #8ec8e855;
+}
+.hand-grabber[data-mode="rest"] b {
+  color: #8aa37c;
+  box-shadow: 0 0 0 3px #8aa37c44;
+}
+.hand-grabber[data-mode="point"] b {
+  width: 8px;
+  height: 8px;
+  color: #f4bc71;
+  box-shadow: 0 0 0 3px #f4bc7166;
 }
 .hand-grabber span {
   position: absolute;
@@ -496,6 +520,19 @@ h1 > span {
   font-size: 10px;
   color: var(--muted);
   line-height: 1.4;
+}
+.hand-log-copy {
+  display: block;
+  margin-top: 8px;
+  padding: 3px 0 0;
+  border: 0;
+  background: none;
+  color: #c5d6b8;
+  font: inherit;
+  font-size: 10px;
+  text-decoration: underline;
+  cursor: pointer;
+  pointer-events: auto;
 }
 .stage-intro {
   position: absolute;

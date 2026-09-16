@@ -8,7 +8,7 @@ Use **Landmarks** to choose a region and view it from the front, back, top, or o
 
 In **Pin**, tap to mark a spot or drag to turn the body. Two fingers zoom and move without adding marks. Choose **Move** for one-finger panning. **Turn** and **Move** also have arrow buttons. Scroll or use the zoom buttons to zoom around the current focus. The buttons support keyboard access. Reduced-motion settings skip camera transitions.
 
-**Hands** (under More tools) is optional camera control. A floating grabber follows each hand on the body: move it to turn, pinch it to zoom, or slide two grabbers to pan. The camera stays in this browser; frames are not saved or sent. Hands never place a pin. Mouse, trackpad, and buttons still work.
+**Hands** (under More tools) is optional camera control. A grabber follows each hand: open palm rests, closed fist turns. Two fists pulling apart zoom in; pushing them together zooms out. Two open palms pan. Point with your thumb apart, then touch thumb to index to place a pin. Separate them fully before the next pin. Losing tracking cancels the gesture. If several surfaces overlap, choose one in the layer picker. The camera stays in this browser; frames are not saved or sent. Mouse, trackpad, and buttons still work.
 
 Turn off **Show bones** to hide the skeleton while viewing muscles. This preference stays with your browser draft. Hidden bones are excluded from layer picking and viewport pictures; existing marks stay saved.
 

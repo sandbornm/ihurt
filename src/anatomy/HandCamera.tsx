@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  describeGrabbers,
+  formatHandLog,
   HandNavigator,
+  resetHandLog,
+  validHands,
   type Grabber,
   type HandDelta,
+  type HandTap,
   type Landmark,
 } from "./hands";
 
@@ -78,7 +81,13 @@ function drawHands(
   }
 }
 
-const MODE_LABEL = { turn: "Turn", zoom: "Zoom", slide: "Slide" };
+const MODE_LABEL: Record<Grabber["mode"], string> = {
+  rest: "Rest",
+  turn: "Turn",
+  zoom: "Zoom",
+  slide: "Slide",
+  point: "Point",
+};
 
 function paintGrabbers(
   overlay: HTMLElement,
@@ -89,8 +98,9 @@ function paintGrabbers(
   const line = overlay.querySelector("line");
   grabbers.forEach((grabber, index) => {
     const point = shown[index] ?? { x: grabber.x, y: grabber.y };
-    point.x += (grabber.x - point.x) * 0.4;
-    point.y += (grabber.y - point.y) * 0.4;
+    const blend = grabber.mode === "point" ? 1 : 0.4;
+    point.x += (grabber.x - point.x) * blend;
+    point.y += (grabber.y - point.y) * blend;
     shown[index] = point;
     const node = nodes[index];
     if (!node) return;
@@ -104,6 +114,7 @@ function paintGrabbers(
   });
   for (let index = grabbers.length; index < nodes.length; index++)
     nodes[index].classList.remove("is-on");
+  shown.length = grabbers.length;
   if (line) {
     if (grabbers.length === 2 && shown[0] && shown[1]) {
       line.setAttribute("x1", `${shown[0].x * 100}%`);
@@ -115,19 +126,44 @@ function paintGrabbers(
   }
 }
 
+function statusFor(grabbers: Grabber[]) {
+  if (grabbers.length > 1 && grabbers[0]?.mode === "zoom")
+    return "Pull fists apart to zoom in";
+  if (grabbers.length > 1) return "Slide both grabbers to pan";
+  const mode = grabbers[0]?.mode;
+  if (mode === "zoom") return "Pull fists apart to zoom in";
+  if (mode === "turn") return "Move the closed hand to turn";
+  if (mode === "point") return "Point at a spot · tap thumb to index to pin";
+  if (mode === "rest") return "Closed fist turns · point to pin";
+  return "Raise a hand — a grabber appears on the body";
+}
+
 export default function HandCamera({
   active,
   onMotion,
+  onAim,
+  onTap,
 }: {
   active: boolean;
   onMotion: (delta: HandDelta) => void;
+  onAim?: (point: HandTap | null) => void;
+  onTap?: (point: HandTap) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const motion = useRef(onMotion);
+  const aim = useRef(onAim);
+  const tap = useRef(onTap);
   motion.current = onMotion;
+  aim.current = onAim;
+  tap.current = onTap;
   const [status, setStatus] = useState("Opening camera…");
+  const [copyStatus, setCopyStatus] = useState("");
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
   useEffect(() => {
     if (!active) return;
     const video = videoRef.current,
@@ -135,6 +171,9 @@ export default function HandCamera({
       overlay = overlayRef.current;
     if (!video || !canvas || !overlay) return;
     const tracker = new HandNavigator();
+    resetHandLog();
+    setCopyStatus("");
+    setStatus("Opening camera…");
     const shown: { x: number; y: number }[] = [];
     let stream: MediaStream | null = null;
     let landmarker: {
@@ -148,6 +187,7 @@ export default function HandCamera({
     let frameHandle = 0;
     let usingVideoFrame = false;
     let lastStatus = "";
+    let lastVideoTime = -1;
     const report = (text: string) => {
       if (text === lastStatus) return;
       lastStatus = text;
@@ -155,31 +195,35 @@ export default function HandCamera({
     };
     const host = overlay.closest<HTMLElement>(".anatomy-canvas");
     const feed = (hands: Landmark[][]) => {
-      const grabbers = describeGrabbers(hands);
+      const delta = tracker.apply(hands);
+      const grabbers = tracker.grabbers();
       paintGrabbers(overlay, grabbers, shown);
+      const pointed = tracker.aim();
+      const tapped = tracker.consumeTap();
       if (host) {
         host.dataset.handsGrabbers = String(grabbers.length);
         host.dataset.handsMode = grabbers[0]?.mode ?? "";
+        host.dataset.handsPose = tracker.currentPose();
+        if (pointed) {
+          host.dataset.handsAim = `${pointed.x.toFixed(3)},${pointed.y.toFixed(3)}`;
+        } else delete host.dataset.handsAim;
+        if (tapped) host.dataset.handsTap = "1";
       }
-      const delta = tracker.apply(hands);
       if (delta) {
         motion.current(delta);
         if (host) host.dataset.handsMoved = grabbers[0]?.mode ?? "move";
       }
-      report(
-        grabbers.length > 1
-          ? "Slide both grabbers to pan"
-          : grabbers[0]?.mode === "zoom"
-            ? "Pinch the grabber to zoom"
-            : grabbers[0]
-              ? "Move the grabber to turn"
-              : "Raise a hand — a grabber appears on the body",
-      );
+      if (grabbers[0]?.mode === "point" && pointed) aim.current?.(pointed);
+      else aim.current?.(null);
+      if (tapped) tap.current?.(tapped);
+      report(statusFor(grabbers));
     };
+    let spoofed = false;
     const onSpoof = (event: Event) => {
       const landmarks = (event as CustomEvent).detail?.landmarks;
       if (!Array.isArray(landmarks) || cancelled) return;
-      feed(landmarks);
+      spoofed = true;
+      feed(validHands(landmarks));
     };
     window.addEventListener("ihurt:hands", onSpoof);
     overlay.dataset.handsReady = "true";
@@ -188,24 +232,41 @@ export default function HandCamera({
         video.cancelVideoFrameCallback(frameHandle);
       else cancelAnimationFrame(frameHandle);
     };
+    const stopCamera = () => {
+      stopLoop();
+      landmarker?.close();
+      landmarker = null;
+      stream?.getTracks().forEach((track) => track.stop());
+      stream = null;
+      video.srcObject = null;
+    };
     const tick = () => {
       if (cancelled) return;
-      if (document.hidden || video.readyState < 2) {
+      if (document.hidden) return;
+      if (video.readyState < 2 || video.currentTime === lastVideoTime) {
         schedule();
         return;
       }
+      lastVideoTime = video.currentTime;
       try {
+        if (spoofed) {
+          schedule();
+          return;
+        }
         const result = landmarker?.detectForVideo(video, performance.now());
-        const hands = (result?.landmarks ?? []) as Landmark[][];
+        const hands = validHands(result?.landmarks);
         drawHands(canvas, video, hands);
         feed(hands);
       } catch {
-        report("Hand tracking paused");
+        feed([]);
+        stopCamera();
+        report("Hand tracking stopped. Turn Hands off and on to retry.");
+        return;
       }
       schedule();
     };
     const schedule = () => {
-      if (cancelled) return;
+      if (cancelled || document.hidden || !landmarker) return;
       if ("requestVideoFrameCallback" in video) {
         usingVideoFrame = true;
         frameHandle = video.requestVideoFrameCallback(() => tick());
@@ -214,6 +275,13 @@ export default function HandCamera({
         frameHandle = requestAnimationFrame(() => tick());
       }
     };
+    const visibilityChanged = () => {
+      stopLoop();
+      tracker.reset();
+      feed([]);
+      if (!document.hidden) schedule();
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
     (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -231,10 +299,12 @@ export default function HandCamera({
         }
         video.srcObject = stream;
         await video.play();
+        if (cancelled) return;
         const vision = await import("@mediapipe/tasks-vision");
         if (cancelled) return;
         const wasm =
           await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
+        if (cancelled) return;
         const options = {
           baseOptions: {
             modelAssetPath: "/mediapipe/hand_landmarker.task",
@@ -249,13 +319,14 @@ export default function HandCamera({
             options,
           );
         } catch {
+          if (cancelled) return;
           landmarker = await vision.HandLandmarker.createFromOptions(wasm, {
             ...options,
             baseOptions: { ...options.baseOptions, delegate: "CPU" },
           });
         }
         if (cancelled) {
-          landmarker.close();
+          stopCamera();
           return;
         }
         canvas.width = 160;
@@ -263,7 +334,11 @@ export default function HandCamera({
         report("Raise a hand — a grabber appears on the body");
         schedule();
       } catch {
-        if (!cancelled) report("This browser could not open a camera.");
+        stopCamera();
+        if (!cancelled)
+          report(
+            "Camera unavailable. Check permission, then turn Hands off and on.",
+          );
       }
     })();
     return () => {
@@ -271,15 +346,19 @@ export default function HandCamera({
       stopLoop();
       tracker.reset();
       window.removeEventListener("ihurt:hands", onSpoof);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      clearTimeout(copyTimer.current);
       delete overlay.dataset.handsReady;
       if (host) {
         delete host.dataset.handsGrabbers;
         delete host.dataset.handsMode;
         delete host.dataset.handsMoved;
+        delete host.dataset.handsPose;
+        delete host.dataset.handsAim;
+        delete host.dataset.handsTap;
       }
-      landmarker?.close();
-      stream?.getTracks().forEach((track) => track.stop());
-      video.srcObject = null;
+      aim.current?.(null);
+      stopCamera();
     };
   }, [active]);
   if (!active) return null;
@@ -303,6 +382,27 @@ export default function HandCamera({
         <canvas ref={canvasRef} aria-hidden="true" />
         <p>{status}</p>
         <small>The camera stays on this device. Nothing is uploaded.</small>
+        <button
+          type="button"
+          className="hand-log-copy"
+          onClick={async () => {
+            const text = formatHandLog();
+            clearTimeout(copyTimer.current);
+            if (!text) {
+              setCopyStatus("No gestures yet");
+              return;
+            }
+            try {
+              await navigator.clipboard.writeText(text);
+              setCopyStatus("Copied");
+            } catch {
+              setCopyStatus("Could not copy");
+            }
+            copyTimer.current = setTimeout(() => setCopyStatus(""), 1500);
+          }}
+        >
+          {copyStatus || "Copy hands log"}
+        </button>
       </div>
     </>
   );

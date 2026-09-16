@@ -14,7 +14,7 @@ iHurt helps you describe discomfort when words alone are hard to get right. Plac
 
 ## Keep a visual journal
 
-- Place pins or drag to highlight an area, with up to ten marks per entry. Undo mistakes and add a comment to each spot.
+- Place pins or drag to highlight an area. Local entries have no pin limit. Undo mistakes and add a comment to each spot.
 - Start with **Quick tour**, switch between light and dark, and open **More tools** when you need muscle layers.
 - Keep multiple entries, edit them later, and choose any sport or activity.
 - Explore reading from your selected sources.

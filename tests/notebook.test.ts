@@ -75,9 +75,9 @@ test("printout includes pin commentary and escapes all supplied text", () => {
   assert.ok(svg.includes("BACK"));
 });
 
-test("ten pins and a reviewed search description survive export and import", () => {
+test("many pins and a reviewed search description survive export and import", () => {
   const entry = finishEntry(exampleEntry());
-  entry.points = Array.from({ length: 10 }, (_, i) => ({
+  entry.points = Array.from({ length: 600 }, (_, i) => ({
     ...entry.points![0],
     id: crypto.randomUUID(),
     comment: `Pin ${i + 1}`,
@@ -90,9 +90,10 @@ test("ten pins and a reviewed search description survive export and import", () 
     references: [],
   };
   const parsed = parseNotebook(stringifyNotebook([entry]))[0];
-  assert.equal(parsed.points?.length, 10);
+  assert.equal(parsed.points?.length, 600);
   assert.equal(parsed.research?.description, "Stiff when turning");
-  entry.points.push({ ...entry.points[0], id: crypto.randomUUID() });
+  assert.deepEqual(parsed.points, entry.points);
+  entry.points[599].position = [0, 0, 99];
   assert.throws(() => parseNotebook(stringifyNotebook([entry])));
 });
 

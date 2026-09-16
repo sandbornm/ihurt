@@ -894,12 +894,6 @@ export default function Notebook({
                         onSelect={setSelected}
                         points={points}
                         onPoint={(point) => {
-                          if (points.length >= 10) {
-                            setToast(
-                              "Up to ten pins. Remove one to add another.",
-                            );
-                            return;
-                          }
                           setPoints((old) => [...old, point]);
                         }}
                       />
@@ -1131,7 +1125,7 @@ export default function Notebook({
                   {points.length > 0 && (
                     <div className="pin-list">
                       <span className="small-label">
-                        PINNED SPOTS · {points.length}/10
+                        PINNED SPOTS · {points.length}
                       </span>
                       {points.map((point, i) => (
                         <div className="notebook-pin" key={point.id}>

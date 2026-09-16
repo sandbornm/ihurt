@@ -23,8 +23,9 @@ export class MarkHistory {
     this.future = [];
   }
   private restore(saved: PainPoint[], current: PainPoint[]) {
+    const byId = new Map(current.map((point) => [point.id, point]));
     return saved.map((point) => {
-      const existing = current.find((p) => p.id === point.id);
+      const existing = byId.get(point.id);
       return existing ? { ...point, comment: existing.comment } : point;
     });
   }

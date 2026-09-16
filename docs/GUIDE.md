@@ -30,7 +30,7 @@ To add a college athletics program, open PT resource, or sports science lab, add
 
 ## Easier model controls
 
-**Layers** lets you click a spot, preview nearby surfaces along the view, and pin the structure you choose. This is model geometry, not a measurement of tissue depth or the cause of discomfort. Each entry supports ten pins. The intensity control records a value from 0 to 10 and colors the heatmap from blue to red. Leave it unrated when you do not want to record a number.
+**Layers** lets you click a spot, preview nearby surfaces along the view, and pin the structure you choose. This is model geometry, not a measurement of tissue depth or the cause of discomfort. The intensity control records a value from 0 to 10 and colors the heatmap from blue to red. Leave it unrated when you do not want to record a number.
 
 Use the layer icon beside a saved pin to explore that spot. When several surfaces overlap, **Spread layers** separates them for viewing. Hover over a name or select it to highlight its shape; the **Separation** slider adjusts the spread. Closing the picker restores the anatomy. Pin coordinates stay on the original model.
 
@@ -38,7 +38,7 @@ Use the layer icon beside a saved pin to explore that spot. When several surface
 
 **Body reference** opens optional male and female outer-body models. These references have no muscle layers and do not display or move your journal pins.
 
-Choose **Highlight**, then drag across the visible body to mark a small area. Each stroke counts as one of the ten marks. The brush follows visible surfaces and has a fixed width; it does not measure the extent of pain. **Undo** removes the latest mark or restores a deleted one. **Redo** reapplies it. Undo history lasts while you work on the current entry; saved marks persist as usual.
+Choose **Highlight**, then drag across the visible body to mark a small area. Each stroke is saved as one mark. The brush follows visible surfaces and has a fixed width; it does not measure the extent of pain. **Undo** removes the latest mark or restores a deleted one. **Redo** reapplies it. Undo history lasts while you work on the current entry; saved marks persist as usual.
 
 ## Mapping a location
 
@@ -47,3 +47,5 @@ Use **Quick tour** to walk through the controls without changing your entry. Cho
 The atlas is a shared reference, not a calibrated scan. Height and weight do not determine individual limb lengths, proportions, or internal tissue positions. No distances in centimeters are inferred. Left/right use the reference body's perspective. Confirm the general region and use the pin comment for details such as “just above the shoulder blade.” A selected mesh does not identify the source of pain.
 
 Reports begin with the medical limitation, preserve your own notes, and list the selected surfaces separately. When hosted source search is used, the report retains the exact reviewed search description. Video resources link to publisher context and precautions. .ihm imports preserve those links; videos are not embedded in the file.
+
+Pins have no count limit in the notebook. Exports keep every pin and comment. Imported backups must be smaller than 10 MB; each pin is still checked. Optional AI requests have separate size and usage limits.

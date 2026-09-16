@@ -92,7 +92,7 @@ try {
     assert.ok((await choices.count()) > 0);
     await choices.last().click();
     await picker.getByRole("button", { name: "Pin this structure" }).click();
-    await page.getByText("PINNED SPOTS · 1/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 1", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Layers", exact: true }).click();
     await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
@@ -110,13 +110,13 @@ try {
     await picker.waitFor();
     await page.screenshot({ path: join(output, `layers-${width}.png`) });
     await picker.getByRole("button", { name: "Pin this structure" }).click();
-    await page.getByText("PINNED SPOTS · 2/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 2", { exact: true }).waitFor();
     await page
       .getByRole("button", { name: "Add pin in selected region" })
       .click();
     await picker.waitFor();
     await picker.getByRole("button", { name: "Pin this structure" }).click();
-    await page.getByText("PINNED SPOTS · 3/10", { exact: true }).waitFor();
+    await page.getByText("PINNED SPOTS · 3", { exact: true }).waitFor();
     await page
       .getByRole("slider", { name: "Reported intensity", exact: true })
       .fill("7");

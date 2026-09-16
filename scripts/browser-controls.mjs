@@ -174,19 +174,37 @@ try {
     );
     await page.getByRole("button", { name: "Hands", exact: true }).click();
     await page.locator(".hand-grabbers[data-hands-ready]").waitFor();
-    const openPalm = (x, y) => {
-      const points = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5 }));
+    const blank = (x, y) => Array.from({ length: 21 }, () => ({ x, y }));
+    const setFinger = (points, mcp, length, curl) => {
+      const base = points[mcp];
+      const reach = length * (1 - curl);
+      points[mcp + 1] = { x: base.x + reach * 0.4, y: base.y + curl * 0.02 };
+      points[mcp + 2] = { x: base.x + reach * 0.7, y: base.y + curl * 0.03 };
+      points[mcp + 3] = { x: base.x + reach, y: base.y + curl * 0.02 };
+    };
+    const posed = (x, y, curls, thumb) => {
+      const points = blank(x, y);
       points[0] = { x, y };
       points[5] = { x: x + 0.04, y };
+      points[9] = { x: x + 0.015, y };
+      points[13] = { x: x - 0.015, y };
       points[17] = { x: x - 0.04, y };
-      points[4] = { x: x - 0.12, y };
-      points[8] = { x: x + 0.12, y };
+      setFinger(points, 5, 0.12, curls[0]);
+      setFinger(points, 9, 0.13, curls[1]);
+      setFinger(points, 13, 0.12, curls[2]);
+      setFinger(points, 17, 0.1, curls[3]);
+      points[1] = { x: x - 0.02, y };
+      points[2] = { x: x - 0.04, y };
+      points[3] = { x: x - 0.06, y };
+      points[4] = thumb;
       return points;
     };
-    const pinched = (gap) => {
-      const points = openPalm(0.5, 0.5);
-      points[4] = { x: 0.5, y: 0.5 };
-      points[8] = { x: 0.5 + gap, y: 0.5 };
+    const openPalm = (x, y) => posed(x, y, [0, 0, 0, 0], { x: x - 0.1, y });
+    const fist = (x, y) =>
+      posed(x, y, [1, 1, 1, 1], { x: x + 0.02, y: y + 0.02 });
+    const pointing = (x, y, thumbGap = 0.12) => {
+      const points = posed(x, y, [0, 1, 1, 1], { x, y });
+      points[4] = { x: points[8].x - thumbGap, y: points[8].y };
       return points;
     };
     const spoof = (landmarks) =>
@@ -198,10 +216,20 @@ try {
     await spoof([openPalm(0.35, 0.5)]);
     await spoof([openPalm(0.6, 0.5)]);
     await page.locator(".hand-grabber.is-on").waitFor();
+    assert.equal(await atlas.getAttribute("data-hands-mode"), "rest");
+    assert.notEqual(await atlas.getAttribute("data-hands-moved"), "turn");
+    await spoof([fist(0.35, 0.5)]);
+    await spoof([fist(0.6, 0.5)]);
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector("[data-hands-mode]")
+          ?.getAttribute("data-hands-mode") === "turn",
+    );
     assert.equal(await atlas.getAttribute("data-hands-mode"), "turn");
     assert.equal(await atlas.getAttribute("data-hands-moved"), "turn");
-    await spoof([pinched(0.05)]);
-    await spoof([pinched(0.03)]);
+    await spoof([fist(0.35, 0.5), fist(0.65, 0.5)]);
+    await spoof([fist(0.25, 0.5), fist(0.75, 0.5)]);
     await page.waitForFunction(
       () =>
         document
@@ -216,6 +244,77 @@ try {
           .querySelector("[data-hands-grabbers]")
           ?.getAttribute("data-hands-grabbers") === "2",
     );
+    const pinsBeforeTap = await page.locator(".notebook-pin").count();
+    await page.getByRole("button", { name: "Reset view" }).click();
+    await page.getByRole("button", { name: "Front", exact: true }).click();
+    await spoof([pointing(0.34, 0.48)]);
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector("[data-hands-mode]")
+          ?.getAttribute("data-hands-mode") === "point",
+    );
+    await spoof([pointing(0.34, 0.48)]);
+    await spoof([pointing(0.34, 0.48, 0.02)]);
+    await spoof([pointing(0.34, 0.48, 0.12)]);
+    const tapped = await page
+      .waitForFunction(
+        () =>
+          document
+            .querySelector("[data-hands-tap]")
+            ?.getAttribute("data-hands-tap") === "1",
+        undefined,
+        { timeout: 5000 },
+      )
+      .catch(async () => {
+        const debug = await page.evaluate(() => ({
+          mode: document
+            .querySelector("[data-hands-mode]")
+            ?.getAttribute("data-hands-mode"),
+          pose: document
+            .querySelector("[data-hands-pose]")
+            ?.getAttribute("data-hands-pose"),
+          tap: document
+            .querySelector("[data-hands-tap]")
+            ?.getAttribute("data-hands-tap"),
+        }));
+        throw new Error(`air-tap did not fire: ${JSON.stringify(debug)}`);
+      });
+    assert.ok(tapped);
+    await page.waitForFunction(
+      (before) =>
+        document.querySelectorAll(".notebook-pin").length > before ||
+        !!document.querySelector('[aria-label="Choose anatomy layer"]'),
+      pinsBeforeTap,
+    );
+    if (
+      await page.getByRole("dialog", { name: "Choose anatomy layer" }).count()
+    )
+      await page.getByRole("button", { name: "Pin this structure" }).click();
+    assert.equal(
+      await page.locator(".notebook-pin").count(),
+      pinsBeforeTap + 1,
+      "Point + air-tap should place a pin",
+    );
+    await page
+      .getByRole("button", { name: "Remove spot 1", exact: true })
+      .click();
+    assert.equal(await page.locator(".notebook-pin").count(), pinsBeforeTap);
+    await spoof([pointing(0.34, 0.48)]);
+    await page.waitForFunction(() =>
+      document.querySelector("[data-hands-aim]"),
+    );
+    await spoof([]);
+    assert.equal(await atlas.getAttribute("data-hands-aim"), null);
+    assert.equal(await page.locator(".hand-grabber.is-on").count(), 0);
+    await spoof([pointing(0.34, 0.48, 0.02)]);
+    assert.equal(await page.locator(".notebook-pin").count(), pinsBeforeTap);
+    assert.equal(
+      await page.getByRole("dialog", { name: "Choose anatomy layer" }).count(),
+      0,
+      "Reacquiring a pinched hand must not place a pin",
+    );
+    await spoof([]);
     await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page.getByRole("button", { name: "Find a region" }).focus();
     await page.keyboard.press("Space");
@@ -409,8 +508,77 @@ try {
     );
     assert.deepEqual(errors, []);
     console.log(
-      `PASS controls ${width}: simple controls, tutorial, light mode, turn without pins, paint, undo/redo, bone visibility, viewport PNG, print image, reference models, refresh`,
+      `PASS controls ${width}: simple controls, tutorial, light mode, hands fist/point/tap, turn without pins, paint, undo/redo, bone visibility, viewport PNG, print image, reference models, refresh`,
     );
+    await context.close();
+  }
+  // Fake streams exercise camera cleanup without a camera or model download.
+  for (const phase of ["play failure", "pending play", "pending permission"]) {
+    const context = await browser.newContext();
+    await context.addInitScript((phase) => {
+      window.cameraStops = 0;
+      window.cameraRequests = 0;
+      navigator.mediaDevices.getUserMedia = async () => {
+        window.cameraRequests++;
+        const stream = document.createElement("canvas").captureStream();
+        for (const track of stream.getTracks()) {
+          const stop = track.stop.bind(track);
+          track.stop = () => {
+            window.cameraStops++;
+            stop();
+          };
+        }
+        if (phase === "pending permission")
+          await new Promise((resolve) => (window.finishCamera = resolve));
+        return stream;
+      };
+      HTMLMediaElement.prototype.play = async function () {
+        if (phase === "play failure") throw new Error("Example play failure");
+        await new Promise((resolve) => (window.finishCamera = resolve));
+      };
+    }, phase);
+    const page = await context.newPage();
+    const modelRequests = [];
+    page.on("request", (request) => {
+      if (/vision_bundle|hand_landmarker|\/mediapipe\//.test(request.url()))
+        modelRequests.push(request.url());
+    });
+    await page.goto(origin);
+    const toggle = async () => {
+      await page
+        .getByRole("button", { name: "More tools", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Hands", exact: true }).click();
+    };
+    await toggle();
+    await page.waitForFunction(() => window.cameraRequests === 1);
+    if (phase === "play failure") {
+      await page
+        .getByText(
+          "Camera unavailable. Check permission, then turn Hands off and on.",
+        )
+        .waitFor();
+      assert.equal(
+        await page
+          .locator(".hand-camera video")
+          .evaluate((video) => video.srcObject),
+        null,
+      );
+    } else {
+      await page.waitForFunction(
+        () => typeof window.finishCamera === "function",
+      );
+      await toggle();
+      await page.evaluate(() => window.finishCamera());
+      assert.equal(await page.locator(".hand-camera").count(), 0);
+    }
+    await page.waitForFunction(() => window.cameraStops === 1);
+    assert.deepEqual(
+      modelRequests,
+      [],
+      "Canceled startup loaded hand tracking",
+    );
+    console.log(`PASS camera cleanup: ${phase}`);
     await context.close();
   }
 } finally {

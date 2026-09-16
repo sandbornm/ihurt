@@ -43,6 +43,7 @@ try {
     const context = await browser.newContext({
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
+      hasTouch: true,
       colorScheme: "dark",
     });
     const page = await context.newPage();
@@ -59,6 +60,77 @@ try {
       false,
     );
     assert.equal(await atlas.getAttribute("data-drag-mode"), "pin");
+    // Native touch events exercise OrbitControls, capture, and pin suppression together.
+    const touch = await context.newCDPSession(page);
+    const touchCanvas = atlas.locator("canvas[data-engine]");
+    await touchCanvas.scrollIntoViewIfNeeded();
+    const touchBox = await touchCanvas.boundingBox();
+    const x = touchBox.x + touchBox.width * 0.5;
+    const y = touchBox.y + touchBox.height * 0.4;
+    const sendTouch = (type, points) =>
+      touch.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: points.map(([id, px, py]) => ({ id, x: px, y: py })),
+      });
+    const beforeTurn = await touchCanvas.screenshot();
+    await sendTouch("touchStart", [[1, x, y]]);
+    await sendTouch("touchMove", [[1, x + 65, y]]);
+    await sendTouch("touchEnd", []);
+    assert.notDeepEqual(
+      await touchCanvas.screenshot(),
+      beforeTurn,
+      "Dragging in Pin mode did not turn the body",
+    );
+    assert.equal(
+      await page.locator(".notebook-pin").count(),
+      0,
+      "Dragging placed a pin",
+    );
+    const beforePan = await touchCanvas.screenshot();
+    await sendTouch("touchStart", [
+      [1, x - 30, y],
+      [2, x + 30, y],
+    ]);
+    await sendTouch("touchMove", [
+      [1, x - 30, y + 35],
+      [2, x + 30, y + 35],
+    ]);
+    await sendTouch("touchEnd", []);
+    assert.notDeepEqual(
+      await touchCanvas.screenshot(),
+      beforePan,
+      "Two-finger pan did not move the body",
+    );
+    const beforeZoom = await touchCanvas.screenshot();
+    await sendTouch("touchStart", [
+      [1, x - 20, y],
+      [2, x + 20, y],
+    ]);
+    await sendTouch("touchMove", [
+      [1, x - 50, y],
+      [2, x + 50, y],
+    ]);
+    await sendTouch("touchEnd", [[1, x - 50, y]]);
+    await sendTouch("touchEnd", []);
+    assert.notDeepEqual(
+      await touchCanvas.screenshot(),
+      beforeZoom,
+      "Pinching did not zoom",
+    );
+    assert.equal(
+      await page.locator(".notebook-pin").count(),
+      0,
+      "Two-finger navigation placed a pin",
+    );
+    await sendTouch("touchStart", [[1, x, y]]);
+    await sendTouch("touchCancel", []);
+    assert.equal(
+      await page.locator(".notebook-pin").count(),
+      0,
+      "Canceled touch placed a pin",
+    );
+    await touch.detach();
+    await page.getByRole("button", { name: "Reset view", exact: true }).click();
     await page.getByRole("button", { name: "Quick tour", exact: true }).click();
     for (let i = 0; i < 3; i++)
       await page.getByRole("button", { name: "Next", exact: true }).click();

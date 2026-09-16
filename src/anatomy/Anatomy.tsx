@@ -119,7 +119,7 @@ export default function Anatomy(props: Props) {
     renderer.toneMappingExposure = 1.08;
     renderer.domElement.setAttribute(
       "aria-label",
-      "Interactive anatomy. Click to pin a spot. Use Turn or Move and the arrow buttons to adjust the view. Layers lets you choose overlapping structures.",
+      "Interactive anatomy. Tap to pin a spot, drag to turn, or use two fingers to zoom and move. Use Turn or Move and the arrow buttons to adjust the view. Layers lets you choose overlapping structures.",
     );
     renderer.domElement.setAttribute("role", "img");
     root.appendChild(renderer.domElement);
@@ -227,7 +227,11 @@ export default function Anatomy(props: Props) {
     function frame(time: number) {
       const elapsedSeconds = (time - previousFrame) / 1000;
       previousFrame = time;
-      if (document.hidden) return;
+      if (document.hidden) {
+        looping = false;
+        renderer.setAnimationLoop(null);
+        return;
+      }
       if (easing) {
         easing = stepCamera(elapsedSeconds);
         dirty = 2;
@@ -281,8 +285,11 @@ export default function Anatomy(props: Props) {
     const update = () => {
       const p = latest.current;
       controls.enabled = interaction.current.dragMode !== "highlight";
-      controls.enableRotate = interaction.current.dragMode !== "pin";
-      controls.enablePan = interaction.current.dragMode !== "pin";
+      controls.enableRotate = true;
+      controls.enablePan = true;
+      controls.touches.ONE =
+        interaction.current.dragMode === "move" ? T.TOUCH.PAN : T.TOUCH.ROTATE;
+      controls.touches.TWO = T.TOUCH.DOLLY_PAN;
       controls.mouseButtons.LEFT =
         interaction.current.dragMode === "move" ? T.MOUSE.PAN : T.MOUSE.ROTATE;
       root.dataset.dragMode = interaction.current.dragMode;
@@ -872,6 +879,15 @@ export default function Anatomy(props: Props) {
       }
       const choosing = !!previewMesh;
       gesture.down(event.pointerId, event.clientX, event.clientY);
+      if (
+        event.button !== 0 ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        gesture.cancel(event.pointerId);
+      renderer.domElement.setPointerCapture(event.pointerId);
       stopEasing();
       if (choosing) gesture.cancel(event.pointerId);
     };
@@ -1027,6 +1043,7 @@ export default function Anatomy(props: Props) {
     renderer.domElement.addEventListener("pointerup", click);
     renderer.domElement.addEventListener("pointermove", move);
     renderer.domElement.addEventListener("pointercancel", cancel);
+    renderer.domElement.addEventListener("lostpointercapture", cancel);
     const onStart = () => {
       stopEasing();
       kick();
@@ -1048,9 +1065,19 @@ export default function Anatomy(props: Props) {
       kick();
     };
     controls.addEventListener("change", changed);
-    const onVisibility = () => {
-      if (!document.hidden) kick();
+    const resetGesture = () => {
+      gesture.reset();
+      clearStroke();
     };
+    const onVisibility = () => {
+      resetGesture();
+      if (!document.hidden) kick();
+      else {
+        looping = false;
+        renderer.setAnimationLoop(null);
+      }
+    };
+    window.addEventListener("blur", resetGesture);
     document.addEventListener("visibilitychange", onVisibility);
     kick();
     return () => {
@@ -1063,12 +1090,14 @@ export default function Anatomy(props: Props) {
       observer.disconnect();
       motionPreference.removeEventListener("change", motionChanged);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", resetGesture);
       controls.dispose();
       renderer.setAnimationLoop(null);
       renderer.domElement.removeEventListener("pointerdown", down, true);
       renderer.domElement.removeEventListener("pointerup", click);
       renderer.domElement.removeEventListener("pointermove", move);
       renderer.domElement.removeEventListener("pointercancel", cancel);
+      renderer.domElement.removeEventListener("lostpointercapture", cancel);
       controls.removeEventListener("start", onStart);
       scene.traverse((object) => {
         if (object instanceof T.Mesh || object instanceof T.Line) {
@@ -1204,7 +1233,7 @@ export default function Anatomy(props: Props) {
                     : layers
                       ? "Click the body to choose a layer"
                       : dragMode === "pin"
-                        ? "Tap the body to add a pin"
+                        ? "Tap to pin · Drag to turn · Two fingers to zoom or move"
                         : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Switch to Pin to mark a spot`)}
             </small>
           </div>

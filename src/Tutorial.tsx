@@ -9,7 +9,7 @@ const steps = [
   },
   {
     title: "Place a pin",
-    text: "Choose Pin and tap the body. Choose Turn to rotate it without adding marks. Use + and − to zoom.",
+    text: "Tap the body to pin a spot. Drag to turn it. Use two fingers to zoom or move, or use the + and − buttons.",
     picture: "pin",
   },
   {

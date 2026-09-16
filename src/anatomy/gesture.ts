@@ -1,6 +1,10 @@
 export class PinGesture {
   private starts = new Map<number, [number, number]>();
   private moved = false;
+  reset() {
+    this.starts.clear();
+    this.moved = false;
+  }
   down(id: number, x: number, y: number) {
     if (!this.starts.size) this.moved = false;
     this.starts.set(id, [x, y]);

@@ -1,0 +1,138 @@
+{
+  "anatomy": {
+    "id": "ihurt-z-anatomy-v1",
+    "name": "Z-Anatomy / BodyParts3D",
+    "models": [
+      {
+        "file": "muscular.glb",
+        "source": "https://raw.githubusercontent.com/Liyucheng1997/242_lab-human-anatomy/322ba39e96ea91ce08601caad2c0aaade1dc99f0/public/models/muscular.glb",
+        "bytes": 8819872,
+        "sha256": "5234472152a791baf002bed614707c33ba3ab2b278e41f41899a79a453d40785"
+      },
+      {
+        "file": "skeleton.glb",
+        "source": "https://raw.githubusercontent.com/Liyucheng1997/242_lab-human-anatomy/322ba39e96ea91ce08601caad2c0aaade1dc99f0/public/models/skeleton.glb",
+        "bytes": 2722720,
+        "sha256": "9fa642cc4ba501c0512cf8a2ab074b0c6a03fdd5dad7ab28a0c139e70e10ae82"
+      }
+    ],
+    "credits": "https://github.com/sandbornm/ihurt/blob/main/public/models/ATTRIBUTION.md",
+    "licenses": [
+      "https://creativecommons.org/licenses/by-sa/4.0/",
+      "https://creativecommons.org/licenses/by-sa/2.1/jp/"
+    ],
+    "coordinates": {
+      "id": "ihurt-normalized-v1",
+      "units": "Normalized model units, not physical measurements",
+      "axes": {
+        "x": "positive = subject left",
+        "y": "positive = superior (up)",
+        "z": "positive = anterior (front)"
+      },
+      "height": 5.85,
+      "floor_y": -2.5,
+      "normalization": "After node world transforms and mesh filtering, center X/Z on the combined mesh bounds, shift minimum Y to zero, scale height to 5.85, then shift Y by -2.5."
+    },
+    "region_mapping": "ihurt-regions-v1; approximate anatomical areas, not a clinical segmentation",
+    "highlight": {
+      "meaning": "Locations selected by the author",
+      "point_radius": 0.27,
+      "region_radius": 0.65,
+      "not_a_probability": true
+    }
+  },
+  "regions": [
+    {
+      "id": "neck",
+      "label": "Neck"
+    },
+    {
+      "id": "chest",
+      "label": "Chest"
+    },
+    {
+      "id": "upper_back",
+      "label": "Upper back"
+    },
+    {
+      "id": "lower_back",
+      "label": "Lower back"
+    },
+    {
+      "id": "abdomen",
+      "label": "Abdomen"
+    },
+    {
+      "id": "left_shoulder",
+      "label": "left shoulder"
+    },
+    {
+      "id": "left_elbow",
+      "label": "left elbow"
+    },
+    {
+      "id": "left_wrist",
+      "label": "left wrist & hand"
+    },
+    {
+      "id": "left_hip",
+      "label": "left hip"
+    },
+    {
+      "id": "left_thigh",
+      "label": "left thigh"
+    },
+    {
+      "id": "left_knee",
+      "label": "left knee"
+    },
+    {
+      "id": "left_calf",
+      "label": "left calf"
+    },
+    {
+      "id": "left_ankle",
+      "label": "left ankle"
+    },
+    {
+      "id": "left_foot",
+      "label": "left foot"
+    },
+    {
+      "id": "right_shoulder",
+      "label": "right shoulder"
+    },
+    {
+      "id": "right_elbow",
+      "label": "right elbow"
+    },
+    {
+      "id": "right_wrist",
+      "label": "right wrist & hand"
+    },
+    {
+      "id": "right_hip",
+      "label": "right hip"
+    },
+    {
+      "id": "right_thigh",
+      "label": "right thigh"
+    },
+    {
+      "id": "right_knee",
+      "label": "right knee"
+    },
+    {
+      "id": "right_calf",
+      "label": "right calf"
+    },
+    {
+      "id": "right_ankle",
+      "label": "right ankle"
+    },
+    {
+      "id": "right_foot",
+      "label": "right foot"
+    }
+  ]
+}

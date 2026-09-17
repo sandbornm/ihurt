@@ -131,22 +131,14 @@ test("rest and zoom do not fill the hands log every frame", () => {
   assert.equal(lines.filter((line) => line.includes("\tidle")).length, 1);
 });
 
-test("a slightly sloppy thumb tap still pins", () => {
-  const navigator = new HandNavigator();
-  navigator.apply([pointing(0.4, 0.45)]);
-  navigator.apply([pointing(0.47, 0.48, 0.02)]);
-  assert.ok(navigator.consumeTap());
-});
-
-test("a fist exits pointing without placing another pin", () => {
+test("a fist exits pointing and clears the aim", () => {
   assert.equal(classifyPose(fist(0.4, 0.45), "point"), "fist");
   const navigator = new HandNavigator();
   navigator.apply([pointing(0.4, 0.45)]);
   navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  assert.ok(navigator.consumeTap());
+  assert.ok(navigator.aim());
   navigator.apply([fist(0.4, 0.45)]);
   assert.equal(navigator.currentPose(), "fist");
-  assert.equal(navigator.consumeTap(), null);
 });
 
 test("opening a pointed hand into a real fist with the thumb out can turn", () => {
@@ -248,7 +240,7 @@ test("a moving closed pinch turns instead of zooming", () => {
   assert.ok(motion.rotateX > 0.1);
 });
 
-test("a point tap still works after a pinch and a two-hand pan", () => {
+test("pointing still aims after a pinch and a two-hand pan", () => {
   const navigator = new HandNavigator();
   navigator.apply([pinched(0.5, 0.5, 0.05)]);
   navigator.apply([pinched(0.5, 0.5, 0.03)]);
@@ -257,7 +249,7 @@ test("a point tap still works after a pinch and a two-hand pan", () => {
   navigator.apply([pointing(0.4, 0.45)]);
   assert.equal(navigator.currentPose(), "point");
   navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  assert.ok(navigator.consumeTap());
+  assert.ok(navigator.aim());
 });
 
 test("a pointing hand still aims when a second open palm is in frame", () => {
@@ -266,7 +258,7 @@ test("a pointing hand still aims when a second open palm is in frame", () => {
   const aim = navigator.aim();
   assert.ok(aim);
   navigator.apply([pointing(0.4, 0.45, 0.02), openPalm(0.75, 0.5)]);
-  assert.ok(navigator.consumeTap());
+  assert.ok(navigator.aim());
 });
 
 test("a short hand and a vanished hand reset instead of jumping", () => {
@@ -315,30 +307,13 @@ test("grabbers follow each hand, mirrored, and name the current action", () => {
   assert.ok(sliding[0].x > sliding[1].x);
 });
 
-test("pointing aims at the index tip, and a thumb tap commits once", () => {
-  const navigator = new HandNavigator();
-  navigator.apply([pointing(0.4, 0.45)]);
-  const aim = navigator.aim();
-  assert.ok(aim);
-  assert.ok(Math.abs(aim.x - (1 - pointing(0.4, 0.45)[8].x)) < 0.02);
-  assert.equal(navigator.consumeTap(), null);
-  navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  const tap = navigator.consumeTap();
-  assert.ok(tap);
-  assert.ok(Math.abs(tap.x - aim.x) < 0.05);
-  navigator.apply([pointing(0.4, 0.45, 0.12)]);
-  assert.equal(navigator.consumeTap(), null);
-});
-
-test("a pointing slide without a thumb tap does not pin", () => {
+test("a fist ends a pointing slide", () => {
   const navigator = new HandNavigator();
   navigator.apply([pointing(0.3, 0.4)]);
   navigator.apply([pointing(0.55, 0.4)]);
-  assert.equal(navigator.consumeTap(), null);
   const thumbOut = posed(0.4, 0.5, [1, 1, 1, 1], { x: 0.28, y: 0.5 });
   navigator.apply([thumbOut]);
   assert.equal(navigator.currentPose(), "fist");
-  assert.equal(navigator.consumeTap(), null);
 });
 
 test("a hands log records pose and action for later tuning", () => {
@@ -401,40 +376,17 @@ test("hand deltas rotate, dolly and pan within the existing camera limits", () =
   assert.ok(clamped.position.distanceTo(clamped.look) >= 0.35);
 });
 
-test("pinch jitter requires a full release before another pin", () => {
-  const navigator = new HandNavigator();
-  navigator.apply([pointing(0.4, 0.45)]);
-  navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  assert.ok(navigator.consumeTap());
-  for (const gap of [0.085, 0.075, 0.09, 0.02]) {
-    navigator.apply([pointing(0.4, 0.45, gap)]);
-    assert.equal(navigator.consumeTap(), null);
-  }
-  navigator.apply([pointing(0.4, 0.45, 0.12)]);
-  navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  assert.ok(navigator.consumeTap());
-});
-
-test("entering the frame already pinched or losing tracking never places a pin", () => {
+test("losing tracking clears the aim and grabbers", () => {
   const navigator = new HandNavigator();
   navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  assert.equal(navigator.consumeTap(), null);
   navigator.apply([pointing(0.4, 0.45)]);
   navigator.apply([]);
   assert.equal(navigator.aim(), null);
   assert.deepEqual(navigator.grabbers(), []);
   navigator.apply([pointing(0.4, 0.45, 0.02)]);
-  assert.equal(navigator.consumeTap(), null);
 });
 
-test("a large movement during thumb contact cancels the pin", () => {
-  const navigator = new HandNavigator();
-  navigator.apply([pointing(0.2, 0.4)]);
-  navigator.apply([pointing(0.7, 0.4, 0.02)]);
-  assert.equal(navigator.consumeTap(), null);
-});
-
-test("pinch recognition follows hand size rather than camera distance", () => {
+test("point recognition follows hand size rather than camera distance", () => {
   for (const scale of [0.4, 1, 1.8]) {
     const resize = (hand: Pt[]) =>
       hand.map((p) => ({
@@ -443,9 +395,8 @@ test("pinch recognition follows hand size rather than camera distance", () => {
       }));
     const navigator = new HandNavigator();
     navigator.apply([resize(pointing(0.4, 0.45))]);
-    assert.equal(navigator.consumeTap(), null);
     navigator.apply([resize(pointing(0.4, 0.45, 0.02))]);
-    assert.ok(navigator.consumeTap());
+    assert.ok(navigator.aim());
   }
 });
 
@@ -460,11 +411,27 @@ test("invalid and collapsed landmarks are discarded", () => {
   );
 });
 
+test("the aiming cursor smooths jitter and the visible grabber follows it", () => {
+  const navigator = new HandNavigator();
+  navigator.apply([pointing(0.4, 0.45)], 1000);
+  const first = navigator.aim()!;
+  navigator.apply([pointing(0.41, 0.46)], 1040);
+  const next = navigator.aim()!;
+  assert.ok(Math.abs(next.x - first.x) < 0.01);
+  assert.ok(Math.abs(next.x - first.x) > 0.002);
+  assert.equal(navigator.grabbers()[0].x, next.x);
+  assert.equal(navigator.grabbers()[0].y, next.y);
+  navigator.apply([], 1080);
+  navigator.apply([pointing(0.2, 0.3)], 1120);
+  assert.ok(
+    Math.abs(navigator.aim()!.x - (1 - pointing(0.2, 0.3)[8].x)) < 1e-6,
+  );
+});
+
 test("two fists can zoom immediately after pointing", () => {
   const navigator = new HandNavigator();
   navigator.apply([pointing(0.4, 0.45)]);
   navigator.apply([fist(0.3, 0.5), fist(0.7, 0.5)]);
   const delta = navigator.apply([fist(0.2, 0.5), fist(0.8, 0.5)]);
   assert.ok(delta && delta.zoom > 1);
-  assert.equal(navigator.consumeTap(), null);
 });

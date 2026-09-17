@@ -15,9 +15,9 @@ npm run check      # app build and tests
 
 ### Hands test notes
 
-- Thresholds live in `HAND_TUNING` in `src/anatomy/hands.ts`.
+- Navigation thresholds live in `HAND_TUNING` in `src/anatomy/hands.ts`. `hand-entry.ts` owns the timed pin, relative wrist dial, and save workflow, with its own `HAND_ENTRY_TUNING`. `HandEntryPanel.tsx` renders feedback; `HandCamera.tsx` connects landmarks to the workflow and notebook callbacks.
 - During a Hands session, **Copy hands log** copies a local TSV of pose/action labels and normalized cursor positions. It contains no images or recordings. Add a note about what you intended when reporting a gesture issue.
-- Camera checks use synthetic landmarks and mocked media streams. They cover pinch hysteresis, hand-size changes, tracking loss, and camera cleanup. Confirm recognition with a real camera before changing pose thresholds.
+- Camera checks use synthetic landmarks and mocked media streams. They cover tracking loss, hold cancellation, dial jitter and regripping, one save per gesture, failed saves, and camera cleanup. Browser checks verify that a point-and-hold creates an actual pin without a mouse-confirmed layer picker, changes intensity, and saves it to IndexedDB. Synthetic checks do not establish recognition accuracy with a real camera; user camera feedback is still needed when tuning gestures.
 
 GitHub Actions builds the app and runs backend, unit, and isolated browser checks. Browser checks use a Node static preview with no API server. They cover multiple entries, editing, refresh, exports, offline anatomy and storage, and desktop/phone layout. Tests make no paid requests.
 

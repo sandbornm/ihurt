@@ -449,6 +449,124 @@ h1 > span {
   background: #f4bc7128;
   box-shadow: 0 0 16px #f4bc7160;
 }
+.hand-grabber[data-mode="point"]::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: conic-gradient(
+    #baf38b var(--hand-progress-angle, 0deg),
+    transparent 0
+  );
+  mask: radial-gradient(transparent 58%, #000 62%);
+}
+.hand-entry-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  width: min(228px, calc(100% - 134px));
+  max-height: calc(100% - 28px);
+  overflow-y: auto;
+  padding: 14px;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: inherit;
+  box-shadow: 0 8px 30px #0003;
+  text-align: center;
+}
+.hand-pin-label {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.hand-entry-controls p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.hand-entry-controls small,
+.hand-entry-scope {
+  color: var(--muted);
+  font-size: 11px;
+}
+.hand-entry-dial {
+  width: 86px;
+  height: 86px;
+  padding: 7px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 225deg,
+    var(--intensity-color) var(--dial-angle),
+    var(--line) 0 270deg,
+    transparent 0
+  );
+}
+.hand-entry-dial output {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--panel);
+  font-size: 26px;
+  font-weight: 700;
+}
+.hand-entry-dial[data-held="true"] {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}
+.hand-save-progress {
+  width: 100%;
+  height: 4px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hand-save-progress span {
+  display: block;
+  height: 100%;
+  width: calc(var(--hand-progress, 0) * 100%);
+  background: var(--lime);
+}
+.hand-entry-controls button {
+  min-height: 36px;
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .hand-entry-controls {
+    gap: 5px;
+    padding: 12px;
+  }
+  .hand-entry-dial {
+    width: 68px;
+    height: 68px;
+    padding: 5px;
+  }
+}
+.anatomy-canvas[data-hands-stage="rate"] .hand-camera,
+.anatomy-canvas[data-hands-stage="saving"] .hand-camera,
+.anatomy-canvas[data-hands-stage="saved"] .hand-camera {
+  right: auto;
+  left: 14px;
+  top: 14px;
+  bottom: auto;
+  width: 100px;
+  padding: 6px;
+}
+.anatomy-canvas:not([data-hands-stage="aim"])[data-hands-stage]
+  .hand-camera
+  canvas {
+  width: 86px;
+  height: 64px;
+}
+.anatomy-canvas:not([data-hands-stage="aim"])[data-hands-stage] .hand-camera p {
+  display: none;
+}
 .hand-grabber b {
   width: 10px;
   height: 10px;

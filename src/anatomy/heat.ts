@@ -46,8 +46,10 @@ export function paintHeat(
 ) {
   base.copy(baseColor);
   if (selectedUnmapped) base.lerp(selectedTint, 0.48);
+  heatTint.set(intensityColor(intensity));
+  const hasHeat = samples.length > 0 || region !== null;
   for (let i = 0; i < positions.count; i++) {
-    vertex.fromBufferAttribute(positions, i).applyMatrix4(matrix);
+    if (hasHeat) vertex.fromBufferAttribute(positions, i).applyMatrix4(matrix);
     let amount = 0;
     for (const sample of samples)
       amount = Math.max(
@@ -75,7 +77,6 @@ export function paintHeat(
       );
     painted.copy(base);
     if (amount > 0.02) {
-      heatTint.set(intensityColor(intensity));
       painted.lerp(heatTint, Math.min(1, amount * 1.6 + 0.15));
     }
     colors.setXYZ(i, painted.r, painted.g, painted.b);

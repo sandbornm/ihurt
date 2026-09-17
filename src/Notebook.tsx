@@ -325,7 +325,7 @@ export default function Notebook({
     };
   }
   async function commit() {
-    if (!valid || busy) return;
+    if (!valid || busy) return false;
     const item = currentEntry();
     setBusy(true);
     setError("");
@@ -333,10 +333,12 @@ export default function Notebook({
       await storeEntries([item]);
       setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
       setToast("Entry saved on this device.");
+      return true;
     } catch {
       setError(
         "The entry could not be saved here. Export JSON to keep a copy.",
       );
+      return false;
     } finally {
       setBusy(false);
     }
@@ -889,6 +891,15 @@ export default function Notebook({
                         points={points}
                         onPoint={(point) => {
                           setPoints((old) => [...old, point]);
+                        }}
+                        handEntry={{
+                          entryId: entry.id,
+                          onIntensity: (value) => context("intensity", value),
+                          onSave: commit,
+                          onRemovePin: (id) =>
+                            setPoints((old) =>
+                              old.filter((point) => point.id !== id),
+                            ),
                         }}
                       />
                     </Suspense>

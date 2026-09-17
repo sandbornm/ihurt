@@ -245,58 +245,140 @@ try {
           .querySelector("[data-hands-grabbers]")
           ?.getAttribute("data-hands-grabbers") === "2",
     );
+    const holdHand = async (landmarks, until) => {
+      await page.evaluate(
+        async ({ landmarks, until }) => {
+          const deadline = performance.now() + 7000;
+          do {
+            window.dispatchEvent(
+              new CustomEvent("ihurt:hands", { detail: { landmarks } }),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            if (
+              document
+                .querySelector("[data-hands-stage]")
+                ?.getAttribute("data-hands-stage") === until
+            )
+              return;
+          } while (performance.now() < deadline);
+        },
+        { landmarks, until },
+      );
+      assert.equal(await atlas.getAttribute("data-hands-stage"), until);
+    };
+    const pinched = (x, y) => {
+      const points = openPalm(x, y);
+      points[4] = { x: points[8].x - 0.02, y: points[8].y };
+      return points;
+    };
+    const rolled = (points, degrees) => {
+      const angle = (-degrees * Math.PI) / 180;
+      return points.map((point) => ({
+        x:
+          0.5 +
+          (point.x - 0.5) * Math.cos(angle) -
+          (point.y - 0.5) * Math.sin(angle),
+        y:
+          0.5 +
+          (point.x - 0.5) * Math.sin(angle) +
+          (point.y - 0.5) * Math.cos(angle),
+      }));
+    };
+    const thumbsUp = () => {
+      const points = fist(0.5, 0.5);
+      points[3] = { x: 0.44, y: 0.44 };
+      points[4] = { x: 0.44, y: 0.3 };
+      return points;
+    };
     const pinsBeforeTap = await page.locator(".notebook-pin").count();
     await page.getByRole("button", { name: "Reset view" }).click();
     await page.getByRole("button", { name: "Front", exact: true }).click();
-    await spoof([pointing(0.34, 0.48)]);
-    await page.waitForFunction(
-      () =>
-        document
-          .querySelector("[data-hands-mode]")
-          ?.getAttribute("data-hands-mode") === "point",
+    await holdHand([pointing(0.34, 0.48)], "rate");
+    assert.equal(
+      await page.getByRole("dialog", { name: "Choose anatomy layer" }).count(),
+      0,
     );
-    await spoof([pointing(0.34, 0.48)]);
-    await spoof([pointing(0.34, 0.48, 0.02)]);
-    await spoof([pointing(0.34, 0.48, 0.12)]);
-    const tapped = await page
-      .waitForFunction(
-        () =>
-          document
-            .querySelector("[data-hands-tap]")
-            ?.getAttribute("data-hands-tap") === "1",
-        undefined,
-        { timeout: 5000 },
-      )
-      .catch(async () => {
-        const debug = await page.evaluate(() => ({
-          mode: document
-            .querySelector("[data-hands-mode]")
-            ?.getAttribute("data-hands-mode"),
-          pose: document
-            .querySelector("[data-hands-pose]")
-            ?.getAttribute("data-hands-pose"),
-          tap: document
-            .querySelector("[data-hands-tap]")
-            ?.getAttribute("data-hands-tap"),
-        }));
-        throw new Error(`air-tap did not fire: ${JSON.stringify(debug)}`);
-      });
-    assert.ok(tapped);
-    await page.waitForFunction(
-      (before) =>
-        document.querySelectorAll(".notebook-pin").length > before ||
-        !!document.querySelector('[aria-label="Choose anatomy layer"]'),
-      pinsBeforeTap,
-    );
-    if (
-      await page.getByRole("dialog", { name: "Choose anatomy layer" }).count()
-    )
-      await page.getByRole("button", { name: "Pin this structure" }).click();
     assert.equal(
       await page.locator(".notebook-pin").count(),
       pinsBeforeTap + 1,
-      "Point + air-tap should place a pin",
     );
+    assert.equal(
+      await page
+        .getByRole("slider", { name: "Reported intensity", exact: true })
+        .getAttribute("aria-valuetext"),
+      "Not recorded",
+    );
+    await atlas.screenshot({ path: `${output}/hand-pinned-${width}.png` });
+    const dialFrames = [0, 18, 36, 54].map((angle) => [
+      rolled(pinched(0.5, 0.5), angle),
+    ]);
+    const dialTrace = await page.evaluate(async (frames) => {
+      const trace = [];
+      for (const landmarks of frames) {
+        window.dispatchEvent(
+          new CustomEvent("ihurt:hands", { detail: { landmarks } }),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        trace.push({
+          time: performance.now(),
+          value: document.querySelector("#intensity")?.value,
+          stage: document
+            .querySelector("[data-hands-stage]")
+            ?.getAttribute("data-hands-stage"),
+        });
+      }
+      return trace;
+    }, dialFrames);
+    assert.equal(
+      await page.locator("#intensity").inputValue(),
+      "3",
+      JSON.stringify(dialTrace),
+    );
+    assert.equal(
+      await atlas.getAttribute("data-hands-moved"),
+      null,
+      "Rating must not move the camera",
+    );
+    const panel = page.locator(".hand-entry-controls");
+    assert.match(await panel.innerText(), /Pinch and twist to rate/);
+    const panelBox = await panel.boundingBox();
+    const atlasBox = await atlas.boundingBox();
+    assert.ok(
+      panelBox.y + panelBox.height <= atlasBox.y + atlasBox.height,
+      "Gesture controls must fit inside the body view",
+    );
+    await page
+      .locator(".hand-entry-controls")
+      .screenshot({ path: `${output}/hand-rating-${width}.png` });
+    await atlas.screenshot({ path: `${output}/hand-flow-${width}.png` });
+    await spoof([openPalm(0.5, 0.5)]);
+    await holdHand([thumbsUp()], "saved");
+    const savedByHands = await page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const request = indexedDB.open("ihurt-notebook");
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const entries = db
+              .transaction("entries")
+              .objectStore("entries")
+              .getAll();
+            entries.onsuccess = () => {
+              db.close();
+              resolve(entries.result);
+            };
+            entries.onerror = () => {
+              db.close();
+              reject(entries.error);
+            };
+          };
+        }),
+    );
+    assert.equal(savedByHands.length, 1);
+    assert.equal(savedByHands[0].map.intensity, 3);
+    assert.equal(savedByHands[0].points.length, pinsBeforeTap + 1);
+    await holdHand([openPalm(0.5, 0.5)], "aim");
     await page
       .getByRole("button", { name: "Remove spot 1", exact: true })
       .click();
@@ -571,7 +653,7 @@ try {
     );
     assert.deepEqual(errors, []);
     console.log(
-      `PASS controls ${width}: simple controls, tutorial, light mode, hands fist/point/tap, turn without pins, paint, undo/redo, bone visibility, viewport PNG, print image, reference models, refresh`,
+      `PASS controls ${width}: simple controls, tutorial, light mode, hands turn/hold/dial/save, turn without pins, paint, undo/redo, bone visibility, viewport PNG, print image, reference models, refresh`,
     );
     await context.close();
   }

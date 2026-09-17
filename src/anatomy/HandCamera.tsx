@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import HandEntryPanel from "./HandEntryPanel";
+import {
+  HandEntryGesture,
+  type HandEntryControls,
+  type HandPin,
+  type HandTarget,
+} from "./hand-entry";
 import {
   formatHandLog,
   HandNavigator,
+  recordHandEvent,
   resetHandLog,
   validHands,
   type Grabber,
@@ -133,7 +141,7 @@ function statusFor(grabbers: Grabber[]) {
   const mode = grabbers[0]?.mode;
   if (mode === "zoom") return "Pull fists apart to zoom in";
   if (mode === "turn") return "Move the closed hand to turn";
-  if (mode === "point") return "Point at a spot · tap thumb to index to pin";
+  if (mode === "point") return "Hold the pointer still on a muscle to pin";
   if (mode === "rest") return "Closed fist turns · point to pin";
   return "Raise a hand — a grabber appears on the body";
 }
@@ -142,28 +150,49 @@ export default function HandCamera({
   active,
   onMotion,
   onAim,
-  onTap,
+  onPin,
+  intensity = null,
+  onRatingActive,
+  entryControls,
+  hasPin,
 }: {
   active: boolean;
   onMotion: (delta: HandDelta) => void;
-  onAim?: (point: HandTap | null) => void;
-  onTap?: (point: HandTap) => void;
+  onAim?: (point: HandTap | null) => HandTarget | null;
+  onPin?: (point: HandTap) => HandPin | null;
+  intensity?: number | null;
+  onRatingActive?: (active: boolean) => void;
+  entryControls?: HandEntryControls;
+  hasPin?: (id: string) => boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const motion = useRef(onMotion);
   const aim = useRef(onAim);
-  const tap = useRef(onTap);
+  const pin = useRef(onPin);
+  const current = useRef({ intensity, entryControls, hasPin, onRatingActive });
+  current.current = { intensity, entryControls, hasPin, onRatingActive };
   motion.current = onMotion;
   aim.current = onAim;
-  tap.current = onTap;
+  pin.current = onPin;
+  const gesture = useRef(new HandEntryGesture());
+  const [entryState, setEntryState] = useState({ ...gesture.current.state });
+  const publishRef = useRef<() => void>(() => {});
+  const saveRef = useRef<() => void>(() => {});
   const [status, setStatus] = useState("Opening camera…");
+  const [trackingHint, setTrackingHint] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
   useEffect(() => () => clearTimeout(copyTimer.current), []);
+  useEffect(() => {
+    if (entryState.pin && hasPin && !hasPin(entryState.pin.id)) {
+      gesture.current.reset();
+      publishRef.current();
+    }
+  }, [entryState.pin, hasPin]);
   useEffect(() => {
     if (!active) return;
     const video = videoRef.current,
@@ -171,9 +200,13 @@ export default function HandCamera({
       overlay = overlayRef.current;
     if (!video || !canvas || !overlay) return;
     const tracker = new HandNavigator();
+    const flow = new HandEntryGesture();
+    gesture.current = flow;
+    setEntryState({ ...flow.state });
     resetHandLog();
     setCopyStatus("");
     setStatus("Opening camera…");
+    setTrackingHint("");
     const shown: { x: number; y: number }[] = [];
     let stream: MediaStream | null = null;
     let landmarker: {
@@ -187,36 +220,135 @@ export default function HandCamera({
     let frameHandle = 0;
     let usingVideoFrame = false;
     let lastStatus = "";
+    let lastTrackingHint = "";
     let lastVideoTime = -1;
     const report = (text: string) => {
       if (text === lastStatus) return;
       lastStatus = text;
       setStatus(text);
     };
+    const reportTracking = (text: string) => {
+      if (text === lastTrackingHint) return;
+      lastTrackingHint = text;
+      setTrackingHint(text);
+    };
     const host = overlay.closest<HTMLElement>(".anatomy-canvas");
+    let lastView = "";
+    const publish = () => {
+      current.current.onRatingActive?.(
+        flow.state.phase === "rate" || flow.state.phase === "saving",
+      );
+      host?.style.setProperty("--hand-progress", String(flow.state.progress));
+      host?.style.setProperty(
+        "--hand-progress-angle",
+        `${flow.state.progress * 360}deg`,
+      );
+      if (host) host.dataset.handsStage = flow.state.phase;
+      const state = { ...flow.state, progress: 0 };
+      const key = JSON.stringify(state);
+      if (key !== lastView) {
+        lastView = key;
+        setEntryState(state);
+      }
+    };
+    publishRef.current = publish;
+    let saving = false;
+    const save = async () => {
+      if (saving || !flow.state.pin) return;
+      if (flow.state.phase === "rate") flow.saving();
+      if (flow.state.phase !== "saving") return;
+      saving = true;
+      const pinId = flow.state.pin.id;
+      publish();
+      let success = false;
+      try {
+        success = (await current.current.entryControls?.onSave()) ?? false;
+      } catch {
+        success = false;
+      }
+      saving = false;
+      if (cancelled || flow.state.pin?.id !== pinId) return;
+      flow.saved(success);
+      recordHandEvent({
+        pose: "thumbs-up",
+        mode: "entry",
+        action: success ? "saved" : "save-failed",
+      });
+      publish();
+    };
+    saveRef.current = () => void save();
     const feed = (hands: Landmark[][]) => {
+      const navigating = flow.state.phase === "aim";
+      const issue =
+        !navigating && hands.length !== 1
+          ? hands.length
+            ? "Use one hand to rate or save"
+            : "Raise a hand to continue"
+          : "";
+      reportTracking(issue);
       const delta = tracker.apply(hands);
-      const grabbers = tracker.grabbers();
+      const grabbers = navigating ? tracker.grabbers() : [];
       paintGrabbers(overlay, grabbers, shown);
       const pointed = tracker.aim();
-      const tapped = tracker.consumeTap();
+      const target = aim.current?.(navigating ? pointed : null) ?? null;
       if (host) {
         host.dataset.handsGrabbers = String(grabbers.length);
         host.dataset.handsMode = grabbers[0]?.mode ?? "";
         host.dataset.handsPose = tracker.currentPose();
-        if (pointed) {
+        if (pointed && navigating) {
           host.dataset.handsAim = `${pointed.x.toFixed(3)},${pointed.y.toFixed(3)}`;
         } else delete host.dataset.handsAim;
-        if (tapped) host.dataset.handsTap = "1";
       }
-      if (delta) {
+      if (delta && navigating) {
         motion.current(delta);
         if (host) host.dataset.handsMoved = grabbers[0]?.mode ?? "move";
       }
-      if (grabbers[0]?.mode === "point" && pointed) aim.current?.(pointed);
-      else aim.current?.(null);
-      if (tapped) tap.current?.(tapped);
-      report(statusFor(grabbers));
+      if (!navigating && host) delete host.dataset.handsMoved;
+      const action = flow.frame({
+        hand: navigating
+          ? tracker.activeHand()
+          : hands.length === 1
+            ? hands[0]
+            : null,
+        pose: tracker.currentPose(),
+        point: pointed,
+        target,
+        intensity: current.current.intensity,
+        now: performance.now(),
+        aspect:
+          video.videoWidth && video.videoHeight
+            ? video.videoWidth / video.videoHeight
+            : 1,
+      });
+      if (action?.type === "pin") {
+        const placed = pin.current?.(action.point);
+        if (placed) {
+          flow.pinned(placed);
+          aim.current?.(null);
+          recordHandEvent({
+            pose: "point",
+            mode: "entry",
+            action: "pin",
+            ...action.point,
+          });
+          if (host) host.dataset.handsTap = "1";
+        }
+      } else if (action?.type === "intensity") {
+        current.current.entryControls?.onIntensity(action.value);
+        recordHandEvent({
+          pose: "pinch",
+          mode: "entry",
+          action: `intensity-${action.value}`,
+        });
+      } else if (action?.type === "save") void save();
+      publish();
+      report(
+        navigating
+          ? statusFor(grabbers)
+          : !hands.length
+            ? "Raise a hand to continue"
+            : "Pinch and twist · Thumbs-up saves",
+      );
     };
     let spoofed = false;
     const onSpoof = (event: Event) => {
@@ -260,6 +392,9 @@ export default function HandCamera({
       } catch {
         feed([]);
         stopCamera();
+        reportTracking(
+          "Hand tracking stopped. Turn Hands off and on to retry.",
+        );
         report("Hand tracking stopped. Turn Hands off and on to retry.");
         return;
       }
@@ -278,6 +413,7 @@ export default function HandCamera({
     const visibilityChanged = () => {
       stopLoop();
       tracker.reset();
+      flow.interrupt();
       feed([]);
       if (!document.hidden) schedule();
     };
@@ -335,10 +471,14 @@ export default function HandCamera({
         schedule();
       } catch {
         stopCamera();
-        if (!cancelled)
+        if (!cancelled) {
+          reportTracking(
+            "Camera unavailable. Check permission, then turn Hands off and on.",
+          );
           report(
             "Camera unavailable. Check permission, then turn Hands off and on.",
           );
+        }
       }
     })();
     return () => {
@@ -356,14 +496,36 @@ export default function HandCamera({
         delete host.dataset.handsPose;
         delete host.dataset.handsAim;
         delete host.dataset.handsTap;
+        delete host.dataset.handsStage;
+        host.style.removeProperty("--hand-progress");
+        host.style.removeProperty("--hand-progress-angle");
       }
       aim.current?.(null);
+      current.current.onRatingActive?.(false);
       stopCamera();
+      publishRef.current = () => {};
+      saveRef.current = () => {};
     };
-  }, [active]);
+  }, [active, entryControls?.entryId]);
   if (!active) return null;
   return (
     <>
+      <HandEntryPanel
+        state={entryState}
+        intensity={intensity}
+        trackingHint={trackingHint}
+        onSave={() => saveRef.current()}
+        onUndo={() => {
+          const id = gesture.current.state.pin?.id;
+          if (id) current.current.entryControls?.onRemovePin(id);
+          gesture.current.reset();
+          publishRef.current();
+        }}
+        onBack={() => {
+          gesture.current.reset();
+          publishRef.current();
+        }}
+      />
       <div className="hand-grabbers" ref={overlayRef} aria-hidden="true">
         <svg>
           <line />

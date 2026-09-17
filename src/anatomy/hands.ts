@@ -28,13 +28,12 @@ export const HAND_TUNING = {
   deadzone: 0.008,
   pinchOn: 0.08,
   pinchOff: 0.11,
-  tapMs: 700,
-  tapTravel: 0.09,
   poseHold: 5,
   rotateSmooth: 0.55,
   rotateX: 3.6,
   rotateY: 2.4,
   panScale: 2.2,
+  pointSmoothMs: 65,
 };
 
 const WRIST = 0,
@@ -289,12 +288,12 @@ export class HandNavigator {
   private pose: HandPose = "unknown";
   private lastHands: Landmark[][] = [];
   private smooth = { x: 0, y: 0 };
-  private tapAt: { t: number; x: number; y: number } | null = null;
-  private pendingTap: HandTap | null = null;
   private lastAim: HandTap | null = null;
   private lastLogged = "";
   private hold = 0;
-  private tapped = true;
+  private active: Landmark[] | null = null;
+  private frameTime = 0;
+  private pointTime = 0;
 
   reset() {
     this.palm = null;
@@ -303,26 +302,22 @@ export class HandNavigator {
     this.pose = "unknown";
     this.lastHands = [];
     this.smooth = { x: 0, y: 0 };
-    this.tapAt = null;
-    this.pendingTap = null;
     this.lastAim = null;
     this.hold = 0;
-    this.tapped = true;
     this.lastLogged = "";
+    this.active = null;
   }
 
   aim() {
     return this.lastAim;
   }
 
-  consumeTap() {
-    const tap = this.pendingTap;
-    this.pendingTap = null;
-    return tap;
-  }
-
   currentPose() {
     return this.pose;
+  }
+
+  activeHand() {
+    return this.active;
   }
 
   grabbers() {
@@ -331,14 +326,30 @@ export class HandNavigator {
       return live.map((hand) => grabberFor(hand, "zoom"));
     if (live.length > 1) {
       const active = pickActive(live, this.pose);
-      if (active) return [grabberFor(active.hand, modeFor(this.pose))];
+      if (active) {
+        const grabber = grabberFor(active.hand, modeFor(this.pose));
+        return [
+          {
+            ...grabber,
+            ...(this.pose === "point" && this.lastAim ? this.lastAim : {}),
+          },
+        ];
+      }
     }
     return describeGrabbers(live).map((grabber) =>
-      live.length === 1 ? { ...grabber, mode: modeFor(this.pose) } : grabber,
+      live.length === 1
+        ? {
+            ...grabber,
+            mode: modeFor(this.pose),
+            ...(this.pose === "point" && this.lastAim ? this.lastAim : {}),
+          }
+        : grabber,
     );
   }
 
-  apply(hands: Landmark[][]): HandDelta | null {
+  apply(hands: Landmark[][], now = performance.now()): HandDelta | null {
+    this.frameTime = now;
+    this.active = null;
     const live = validHands(hands);
     if (!live.length) {
       if (this.pose !== "unknown") this.note("unknown", "rest", "cancel");
@@ -353,8 +364,6 @@ export class HandNavigator {
       if (active) return this.oneHand(active.hand);
       this.pose = "open";
       this.lastAim = null;
-      this.tapAt = null;
-      this.tapped = true;
       return this.pan(live);
     }
     this.mid = null;
@@ -370,8 +379,7 @@ export class HandNavigator {
     pinch?: number,
   ) {
     const key = `${pose}:${mode}:${action}`;
-    if (action !== "tap" && action !== "cancel" && key === this.lastLogged)
-      return;
+    if (action !== "cancel" && key === this.lastLogged) return;
     this.lastLogged = key;
     recordHandEvent({
       pose,
@@ -388,8 +396,6 @@ export class HandNavigator {
     this.mid = null;
     this.smooth = { x: 0, y: 0 };
     this.lastAim = null;
-    this.tapAt = null;
-    this.tapped = true;
     this.pose = "fist";
     const span = spanOf(hands);
     const previous = this.span;
@@ -427,6 +433,7 @@ export class HandNavigator {
   }
 
   private oneHand(hand: Landmark[]): HandDelta | null {
+    this.active = hand;
     this.mid = null;
     const next = classifyPose(hand, this.pose);
     let pose = next;
@@ -448,15 +455,11 @@ export class HandNavigator {
     if (switched) {
       this.palm = null;
       this.smooth = { x: 0, y: 0 };
-      this.tapAt = null;
-      this.tapped = true;
       if (pose !== "point") this.lastAim = null;
     }
     if (next === "unknown") {
       this.palm = null;
       this.smooth = { x: 0, y: 0 };
-      this.tapAt = null;
-      this.tapped = true;
       this.lastAim = null;
       return null;
     }
@@ -489,28 +492,19 @@ export class HandNavigator {
   private point(hand: Landmark[]): HandDelta | null {
     this.palm = null;
     const tip = mirror(hand[INDEX_TIP]);
-    this.lastAim = tip;
-    const gap = pinchGap(hand);
-    const now = Date.now();
-    if (gap < HAND_TUNING.pinchOn) {
-      if (
-        !this.tapped &&
-        this.tapAt &&
-        now - this.tapAt.t <= HAND_TUNING.tapMs &&
-        Math.hypot(tip.x - this.tapAt.x, tip.y - this.tapAt.y) <=
-          HAND_TUNING.tapTravel
-      ) {
-        this.pendingTap = { x: tip.x, y: tip.y };
-        this.note("point", "point", "tap", this.pendingTap, pinchAmount(gap));
-      }
-      this.tapped = true;
-      this.tapAt = null;
-      return null;
-    }
-    if (gap >= HAND_TUNING.pinchOff) {
-      this.tapAt = { t: now, x: tip.x, y: tip.y };
-      this.tapped = false;
-    }
+    const blend =
+      1 -
+      Math.exp(
+        -Math.max(0, this.frameTime - this.pointTime) /
+          HAND_TUNING.pointSmoothMs,
+      );
+    this.lastAim = this.lastAim
+      ? {
+          x: this.lastAim.x + (tip.x - this.lastAim.x) * blend,
+          y: this.lastAim.y + (tip.y - this.lastAim.y) * blend,
+        }
+      : tip;
+    this.pointTime = this.frameTime;
     this.note("point", "point", "aim", tip);
     return null;
   }

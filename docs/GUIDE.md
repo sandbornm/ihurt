@@ -8,7 +8,15 @@ Use **Landmarks** to choose a region and view it from the front, back, top, or o
 
 In **Pin**, tap to mark a spot or drag to turn the body. Two fingers zoom and move without adding marks. Choose **Move** for one-finger panning. **Turn** and **Move** also have arrow buttons. Scroll or use the zoom buttons to zoom around the current focus. The buttons support keyboard access. Reduced-motion settings skip camera transitions.
 
-**Hands** (under More tools) is optional camera control. A grabber follows each hand: open palm rests, closed fist turns. Two fists pulling apart zoom in; pushing them together zooms out. Two open palms pan. Point with your thumb apart, then touch thumb to index to place a pin. Separate them fully before the next pin. Losing tracking cancels the gesture. If several surfaces overlap, choose one in the layer picker. The camera stays in this browser; frames are not saved or sent. Mouse, trackpad, and buttons still work.
+**Hands** (under More tools) is optional camera control. A grabber follows each hand: open palm rests, closed fist turns. Two fists pulling apart zoom in; pushing them together zooms out. Two open palms pan.
+
+To make an entry with one hand:
+
+1. Point at a muscle and hold still for about a second. A ring fills around the pointer, then a pin lands on the highlighted visible surface. Move away to cancel the hold. Use **Undo this pin** if it lands in the wrong place; use the usual layer tools to explore deeper structures.
+2. Pinch thumb and index, then turn your wrist like a dial. Clockwise increases intensity; counterclockwise decreases it. Release and pinch again to regrip. The dial updates as you turn; the map colors refresh after saving or returning to the body. This rates the whole entry, from 0 to 10. It stays unrated until you turn deliberately. Hand gestures pause body navigation while rating.
+3. Lower your thumb, then hold a thumbs-up until the save bar fills. The confirmation appears after the entry is saved on your device. Open your hand to return to the body for another pin, or use **Back to body**. You can also save without rating.
+
+Losing tracking or switching tabs cancels a partly completed hold and releases the dial. If tracking stops during a thumbs-up, lower your thumb before trying again. **Save this entry** also works by clicking. The camera stays in this browser; frames are not saved or sent. Mouse, trackpad, and buttons still work.
 
 Turn off **Show bones** to hide the skeleton while viewing muscles. This preference stays with your browser draft. Hidden bones are excluded from layer picking and viewport pictures; existing marks stay saved.
 

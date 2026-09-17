@@ -122,7 +122,10 @@ try {
       .fill("7");
     const bundleDownload = page.waitForEvent("download");
     await page
-      .getByText("Full report with Grok or another AI", { exact: true })
+      .getByText("Share with AI", { exact: true })
+      .click();
+    await page
+      .getByText("Suggested prompt and .ihm file", { exact: true })
       .click();
     await page.getByRole("button", { name: "Download .ihm map" }).click();
     const bundleFile = await bundleDownload;

@@ -155,7 +155,7 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
       <div className="body-reference-heading">
         <div>
           <h2>Body references</h2>
-          <p>Outer-body shapes from the Human Reference Atlas.</p>
+          <p>Two fixed outer-body references from the Human Reference Atlas.</p>
         </div>
         <button className="secondary" onClick={onClose}>
           Return to map
@@ -188,8 +188,10 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <p className="body-reference-note">
-        These references have no muscle layers. Place pins in the muscle atlas;
-        saved pins are not transferred between models.{" "}
+        Choose either reference for orientation. These models are not adjusted
+        to your measurements and have no muscle layers. Their labels describe
+        the source models. Place pins in the muscle atlas; saved pins are not
+        transferred between models.{" "}
         <a href="/models/ATTRIBUTION.md" target="_blank" rel="noreferrer">
           Model credits ↗
         </a>

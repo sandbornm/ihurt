@@ -2115,6 +2115,28 @@ h1 > span {
   margin: 12px 0;
   color: #b2c1a6;
 }
+.share-options {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.share-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.share-options input {
+  accent-color: var(--lime);
+}
+.share-with-ai > details {
+  margin: 14px 0;
+}
 .share-with-ai textarea,
 .ai-tools textarea {
   width: 100%;

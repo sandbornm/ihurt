@@ -26,7 +26,6 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
-  Copy,
   X,
   Undo2,
   Redo2,
@@ -50,7 +49,6 @@ import {
   finishEntry,
   hasContent,
   parseNotebook,
-  aiPrompt,
   entryFingerprint,
 } from "./notebook-data";
 import {
@@ -69,6 +67,7 @@ import Resources from "./Resources";
 import IntensityDial from "./IntensityDial";
 import ThemeToggle from "./ThemeToggle";
 import Tutorial from "./Tutorial";
+import ShareWithAI from "./sharing/ShareWithAI";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
@@ -461,14 +460,6 @@ export default function Notebook({
     const records = new Map(saved.map((e) => [e.id, e]));
     if (valid) records.set(entry.id, currentEntry());
     downloadNotebook([...records.values()]);
-  }
-  async function copyPrompt() {
-    try {
-      await navigator.clipboard.writeText(aiPrompt);
-      setToast("Prompt copied. Attach your JSON file in the AI chat.");
-    } catch {
-      setError("Copy the prompt from the text box below.");
-    }
   }
   return (
     <div
@@ -1322,45 +1313,7 @@ export default function Notebook({
                     Print / Save PDF
                     <ArrowUpRight size={14} />
                   </button>
-                  <details className="share-with-ai">
-                    <summary>Full report with Grok or another AI</summary>
-                    <button
-                      className="secondary"
-                      disabled={!valid}
-                      onClick={() => download(currentEntry(), "ihm")}
-                    >
-                      <ArrowDownToLine size={15} /> Download .ihm map
-                    </button>
-                    <p>
-                      One file with your notes, pins, anatomy references,
-                      heatmap and review prompt. Attach it in your AI chat; use
-                      Export JSON if the chat does not accept .ihm files.
-                    </p>
-                    <textarea
-                      aria-label="Suggested AI prompt"
-                      readOnly
-                      rows={4}
-                      value={aiPrompt}
-                    />
-                    <button
-                      className="secondary"
-                      onClick={() => void copyPrompt()}
-                    >
-                      <Copy size={14} />
-                      Copy prompt
-                    </button>
-                    <p className="subtle">
-                      You choose where to send the file. The service you use may
-                      retain it.
-                    </p>
-                    <a
-                      href="https://grok.com/"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open Grok ↗
-                    </a>
-                  </details>
+                  <ShareWithAI entry={currentEntry()} valid={valid} />
                   {entry.ai && (
                     <details className="saved-ai">
                       <summary>Saved AI note · {entry.ai.provider}</summary>

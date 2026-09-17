@@ -373,9 +373,71 @@ try {
     });
     await page.mouse.up();
     await page.getByText("PINNED SPOTS · 2", { exact: true }).waitFor();
+    const sharingNote = "Example observation retained in my journal";
+    await page
+      .getByRole("textbox", { name: "Describe your discomfort" })
+      .fill(sharingNote);
+    await page.getByText("Share with AI", { exact: true }).click();
+    assert.ok(
+      (
+        await page
+          .getByRole("textbox", { name: "AI sharing summary" })
+          .inputValue()
+      ).includes(sharingNote),
+    );
+    await page
+      .getByRole("checkbox", { name: "Entry notes and title" })
+      .uncheck();
+    await page
+      .getByRole("checkbox", { name: "Pin comments", exact: true })
+      .uncheck();
+    assert.ok(
+      !(
+        await page
+          .getByRole("textbox", { name: "AI sharing summary" })
+          .inputValue()
+      ).includes(sharingNote),
+    );
+    assert.equal(
+      await page
+        .getByRole("checkbox", { name: "Previous AI interpretation" })
+        .isEnabled(),
+      false,
+    );
+    await page.getByText("Preview shared JSON", { exact: true }).click();
+    const preview = JSON.parse(
+      await page
+        .getByRole("textbox", { name: "Shared JSON preview" })
+        .inputValue(),
+    );
+    assert.equal(preview.entries[0].note, "");
+    assert.equal(preview.entries[0].highlights.length, 2);
+    const sharingDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download sharing JSON" }).click();
+    const sharingPath = `${output}/sharing-${width}.json`;
+    await (await sharingDownload).saveAs(sharingPath);
+    const shared = JSON.parse(await readFile(sharingPath, "utf8"));
+    assert.equal(shared.entries[0].note, "");
+    assert.ok(
+      shared.entries[0].highlights.every((pin) => pin.comment === undefined),
+    );
+    assert.equal(
+      await page
+        .getByRole("textbox", { name: "Describe your discomfort" })
+        .inputValue(),
+      sharingNote,
+    );
+    await page.getByRole("checkbox", { name: "Entry notes and title" }).check();
+    assert.ok(
+      (
+        await page
+          .getByRole("textbox", { name: "AI sharing summary" })
+          .inputValue()
+      ).includes(sharingNote),
+    );
     const bundleDownload = page.waitForEvent("download");
     await page
-      .getByText("Full report with Grok or another AI", { exact: true })
+      .getByText("Suggested prompt and .ihm file", { exact: true })
       .click();
     await page.getByRole("button", { name: "Download .ihm map" }).click();
     const bundle = await bundleDownload;

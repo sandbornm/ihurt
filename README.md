@@ -22,6 +22,9 @@ iHurt helps you describe discomfort when words alone are hard to get right. Plac
 
 **[Open the browser notebook →](https://ihurt.app/try/)** · [Install locally](docs/SETUP.md) · [Optional AI tools](docs/PROVIDERS.md)
 
+Use your preferred AI with an exported map, or connect a local MCP host to
+selected exports with the optional [iHurt MCP package](docs/MCP.md).
+
 Entries stay in this browser on this device. Export a backup before clearing browser data or switching devices. After the first complete load, the notebook works offline. AI sharing is optional. [Privacy and limitations](docs/SAFETY.md).
 
 [Example report (PDF)](docs/examples/neck-tennis.pdf) · [Example journal (JSON)](docs/examples/neck-tennis.json)

@@ -48,10 +48,14 @@ public/models/        Licensed anatomy assets and attribution
 config/reading-library.json  Configurable source and reference catalog
 assembly/heat.ts      Heat kernel source; public/heat.wasm is built from it
 backend/              FastAPI, validated provider adapters, quota store
+packages/ihurt-mcp/    Optional stdio MCP server for selected journal exports
 tests/                Flow, limits, privacy, and mocked adapter checks
 ```
 
 ## App and website
+
+The [MCP package](MCP.md) has its own `uv.lock`, build, and CI checks. It shares
+the notebook export contract without adding dependencies to the app or web API.
 
 For the current graphics stack and a plan for pose demos, see [Body animation](ANIMATION.md).
 

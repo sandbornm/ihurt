@@ -1,0 +1,73 @@
+.voice-dialog {
+  width: min(35rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  border: 1px solid var(--line, #526158);
+  border-radius: 16px;
+  padding: 24px;
+  color: inherit;
+  background: var(--panel, #18221c);
+}
+.voice-dialog::backdrop {
+  background: #0009;
+}
+.voice-heading,
+.voice-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.voice-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.voice-heading button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 8px;
+}
+.voice-dialog p {
+  line-height: 1.5;
+}
+.voice-dialog a {
+  color: inherit;
+  font-size: 13px;
+}
+.voice-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+.voice-dialog textarea,
+.voice-dialog select {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--line, #526158);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0 12px;
+}
+.voice-dialog fieldset {
+  margin: 12px 0;
+  border: 1px solid var(--line, #526158);
+  border-radius: 8px;
+  padding: 12px;
+}
+.voice-field {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+  text-transform: none;
+}
+.voice-field input {
+  margin-top: 3px;
+}
+.voice-dialog .primary {
+  width: 100%;
+  padding: 12px;
+}

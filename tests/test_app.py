@@ -170,6 +170,7 @@ def test_production_fails_without_secure_configuration(settings):
 
 
 def test_audio_is_validated_before_provider_call(settings, monkeypatch):
+    settings.transcription_provider = "openai"
     class AudioProvider(DemoProvider):
         calls = 0
         async def transcribe(self, audio):

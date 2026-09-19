@@ -45,6 +45,8 @@ import {
   printMap,
 } from "./export";
 import { isNativeApp } from "./platform/files";
+import { applyVoiceDraft } from "./voice/draft";
+import type { VoiceDraftProps } from "./voice/VoiceDraft";
 import type { ViewportCapture } from "./anatomy/capture";
 import {
   blankEntry,
@@ -86,10 +88,12 @@ export default function Notebook({
   allowCamera = true,
   Assistant,
   Research,
+  VoiceInput,
 }: {
   example?: boolean;
   allowCamera?: boolean;
   Assistant?: ComponentType<AssistantProps>;
+  VoiceInput?: ComponentType<VoiceDraftProps>;
   Research?: ComponentType<{
     entry: SavedMap;
     sources: string[];
@@ -1111,6 +1115,22 @@ export default function Notebook({
                       maxLength={3000}
                     />
                     <div className="note-tools">
+                      {VoiceInput && (
+                        <VoiceInput
+                          entry={entry}
+                          onApply={(draft) => {
+                            const next = applyVoiceDraft(entry, draft);
+                            change({ note: next.note, map: next.map });
+                            if (draft.region) {
+                              selectRegion(draft.region);
+                              action("focus");
+                            }
+                            setToast(
+                              "Voice draft added. Review your entry, then save it.",
+                            );
+                          }}
+                        />
+                      )}
                       <span>{note.length}/3000</span>
                     </div>
                   </div>

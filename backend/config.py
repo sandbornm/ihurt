@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5-mini"
     openai_transcription_model: str = "gpt-4o-mini-transcribe"
+    transcription_provider: Literal["elevenlabs", "openai", "off"] = "elevenlabs"
+    elevenlabs_api_key: str = ""
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-haiku-4-5"
     xai_api_key: str = ""
@@ -44,7 +46,7 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires SESSION_SECRET with at least 32 characters.")
             if any(not origin.startswith("https://") for origin in self.allowed_origins) or "*" in self.allowed_hosts:
                 raise ValueError("Production requires explicit HTTPS origins and hosts.")
-            if (self.openai_api_key or self.anthropic_api_key or self.xai_api_key or self.local_model) and not (self.turnstile_site_key and self.turnstile_secret_key):
+            if (self.openai_api_key or self.anthropic_api_key or self.xai_api_key or self.local_model or self.elevenlabs_api_key) and not (self.turnstile_site_key and self.turnstile_secret_key):
                 raise ValueError("Public live mode requires both Turnstile keys.")
         if self.llm_provider == "openai" and not self.openai_api_key:
             raise ValueError("Set OPENAI_API_KEY or use LLM_PROVIDER=demo.")

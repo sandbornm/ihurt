@@ -14,6 +14,7 @@ export class ApiError extends Error {
 export async function api<T>(
   path: string,
   body?: unknown | FormData,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(`/api/${path}`, {
     method: body ? "POST" : "GET",
@@ -24,7 +25,7 @@ export async function api<T>(
         : undefined,
     body:
       body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(135000),
+    signal: signal ?? AbortSignal.timeout(135000),
   });
   const value = await response.json().catch(() => ({}));
   if (!response.ok) {

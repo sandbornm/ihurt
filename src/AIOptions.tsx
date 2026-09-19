@@ -4,13 +4,12 @@ import { api, ApiError } from "./api";
 import type { Answer, HurtMap, ProviderId, SavedMap, Session } from "./types";
 import { entryFingerprint } from "./notebook-data";
 import VisitorCheck from "./VisitorCheck";
-import VoiceNote from "./VoiceNote";
 export interface AssistantProps {
   entry: SavedMap;
   onSave: (analysis: NonNullable<SavedMap["ai"]>) => void;
   onNote: (text: string) => void;
 }
-export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
+export default function AIOptions({ entry, onSave }: AssistantProps) {
   const [open, setOpen] = useState(false),
     [session, setSession] = useState<Session | null>(null),
     [provider, setProvider] = useState<ProviderId>("demo");
@@ -199,7 +198,7 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
                   every pin.
                 </p>
               )}
-              {(live || session.transcription_available) && (
+              {live && (
                 <label className="consent">
                   <input
                     type="checkbox"
@@ -207,28 +206,10 @@ export default function AIOptions({ entry, onSave, onNote }: AssistantProps) {
                     onChange={(e) => setConsent(e.target.checked)}
                   />
                   <span>
-                    I agree to send this entry to the selected provider
-                    {session.transcription_available
-                      ? ", and recordings to OpenAI for transcription"
-                      : ""}
-                    .
+                    I agree to send this entry to the selected provider.
                   </span>
                 </label>
               )}
-              <VoiceNote
-                disabled={busy}
-                live={session.transcription_available}
-                consent={consent}
-                maxSeconds={session.max_audio_seconds}
-                challengeToken={token}
-                onText={onNote}
-                onError={setError}
-                onConsumed={resetChallenge}
-              />
-              <p className="subtle">
-                Browser dictation may use a remote speech service. Typing stays
-                in the notebook.
-              </p>
               <VisitorCheck
                 siteKey={session.turnstile_site_key}
                 nonce={nonce}

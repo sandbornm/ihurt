@@ -32,6 +32,8 @@ jobs:
         run: npm run test:controls
       - name: Check native export integration with a mocked bridge
         run: npm run test:ios-web
+      - name: Check voice drafts with synthetic audio
+        run: npm run test:voice
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -40,5 +42,6 @@ jobs:
             output/browser-check/
             output/controls/
             output/ios-check/
+            output/voice-check/
           retention-days: 3
           if-no-files-found: ignore

@@ -127,6 +127,7 @@ export interface Session {
   turnstile_site_key: string;
   max_audio_seconds: number;
   transcription_available: boolean;
+  transcription_provider: "ElevenLabs" | "OpenAI" | null;
 }
 export interface SavedMap {
   research?: {

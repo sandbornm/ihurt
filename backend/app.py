@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .config import Settings
 from .limits import Limits
 from .models import MapRequest
+from .transcription import create_transcriber
 from .providers import create_providers, possible_emergency, provider_error_message, SAFETY_MESSAGE
 
 
@@ -68,6 +69,7 @@ def create_app(settings: Settings | None = None, provider=None):
     settings = settings or Settings()
     limits = Limits(settings)
     providers = {"demo": provider} if provider else create_providers(settings)
+    transcriber, transcription_name = create_transcriber(settings, providers)
     signer = URLSafeTimedSerializer(settings.session_secret, salt="ihurt-visitor-v1")
     gate = asyncio.Semaphore(4)
 
@@ -119,7 +121,7 @@ def create_app(settings: Settings | None = None, provider=None):
             limits.mint_session(ip)
             owner = secrets.token_urlsafe(24)
             response.set_cookie("ihurt_visitor", signer.dumps(owner), max_age=86400, httponly=True, secure=settings.app_env == "production", samesite="strict")
-        return {"provider": settings.llm_provider, "providers": [{"id": key, "name": name, "available": key in providers} for key, name in [("demo", "Demo · no AI"), ("local", "Local model"), ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("grok", "Grok")]], "remaining": limits.remaining(owner, ip), "limit": settings.activities_per_day, "turn_limit": settings.turns_per_activity, "turnstile_site_key": settings.turnstile_site_key, "max_audio_seconds": settings.max_audio_seconds, "transcription_available": "openai" in providers}
+        return {"provider": settings.llm_provider, "providers": [{"id": key, "name": name, "available": key in providers} for key, name in [("demo", "Demo · no AI"), ("local", "Local model"), ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("grok", "Grok")]], "remaining": limits.remaining(owner, ip), "limit": settings.activities_per_day, "turn_limit": settings.turns_per_activity, "turnstile_site_key": settings.turnstile_site_key, "max_audio_seconds": settings.max_audio_seconds, "transcription_available": transcriber is not None, "transcription_provider": transcription_name}
 
     @app.post("/api/map")
     async def map_note(body: MapRequest, request: Request):
@@ -153,10 +155,10 @@ def create_app(settings: Settings | None = None, provider=None):
     @app.post("/api/transcribe")
     async def transcribe(request: Request, audio: UploadFile = File(...), consent: bool = Form(False), request_id: str = Form(..., pattern=r"^[a-f0-9-]{36}$"), challenge_token: str = Form("", max_length=2048)):
         owner, ip = identity(request)
-        if "openai" not in providers:
-            raise HTTPException(400, "Voice-note transcription requires OpenAI mode. Type or use device dictation in the meantime.")
+        if transcriber is None:
+            raise HTTPException(400, "Configure ELEVENLABS_API_KEY on the local server to transcribe recordings.")
         if not consent:
-            raise HTTPException(400, "Please agree to send this recording to OpenAI.")
+            raise HTTPException(400, f"Please agree to send this recording to {transcription_name}.")
         raw = await audio.read(settings.max_audio_bytes + 1)
         await audio.close()
         if len(raw) > settings.max_audio_bytes:
@@ -185,7 +187,7 @@ def create_app(settings: Settings | None = None, provider=None):
         async with gate:
             limits.reserve(owner, ip, request_id, None, kind="audio", paid=True)
             try:
-                text = await asyncio.wait_for(providers["openai"].transcribe(cleaned.getvalue()), timeout=40)
+                text = await asyncio.wait_for(transcriber.transcribe(cleaned.getvalue()), timeout=40)
                 return {"text": text}
             except Exception:
                 raise HTTPException(502, "The recording could not be transcribed. You can type your note instead.") from None

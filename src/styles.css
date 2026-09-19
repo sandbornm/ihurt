@@ -1057,7 +1057,7 @@ h1 > span {
 .primary {
   width: 100%;
   background: var(--lime);
-  color: #203018 !important;
+  color: #203018;
   border: 1px solid #b7e78c;
   border-radius: 8px;
   font-size: 12px;

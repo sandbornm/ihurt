@@ -108,6 +108,46 @@ native compilation is delegated to CI and camera validation remains a device tas
 
 ## Code boundaries
 
+### Dictation on iOS
+
+The iOS speech adapter uses Apple's Speech framework and the microphone. It keeps
+audio in memory and requires on-device recognition for the current device language.
+Both [`supportsOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognizer/supportsondevicerecognition)
+and [`requiresOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognitionrequest/requiresondevicerecognition)
+must allow that mode. If the device or language cannot run it, the UI offers typing;
+it does not fall back to Apple's servers or the web transcription provider.
+
+Checking availability does not request permission. Starting dictation asks for
+Speech Recognition and Microphone access. Partial transcripts replace the text for
+the current recording, so earlier words are not appended repeatedly. The shared
+draft UI owns review and saving; the native plugin does not infer symptoms or
+create pins.
+
+Stopping releases the microphone and waits up to five seconds for Apple's final
+text. A recording finishes after one minute. Cancelling discards pending callbacks.
+Backgrounding, an audio interruption, or a recognition error also releases the
+microphone and tells the review UI that recording ended. iHurt does not save audio
+files. Apple framework calls have no metered provider API cost in this implementation.
+Capacitor bridge logging is disabled so exported notes and transcripts are not
+copied into the Xcode console.
+
+`AppleSpeechPlugin.swift` owns permissions, recording, and recognition.
+`NotebookViewController.swift` registers it with the Capacitor bridge.
+`src/platform/apple-speech.ts` adapts native events to the framework-free speech
+interface; its tests cover final-text ordering, cancellation, permission-time
+races, automatic completion, and retry after errors. The shared voice UI and the
+web transcription provider are maintained separately.
+
+On a physical device, verify permission denial/retry, unsupported languages,
+airplane-mode dictation, explicit stop/final text, cancellation, the one-minute
+limit, incoming-call interruptions, and background/resume. Check that the microphone
+indicator clears after each exit and that cancelled or earlier sessions cannot
+overwrite a new draft. Try dictation while Hands is enabled to check audio-session
+and camera coexistence. Simulator compilation and mocked adapter tests do not
+validate recognition quality, language assets, or microphone behavior.
+
+### Shared app and native adapters
+
 - `src/platform/files.ts` is the framework-free export adapter used by Notebook.
 - `src/platform/native.ts` connects the adapter to Capacitor and is imported only
   by the standalone `src/main.tsx` entry. The separate website can continue to

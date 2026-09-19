@@ -26,6 +26,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Use your front camera to control the body map with your hands. Camera frames stay on your device.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Dictate a notebook draft. Audio is processed on your device and is not saved by iHurt.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Turn your spoken words into an editable notebook draft using on-device Apple speech recognition.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>

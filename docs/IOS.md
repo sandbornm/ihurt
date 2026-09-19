@@ -138,6 +138,12 @@ interface; its tests cover final-text ordering, cancellation, permission-time
 races, automatic completion, and retry after errors. The shared voice UI and the
 web transcription provider are maintained separately.
 
+`npm run test:ios-speech` opens the packaged web UI with a mocked Capacitor speech
+bridge. It checks partial replacement, final text after Stop, automatic completion,
+permission failure and retry, cancellation while permission is pending, background
+cleanup, and applying a reviewed draft. It captures no audio and makes no provider
+calls. Both browser checks run in CI alongside the unsigned iOS compilation.
+
 On a physical device, verify permission denial/retry, unsupported languages,
 airplane-mode dictation, explicit stop/final text, cancellation, the one-minute
 limit, incoming-call interruptions, and background/resume. Check that the microphone

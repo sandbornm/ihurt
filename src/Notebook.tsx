@@ -72,6 +72,7 @@ import IntensityDial from "./IntensityDial";
 import ThemeToggle from "./ThemeToggle";
 import Tutorial from "./Tutorial";
 import ShareWithAI from "./sharing/ShareWithAI";
+import Feedback from "./feedback/Feedback";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
@@ -1422,6 +1423,7 @@ export default function Notebook({
             </div>
           )}
           <footer className="page-footer">
+            <Feedback />
             <span>
               <ShieldCheck size={13} />A personal journal. Not medical advice.
             </span>

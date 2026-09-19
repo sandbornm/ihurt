@@ -34,6 +34,8 @@ jobs:
         run: npm run test:ios-web
       - name: Check voice drafts with synthetic audio
         run: npm run test:voice
+      - name: Check Apple speech integration with a mocked bridge
+        run: npm run test:ios-speech
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -43,5 +45,6 @@ jobs:
             output/controls/
             output/ios-check/
             output/voice-check/
+            output/ios-speech-check/
           retention-days: 3
           if-no-files-found: ignore

@@ -25,7 +25,8 @@
     "ios:open": "cap open ios",
     "ios:build": "node scripts/ios-build.mjs",
     "test:ios-web": "node scripts/ios-browser-check.mjs",
-    "test:voice": "node scripts/voice-browser-check.mjs"
+    "test:voice": "node scripts/voice-browser-check.mjs",
+    "test:ios-speech": "node scripts/ios-speech-browser-check.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

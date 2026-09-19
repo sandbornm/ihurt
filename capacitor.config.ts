@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: "app.ihurt.notebook",
   appName: "iHurt",
   webDir: "dist/app",
+  loggingBehavior: "none",
   server: { hostname: "localhost", iosScheme: "capacitor" },
   ios: {
     contentInset: "automatic",

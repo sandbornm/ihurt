@@ -4,11 +4,7 @@ import { nativeSpeech } from "../platform/speech";
 import { isNativeApp } from "../platform/files";
 import { regionName, type SavedMap } from "../types";
 import VisitorCheck from "../VisitorCheck";
-import {
-  localVoiceClient,
-  type VoiceClient,
-  type VoiceSession,
-} from "./client";
+import type { VoiceClient, VoiceSession } from "./client";
 import {
   suggestVoiceDraft,
   type DraftFields,
@@ -23,7 +19,7 @@ export interface VoiceDraftProps {
 }
 
 export default function VoiceDraft(
-  props: VoiceDraftProps & { client?: VoiceClient },
+  props: VoiceDraftProps & { client: VoiceClient },
 ) {
   const [open, setOpen] = useState(false);
   return (
@@ -50,8 +46,8 @@ function VoiceEditor({
   entry,
   onApply,
   close,
-  client = localVoiceClient,
-}: VoiceDraftProps & { client?: VoiceClient; close(): void }) {
+  client,
+}: VoiceDraftProps & { client: VoiceClient; close(): void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [text, setText] = useState("");
   const [mode, setMode] = useState<
@@ -360,7 +356,7 @@ function VoiceEditor({
               setError("");
             }}
           >
-            Cancel recording
+            {mode === "processing" ? "Discard result" : "Cancel recording"}
           </button>
         )}
       </div>

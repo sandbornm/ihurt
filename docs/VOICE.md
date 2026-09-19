@@ -30,7 +30,9 @@ Existing OpenAI transcription is an explicit opt-in with
 `TRANSCRIPTION_PROVIDER=openai` and a server-side `OPENAI_API_KEY`.
 
 Recordings stop after 60 seconds. Stopping or reaching that limit sends the audio
-through the server to the selected provider. Canceling discards the recording.
+through the server to the selected provider. Cancel before stopping to discard
+the recording without uploading it. After upload starts, discarding the result
+cannot retract audio the provider has already received.
 The server validates a mono, 16-bit, 16 kHz WAV and strips metadata before sending
 it. Audio stays in memory for the request; provider retention rules still apply.
 There is no claim of zero retention at ElevenLabs.

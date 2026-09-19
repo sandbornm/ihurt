@@ -1,0 +1,58 @@
+.feedback-dialog {
+  font-size: 14px;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--ink, inherit);
+  text-align: left;
+}
+.feedback-dialog::backdrop {
+  background: #0009;
+}
+.feedback-heading,
+.feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.feedback-heading {
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.feedback-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.feedback-heading button {
+  padding: 8px;
+}
+.feedback-dialog textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: inherit;
+}
+.feedback-dialog p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.feedback-actions {
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.feedback-actions a {
+  text-decoration: none;
+}
+.feedback-actions a[aria-disabled="true"] {
+  opacity: 0.42;
+  cursor: not-allowed;
+}

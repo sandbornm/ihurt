@@ -9,6 +9,7 @@ import { PinGesture } from "./gesture";
 import { advanceCamera, applyHandDelta, nudgeCamera } from "./motion";
 import HandCamera from "./HandCamera";
 import type { HandDelta, HandTap } from "./hands";
+import type { HandEntryControls, HandPin, HandTarget } from "./hand-entry";
 import { nearbySurfaces, surfaceNearViewCenter } from "./selection";
 import { captureViewport, type ViewportCapture } from "./capture";
 import { LayerSpread } from "./spread";
@@ -42,6 +43,7 @@ interface Props {
   captureRef?: RefObject<(() => ViewportCapture | null) | null>;
   showSkeleton?: boolean;
   onOrientation?: (view: "front" | "back" | null) => void;
+  handEntry?: HandEntryControls;
 }
 type Candidate = { mesh: T.Object3D; point: PainPoint };
 
@@ -58,14 +60,15 @@ export default function Anatomy(props: Props) {
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   latest.current = props;
+  const handRatingActive = useRef(false);
   const engine = useRef<{
     update: () => void;
     command: (type: string) => void;
     preview: (candidate: Candidate | null) => void;
     spread: (amount: number, options: Candidate[]) => void;
     hands: (delta: HandDelta) => void;
-    handsAim: (point: HandTap | null) => void;
-    handsTap: (point: HandTap) => void;
+    handsAim: (point: HandTap | null) => HandTarget | null;
+    handsPin: (point: HandTap) => HandPin | null;
   } | null>(null);
   const [dragMode, setDragMode] = useState<
     "pin" | "turn" | "move" | "highlight"
@@ -344,7 +347,7 @@ export default function Anatomy(props: Props) {
           : null;
         const cacheKey = [
           isSelected ? 1 : 0,
-          p.intensity,
+          nearby.length || regionHeat ? p.intensity : "unpainted",
           mappedKey,
           nearby.length,
           nearby
@@ -676,8 +679,8 @@ export default function Anatomy(props: Props) {
         spread.highlight(previewMesh as T.Mesh | null);
         update();
       },
-      handsAim: () => {},
-      handsTap: () => {},
+      handsAim: () => null,
+      handsPin: () => null,
     };
     if (latest.current.captureRef)
       latest.current.captureRef.current = () => {
@@ -979,7 +982,7 @@ export default function Anatomy(props: Props) {
       clientY: number,
       forcePicker = false,
       targetRegion?: RegionId,
-      intent: "commit" | "preview" | "pick" = "commit",
+      intent: "commit" | "preview" | "pick" | "hands" = "commit",
     ) {
       if (!root.dataset.atlas) return;
       camera.updateMatrixWorld();
@@ -1038,8 +1041,8 @@ export default function Anatomy(props: Props) {
             .replace(/\.\d+$/, "")
             .replace(/_/g, " ") || "Selected surface";
         const hint = surface
-          ? `Pointing at ${name} · tap thumb to index to pin`
-          : "Point at the body, then tap thumb to index";
+          ? `Pointing at ${name} · hold still to pin`
+          : "Point at a muscle and hold still";
         if (aimMesh === surface && lastHandsHint === hint) return;
         lastHandsHint = hint;
         setPickHint(hint);
@@ -1051,6 +1054,7 @@ export default function Anatomy(props: Props) {
       if (
         options.length &&
         latest.current.navigation &&
+        intent !== "hands" &&
         (interaction.current.layers ||
           forcePicker ||
           (intent === "pick" && options.length > 1))
@@ -1064,11 +1068,12 @@ export default function Anatomy(props: Props) {
         aimMesh = null;
         latest.current.onSelect(options[0].point.region);
         latest.current.onPoint?.(options[0].point);
+        return options[0].point;
       } else if (forcePicker || intent === "pick") {
         setLayers(intent !== "pick");
         setPickHint(
           intent === "pick"
-            ? "Point at the body, then tap thumb to index"
+            ? "Point at a muscle and hold still"
             : "Click the visible muscle to choose a pin location",
         );
       }
@@ -1124,20 +1129,23 @@ export default function Anatomy(props: Props) {
           spread.active
         ) {
           clearAim();
-          return;
+          return null;
         }
         const at = overlayPoint(point);
         pickAt(at.x, at.y, false, undefined, "preview");
+        return aimMesh ? { key: aimMesh.uuid, label: aimMesh.name } : null;
       };
-      engine.current.handsTap = (point) => {
+      engine.current.handsPin = (point) => {
         if (
           interaction.current.dragMode === "highlight" ||
           previewMesh ||
           spread.active
         )
-          return;
+          return null;
         const at = overlayPoint(point);
-        pickAt(at.x, at.y, false, undefined, "pick");
+        const placed = pickAt(at.x, at.y, false, undefined, "hands");
+        clearAim();
+        return placed ? { id: placed.id, label: placed.structure } : null;
       };
     }
     renderer.domElement.addEventListener("pointerdown", down, true);
@@ -1221,7 +1229,6 @@ export default function Anatomy(props: Props) {
     [
       props.selected,
       mappedKey,
-      props.intensity,
       props.layer,
       props.showSkeleton,
       pointsKey,
@@ -1229,6 +1236,9 @@ export default function Anatomy(props: Props) {
       surroundings,
     ],
   );
+  useEffect(() => {
+    if (!handRatingActive.current) engine.current?.update();
+  }, [props.intensity]);
   useEffect(() => {
     setCandidates([]);
     engine.current?.command("context");
@@ -1328,7 +1338,7 @@ export default function Anatomy(props: Props) {
             <small>
               {pickHint ||
                 (hands
-                  ? "Fist to turn · Two fists pull to zoom · Point and tap thumb to index to pin"
+                  ? "Fist to turn · Two fists pull to zoom · Point and hold to pin"
                   : dragMode === "highlight"
                     ? "Drag over the body to highlight an area"
                     : layers
@@ -1341,8 +1351,18 @@ export default function Anatomy(props: Props) {
           <HandCamera
             active={hands}
             onMotion={(delta) => engine.current?.hands(delta)}
-            onAim={(point) => engine.current?.handsAim(point)}
-            onTap={(point) => engine.current?.handsTap(point)}
+            onAim={(point) => engine.current?.handsAim(point) ?? null}
+            onPin={(point) => engine.current?.handsPin(point) ?? null}
+            intensity={props.intensity}
+            onRatingActive={(active) => {
+              if (handRatingActive.current === active) return;
+              handRatingActive.current = active;
+              if (!active) engine.current?.update();
+            }}
+            entryControls={props.handEntry}
+            hasPin={(id) =>
+              !!latest.current.points?.some((point) => point.id === id)
+            }
           />
           {muscleBrowser && (
             <div

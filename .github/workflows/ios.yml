@@ -1,0 +1,36 @@
+name: iOS simulator
+on:
+  pull_request:
+    paths:
+      - ios/**
+      - src/**
+      - public/**
+      - capacitor.config.ts
+      - package*.json
+      - scripts/ios-*.mjs
+      - .github/workflows/ios.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run ios:sync
+      - name: Build without signing
+        run: npm run ios:build

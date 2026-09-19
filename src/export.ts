@@ -6,6 +6,7 @@ import {
 } from "./notebook-data.ts";
 import type { ViewportCapture } from "./anatomy/capture";
 import { intensityColor } from "./anatomy/intensity.ts";
+import { saveExport } from "./platform/files.ts";
 
 const escape = (s: string) =>
   s.replace(
@@ -151,31 +152,28 @@ export function stringifyIhm(map: SavedMap) {
 }
 export function download(map: SavedMap, format: "svg" | "json" | "ihm") {
   const content = format === "svg" ? renderMapSvg(map) : stringifyIhm(map);
-  const blob = new Blob([content], {
-    type: format === "svg" ? "image/svg+xml" : "application/json",
+  return saveExport({
+    name: `ihurt-map-${map.created.slice(0, 10)}.${format}`,
+    content,
+    mimeType: format === "svg" ? "image/svg+xml" : "application/json",
   });
-  const url = URL.createObjectURL(blob),
-    a = document.createElement("a");
-  a.href = url;
-  a.download = `ihurt-map-${map.created.slice(0, 10)}.${format}`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function downloadNotebook(entries: SavedMap[]) {
-  const url = URL.createObjectURL(
-    new Blob([stringifyNotebook(entries)], { type: "application/json" }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `ihurt-notebook-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return saveExport({
+    name: `ihurt-notebook-${new Date().toISOString().slice(0, 10)}.json`,
+    content: stringifyNotebook(entries),
+    mimeType: "application/json",
+  });
 }
 export function downloadViewport(view: ViewportCapture, created: string) {
-  const link = document.createElement("a");
-  link.href = view.image;
-  link.download = `ihurt-view-${created.slice(0, 10)}.png`;
-  link.click();
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(view.image))
+    throw new Error("The map image is unavailable.");
+  return saveExport({
+    name: `ihurt-view-${created.slice(0, 10)}.png`,
+    content: view.image.slice("data:image/png;base64,".length),
+    mimeType: "image/png",
+    base64: true,
+  });
 }
 function printProse(text: string) {
   const inline = (value: string) =>
@@ -287,4 +285,17 @@ export function printMap(entry: SavedMap, view?: ViewportCapture): boolean {
   popup.document.write(renderPrintHtml(entry, view));
   popup.document.close();
   return true;
+}
+
+export function downloadReport(entry: SavedMap, view?: ViewportCapture) {
+  // Reports are self-contained. Opening a saved report cannot load remote code.
+  const content = renderPrintHtml(entry, view).replace(
+    '<meta charset="utf-8">',
+    '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">',
+  );
+  return saveExport({
+    name: `ihurt-report-${entry.created.slice(0, 10)}.html`,
+    content,
+    mimeType: "text/html",
+  });
 }

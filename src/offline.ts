@@ -1,4 +1,8 @@
+import { isNativeApp } from "./platform/files";
+
 export async function prepareOffline() {
+  // The native app bundles the complete notebook, anatomy, and hand model.
+  if (isNativeApp()) return true;
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return false;
   if (document.readyState !== "complete")
     await new Promise<void>((resolve) =>

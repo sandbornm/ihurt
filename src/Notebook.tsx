@@ -41,8 +41,10 @@ import {
   download,
   downloadNotebook,
   downloadViewport,
+  downloadReport,
   printMap,
 } from "./export";
+import { isNativeApp } from "./platform/files";
 import type { ViewportCapture } from "./anatomy/capture";
 import {
   blankEntry,
@@ -461,7 +463,16 @@ export default function Notebook({
   function backup() {
     const records = new Map(saved.map((e) => [e.id, e]));
     if (valid) records.set(entry.id, currentEntry());
-    downloadNotebook([...records.values()]);
+    void exportFile(() => downloadNotebook([...records.values()]));
+  }
+  async function exportFile(work: () => Promise<string>) {
+    try {
+      setToast(await work());
+    } catch {
+      setError(
+        "The file could not be saved. Check available storage and try again.",
+      );
+    }
   }
   return (
     <div
@@ -579,8 +590,9 @@ export default function Notebook({
               <div className="journal-heading">
                 <h2>Your entries</h2>
                 <p>
-                  Saved in this browser. Export a backup before clearing browser
-                  data or changing devices.
+                  {isNativeApp()
+                    ? "Saved on your device. Export a backup before uninstalling or changing devices."
+                    : "Saved in this browser. Export a backup before clearing browser data or changing devices."}
                 </p>
                 <div className="notebook-tools">
                   <button
@@ -655,7 +667,9 @@ export default function Notebook({
                         </button>
                         <button
                           className="text-button"
-                          onClick={() => download(item, "json")}
+                          onClick={() =>
+                            void exportFile(() => download(item, "json"))
+                          }
                         >
                           Export JSON
                           <ArrowDownToLine size={14} />
@@ -1259,7 +1273,11 @@ export default function Notebook({
                     <div className="export-pair">
                       <button
                         className="secondary"
-                        onClick={() => download(currentEntry(), "json")}
+                        onClick={() =>
+                          void exportFile(() =>
+                            download(currentEntry(), "json"),
+                          )
+                        }
                         disabled={!valid}
                       >
                         <ArrowDownToLine size={16} />
@@ -1269,7 +1287,10 @@ export default function Notebook({
                         className="secondary"
                         onClick={() => {
                           const image = capture.current?.();
-                          if (image) downloadViewport(image, entry.created);
+                          if (image)
+                            void exportFile(() =>
+                              downloadViewport(image, entry.created),
+                            );
                           else
                             setError(
                               "The 3D view is not ready for a picture yet.",
@@ -1310,6 +1331,15 @@ export default function Notebook({
                     className="text-button"
                     disabled={!valid}
                     onClick={() => {
+                      if (isNativeApp()) {
+                        void exportFile(() =>
+                          downloadReport(
+                            currentEntry(),
+                            capture.current?.() ?? undefined,
+                          ),
+                        );
+                        return;
+                      }
                       if (
                         !printMap(
                           currentEntry(),
@@ -1321,7 +1351,7 @@ export default function Notebook({
                         );
                     }}
                   >
-                    Print / Save PDF
+                    {isNativeApp() ? "Save / share report" : "Print / Save PDF"}
                     <ArrowUpRight size={14} />
                   </button>
                   <ShareWithAI entry={currentEntry()} valid={valid} />
@@ -1443,10 +1473,9 @@ export default function Notebook({
           </button>
         </div>
         <p>
-          Entries and drafts are stored in this browser on your device. They
-          survive refreshes. Clearing browser data or using a private window can
-          remove them; export backups you want to keep. The app does not encrypt
-          browser storage.
+          {isNativeApp()
+            ? "Entries and drafts stay in this app on your device. They survive normal relaunches. Uninstalling the app removes them. Export a notebook backup to keep a separate copy or move to another device. Your notebook does not sync automatically. The app does not add its own storage encryption."
+            : "Entries and drafts are stored in this browser on your device. They survive refreshes. Clearing browser data or using a private window can remove them; export backups you want to keep. The app does not encrypt browser storage."}
         </p>
         <p>
           Nothing is sent to an AI unless you choose to share or use the

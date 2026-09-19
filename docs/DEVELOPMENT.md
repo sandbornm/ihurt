@@ -66,3 +66,8 @@ The site imports the shared notebook without the local provider integration. `/t
 ## License
 
 iHurt's original source, schematic fallback, report silhouettes, and heat kernel are [MIT licensed](../LICENSE). The bundled Z-Anatomy/BodyParts3D models have **separate Creative Commons attribution and share-alike requirements**. See the [full anatomy credits](../public/models/ATTRIBUTION.md), [upstream notice](../public/models/UPSTREAM-LICENSE.txt), and [file provenance](../public/models/sources.json) before redistributing or modifying anatomy assets. The MIT license does not relicense them. The Draco decoder is Apache 2.0 licensed. Other dependencies retain their own licenses.
+
+## iOS
+
+See [the iOS guide](IOS.md) for the Capacitor build, local notebook storage,
+native Files exports, and front-camera device checks.

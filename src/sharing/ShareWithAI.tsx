@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownToLine, Copy } from "lucide-react";
 import type { SavedMap } from "../types";
 import { download, stringifyIhm } from "../export";
+import { isNativeApp } from "../platform/files";
 import { aiPrompt } from "../notebook-data";
 import {
   defaultSharing,
@@ -48,6 +49,15 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
       setStatus(success);
     } catch {
       setStatus("Clipboard unavailable. Select and copy the text below.");
+    }
+  }
+  async function save(format: "json" | "ihm") {
+    try {
+      setStatus(await download(shared, format));
+    } catch {
+      setStatus(
+        "The file could not be saved. Check available storage and try again.",
+      );
     }
   }
   return (
@@ -105,10 +115,10 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
         <button
           className="secondary"
           disabled={!valid}
-          onClick={() => download(shared, "json")}
+          onClick={() => void save("json")}
         >
           <ArrowDownToLine size={15} />
-          Download sharing JSON
+          {isNativeApp() ? "Save / share JSON" : "Download sharing JSON"}
         </button>
       </div>
       <details onToggle={(event) => setPreview(event.currentTarget.open)}>
@@ -146,10 +156,10 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
           <button
             className="secondary"
             disabled={!valid}
-            onClick={() => download(shared, "ihm")}
+            onClick={() => void save("ihm")}
           >
             <ArrowDownToLine size={15} />
-            Download .ihm map
+            {isNativeApp() ? "Save / share .ihm" : "Download .ihm map"}
           </button>
         </div>
       </details>

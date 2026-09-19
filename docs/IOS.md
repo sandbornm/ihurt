@@ -125,7 +125,7 @@ create pins.
 
 Stopping releases the microphone and waits up to five seconds for Apple's final
 text. A recording finishes after one minute. Cancelling discards pending callbacks.
-Backgrounding, an audio interruption, or a recognition error also releases the
+Backgrounding, navigation/reload, an audio interruption, or a recognition error releases the
 microphone and tells the review UI that recording ended. iHurt does not save audio
 files. Apple framework calls have no metered provider API cost in this implementation.
 Capacitor bridge logging is disabled so exported notes and transcripts are not

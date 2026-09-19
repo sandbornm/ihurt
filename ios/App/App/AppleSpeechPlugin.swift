@@ -2,6 +2,7 @@ import AVFoundation
 import Capacitor
 import Speech
 import UIKit
+import WebKit
 
 @objc(AppleSpeechPlugin)
 public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -31,6 +32,13 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     private var observers: [NSObjectProtocol] = []
 
     public override func load() {
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .capacitorDecidePolicyForNavigationAction, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let navigation = notification.object as? WKNavigationAction,
+                  navigation.targetFrame?.isMainFrame == true else { return }
+            self?.finish(error: "Recording stopped because the page changed.")
+        })
         observers.append(NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -197,7 +205,10 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            let id = call.getString("session")
+            guard let id = call.getString("session"), UUID(uuidString: id) != nil else {
+                call.reject("Invalid recording session.")
+                return
+            }
             guard self.session != nil, self.session == id else {
                 if self.completedSession == id {
                     if let error = self.completedError { call.reject(error) }
@@ -239,10 +250,14 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func cancel(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            if self.session == call.getString("session") {
+            guard let id = call.getString("session"), UUID(uuidString: id) != nil else {
+                call.reject("Invalid recording session.")
+                return
+            }
+            if self.session == id {
                 self.finish(error: "Recording cancelled.", notify: false)
                 self.transcript = ""
-            } else if self.completedSession == call.getString("session") {
+            } else if self.completedSession == id {
                 self.transcript = ""
                 self.completedSession = nil
                 self.completedError = nil

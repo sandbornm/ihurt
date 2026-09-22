@@ -47,6 +47,13 @@ Public hosting needs its own protected endpoint and restricted secret. Do not
 expose the local Python server to the internet. This change prepares the shared
 voice UI and local provider; it does not deploy a public transcription service.
 
+Closing the voice panel or pressing Escape keeps the reviewed text, field choices,
+and selected area in memory. Reopen **Review voice draft** to continue, or use
+**Discard draft** to clear it. Adding the draft clears that review and saves its
+text with the entry. Leaving the entry view, switching entries, or reloading clears
+an unapplied review; audio is never kept for reopening. Closing during recording
+or upload cancels that attempt and preserves the text from before it started.
+
 ## iOS
 
 The native adapter uses Apple speech when the device and language support

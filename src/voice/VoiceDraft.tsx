@@ -18,10 +18,21 @@ export interface VoiceDraftProps {
   onApply(value: VoiceDraftValue): void;
 }
 
+interface ReviewDraft {
+  text: string;
+  fields: Record<string, boolean>;
+  region: string;
+}
+
 export default function VoiceDraft(
   props: VoiceDraftProps & { client: VoiceClient },
 ) {
+  return <EntryVoiceDraft key={props.entry.id} {...props} />;
+}
+
+function EntryVoiceDraft(props: VoiceDraftProps & { client: VoiceClient }) {
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<ReviewDraft>();
   return (
     <>
       <button
@@ -29,13 +40,18 @@ export default function VoiceDraft(
         type="button"
         onClick={() => setOpen(true)}
       >
-        <Mic size={15} /> Use voice
+        <Mic size={15} />{" "}
+        {draft?.text.trim() ? "Review voice draft" : "Use voice"}
       </button>
       {open && (
         <VoiceEditor
           key={props.entry.id}
           {...props}
-          close={() => setOpen(false)}
+          draft={draft}
+          close={(pending) => {
+            setDraft(pending);
+            setOpen(false);
+          }}
         />
       )}
     </>
@@ -47,9 +63,14 @@ function VoiceEditor({
   onApply,
   close,
   client,
-}: VoiceDraftProps & { client: VoiceClient; close(): void }) {
+  draft,
+}: VoiceDraftProps & {
+  client: VoiceClient;
+  draft?: ReviewDraft;
+  close(pending?: ReviewDraft): void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(draft?.text ?? "");
   const [mode, setMode] = useState<
     "loading" | "idle" | "starting" | "recording" | "processing"
   >("loading");
@@ -59,13 +80,15 @@ function VoiceEditor({
   const [challenge, setChallenge] = useState("");
   const [nonce, setNonce] = useState(0);
   const [seconds, setSeconds] = useState(0);
-  const [region, setRegion] = useState("");
-  const [fields, setFields] = useState<Record<string, boolean>>({
-    intensity: entry.map.intensity === null,
-    quality: !entry.map.quality,
-    activity: !entry.map.activity,
-    duration: !entry.map.duration,
-  });
+  const [region, setRegion] = useState(draft?.region ?? "");
+  const [fields, setFields] = useState<Record<string, boolean>>(
+    draft?.fields ?? {
+      intensity: entry.map.intensity === null,
+      quality: !entry.map.quality,
+      activity: !entry.map.activity,
+      duration: !entry.map.duration,
+    },
+  );
   const speech = useRef(nativeSpeech()).current;
   const recording = useRef<Recording | null>(null);
   const upload = useRef<AbortController | null>(null);
@@ -81,6 +104,10 @@ function VoiceEditor({
   );
   const suggestions = useMemo(() => suggestVoiceDraft(text), [text]);
   const busy = ["starting", "recording", "processing"].includes(mode);
+
+  function dismiss() {
+    close({ text: busy ? previousText.current : text, fields, region });
+  }
 
   function cancelCapture() {
     generation.current++;
@@ -285,12 +312,12 @@ function VoiceEditor({
       aria-labelledby="voice-title"
       onCancel={(event) => {
         event.preventDefault();
-        close();
+        dismiss();
       }}
     >
       <div className="voice-heading">
         <h2 id="voice-title">Speak, then review</h2>
-        <button type="button" onClick={close} aria-label="Close voice draft">
+        <button type="button" onClick={dismiss} aria-label="Close voice draft">
           <X size={18} />
         </button>
       </div>
@@ -420,6 +447,10 @@ function VoiceEditor({
         The transcript appends to your note. Choose the exact surface on the
         body to add a pin.
       </p>
+      <p className="subtle">
+        Closing this panel keeps your draft while you stay in this view. Add it
+        to your entry to save it.
+      </p>
       {error && (
         <p role="alert" className="error-notice">
           {error}
@@ -432,6 +463,14 @@ function VoiceEditor({
         onClick={apply}
       >
         Add to entry
+      </button>
+      <button
+        type="button"
+        className="text-button voice-discard"
+        disabled={busy || !text.trim()}
+        onClick={() => close()}
+      >
+        Discard draft
       </button>
     </dialog>
   );

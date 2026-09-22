@@ -190,6 +190,37 @@ try {
   );
   assert.equal(uploads, 1);
 
+  await page
+    .getByRole("button", { name: "Review voice draft", exact: true })
+    .click();
+  assert.equal(
+    await dialog
+      .getByRole("textbox", { name: "Review transcript" })
+      .inputValue(),
+    "Keep this edited transcript.",
+  );
+  await dialog
+    .getByRole("textbox", { name: "Review transcript" })
+    .fill("My left calf feels tight, four out of ten. Activity: running.");
+  await dialog.getByRole("checkbox", { name: /intensity: 4/ }).check();
+  await dialog.getByRole("combobox").selectOption("left_calf");
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Review voice draft", exact: true })
+    .click();
+  assert.equal(
+    await dialog.getByRole("checkbox", { name: /intensity: 4/ }).isChecked(),
+    true,
+  );
+  assert.equal(await dialog.getByRole("combobox").inputValue(), "left_calf");
+  assert.equal(
+    await note.inputValue(),
+    "An earlier observation.\n\nMy left calf feels tight, four out of ten. Activity: running. Duration: since yesterday.",
+  );
+  await dialog
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
+
   configured = false;
   await page.getByRole("button", { name: "Use voice", exact: true }).click();
   await dialog.getByRole("alert").waitFor();
@@ -206,9 +237,29 @@ try {
     .getByRole("button", { name: "Add to entry", exact: true })
     .click();
   assert.match(await note.inputValue(), /A typed observation\.$/);
+  await page.getByRole("button", { name: "Use voice", exact: true }).click();
+  assert.equal(
+    await dialog
+      .getByRole("textbox", { name: "Review transcript" })
+      .inputValue(),
+    "",
+  );
+  await dialog
+    .getByRole("textbox", { name: "Review transcript" })
+    .fill("Only for the old entry.");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "New entry", exact: true }).click();
+  await page.getByRole("button", { name: "Use voice", exact: true }).click();
+  assert.equal(
+    await dialog
+      .getByRole("textbox", { name: "Review transcript" })
+      .inputValue(),
+    "",
+  );
+  assert.equal(uploads, 1);
   assert.deepEqual(errors, []);
   console.log(
-    "Voice review, field preservation, cancellation, microphone cleanup, and offline transcript checks passed.",
+    "Voice review, draft recovery, entry isolation, field preservation, cancellation, microphone cleanup, and offline transcript checks passed.",
   );
   await context.close();
 } finally {

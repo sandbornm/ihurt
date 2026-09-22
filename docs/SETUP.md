@@ -34,6 +34,14 @@ npm run dev:ai
 
 Setup creates a private `.env` without overwriting existing keys. Put the Grok key in `XAI_API_KEY`; configure other providers using the [provider guide](PROVIDERS.md). Keys stay on the local Python server. Cloud providers charge separately for usage; local models use your hardware.
 
+## Optional voice drafts
+
+Web recording uses ElevenLabs through the local Python server. Follow the
+[voice setup guide](VOICE.md#web-and-local-server) for key permissions, `.env`
+settings, costs, and a check that makes no paid request. Voice works with
+`LLM_PROVIDER=demo`; you do not need another AI provider. Typed voice drafts and
+Apple on-device speech on supported iPhones do not need an ElevenLabs key.
+
 ## Troubleshooting
 
 - **AI tools unavailable:** run `npm run dev:ai`. Saving, editing, and exports work without this server.

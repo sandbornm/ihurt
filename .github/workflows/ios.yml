@@ -1,13 +1,39 @@
 name: iOS simulator
 on:
+  push:
+    branches: [main]
+    paths:
+      - ios/**
+      - src/**
+      - public/**
+      - assembly/**
+      - LICENSE
+      - index.html
+      - capacitor.config.ts
+      - vite.config.ts
+      - tsconfig.json
+      - package*.json
+      - scripts/ios-*.mjs
+      - scripts/setup.mjs
+      - scripts/fetch_mediapipe.py
+      - scripts/offline-build.mjs
+      - .github/workflows/ios.yml
   pull_request:
     paths:
       - ios/**
       - src/**
       - public/**
+      - assembly/**
+      - LICENSE
+      - index.html
       - capacitor.config.ts
+      - vite.config.ts
+      - tsconfig.json
       - package*.json
       - scripts/ios-*.mjs
+      - scripts/setup.mjs
+      - scripts/fetch_mediapipe.py
+      - scripts/offline-build.mjs
       - .github/workflows/ios.yml
   workflow_dispatch:
 permissions:
@@ -18,6 +44,9 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
     timeout-minutes: 20
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
@@ -33,4 +62,7 @@ jobs:
       - run: npm ci
       - run: npm run ios:sync
       - name: Build without signing
-        run: npm run ios:build
+        run: npm run ios:build -- --configuration ${{ matrix.configuration }}
+      - name: Compile Release for physical iOS devices without signing
+        if: matrix.configuration == 'Release'
+        run: npm run ios:build -- --configuration Release --device

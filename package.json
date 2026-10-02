@@ -13,6 +13,7 @@
     "test": "uv run pytest -q",
     "preview": "vite preview --host 127.0.0.1",
     "setup": "node scripts/setup.mjs",
+    "setup:ios": "node scripts/setup.mjs --ios",
     "check": "npm run build && npm run test:unit && npm test",
     "format": "prettier --write src scripts assembly *.json *.ts .github",
     "test:unit": "node --experimental-strip-types --test tests/*.test.ts",

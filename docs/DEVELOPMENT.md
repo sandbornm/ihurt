@@ -70,4 +70,5 @@ iHurt's original source, schematic fallback, report silhouettes, and heat kernel
 ## iOS
 
 See [the iOS guide](IOS.md) for the Capacitor build, local notebook storage,
-native Files exports, and front-camera device checks.
+native Files exports, and front-camera device checks. See
+[IOS-APP-PLAN.md](IOS-APP-PLAN.md) for MVP lift and the phased ship plan.

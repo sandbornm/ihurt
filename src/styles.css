@@ -1480,6 +1480,12 @@ h1 > span {
 .info-dialog summary svg {
   float: right;
 }
+.license-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+}
 .learn-links {
   display: flex;
   flex-wrap: wrap;

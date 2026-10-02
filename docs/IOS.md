@@ -23,11 +23,16 @@ npm ci
 npm run check
 npm run ios:sync
 npm run ios:build
+npm run ios:build -- --configuration Release
+npm run ios:build -- --configuration Release --device
 npm run ios:open
 ```
 
 `ios:sync` rebuilds the app and copies it into the native project. Run it after web
-changes. `ios:build` builds an unsigned simulator app. The checked-in project is
+changes. `ios:build` builds an unsigned Debug simulator app. `--configuration Release`
+checks the optimized configuration; `--device` compiles for physical iOS devices
+without signing or installing. This is not a distributable archive. Native package
+versions are locked in the checked-in `Package.resolved`. The checked-in project is
 `ios/App/App.xcodeproj`; copied web assets and build outputs are ignored. Do not
 run `cap add ios` again or replace the existing project.
 
@@ -36,8 +41,8 @@ physical device, select your Apple development team under Signing & Capabilities
 and choose your connected device. Keep signing settings and credentials local.
 The proposed bundle ID is `app.ihurt.notebook`; confirm availability before release.
 
-The iOS CI job uses a standard GitHub-hosted macOS runner to compile the unsigned
-simulator target. Expected cost: **$0 for this public repository**, under
+The iOS CI job uses a standard GitHub-hosted macOS runner to compile unsigned
+Debug and Release simulator targets. Expected cost: **$0 for this public repository**, under
 [GitHub's public-repository Actions policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
 That is an assumption about the repository remaining public, not a spending cap.
 The workflow does not publish or submit the app.
@@ -46,6 +51,13 @@ Apple permits personal device testing with a free Apple Account, with provisioni
 limits. App Store/TestFlight distribution requires the Apple Developer Program,
 currently **US$99 per membership year**, or local pricing. No enrollment is needed
 for the simulator. See [Apple's membership comparison](https://developer.apple.com/support/compare-memberships/).
+
+On a fresh Xcode installation, open Xcode and finish its required-component
+installation. Install an iOS Simulator runtime in Xcode Settings → Components
+(or run `xcodebuild -downloadPlatform iOS`). Create an **iPhone 16 Pro** simulator
+in Xcode's device manager. Xcode 27 calls its simulator app **Device Hub**;
+earlier versions use **Simulator**. An installed iOS SDK alone is not a runnable
+simulator. Check an iPad simulator as well; the app targets both.
 
 ## Keep entries and reports
 
@@ -78,6 +90,10 @@ opened in a browser without iHurt. HTML is the first native report format; this
 build does not claim native PDF generation. Use the web app's **Print / Save PDF**
 when a PDF is needed. The saved HTML blocks scripts and remote asset loading.
 
+**About & privacy → Anatomy credits and licenses** includes the bundled notices
+as text, available offline. It also explains native camera, speech, backup, and
+export behavior. Preserve the full notices when changing the UI.
+
 The native app keeps **Share with AI** for deliberate file sharing. The optional
 local Python AI server controls are hidden because the packaged app has no API
 server. No server address, provider key, or cloud sync is added.
@@ -103,10 +119,12 @@ Before calling the build ready for distribution, use a physical iPhone/iPad to:
 - Launch in airplane mode. Verify the anatomy, reading, and hand model work without a first network visit.
 
 `npm run test:ios-web` checks the UI's native export calls with a mocked Capacitor
-bridge, including persistence across a page reload, cancelled sharing, and failed
-writes. It does not validate UIKit, actual iOS storage, camera accuracy, or the
-share sheet. The initial development machine had no Xcode or Simulator installed;
-native compilation is delegated to CI and camera validation remains a device task.
+bridge at iPhone 16 Pro and iPad sizes. It covers portrait/landscape layout,
+offline license text, saved-entry and draft recovery after reload, pin-coordinate
+preservation, cancelled sharing, and failed writes. It does not validate UIKit,
+actual iOS storage, camera accuracy, or the share sheet. See the
+[validation record](IOS-VALIDATION.md) for native results and remaining hardware
+checks.
 
 ## Code boundaries
 
@@ -167,3 +185,19 @@ validate recognition quality, language assets, or microphone behavior.
 Keep the current export schema and anatomy coordinates shared across platforms.
 Future durable database migrations or native camera inference should sit behind
 these boundaries, with `.ihm` export/import kept compatible.
+
+### API boundary
+
+The local web client uses relative `/api/` requests with same-origin session
+cookies. JSON errors keep their quota and activity context; malformed or HTML
+success responses produce a clear error instead of being treated as API data.
+The packaged iOS app rejects calls through this local web client before any
+network request. Apple Speech and Files exports use native adapters, and the
+shared voice form can accept a web client's implementation from its host.
+
+No native API endpoint is needed for this MVP. A future hosted iOS API needs an
+explicit HTTPS service and native authentication design; adding
+`capacitor://localhost` to the Python server's origin list is not that design.
+Keep provider keys on the server and preserve all global and visitor limits.
+The local Python API remains loopback-only. Shared notebook/`.ihm` schemas and
+anatomy coordinates remain compatible across web and iOS.

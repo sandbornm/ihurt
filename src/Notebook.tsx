@@ -73,6 +73,7 @@ import ThemeToggle from "./ThemeToggle";
 import Tutorial from "./Tutorial";
 import ShareWithAI from "./sharing/ShareWithAI";
 import Feedback from "./feedback/Feedback";
+import AnatomyCredits from "./AnatomyCredits";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
@@ -1484,9 +1485,13 @@ export default function Notebook({
             ))}
         </div>
       </dialog>
-      <dialog ref={infoDialog} className="dialog info-dialog">
+      <dialog
+        ref={infoDialog}
+        className="dialog info-dialog"
+        aria-labelledby="notebook-info-title"
+      >
         <div className="dialog-heading">
-          <h2>Your notebook, your data</h2>
+          <h2 id="notebook-info-title">Your notebook, your data</h2>
           <button
             onClick={() => infoDialog.current?.close()}
             aria-label="Close information"
@@ -1503,6 +1508,21 @@ export default function Notebook({
           Nothing is sent to an AI unless you choose to share or use the
           optional tools. Downloads contain your notes and pins.
         </p>
+        {isNativeApp() && (
+          <>
+            <p>
+              Hands processes camera frames on your device. Dictation uses
+              on-device Apple speech recognition. iHurt does not save audio or
+              send it to a speech server. If dictation is unavailable, you can
+              type your note.
+            </p>
+            <p>
+              Exports stay in Files → iHurt → Reports, even if you cancel
+              sharing. Delete unwanted copies in Files. Device backups follow
+              your iOS settings. iHurt has no accounts or analytics.
+            </p>
+          </>
+        )}
         <p>
           iHurt is not medical advice whatsoever. It does not diagnose, treat,
           cure, mitigate, or prevent any disease, injury, or condition. Anatomy
@@ -1521,6 +1541,7 @@ export default function Notebook({
         >
           Privacy and limitations ↗
         </a>
+        <AnatomyCredits />
       </dialog>
       {toast && (
         <div className="toast" role="status">

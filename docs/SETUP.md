@@ -6,7 +6,9 @@ The [browser notebook](https://ihurt.app/try/) opens with an editable example. A
 
 ## Install locally
 
-Install [Node.js](https://nodejs.org/en/download) **22.12 or newer** and Git.
+Install [Node.js](https://nodejs.org/en/download) **22.12 or newer**, Git, and
+[uv](https://docs.astral.sh/uv/getting-started/installation/). The build uses uv
+to prepare the bundled MediaPipe hand model; it can install Python if needed.
 
 ```bash
 git clone https://github.com/sandbornm/ihurt.git
@@ -15,11 +17,53 @@ npm run setup
 npm start
 ```
 
-Open **http://127.0.0.1:5173**. This runs the notebook without Python or an AI account. For development, use `npm run dev`.
+Open **http://127.0.0.1:5173**. The notebook needs no Python API server or AI account. For development, use `npm run dev`.
 
 Entries and the current draft save in this browser. Use **Notebook → Export notebook** for a JSON backup. **Import JSON** restores a version 2 export. **Print / Save PDF** opens a printout you can save as PDF. The SVG download is also printable.
 
 The production build caches the app and anatomy files after its first complete load. Wait for the offline indicator before disconnecting. Browser storage can be cleared or evicted; private windows usually erase it when closed. Keep backups.
+
+## iPhone and iPad
+
+On a Mac, also install Xcode 26 or later. Open Xcode and finish its required
+components, then install an iOS Simulator runtime in Settings → Components.
+The runtime download can be several GB; the SDK alone is not enough to run a
+simulator.
+
+```sh
+npm run setup:ios
+npm run ios:open
+```
+
+Setup installs locked dependencies, prepares the offline assets, runs the checks,
+syncs Capacitor, and builds an unsigned Debug simulator app. It does not ask for
+provider keys or signing credentials. Choose **iPhone 16 Pro** first and check an
+iPad too. Xcode 27 displays simulators in **Device Hub**.
+
+No Apple account is needed for Simulator. A free Apple Account in Xcode can be
+used for initial physical-device tests; TestFlight and App Store distribution
+require a paid Developer Program membership. Keep signing settings local.
+
+After web or bundled-notice changes, run `npm run ios:sync`. Before a release,
+also run `npm run ios:build -- --configuration Release` and the isolated browser
+checks:
+
+```sh
+npx playwright install chromium
+npm run test:ios-web
+npm run test:ios-speech
+```
+
+The app packages anatomy GLBs, Draco and heat WASM, fonts, MediaPipe WASM and the
+hand model, plus the credits and license notices from `public/models`,
+`public/draco/LICENSE`, and `LICENSE`. Generated copies under `dist/app` and
+`ios/App/App/public` stay out of git. Commit source assets, their attribution,
+and the native `Package.resolved` when dependencies change. No private exports
+or recordings belong in these folders.
+
+See [IOS.md](IOS.md) for exports, offline storage, native build commands, and
+the device checklist. The [validation record](IOS-VALIDATION.md) separates
+simulator results from hardware work still needed.
 
 ## Optional AI tools
 

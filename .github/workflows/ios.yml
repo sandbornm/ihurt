@@ -8,6 +8,7 @@ on:
       - capacitor.config.ts
       - package*.json
       - scripts/ios-*.mjs
+      - scripts/setup.mjs
       - .github/workflows/ios.yml
   workflow_dispatch:
 permissions:
@@ -18,6 +19,9 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
     timeout-minutes: 20
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
@@ -33,4 +37,4 @@ jobs:
       - run: npm ci
       - run: npm run ios:sync
       - name: Build without signing
-        run: npm run ios:build
+        run: npm run ios:build -- --configuration ${{ matrix.configuration }}

@@ -48,7 +48,7 @@ Ship a **TestFlight / App Store “notebook”** that matches what the Capacitor
 3. HTML / PNG / JSON report save-and-share (PDF remains web Print for v1)
 4. Optional Hands camera gestures with clear permission recovery
 5. Optional on-device Apple dictation for drafts
-6. Strong “not medical advice” copy, privacy nutrition labels aligned with [PrivacyInfo.xcprivacy](../ios/App/App/PrivacyInfo.xcprivacy)
+6. Strong “not medical advice” copy, offline credits, and App Store privacy answers based on actual data flows; review [PrivacyInfo.xcprivacy](../ios/App/App/PrivacyInfo.xcprivacy) separately for required-reason APIs and SDK declarations
 7. No accounts, no analytics SDK, no in-app AI server, no cloud sync
 
 **Explicitly out of MVP:** SwiftUI rewrite, native Metal renderer, cloud backup, in-app subscriptions, native PDF, Android, App Clip, HealthKit, Clinical / FDA pathway.
@@ -65,7 +65,7 @@ Ship a **TestFlight / App Store “notebook”** that matches what the Capacitor
 | Performance hardening | **Medium** | ~12 MB models + MediaPipe on older phones |
 | True native rewrite | **Very high** | Not needed for MVP; avoid |
 
-**Overall MVP lift: medium.** Most engineering for a shippable hybrid app is done; remaining work is validation, release plumbing, store compliance, and a short hardening pass — roughly on the order of **1–3 focused weeks** for one developer who already has a Mac + Apple Developer enrollment, assuming no major MediaPipe or review blockers. Without a Mac/device, compile stays on CI and camera/speech stay blocked.
+**Overall MVP lift: medium.** The feature baseline is implemented. The **1–3 focused weeks** estimate is a planning range for engineering and submission preparation, conditional on device results; it excludes enrollment and App Review waiting time. Compilation and mocked browser checks do not establish hardware readiness. Paid membership is needed for distribution, not to start implementation or Simulator testing.
 
 ### Key risks and dependencies
 
@@ -87,6 +87,10 @@ Ship a **TestFlight / App Store “notebook”** that matches what the Capacitor
 - [ ] App Store screenshots, privacy answers, support URL, age rating
 - [ ] Review of anatomy attribution for store listing / in-app About
 
+Initial target: **iPhone 16 Pro**, starting in Simulator. Keep iPad support and
+check portrait, landscape, keyboard, and share-sheet presentation there too.
+Physical camera, dictation, heat, and battery checks remain release gates.
+
 ---
 
 ## 3. Phased execution plan
@@ -103,8 +107,8 @@ Ship a **TestFlight / App Store “notebook”** that matches what the Capacitor
 
 **Order of work:**
 
-1. Enroll / confirm Apple Developer account; create App ID for `app.ihurt.notebook` (or chosen ID); set local signing team in Xcode only.
-2. `npm ci && npm run check && npm run ios:sync && npm run ios:open` on a Mac; run on a physical device (not only Simulator).
+1. Install Xcode's required components and an iOS Simulator runtime. Run the iPhone 16 Pro simulator first, then an iPad. No Apple account is needed for unsigned Simulator builds.
+2. `npm ci && npm run check && npm run ios:sync && npm run ios:open` on a Mac. For physical testing, sign in to an Apple Account in Xcode and enable Developer Mode on the device. A free Personal Team can start device testing, subject to [Apple's provisioning limits](https://developer.apple.com/help/account/basics/about-your-developer-account). Keep signing changes local.
 3. Execute the full [IOS.md device checklist](IOS.md#camera-and-device-checks): camera deny/allow, Hands flow, background/resume, airplane mode, export/import round-trip, dictation permissions and coexistence with Hands.
 4. Record perf notes (frame rate, heat, battery) on at least one recent and one older supported device.
 5. Fix only blockers found (permission copy, audio session, memory, UI safe areas). Keep shared TS/gesture code; prefer adapter-side fixes.
@@ -113,9 +117,9 @@ Ship a **TestFlight / App Store “notebook”** that matches what the Capacitor
 
 ### Phase 2 — Release plumbing
 
-1. Bump marketing/build numbers deliberately for TestFlight candidates.
+1. Confirm Apple Developer Program membership and reserve the final bundle ID. Review anatomy redistribution terms before distributing any TestFlight binary. Bump marketing/build numbers deliberately for candidates.
 2. Archive a signed Release build; upload to App Store Connect / TestFlight.
-3. Fill privacy nutrition labels to match PrivacyInfo (no tracking; camera/mic/speech on-device).
+3. Answer [App Store privacy questions](https://developer.apple.com/app-store/app-privacy-details/) from actual app and SDK behavior, including user-initiated sharing and feedback. A privacy manifest is not the questionnaire or a public privacy policy. Review both separately and provide a public policy URL that describes the iOS app.
 4. Prepare store listing: screenshots (iPhone + iPad if supporting both), subtitle, keywords, support/privacy URLs, age rating.
 5. Attach App Review notes: educational journal, not a medical device; quote SAFETY disclaimers; explain camera (gestures) and speech (on-device drafts only).
 6. Internal TestFlight → small external group → iterate on crash/perf feedback.

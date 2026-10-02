@@ -1,5 +1,7 @@
 # iHurt on iPhone and iPad
 
+For assessment, MVP lift, and a phased ship plan, see [IOS-APP-PLAN.md](IOS-APP-PLAN.md).
+
 The iOS app packages the existing notebook in Capacitor's WKWebView. It includes
 the anatomy models, fonts, WebAssembly, and MediaPipe hand model, so the notebook
 does not need a server or internet connection. Gestures use the same TypeScript

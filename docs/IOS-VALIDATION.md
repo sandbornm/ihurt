@@ -25,7 +25,8 @@ unnecessary for the specified notebook MVP. These corrections are included in
 - `npm run setup:ios` checks prerequisites, installs locked dependencies, runs
   `npm run check`, syncs the bundled app, and compiles an unsigned Debug build.
 - `ios:build` accepts Debug or Release and an optional physical-device SDK.
-  CI now checks both simulator configurations. `Package.resolved` locks the
+  CI checks both simulator configurations and the unsigned physical-device
+  Release build on relevant PRs and pushes to `main`. `Package.resolved` locks the
   native package graph, including the filesystem dependency.
 - About includes the original anatomy, outer-body, Draco, and MIT notices as
   offline text, plus native storage, camera, speech, and export explanations.

@@ -41,8 +41,11 @@ physical device, select your Apple development team under Signing & Capabilities
 and choose your connected device. Keep signing settings and credentials local.
 The proposed bundle ID is `app.ihurt.notebook`; confirm availability before release.
 
-The iOS CI job uses a standard GitHub-hosted macOS runner to compile unsigned
-Debug and Release simulator targets. Expected cost: **$0 for this public repository**, under
+The iOS CI job runs on pull requests and relevant pushes to `main`, using a
+standard GitHub-hosted macOS runner to compile unsigned Debug and Release
+simulator targets plus a Release build for the physical iOS SDK. The separate
+Check workflow runs the unit, backend, web, and mocked native browser checks.
+Expected runner compute cost: **$0 for this public repository**, under
 [GitHub's public-repository Actions policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
 That is an assumption about the repository remaining public, not a spending cap.
 The workflow does not publish or submit the app.

@@ -40,7 +40,15 @@ final class NotebookUITests: XCTestCase {
         let editor = app.textViews["Describe your discomfort"]
         reveal(editor, in: app, scrollUp: false)
         editor.tap()
-        editor.typeText(note)
+        // Long synthesized key bursts can lose events on a busy hosted simulator.
+        // Verify each word before testing whether the app persists the edit.
+        var typed = ""
+        for word in note.split(separator: " ") {
+            let chunk = (typed.isEmpty ? "" : " ") + word
+            editor.typeText(chunk)
+            typed += chunk
+            XCTAssertEqual(editor.value as? String, typed, "Typing must finish before the persistence check.")
+        }
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 10))
         app.terminate()
         app.launch()

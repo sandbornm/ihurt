@@ -30,7 +30,7 @@ class RequestBoundary:
                 message["headers"].extend([
                     (b"x-content-type-options", b"nosniff"),
                     (b"referrer-policy", b"no-referrer"),
-                    (b"permissions-policy", b"camera=(), geolocation=(), microphone=(self)"),
+                    (b"permissions-policy", b"camera=(self), geolocation=(), microphone=(self)"),
                     (b"content-security-policy", b"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"),
                 ])
                 if scope["path"].startswith("/api/"):
@@ -195,7 +195,7 @@ def create_app(settings: Settings | None = None, provider=None):
     dist = Path(__file__).resolve().parent.parent / "dist" / "app"
     if dist.exists():
         app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
-        for folder in ("models", "draco"):
+        for folder in ("models", "draco", "mediapipe"):
             if (dist / folder).exists():
                 app.mount(f"/{folder}", StaticFiles(directory=dist / folder), name=folder)
         @app.get("/")

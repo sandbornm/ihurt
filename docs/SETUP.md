@@ -52,6 +52,8 @@ checks:
 npx playwright install chromium
 npm run test:ios-web
 npm run test:ios-speech
+npm run test:ios-native
+npm run test:ios-native -- --device 'iPad (A16)'
 ```
 
 The app packages anatomy GLBs, Draco and heat WASM, fonts, MediaPipe WASM and the

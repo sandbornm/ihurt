@@ -274,7 +274,8 @@ export default function Notebook({
       void persist();
     }, 280);
     const flush = () => {
-      void saveDraft(draftRef.current);
+      clearTimeout(timer);
+      void persist();
     };
     const onHide = () => {
       if (document.visibilityState === "hidden") flush();

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { waitForDraft } from "./browser-storage.mjs";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdir, readFile } from "node:fs/promises";
@@ -261,37 +262,7 @@ try {
     await page
       .getByText("Draft saved on this device", { exact: true })
       .waitFor();
-    // Wait for this edit's transaction, not a status left by an earlier save.
-    let persisted = false;
-    for (let attempt = 0; attempt < 50 && !persisted; attempt++) {
-      persisted = await page.evaluate(
-        (expected) =>
-          new Promise((resolve, reject) => {
-            const open = indexedDB.open("ihurt-notebook", 1);
-            open.onerror = () => reject(open.error);
-            open.onsuccess = () => {
-              const db = open.result;
-              const tx = db.transaction("settings", "readonly");
-              const draft = tx.objectStore("settings").get("draft");
-              tx.oncomplete = () => {
-                db.close();
-                resolve(draft.result?.entry.note === expected);
-              };
-              tx.onerror = () => {
-                db.close();
-                reject(tx.error);
-              };
-            };
-          }),
-        unfinished,
-      );
-      if (!persisted) await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    assert.equal(
-      persisted,
-      true,
-      "The edited draft must be committed before reloading.",
-    );
+    await waitForDraft(page, unfinished);
     await page.reload();
     await page
       .locator('[data-atlas="z-anatomy"][data-heat-engine="wasm"]')
@@ -317,6 +288,23 @@ try {
       unfinished,
     );
     await page.screenshot({ path: `${deviceOutput}/notebook.png` });
+    // A failed final save must show a useful error, without an unhandled rejection.
+    await page.evaluate(() => {
+      const transaction = IDBDatabase.prototype.transaction;
+      IDBDatabase.prototype.transaction = function (...args) {
+        if (args[1] === "readwrite")
+          throw new DOMException("Test storage full", "QuotaExceededError");
+        return transaction.apply(this, args);
+      };
+      window.dispatchEvent(new PageTransitionEvent("pagehide"));
+    });
+    await page.getByText("Draft not saved", { exact: true }).waitFor();
+    await page
+      .getByText(
+        "This browser could not save your draft. Export JSON to keep it.",
+        { exact: true },
+      )
+      .waitFor();
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     assert.deepEqual(downloads, []);

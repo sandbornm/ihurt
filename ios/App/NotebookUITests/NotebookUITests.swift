@@ -26,7 +26,8 @@ final class NotebookUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["New entry"].waitForExistence(timeout: 90))
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["Pin"].waitForExistence(timeout: 90))
+        // WebKit exposes aria-pressed controls as switches on some iOS versions.
+        XCTAssertTrue(app.descendants(matching: .any)["Pin"].waitForExistence(timeout: 90))
 
         let about = app.buttons["Privacy & limitations"]
         reveal(about, in: app)
@@ -45,7 +46,7 @@ final class NotebookUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["New entry"].waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["Pin"].waitForExistence(timeout: 90))
+        XCTAssertTrue(app.descendants(matching: .any)["Pin"].waitForExistence(timeout: 90))
         reveal(editor, in: app)
         XCTAssertEqual(editor.value as? String, note)
 

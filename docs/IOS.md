@@ -55,7 +55,11 @@ open an `.xcresult` in Xcode to inspect a failure.
 The iOS CI job runs on pull requests and relevant pushes to `main`, using a
 standard GitHub-hosted macOS runner to compile unsigned Debug and Release
 simulator targets plus a Release build for the physical iOS SDK. Its Debug job
-runs the native interaction checks on iPhone 16 Pro and iPad A16 simulators. The separate
+runs the native interaction checks in separate parallel jobs for iPhone 16 Pro
+and iPad A16. Fresh hosted simulators and XCTest preparation can take several
+minutes. The script streams boot progress, caps boot at five minutes and the
+build/test process at fifteen minutes, and limits an individual test to five
+minutes. The separate
 Check workflow runs the unit, backend, web, and mocked native browser checks.
 Expected runner compute cost: **$0 for this public repository**, under
 [GitHub's public-repository Actions policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).

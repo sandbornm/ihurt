@@ -16,10 +16,14 @@ if (values.help) {
   process.exit(0);
 }
 function simctl(...args) {
-  const result = spawnSync("xcrun", ["simctl", ...args], { encoding: "utf8" });
+  const result = spawnSync("xcrun", ["simctl", ...args], {
+    encoding: "utf8",
+    timeout: 60000,
+  });
   if (result.status !== 0)
     throw new Error(
-      result.stderr ||
+      result.error?.message ||
+        result.stderr ||
         "simctl failed. Install an iOS Simulator runtime in Xcode.",
     );
   return result.stdout.trim();
@@ -62,7 +66,18 @@ console.log(
 let status = 1;
 try {
   simctl("boot", id);
-  simctl("bootstatus", id, "-b");
+  console.log(
+    "Waiting for the new simulator to finish booting (up to five minutes)…",
+  );
+  const boot = spawnSync("xcrun", ["simctl", "bootstatus", id, "-b"], {
+    stdio: "inherit",
+    timeout: 300000,
+  });
+  if (boot.status !== 0)
+    throw new Error(boot.error?.message || "Simulator boot did not finish.");
+  console.log(
+    "Building and starting XCTest. Hosted Xcode can take several minutes to prepare its first test runner.",
+  );
   const result = spawnSync(
     "xcodebuild",
     [
@@ -83,15 +98,23 @@ try {
       "NO",
       "-collect-test-diagnostics",
       "never",
+      "-test-timeouts-enabled",
+      "YES",
+      "-maximum-test-execution-time-allowance",
+      "300",
       "CODE_SIGNING_ALLOWED=NO",
       "test",
     ],
-    { stdio: "inherit" },
+    { stdio: "inherit", timeout: 900000 },
   );
+  if (result.error) console.error(result.error.message);
   status = result.status ?? 1;
 } finally {
   // Only this process's newly-created device is eligible for deletion.
-  spawnSync("xcrun", ["simctl", "shutdown", id], { stdio: "ignore" });
+  spawnSync("xcrun", ["simctl", "shutdown", id], {
+    stdio: "ignore",
+    timeout: 60000,
+  });
   simctl("delete", id);
 }
 console.log(`Native test results: ${resultPath}`);

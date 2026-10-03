@@ -25,6 +25,8 @@ final class NotebookUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons["New entry"].waitForExistence(timeout: 90))
+        XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Pin"].waitForExistence(timeout: 90))
 
         let about = app.buttons["Privacy & limitations"]
         reveal(about, in: app)
@@ -42,12 +44,15 @@ final class NotebookUITests: XCTestCase {
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["New entry"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Pin"].waitForExistence(timeout: 90))
         reveal(editor, in: app)
         XCTAssertEqual(editor.value as? String, note)
 
         let save = app.buttons["Save entry"]
         reveal(save, in: app)
         save.tap()
+        XCTAssertTrue(app.staticTexts["Entry saved on this device."].waitForExistence(timeout: 15))
         let notebook = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Notebook")).firstMatch
         reveal(notebook, in: app, scrollUp: false)
         notebook.tap()
@@ -69,7 +74,7 @@ final class NotebookUITests: XCTestCase {
         reveal(about, in: app)
         about.tap()
         XCTAssertTrue(app.buttons["Close information"].waitForExistence(timeout: 10))
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "Landscape information"
         screenshot.lifetime = .keepAlways
         add(screenshot)

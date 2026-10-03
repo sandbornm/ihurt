@@ -1,8 +1,9 @@
 # iOS implementation validation
 
 Recorded on **2026-10-02** for the implementation following
-[PR #13](https://github.com/sandbornm/ihurt/pull/13). The app builds and launches
-in Simulator. Physical-device validation and distribution setup remain open.
+[PR #13](https://github.com/sandbornm/ihurt/pull/13) and its reliability follow-up.
+The app builds and passes native interaction tests in Simulator. Physical-device
+validation and distribution setup remain open.
 Use this record with the [device checklist](IOS.md#camera-and-device-checks).
 
 ## Plan review
@@ -34,6 +35,14 @@ unnecessary for the specified notebook MVP. These corrections are included in
 - The local web API client rejects native calls before sending data, handles
   malformed responses, and retains web session, upload, cancellation, and quota
   behavior. Native dictation and exports continue through their adapters.
+- Caller cancellation retains the API deadline through response-body reading.
+  The Python-served app permits same-origin camera use and serves bundled
+  MediaPipe assets. Its HTTP/browser test uses a demo provider, synthetic video,
+  temporary quota database, and no provider keys.
+- A UIKit cover hides notebook content while the scene is inactive. Failed
+  background draft saves use the same error handling as ordinary draft saves.
+- Native XCTest checks use fresh disposable devices and wait for first-boot
+  migration before launching. No existing simulator notebook is used or erased.
 
 ## Verification
 
@@ -44,15 +53,18 @@ the **iOS 27.0 (24A434)** simulator runtime. The deployment target remains
 | Check | Result | Scope |
 | --- | --- | --- |
 | `npm run setup:ios` | Passed | Dependency install, build, 97 TypeScript tests, 32 Python tests, Capacitor sync, Debug simulator compilation |
+| Follow-up `npm run check` | Passed | App build, 101 TypeScript tests and 32 Python tests |
 | `ios:build -- --configuration Release` | Passed | Optimized unsigned simulator build |
 | `ios:build -- --configuration Release --device` | Passed | Unsigned physical-device SDK build; not an installable signed archive |
-| iPhone 16 Pro simulator | Passed launch | Release app installed and launched; anatomy visibly rendered in Device Hub |
-| iPad A16 simulator | Passed launch | Release app installed and launched; native interaction checks remain open |
+| `test:ios-native` · iPhone 16 Pro | Passed | Actual WKWebView typing, save/reopen, draft retention after terminate/relaunch, background/resume, portrait/landscape information, cover removed on resume |
+| `test:ios-native -- --device 'iPad (A16)'` | Passed | Same native interaction checks on iPad |
+| `test:api-browser` | Passed | Python HTTP server, same-origin camera policy, actual MediaPipe model/WASM with synthetic video, track cleanup, demo map, HttpOnly session cookie, no-store API responses |
 | `test:ios-web` | Passed | Mocked native bridge at iPhone 16 Pro and iPad sizes; portrait/landscape, offline notices, persisted draft/entry, pin coordinates, all export formats, cancellation, failed writes |
 | `test:ios-speech` | Passed | Mocked Apple Speech lifecycle, permissions, review, interruption, and cancellation |
 | `test:voice` | Passed | Web voice adapter and review with synthetic audio and mocked responses |
 | `test:browser` | Passed | Desktop/mobile notebook, edits, persistence, backup, offline anatomy; no API calls |
 
+Native `.xcresult` bundles and landscape screenshots are under `output/ios-native/`.
 Browser screenshots are generated under `output/ios-check/` and the existing
 browser/voice output directories. These files stay out of git. The checks use
 the authorized example fixture or synthetic data. No paid provider calls were
@@ -72,6 +84,8 @@ and any issue for each check; leave a check open until it runs on hardware.
 - Actual Files import/export and share-sheet cancellation on iPhone and iPad,
   including JSON, `.ihm`, PNG, HTML, and notebook round trips.
 - Both orientations, software keyboard, safe areas, VoiceOver, and larger text.
+- App-switcher preview privacy while showing a note, a report, and a share sheet.
+  The cover is not an authentication lock or active-screen screenshot protection.
 - Sustained frame rate, memory, battery, and device temperature. Check an older
   supported device/OS before claiming the full deployment range is validated.
 

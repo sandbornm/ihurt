@@ -19,7 +19,7 @@ npm run check      # app build and tests
 - During a Hands session, **Copy hands log** copies a local TSV of pose/action labels and normalized cursor positions. It contains no images or recordings. Add a note about what you intended when reporting a gesture issue.
 - Camera checks use synthetic landmarks and mocked media streams. They cover tracking loss, hold cancellation, dial jitter and regripping, one save per gesture, failed saves, and camera cleanup. Browser checks verify that a point-and-hold creates an actual pin without a mouse-confirmed layer picker, changes intensity, and saves it to IndexedDB. Synthetic checks do not establish recognition accuracy with a real camera; user camera feedback is still needed when tuning gestures.
 
-GitHub Actions builds the app and runs backend, unit, and isolated browser checks. Browser checks use a Node static preview with no API server. They cover multiple entries, editing, refresh, exports, offline anatomy and storage, and desktop/phone layout. Tests make no paid requests.
+GitHub Actions builds the app and runs backend, unit, and isolated browser checks. Notebook checks use a Node static preview with no API server. They cover multiple entries, editing, refresh, exports, offline anatomy and storage, and desktop/phone layout. Tests make no paid requests.
 
 To run the same browser checks locally without changing your open preview:
 
@@ -28,7 +28,18 @@ npx playwright install chromium
 npm run build
 npm run test:browser
 npm run test:controls
+npm run test:api-browser
 ```
+
+`test:api-browser` starts the built app on an isolated loopback Python server,
+with a temporary quota database, demo provider, transcription disabled, empty
+provider keys, and a zero-dollar budget. It checks the browser's camera permission
+policy, loads the actual bundled MediaPipe model/WASM using a synthetic canvas
+stream, verifies camera-track cleanup, and exercises session cookies and a demo
+map request over HTTP. It blocks external browser requests and does not inspect
+an existing notebook. This checks loading and integration, not recognition accuracy.
+The server serves `models`, `draco`, and `mediapipe` from the same origin; no model
+CDN is needed at runtime.
 
 To serve the built app from Python on one port:
 

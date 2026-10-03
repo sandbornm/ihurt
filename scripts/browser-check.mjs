@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { waitForDraft } from "./browser-storage.mjs";
 import { spawn } from "node:child_process";
 import { mkdir, readFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
@@ -121,9 +122,7 @@ try {
       .getByRole("slider", { name: "Reported intensity", exact: true })
       .fill("7");
     const bundleDownload = page.waitForEvent("download");
-    await page
-      .getByText("Share with AI", { exact: true })
-      .click();
+    await page.getByText("Share with AI", { exact: true }).click();
     await page
       .getByText("Suggested prompt and .ihm file", { exact: true })
       .click();
@@ -162,8 +161,12 @@ try {
     await page
       .getByText("Draft saved on this device", { exact: true })
       .waitFor();
+    await waitForDraft(page, "Edited first entry.");
+    assert.equal(await note.inputValue(), "Edited first entry.");
     await page.reload();
     await atlas.waitFor();
+    // The cached atlas can finish before IndexedDB restores the form.
+    await page.locator(".explorer-grid:not([inert])").waitFor();
     assert.equal(await note.inputValue(), "Edited first entry.");
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,

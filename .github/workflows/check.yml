@@ -26,6 +26,8 @@ jobs:
       - run: uv sync --frozen --extra dev
       - run: npm run check
       - run: npx playwright install --with-deps chromium
+      - name: Check Python-served camera assets and demo API over HTTP
+        run: npm run test:api-browser
       - name: Check layouts, body controls, and exports
         run: npm run test:browser
       - name: Check painting, undo, layers, and viewport captures

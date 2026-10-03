@@ -43,11 +43,21 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    name: iOS ${{ matrix.target }}
     runs-on: macos-15
     strategy:
+      fail-fast: false
       matrix:
-        configuration: [Debug, Release]
-    timeout-minutes: 20
+        include:
+          - target: iphone
+            configuration: Debug
+            device: iPhone 16 Pro
+          - target: ipad
+            configuration: Debug
+            device: iPad (A16)
+          - target: release
+            configuration: Release
+    timeout-minutes: 25
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
@@ -66,3 +76,13 @@ jobs:
       - name: Compile Release for physical iOS devices without signing
         if: matrix.configuration == 'Release'
         run: npm run ios:build -- --configuration Release --device
+      - name: Test notebook interactions on an isolated simulator
+        if: matrix.configuration == 'Debug'
+        run: npm run test:ios-native -- --device '${{ matrix.device }}'
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.configuration == 'Debug'
+        with:
+          name: ios-native-${{ matrix.target }}
+          path: output/ios-native/
+          retention-days: 3
+          if-no-files-found: ignore

@@ -25,6 +25,8 @@ npm run ios:sync
 npm run ios:build
 npm run ios:build -- --configuration Release
 npm run ios:build -- --configuration Release --device
+npm run test:ios-native
+npm run test:ios-native -- --device 'iPad (A16)'
 npm run ios:open
 ```
 
@@ -41,9 +43,23 @@ physical device, select your Apple development team under Signing & Capabilities
 and choose your connected device. Keep signing settings and credentials local.
 The proposed bundle ID is `app.ihurt.notebook`; confirm availability before release.
 
+`test:ios-native` uses XCTest and a fresh disposable simulator. It types text from
+the public example, saves and reopens an entry, relaunches the app, backgrounds
+and resumes it, and opens information in landscape. It deletes only the simulator
+it created and leaves existing simulator notebooks alone. Install a compatible
+iOS runtime first. Use the script for tests; the test target refuses to launch
+on an ordinary simulator, including a normal Xcode Test destination.
+Results and synthetic screenshots are in `output/ios-native/`;
+open an `.xcresult` in Xcode to inspect a failure.
+
 The iOS CI job runs on pull requests and relevant pushes to `main`, using a
 standard GitHub-hosted macOS runner to compile unsigned Debug and Release
-simulator targets plus a Release build for the physical iOS SDK. The separate
+simulator targets plus a Release build for the physical iOS SDK. Its Debug jobs
+run the native interaction checks in parallel for iPhone 16 Pro
+and iPad A16. Fresh hosted simulators and XCTest preparation can take several
+minutes. The script streams boot progress, caps boot at five minutes and the
+build/test process at fifteen minutes, and limits an individual test to five
+minutes. The separate
 Check workflow runs the unit, backend, web, and mocked native browser checks.
 Expected runner compute cost: **$0 for this public repository**, under
 [GitHub's public-repository Actions policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
@@ -70,6 +86,11 @@ The stable origin `capacitor://localhost` is part of that storage identity; chan
 it requires a migration. This is local storage, not cloud sync or an uninstall
 backup. Deleting the app deletes its notebook and its local report folder. The app
 does not add its own encryption; device backup behavior follows the user's iOS settings.
+
+A native cover hides notebook content when the app becomes inactive, before iOS
+captures its app-switcher preview. Returning to the app removes the cover. This
+does not lock the app or prevent screenshots while it is active. See Apple's
+[snapshot guidance](https://developer.apple.com/library/archive/qa/qa1838/_index.html).
 
 To move an existing browser notebook:
 
@@ -194,6 +215,9 @@ these boundaries, with `.ihm` export/import kept compatible.
 The local web client uses relative `/api/` requests with same-origin session
 cookies. JSON errors keep their quota and activity context; malformed or HTML
 success responses produce a clear error instead of being treated as API data.
+Requests retain their 135-second deadline when a caller supplies cancellation.
+The deadline includes reading the response body, and cancellation remains
+distinguishable from a malformed response.
 The packaged iOS app rejects calls through this local web client before any
 network request. Apple Speech and Files exports use native adapters, and the
 shared voice form can accept a web client's implementation from its host.
@@ -204,3 +228,15 @@ explicit HTTPS service and native authentication design; adding
 Keep provider keys on the server and preserve all global and visitor limits.
 The local Python API remains loopback-only. Shared notebook/`.ihm` schemas and
 anatomy coordinates remain compatible across web and iOS.
+
+### Before a Metal or Vision implementation
+
+Keep the shared renderer and gesture logic until physical-device profiling
+identifies a bottleneck. Measure a fixed several-minute Hands session on iPhone
+16 Pro and iPad: responsiveness, memory, energy use, thermal behavior, and time
+spent in hand inference versus rendering. Use Xcode Instruments on a signed
+device build; simulator performance is not a device benchmark. A native Vision
+adapter would also need to preserve mirroring, landmark coordinates, gesture
+thresholds, and explicit pin placement. A Metal renderer would be a separate
+rendering implementation with model, hit-testing, and export compatibility work.
+Neither is required to run the current app or its simulator tests.

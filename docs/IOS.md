@@ -52,6 +52,11 @@ on an ordinary simulator, including a normal Xcode Test destination.
 Results and synthetic screenshots are in `output/ios-native/`;
 open an `.xcresult` in Xcode to inspect a failure.
 
+For a recorded Release user session with timings, renderer CPU/memory samples,
+and Instruments output, use `npm run profile:ios` (or add
+`-- --device 'iPad (A16)'`). See [the simulator profile](IOS-SIMULATOR-PROFILE.md)
+for the scenario, results, reproduction steps, and measurement limits.
+
 The iOS CI job runs on pull requests and relevant pushes to `main`, using a
 standard GitHub-hosted macOS runner to compile unsigned Debug and Release
 simulator targets plus a Release build for the physical iOS SDK. Its Debug jobs
@@ -70,6 +75,45 @@ Apple permits personal device testing with a free Apple Account, with provisioni
 limits. App Store/TestFlight distribution requires the Apple Developer Program,
 currently **US$99 per membership year**, or local pricing. No enrollment is needed
 for the simulator. See [Apple's membership comparison](https://developer.apple.com/support/compare-memberships/).
+
+### Install on a connected iPhone
+
+Use Xcode on the Mac connected to the phone. A laptop needs its own Xcode,
+Node 22.12+, uv, and checkout of this repository if it will build and install
+the app. Connecting the phone to an already-configured Mac avoids that setup.
+On a fresh checkout, run `npm run setup:ios`, then `npm run ios:open`.
+
+1. In **Xcode → Settings → Apple Accounts**, sign in with the Apple Account you
+   use for development. A free account appears as a **Personal Team**.
+2. Connect and unlock the iPhone. Accept **Trust This Computer**, then select
+   the phone in Xcode's device manager and let pairing finish.
+3. On the phone, enable **Settings → Privacy & Security → Developer Mode**.
+   Restart and confirm when prompted. Pair with Xcode first if the setting
+   is not yet visible.
+4. In the project editor, select the **App target → Signing & Capabilities**.
+   Enable **Automatically manage signing** and select your team. Keep account
+   credentials and local signing changes out of git.
+5. Select the **App scheme** and the actual iPhone as the run destination,
+   then click **Run**. `ios:build --device` alone does not sign or install it.
+
+Free Personal Team provisioning expires after seven days; rebuild and reinstall
+when needed. See Apple's [device setup](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices),
+[Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device),
+and [membership limits](https://developer.apple.com/support/compare-memberships/).
+If you have not registered with Apple Developer yet, sign in at
+[developer.apple.com/account](https://developer.apple.com/account/) and accept
+the developer agreement. This registration is separate from paid enrollment.
+
+For TestFlight and publishing under Momnt LLC, use **Organization** enrollment
+in the [standard Apple Developer Program](https://developer.apple.com/programs/enroll/).
+Apple requires an Apple Account with two-factor authentication, authority to
+represent the organization, its legal entity details and D-U-N-S number, a work
+email on the company's domain, and a functional company website. Use your own
+legal first and last names for the Apple Account, even when using a separate
+development email; enter Momnt LLC as the organization during enrollment.
+Enrollment is US$99 per membership
+year, or local pricing. Free device testing can proceed during enrollment.
+TestFlight testers install the TestFlight app; they do not need Xcode.
 
 On a fresh Xcode installation, open Xcode and finish its required-component
 installation. Install an iOS Simulator runtime in Xcode Settings → Components

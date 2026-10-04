@@ -29,6 +29,7 @@
     "test:voice": "node scripts/voice-browser-check.mjs",
     "test:ios-speech": "node scripts/ios-speech-browser-check.mjs",
     "test:ios-native": "node scripts/ios-native-check.mjs",
+    "profile:ios": "node scripts/ios-native-check.mjs --profile",
     "test:api-browser": "node scripts/api-browser-check.mjs"
   },
   "dependencies": {

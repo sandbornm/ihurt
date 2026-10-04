@@ -5,6 +5,9 @@ Recorded on **2026-10-02** for the implementation following
 The app builds and passes native interaction tests in Simulator. Physical-device
 validation and distribution setup remain open.
 Use this record with the [device checklist](IOS.md#camera-and-device-checks).
+The subsequent [recorded simulator profile](IOS-SIMULATOR-PROFILE.md) covers a
+longer Release session, native JSON sharing, renderer CPU/memory observations,
+and another test pass from `main` after PR #14.
 
 ## Plan review
 

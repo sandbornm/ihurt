@@ -1,6 +1,8 @@
 # iHurt on iPhone and iPad
 
 For assessment, MVP lift, and a phased ship plan, see [IOS-APP-PLAN.md](IOS-APP-PLAN.md).
+For the keyboard, page scrolling, and layer picker follow-up, see
+[IOS-MOBILE-USABILITY.md](IOS-MOBILE-USABILITY.md).
 
 The iOS app packages the existing notebook in Capacitor's WKWebView. It includes
 the anatomy models, fonts, WebAssembly, and MediaPipe hand model, so the notebook
@@ -77,6 +79,41 @@ installation. Install an iOS Simulator runtime in Xcode Settings → Components
 in Xcode's device manager. Xcode 27 calls its simulator app **Device Hub**;
 earlier versions use **Simulator**. An installed iOS SDK alone is not a runnable
 simulator. Check an iPad simulator as well; the app targets both.
+
+## Install on your iPhone
+
+For the current web version, open [ihurt.app/try](https://ihurt.app/try/) in
+Safari on the phone. Choose **Share → Add to Home Screen**, enable **Open as
+Web App** if offered, and tap **Add**. This does not require Xcode or developer
+enrollment. See [Apple's Home Screen instructions](https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios).
+
+To install the native build from a Mac with this repository:
+
+1. Run `npm run ios:sync`, then `npm run ios:open` in the repository.
+2. In **Xcode → Settings → Accounts**, add your development Apple Account.
+3. Close Settings. Press **Command–1**, select the blue **App** project at the
+   top of the left sidebar, then **TARGETS → App → Signing & Capabilities**.
+   Enable **Automatically manage signing** and choose your **Team**.
+4. Connect and unlock the phone, accept **Trust This Computer**, and enable
+   **Settings → Privacy & Security → Developer Mode** on the phone when prompted.
+   Complete its restart and confirmation.
+5. In Xcode's top toolbar, keep the **App** scheme and choose your actual phone
+   as the run destination. Press **Command–R**. Xcode signs, installs, and opens
+   iHurt. Once installed, it can launch from the phone without the cable.
+
+A free **Personal Team** can test on your own phone while paid enrollment is
+pending. Its provisioning expires after seven days, so rebuild and reinstall
+from Xcode when needed. See [Apple's account and testing limits](https://developer.apple.com/help/account/basics/about-your-developer-account).
+Keep team-specific signing settings local. If Xcode reports the bundle ID is
+unavailable, resolve the signing team before changing the shared identifier.
+
+For downloads through **TestFlight**, an active paid membership, an App Store
+Connect app record, and a signed uploaded build are required. The unsigned
+GitHub Actions builds are compile/test artifacts; they cannot be installed on a
+phone. A simulator `.app` cannot run on a physical iPhone either. See
+[Apple's TestFlight overview](https://developer.apple.com/testflight/).
+The web and native notebooks have separate local storage; use export/import
+below to move entries between them.
 
 ## Keep entries and reports
 

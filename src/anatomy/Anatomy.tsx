@@ -1447,7 +1447,7 @@ export default function Anatomy(props: Props) {
           )}
           {!!candidates.length && (
             <div
-              className="anatomy-layer-picker"
+              className="anatomy-layer-picker anatomy-pin-picker"
               role="dialog"
               aria-label="Choose anatomy layer"
               ref={picker}
@@ -1461,100 +1461,100 @@ export default function Anatomy(props: Props) {
                   <X size={16} />
                 </button>
               </div>
-              <p>Surfaces along this view. Choose one to see its shape.</p>
-              <label className="layer-context-control">
-                Surrounding anatomy
-                <input
-                  type="range"
-                  min="0"
-                  max="0.3"
-                  step="0.05"
-                  value={surroundings}
-                  onChange={(event) =>
-                    setSurroundings(Number(event.target.value))
-                  }
-                />
-              </label>
-              <div className="layer-choices">
-                {candidates.map((candidate, index) => (
-                  <button
-                    key={candidate.point.id}
-                    aria-pressed={candidateIndex === index}
-                    onMouseEnter={() => {
-                      setCandidateIndex(index);
-                      engine.current?.preview(candidate);
-                    }}
-                    onClick={() => {
-                      setCandidateIndex(index);
-                      engine.current?.preview(candidate);
-                    }}
-                  >
-                    <span
-                      className="layer-depth"
-                      style={{ marginLeft: index * 3 }}
+              <div className="layer-picker-content">
+                <p>Surfaces along this view. Choose one to see its shape.</p>
+                <label className="layer-context-control">
+                  Surrounding anatomy
+                  <input
+                    type="range"
+                    min="0"
+                    max="0.3"
+                    step="0.05"
+                    value={surroundings}
+                    onChange={(event) =>
+                      setSurroundings(Number(event.target.value))
+                    }
+                  />
+                </label>
+                <div className="layer-choices">
+                  {candidates.map((candidate, index) => (
+                    <button
+                      key={candidate.point.id}
+                      aria-pressed={candidateIndex === index}
+                      onClick={() => {
+                        setCandidateIndex(index);
+                        engine.current?.preview(candidate);
+                      }}
                     >
-                      {index + 1}
-                    </span>
-                    <span>
-                      {candidate.point.structure}
-                      <small>
-                        {index === 0
-                          ? "Closest to you"
-                          : "Behind the first surface"}
-                      </small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {candidates.length > 1 && (
-                <div className="layer-spread-control">
-                  <button
-                    className="secondary"
-                    aria-pressed={spreadAmount > 0}
-                    onClick={() => {
-                      const amount = spreadAmount > 0 ? 0 : 0.8;
-                      setSpreadAmount(amount);
-                      engine.current?.spread(amount, candidates);
-                    }}
-                  >
-                    Spread layers
-                  </button>
-                  {spreadAmount > 0 && (
-                    <label className="layer-context-control">
-                      Separation
-                      <input
-                        type="range"
-                        aria-label="Layer separation"
-                        min="0.1"
-                        max="1"
-                        step="0.1"
-                        value={spreadAmount}
-                        onChange={(event) => {
-                          const amount = Number(event.target.value);
-                          setSpreadAmount(amount);
-                          engine.current?.spread(amount, candidates);
-                        }}
-                      />
-                    </label>
-                  )}
+                      <span
+                        className="layer-depth"
+                        style={{ marginLeft: index * 3 }}
+                      >
+                        {index + 1}
+                      </span>
+                      <span>
+                        {candidate.point.structure}
+                        <small>
+                          {index === 0
+                            ? "Closest to you"
+                            : "Behind the first surface"}
+                        </small>
+                      </span>
+                    </button>
+                  ))}
                 </div>
-              )}
-              <p className="layer-picker-note">
-                {spreadAmount > 0
-                  ? "Spreading the view does not move your saved marks."
-                  : "Model depth helps locate a pin. It does not identify what hurts."}
-              </p>
-              <button
-                className="primary"
-                onClick={() => {
-                  const { point } = candidates[candidateIndex];
-                  latest.current.onSelect(point.region);
-                  latest.current.onPoint?.(point);
-                  closePicker();
-                }}
-              >
-                Pin this structure
-              </button>
+                {candidates.length > 1 && (
+                  <div className="layer-spread-control">
+                    <button
+                      className="secondary"
+                      aria-pressed={spreadAmount > 0}
+                      onClick={() => {
+                        const amount = spreadAmount > 0 ? 0 : 0.8;
+                        setSpreadAmount(amount);
+                        engine.current?.spread(amount, candidates);
+                      }}
+                    >
+                      Spread layers
+                    </button>
+                    {spreadAmount > 0 && (
+                      <label className="layer-context-control">
+                        Separation
+                        <input
+                          type="range"
+                          aria-label="Layer separation"
+                          min="0.1"
+                          max="1"
+                          step="0.1"
+                          value={spreadAmount}
+                          onChange={(event) => {
+                            const amount = Number(event.target.value);
+                            setSpreadAmount(amount);
+                            engine.current?.spread(amount, candidates);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="layer-picker-actions">
+                <p className="layer-picker-note">
+                  {spreadAmount > 0
+                    ? "Spreading the view does not move your saved marks."
+                    : "Model depth helps locate a pin. It does not identify what hurts."}
+                </p>
+                <button
+                  className="primary"
+                  onClick={() => {
+                    const { point } = candidates[candidateIndex];
+                    latest.current.onSelect(point.region);
+                    latest.current.onPoint?.(point);
+                    closePicker();
+                  }}
+                >
+                  Pin this structure
+                </button>
+              </div>
             </div>
           )}
         </>

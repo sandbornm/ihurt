@@ -506,3 +506,29 @@
     font-size: 18px !important;
   }
 }
+
+/* Leave room to scroll past the body without sending the drag to WebGL.
+   Size editable fields for touch without restricting the user's page zoom. */
+@media (any-pointer: coarse), (max-width: 800px) {
+  .notebook-shell .anatomy-stage {
+    margin-inline: 32px;
+  }
+  .notebook-shell
+    :is(
+      input:not([type]),
+      input[type="text"],
+      input[type="search"],
+      input[type="email"],
+      input[type="password"],
+      input[type="url"],
+      input[type="tel"],
+      input[type="number"],
+      input[type="date"],
+      input[type="time"],
+      input[type="datetime-local"],
+      textarea,
+      select
+    ) {
+    font-size: max(16px, 1rem) !important;
+  }
+}

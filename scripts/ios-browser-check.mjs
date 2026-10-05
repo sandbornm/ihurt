@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { waitForDraft } from "./browser-storage.mjs";
+import { checkTouchLayout } from "./touch-layout-check.mjs";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdir, readFile } from "node:fs/promises";
@@ -111,6 +112,7 @@ try {
       .locator('[data-atlas="z-anatomy"][data-heat-engine="wasm"]')
       .waitFor();
     await page.locator('[data-offline="ready"]').waitFor();
+    await checkTouchLayout(page, context, deviceOutput);
     assert.equal(
       await page.getByRole("button", { name: "Optional AI" }).count(),
       0,
@@ -309,7 +311,7 @@ try {
     assert.deepEqual(external, []);
     assert.deepEqual(downloads, []);
     console.log(
-      `PASS ${device} mocked iOS bridge: offline credits, portrait/landscape layout, import, persisted entry/draft, native JSON/.ihm/PNG/HTML/notebook files, sharing cancellation, storage failure; no browser downloads or API calls.`,
+      `PASS ${device} mocked iOS bridge: touch scrolling, readable editors, keyboard dismissal, reachable pin confirmation, offline credits, portrait/landscape layout, import, persisted entry/draft, native JSON/.ihm/PNG/HTML/notebook files, sharing cancellation, storage failure; no browser downloads or API calls.`,
     );
     await context.close();
   }

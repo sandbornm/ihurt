@@ -29,6 +29,36 @@ final class NotebookUITests: XCTestCase {
         // WebKit exposes aria-pressed controls as switches on some iOS versions.
         XCTAssertTrue(app.descendants(matching: .any)["Pin"].waitForExistence(timeout: 90))
 
+        // Select the region named in the public fixture. Done dismisses the
+        // search keyboard; finishing the search alone must not place a pin.
+        let find = app.buttons["Find a region"]
+        reveal(find, in: app)
+        find.tap()
+        let search = app.textFields["Search body regions"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("neck\n")
+        let keyboardGone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "count == 0"), object: app.keyboards
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [keyboardGone], timeout: 10), .completed)
+        XCTAssertFalse(app.textViews["Note for spot 1"].exists)
+        let neck = app.buttons["Neck"]
+        XCTAssertTrue(neck.isHittable)
+        neck.tap()
+        let addPin = app.buttons["Add pin in selected region"]
+        reveal(addPin, in: app)
+        addPin.tap()
+        let confirmPin = app.buttons["Pin this structure"]
+        XCTAssertTrue(confirmPin.waitForExistence(timeout: 10))
+        XCTAssertTrue(confirmPin.isHittable, "Pin confirmation must be reachable without scrolling the layer list.")
+        let pickerScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        pickerScreenshot.name = "Pin confirmation before scrolling"
+        pickerScreenshot.lifetime = .keepAlways
+        add(pickerScreenshot)
+        confirmPin.tap()
+        XCTAssertTrue(app.textViews["Note for spot 1"].waitForExistence(timeout: 10))
+
         let about = app.buttons["Privacy & limitations"]
         reveal(about, in: app)
         about.tap()
@@ -40,15 +70,12 @@ final class NotebookUITests: XCTestCase {
         let editor = app.textViews["Describe your discomfort"]
         reveal(editor, in: app, scrollUp: false)
         editor.tap()
-        // Long synthesized key bursts can lose events on a busy hosted simulator.
-        // Verify each word before testing whether the app persists the edit.
-        var typed = ""
-        for word in note.split(separator: " ") {
-            let chunk = (typed.isEmpty ? "" : " ") + word
-            editor.typeText(chunk)
-            typed += chunk
-            XCTAssertEqual(editor.value as? String, typed, "Typing must finish before the persistence check.")
-        }
+        // Verify the entire input before persistence checks. Per-word queries
+        // can each wait 60 seconds for a missing iOS keyboard animation notice.
+        editor.typeText(note)
+        XCTAssertEqual(editor.value as? String, note, "Typing must finish before the persistence check.")
+        XCTAssertLessThanOrEqual(app.webViews.firstMatch.frame.width, app.frame.width + 1,
+                                 "Focusing the note must not enlarge the page beyond the device width.")
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 10))
         app.terminate()
         app.launch()
@@ -57,6 +84,7 @@ final class NotebookUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["Pin"].waitForExistence(timeout: 90))
         reveal(editor, in: app)
         XCTAssertEqual(editor.value as? String, note)
+        XCTAssertTrue(app.textViews["Note for spot 1"].exists)
 
         let save = app.buttons["Save entry"]
         reveal(save, in: app)

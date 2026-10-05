@@ -1,0 +1,91 @@
+# Mobile notebook usability
+
+Follow-up to the interaction findings in
+[the simulator profiling PR](https://github.com/sandbornm/ihurt/pull/15).
+Work started from `main` at `5512ed3`; the profiling PR remains separate.
+
+## Changes
+
+- Text inputs, textareas, and selects use at least 16px text on touch devices
+  and narrow screens. This overrides the smaller responsive note/search styles.
+  The viewport still permits user zoom.
+- The region search keyboard offers Done. Enter dismisses the keyboard without
+  choosing a region or adding a pin; the user still selects the result. Enter
+  while composing text does not dismiss the field.
+- The layer picker scrolls its choices and preview controls separately from its
+  heading, explanation, and pin button. Pin confirmation stays visible when
+  changing surfaces or spreading layers. The selected-surface medical limitation
+  and saved-coordinate explanation keep their original wording.
+- A surface changes only when clicked or selected with the keyboard. Moving the
+  pointer across another row no longer replaces the selection on the way to Pin.
+  The browser check verifies that the saved pin names the explicitly chosen surface.
+- A 32px margin beside the anatomy stage gives touch users room to scroll the
+  page. A narrower 16px margin proved insufficient in Chromium: a touch 8px from
+  the canvas was redirected to the canvas and rotated the body. The regression
+  check swipes through the middle of the wider margin, verifies page movement,
+  and compares the canvas image to confirm that the body did not rotate.
+
+The anatomy coordinates, journal format, persistence, API behavior, and native
+permissions are unchanged. These changes apply to the web and packaged iOS app.
+They address interaction problems; they do not establish a reduction in renderer
+memory, battery use, or launch time. Physical-device memory profiling remains open.
+
+## Verification
+
+Run `npm run check`, `npm run test:ios-web`, `npm run test:controls`, and
+`npm run test:browser`. The iOS bridge browser check now includes touch scrolling,
+field sizing, search dismissal, explicit region selection, and reachable pin
+confirmation before and after scrolling/spreading the layer list. It runs at
+iPhone 16 Pro and iPad sizes, then continues its existing offline, persistence,
+export, and failure checks. These browser checks use Chromium with mocked native
+bridges; they do not emulate the iOS software keyboard.
+
+After `npm run ios:sync`, run `npm run test:ios-native` and
+`npm run test:ios-native -- --device 'iPad (A16)'`. The native scenario now types
+a region search, dismisses the software keyboard with Done, explicitly selects
+Neck, pins the surface without scrolling the picker, and verifies the notebook
+after relaunch. It also checks that the focused note's WebView fits the device
+width. Screenshots of pin confirmation and landscape information are attached
+to each result bundle.
+
+Native typing enters the public fixture sentence in one operation and verifies
+the full value before persistence checks. Per-word typing exposed repeated
+60-second waits for missing keyboard-animation notifications on iOS 27; this
+change reduces those automation waits without relaxing the content assertions.
+
+## Results — 2026-10-04
+
+Local checks used a Mac mini with Apple M4, Xcode 27.0 (27A266a), and the iOS
+27.0 simulator runtime (24A434). Both native checks used fresh disposable
+simulators and the final synchronized web assets.
+
+| Check | Result |
+| --- | --- |
+| `npm run check` | Build, 101 TypeScript tests, and 32 Python tests passed. |
+| `npm run test:ios-web` | iPhone 16 Pro and iPad (gen 7) Chromium contexts passed, including the new touch checks. |
+| `npm run test:controls` | Desktop (1440px) and phone (390px) controls, drawing, undo, and camera cleanup passed. |
+| `npm run test:browser` | Desktop (1440px) and phone (390px) journaling, exports, refresh, and offline checks passed. |
+| `npm run test:ios-native` | iPhone 16 Pro native interaction scenario passed. |
+| `npm run test:ios-native -- --device 'iPad (A16)'` | iPad A16 native interaction scenario passed. |
+
+An earlier browser run timed out clicking Muscle list while other heavy checks
+were running. A serial rerun passed both sizes without changes to that scenario
+or its timeout; the cause of that timeout was not established. The initial iPad
+native run reached the test timeout during per-word input. After the verified
+full-sentence input change described above, both native scenarios passed.
+These are test outcomes, not application latency measurements.
+
+Reviewed native screenshots show the pin button and medical limitation visible
+before scrolling the layer list. The phone shows one choice above the footer;
+the iPad has room for several. Browser screenshots also cover a scrolled list
+with layer separation enabled; the pin action remains unobstructed.
+
+<img src="images/ios-mobile/iphone-pin-picker.png" width="300" alt="iPhone 16 Pro simulator: surface selection with visible pin confirmation and medical limitation" />
+<img src="images/ios-mobile/ipad-pin-picker.png" width="500" alt="iPad A16 simulator: body map and note editor side by side with visible pin confirmation" />
+
+The complete local `.xcresult` bundles and browser captures remain in ignored
+`output/ios-native/` and `output/ios-check/`. The existing GitHub Actions workflows
+run these checks on pull requests; hosted iOS checks use Xcode 26.3.
+
+All input is synthetic or from the authorized public fixture. No provider calls,
+signing changes, TestFlight uploads, or private notebook data are involved.

@@ -37,12 +37,22 @@ export async function checkTouchLayout(page, context, output) {
     // without rotating the body or creating a mark.
     const x = box.x - 16;
     const startY = box.y + box.height * 0.8;
-    await touch.send("Input.synthesizeScrollGesture", {
-      x,
-      y: startY,
-      yDistance: -150,
-      speed: 400,
-      gestureSourceType: "touch",
+    // Explicit touch events work on both Linux and macOS. Chromium's
+    // synthesized scroll gesture produced no page movement on the Linux runner.
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y: startY, id: 1 }],
+    });
+    for (let step = 1; step <= 12; step++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x, y: startY - step * 12.5, id: 1 }],
+      });
+    }
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
     });
     await page.waitForFunction(
       (before) => window.scrollY > before + 30,

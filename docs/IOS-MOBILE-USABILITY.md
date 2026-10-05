@@ -63,6 +63,7 @@ simulators and the final synchronized web assets.
 | --- | --- |
 | `npm run check` | Build, 101 TypeScript tests, and 32 Python tests passed. |
 | `npm run test:ios-web` | iPhone 16 Pro and iPad (gen 7) Chromium contexts passed, including the new touch checks. |
+| Linux browser parity | The complete `test:ios-web` scenario also passed in `mcr.microsoft.com/playwright:v1.63.0-noble`, using copied public build assets and test fixtures. |
 | `npm run test:controls` | Desktop (1440px) and phone (390px) controls, drawing, undo, and camera cleanup passed. |
 | `npm run test:browser` | Desktop (1440px) and phone (390px) journaling, exports, refresh, and offline checks passed. |
 | `npm run test:ios-native` | iPhone 16 Pro native interaction scenario passed. |
@@ -74,6 +75,13 @@ or its timeout; the cause of that timeout was not established. The initial iPad
 native run reached the test timeout during per-word input. After the verified
 full-sentence input change described above, both native scenarios passed.
 These are test outcomes, not application latency measurements.
+
+The first hosted browser run exposed a platform difference in the new swipe
+test: Chromium's synthesized touch-scroll command moved the page on macOS but
+did not on Linux. The same failure reproduced in the official Playwright Linux
+container. The check now sends a touch-start, a sequence of touch-move events,
+and touch-end, retaining the page movement, unchanged canvas, and zero-pin
+assertions. It does not scroll the page programmatically to satisfy the check.
 
 Reviewed native screenshots show the pin button and medical limitation visible
 before scrolling the layer list. The phone shows one choice above the footer;

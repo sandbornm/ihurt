@@ -3,6 +3,8 @@
 For assessment, MVP lift, and a phased ship plan, see [IOS-APP-PLAN.md](IOS-APP-PLAN.md).
 For the keyboard, page scrolling, and layer picker follow-up, see
 [IOS-MOBILE-USABILITY.md](IOS-MOBILE-USABILITY.md).
+For downloading the latest branch onto another Mac and installing on a connected
+phone, use [the laptop handoff](IOS-LAPTOP-HANDOFF.md).
 
 The iOS app packages the existing notebook in Capacitor's WKWebView. It includes
 the anatomy models, fonts, WebAssembly, and MediaPipe hand model, so the notebook

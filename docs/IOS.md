@@ -151,7 +151,7 @@ opened in a browser without iHurt. HTML is the first native report format; this
 build does not claim native PDF generation. Use the web app's **Print / Save PDF**
 when a PDF is needed. The saved HTML blocks scripts and remote asset loading.
 
-**About & privacy → Anatomy credits and licenses** includes the bundled notices
+**Privacy & limitations → Anatomy credits and licenses** includes the bundled notices
 as text, available offline. It also explains native camera, speech, backup, and
 export behavior. Preserve the full notices when changing the UI.
 

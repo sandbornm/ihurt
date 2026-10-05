@@ -48,10 +48,13 @@ after relaunch. It also checks that the focused note's WebView fits the device
 width. Screenshots of pin confirmation and landscape information are attached
 to each result bundle.
 
-Native typing enters the public fixture sentence in one operation and verifies
-the full value before persistence checks. Per-word typing exposed repeated
-60-second waits for missing keyboard-animation notifications on iOS 27; this
-change reduces those automation waits without relaxing the content assertions.
+Native typing enters the public fixture sentence in two phrases and waits for
+the exact text after each phrase before persistence checks. A single long
+synthetic typing burst left a truncated prefix visible on one hosted iPhone run;
+per-word typing exposed repeated 60-second waits for missing keyboard-animation
+notifications on iOS 27. The phrase boundaries let WebKit consume pending input
+without a separate typing operation for every word. The test never fills in
+missing characters or accepts partial text.
 
 ## Results — 2026-10-04
 
@@ -72,8 +75,10 @@ simulators and the final synchronized web assets.
 An earlier browser run timed out clicking Muscle list while other heavy checks
 were running. A serial rerun passed both sizes without changes to that scenario
 or its timeout; the cause of that timeout was not established. The initial iPad
-native run reached the test timeout during per-word input. After the verified
-full-sentence input change described above, both native scenarios passed.
+native run reached the test timeout during per-word input. An intermediate
+full-sentence typing call passed locally but later exposed the truncated-prefix
+failure on a hosted iPhone. The final scenario uses the verified phrases
+described above.
 These are test outcomes, not application latency measurements.
 
 The first hosted browser run exposed a platform difference in the new swipe

@@ -66,13 +66,27 @@ final class NotebookUITests: XCTestCase {
         app.buttons["Close information"].tap()
 
         // These words come from the authorized public example, never a user's notebook.
-        let note = "My left upper trap and high left neck feel stiff after sleeping on my side and stomach."
+        let phrases = [
+            "My left upper trap and high left neck feel stiff",
+            " after sleeping on my side and stomach."
+        ]
+        let note = phrases.joined()
         let editor = app.textViews["Describe your discomfort"]
         reveal(editor, in: app, scrollUp: false)
         editor.tap()
-        // Verify the entire input before persistence checks. Per-word queries
-        // can each wait 60 seconds for a missing iOS keyboard animation notice.
-        editor.typeText(note)
+        // Pause between phrases so WebKit can consume synthesized keystrokes.
+        // A single long burst can leave only a prefix visible on a busy runner;
+        // per-word calls can each wait for a missing keyboard animation notice.
+        var typed = ""
+        for phrase in phrases {
+            editor.typeText(phrase)
+            typed += phrase
+            let textArrived = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", typed), object: editor
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [textArrived], timeout: 10), .completed,
+                           "The exact typed text must arrive before continuing. Actual: \(editor.value ?? "nil")")
+        }
         XCTAssertEqual(editor.value as? String, note, "Typing must finish before the persistence check.")
         XCTAssertLessThanOrEqual(app.webViews.firstMatch.frame.width, app.frame.width + 1,
                                  "Focusing the note must not enlarge the page beyond the device width.")

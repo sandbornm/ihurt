@@ -58,3 +58,5 @@ React, TypeScript, Three.js/WebGL, and WebAssembly provide the shared notebook. 
 [Development and tests](docs/DEVELOPMENT.md) · [iOS/iPadOS quality record](docs/IOS-VALIDATION.md) · [Usage and sources](docs/GUIDE.md) · [Optional AI tools](docs/PROVIDERS.md) · [Voice setup](docs/VOICE.md) · [MCP integration](docs/MCP.md) · [MIT code license](LICENSE)
 
 The code license does not replace the bundled anatomy and third-party asset licenses.
+
+Built by Michael Sandborn · [Momnt](https://momnt.dev/?utm_source=github&utm_medium=referral&utm_content=ihurt)

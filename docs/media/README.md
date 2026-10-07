@@ -2,6 +2,12 @@
 
 [← iHurt](../../README.md)
 
+## iPhone and iPad development preview
+
+[Today view](ios-today.png) shows the development build with two example moments from the authorized neck-and-tennis fixture. It is an interface preview, not a public App Store release. The anatomy credits and share-alike terms below apply to this screenshot as well.
+
+## Neck and tennis recording
+
 The project creator shared this case study for the README: stiffness in the left upper trap and high neck after sleeping on the side and stomach, followed by tennis serves. The note also records discomfort when lowering the chin toward the chest and turning left more than about 10 degrees. These are reported observations, not measurements or an assessment.
 
 - [GIF preview](neck-tennis-case-study.gif): an 11-second excerpt showing pins, the note, and searches for exercise references.

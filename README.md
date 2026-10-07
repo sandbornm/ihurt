@@ -2,45 +2,59 @@
 
 # iHurt
 
-Sit like a shrimp all day? Wake up sore from apparently nothing? Unsure where to start reading about stretches and movement?
+A visual notebook for how your body feels. Pin a spot on a 3D body, record what you notice, and keep the context for later. Look back through your entries or share a map when words alone are hard to get right.
 
-iHurt helps you describe discomfort when words alone are hard to get right. Place pins on a 3D body, add what you notice during rest or activity, and keep an offline pain journal. Export a **hurt map** to print, share, or bring to an AI chat.
+**[Open the browser notebook →](https://ihurt.app/try/)** · [Run locally](docs/SETUP.md) · [iPhone and iPad setup](docs/IOS.md)
 
-[![A neck and tennis case study: two pins, a note, and exercise references](docs/media/neck-tennis-case-study.gif)](docs/media/neck-tennis-case-study.mp4)
+**Coming soon to the App Store for iPhone and iPad.** The native app is in development. The browser notebook is available now; there is no public App Store download yet.
 
-**A stiff neck after sleep and tennis.** This recorded example maps the left upper trap and high neck, including discomfort when looking down or turning left. [Watch the full walkthrough](docs/media/neck-tennis-case-study.mp4).
+## In the browser
 
-*Recorded in demo mode; no live AI response. Anatomy by Z-Anatomy and BodyParts3D — [credits and licenses](public/models/ATTRIBUTION.md).*
+- **Mark the spot.** Place pins, add a comment to each one, or highlight a wider area. Explore muscle and bone layers when several structures overlap.
+- **Keep the context.** Record intensity, activity, timing, and your own words. Save multiple entries and return to edit them.
+- **Keep a copy.** Export an [.ihm map](docs/IHM.md), JSON, a body-view image, or a report. Print from the browser to save a PDF.
+- **Read or share when you choose.** Explore sources or bring an exported map to an AI chat. Journaling works without an AI account.
 
-## Keep a visual journal
+The notebook works offline after its first complete load. Notes and drafts stay in this browser on this device. Export a backup before clearing browser data or switching devices.
 
-- Place pins or drag to highlight an area. Local entries have no pin limit. Undo mistakes and add a comment to each spot.
-- Start with **Quick tour**, switch between light and dark, and open **More tools** when you need muscle layers.
-- Keep multiple entries, edit them later, and choose any sport or activity.
-- Explore reading from your selected sources.
-- Print the current 3D view or share an [.ihm map](docs/IHM.md) or JSON with notes, coordinates, and anatomy references.
+## Coming to iPhone and iPad
 
-**[Open the browser notebook →](https://ihurt.app/try/)** · [Install locally](docs/SETUP.md) · [iPhone and iPad setup](docs/SETUP.md#iphone-and-ipad) · [Optional AI tools](docs/PROVIDERS.md) · [Voice setup](docs/VOICE.md)
+The development build brings the notebook closer to the moments you want to remember:
 
-Use your preferred AI with an exported map, or connect a local MCP host to
-selected exports with the optional [iHurt MCP package](docs/MCP.md).
+- **Today and History.** See a day’s pins together, with a timeline of moments. Add a quick entry, switch days, and search earlier notes and activities.
+- **Quick pin editing.** Adjust intensity with a dial, add a nearby note, compare overlapping anatomy surfaces, and undo a removed pin.
+- **On-device dictation.** Speak a note, review the words, then add them to your entry. Typing is always available; Apple speech support depends on the device and language.
+- **Movement recording.** Use either camera to record a short, silent exercise clip. Review estimated body and hand positions, choose a moment, then mark where you felt discomfort. Pose estimates do not detect pain or place pins for you.
+- **Optional Apple Health context.** Display workouts and daily steps beside your day’s notes. Access is read-only; Health results stay outside journal exports and AI sharing.
 
-Entries stay in this browser on this device. Export a backup before clearing browser data or switching devices. After the first complete load, the notebook works offline. AI sharing is optional. [Privacy and limitations](docs/SAFETY.md).
+<img src="docs/media/ios-today.png" width="300" alt="iHurt development preview: Today’s body map, two example moments, and Today and History navigation" />
 
-[Example report (PDF)](docs/examples/neck-tennis.pdf) · [Example journal (JSON)](docs/examples/neck-tennis.json)
+*Development preview using example entries. Anatomy by Z-Anatomy and BodyParts3D — [credits and licenses](public/models/ATTRIBUTION.md).*
 
-[Fictional walkthroughs: desk work, running, and gaming](docs/media/README.md#fictional-notebook-examples)
+The native target supports iOS and iPadOS 16.4 or later. Movement recording requires 18 or later; Health availability is checked on the device. Builds can be installed through Xcode while distribution is being prepared. [Setup and signing](docs/IOS.md) · [Recorded testing and remaining device checks](docs/IOS-VALIDATION.md).
 
-**Hurt less. Feel better.**
+## Try an example
 
-## Not medical advice
+[![A neck and tennis example with pins, notes, and reading references](docs/media/neck-tennis-case-study.gif)](docs/media/neck-tennis-case-study.mp4)
 
-**iHurt is not medical advice whatsoever. It does not diagnose, treat, cure, mitigate, or prevent any disease, injury, or condition.** It is an experimental educational journal. Maps and reading links do not establish a cause or a personal treatment plan. Do not delay professional care based on its output. [Read the full limitations](docs/SAFETY.md).
+**A stiff neck after sleep and tennis.** This earlier browser walkthrough maps the left upper trap and high neck, including discomfort when looking down or turning left. [Watch the walkthrough](docs/media/neck-tennis-case-study.mp4).
+
+*Recorded in demo mode; no live AI response. The current interface differs. Anatomy credits and licenses apply to both previews.*
+
+[Example report (PDF)](docs/examples/neck-tennis.pdf) · [Example journal (JSON)](docs/examples/neck-tennis.json) · [Fictional desk, running, and gaming examples](docs/media/README.md#fictional-notebook-examples)
+
+## Privacy and limits
+
+Sharing is deliberate. Native dictation and movement analysis run on the device. The iPhone/iPad app does not connect to the local AI server. Optional hosted research in the browser sends the topics and description you review before submitting. [Privacy and limitations](docs/SAFETY.md).
+
+**iHurt is not medical advice whatsoever. It does not diagnose, treat, cure, mitigate, or prevent any disease, injury, or condition.** It is an experimental educational journal. Maps and reading links do not establish a cause or a personal treatment plan. Do not delay professional care based on its output.
 
 Pins describe locations on a shared reference model. They do not measure your body or identify the source of pain. [Mapping limitations](docs/GUIDE.md#mapping-a-location).
 
-## About the project
+## Build and contribute
 
-React, TypeScript, Three.js, and WebAssembly, with an optional Python backend for AI tools.
+React, TypeScript, Three.js/WebGL, and WebAssembly provide the shared notebook. The iPhone/iPad app uses Capacitor with Swift services for camera capture, Apple Vision, speech, and HealthKit. Optional local AI tools use a Python backend.
 
-[Usage and source curation](docs/GUIDE.md) · [Development and tests](docs/DEVELOPMENT.md) · [MIT code license](LICENSE)
+[Development and tests](docs/DEVELOPMENT.md) · [iOS/iPadOS quality record](docs/IOS-VALIDATION.md) · [Usage and sources](docs/GUIDE.md) · [Optional AI tools](docs/PROVIDERS.md) · [Voice setup](docs/VOICE.md) · [MCP integration](docs/MCP.md) · [MIT code license](LICENSE)
+
+The code license does not replace the bundled anatomy and third-party asset licenses.

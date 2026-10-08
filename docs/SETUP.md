@@ -25,6 +25,10 @@ The production build caches the app and anatomy files after its first complete l
 
 ## iPhone and iPad
 
+For a real iPhone plugged into another Mac, use the
+[laptop installation handoff](IOS-LAPTOP-HANDOFF.md), including the current
+branch and a prompt for a new Codex session.
+
 On a Mac, also install Xcode 26 or later. Open Xcode and finish its required
 components, then install an iOS Simulator runtime in Settings → Components.
 The runtime download can be several GB; the SDK alone is not enough to run a

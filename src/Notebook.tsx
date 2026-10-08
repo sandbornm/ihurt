@@ -1463,6 +1463,13 @@ export default function Notebook({
             ref={regionSearch}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            enterKeyHint="done"
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
             placeholder="Search a body region"
             aria-label="Search body regions"
           />

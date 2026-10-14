@@ -10,10 +10,14 @@ import {
   advisoryCopy,
   highlightIds,
   optionLabel,
+  painLevelCopy,
   plainText,
   readSuggestion,
-  regionLabel,
+  regionTitle,
+  sideCopy,
+  type PainRegionHit,
   type PainSuggestion,
+  type PainSide,
 } from "./catalog.ts";
 import { liveSpeech, speechKind } from "./dictate.ts";
 
@@ -25,6 +29,35 @@ export interface PainSuggestProps {
   onUseIntensity(value: number): void;
   onUseActivity(value: string): void;
   onInsertText(value: string): void;
+}
+
+function RegionRow({
+  region,
+  side,
+  spread = false,
+  onShow,
+  onAddPin,
+}: {
+  region: PainRegionHit;
+  side: PainSide | null;
+  spread?: boolean;
+  onShow(region: RegionId): void;
+  onAddPin(region: RegionId): void;
+}) {
+  const name = regionTitle(region, side);
+  if (!name) return null;
+  const title = spread ? `Spreads to ${name}` : name;
+  return (
+    <div className="pain-row" data-anatomy={region.anatomy_id}>
+      <span>{title}</span>
+      <button type="button" onClick={() => onShow(region.anatomy_id)}>
+        Show {name} on the body
+      </button>
+      <button type="button" onClick={() => onAddPin(region.anatomy_id)}>
+        Add a pin for {name}
+      </button>
+    </div>
+  );
 }
 
 export default function PainSuggest(props: PainSuggestProps) {
@@ -238,12 +271,20 @@ export default function PainSuggest(props: PainSuggestProps) {
         return;
       }
       setResult(parsed);
-      props.onHighlight(highlightIds(parsed.regions));
+      props.onHighlight(
+        highlightIds([
+          ...(parsed.regions ?? []),
+          ...(parsed.radiation?.regions ?? []),
+        ]),
+      );
+      const namedSide = parsed.side && parsed.side.id !== "unspecified";
       const empty =
         !parsed.regions &&
+        !namedSide &&
         !parsed.pain_type &&
         !parsed.severity &&
         !parsed.pain_level &&
+        !parsed.radiation &&
         !parsed.triggers &&
         !parsed.red_flags;
       setStatus(empty ? "Nothing in that description was clear enough to suggest." : "");
@@ -372,21 +413,16 @@ export default function PainSuggest(props: PainSuggestProps) {
             const label = optionLabel("red_flags", flag.id);
             return label ? <p key={flag.id}>{label}</p> : null;
           })}
-          {result.regions?.map((region) => {
-            const name = regionLabel(region.id);
-            if (!name) return null;
-            return (
-              <div className="pain-row" key={region.id} data-anatomy={region.anatomy_id}>
-                <span>{name}</span>
-                <button type="button" onClick={() => props.onShow(region.anatomy_id)}>
-                  Show {name} on the body
-                </button>
-                <button type="button" onClick={() => props.onAddPin(region.anatomy_id)}>
-                  Add a pin for {name}
-                </button>
-              </div>
-            );
-          })}
+          {result.side && sideCopy(result.side.id) && <p>{sideCopy(result.side.id)}</p>}
+          {result.regions?.map((region) => (
+            <RegionRow
+              key={region.id}
+              region={region}
+              side={result.side}
+              onShow={props.onShow}
+              onAddPin={props.onAddPin}
+            />
+          ))}
           {result.pain_type && optionLabel("pain_types", result.pain_type.id) && (
             <div className="pain-row">
               <span>{optionLabel("pain_types", result.pain_type.id)}</span>
@@ -403,9 +439,9 @@ export default function PainSuggest(props: PainSuggestProps) {
           {result.severity && optionLabel("severity", result.severity.id) && (
             <p>Severity hint: {optionLabel("severity", result.severity.id)}</p>
           )}
-          {result.pain_level && (
+          {result.pain_level && painLevelCopy(result.pain_level) && (
             <div className="pain-row">
-              <span>Pain level {result.pain_level.value} / 10</span>
+              <span>{painLevelCopy(result.pain_level)}</span>
               <button
                 type="button"
                 onClick={() => props.onUseIntensity(result.pain_level!.value)}
@@ -414,6 +450,19 @@ export default function PainSuggest(props: PainSuggestProps) {
               </button>
             </div>
           )}
+          {result.radiation && !result.radiation.regions && (
+            <p>Spreads. The destination was not clear enough to suggest.</p>
+          )}
+          {result.radiation?.regions?.map((region) => (
+            <RegionRow
+              key={`spread-${region.id}`}
+              region={region}
+              side={result.side}
+              spread
+              onShow={props.onShow}
+              onAddPin={props.onAddPin}
+            />
+          ))}
           {result.triggers?.map((trigger) => {
             const label = optionLabel("triggers", trigger.id);
             return label ? (

@@ -997,6 +997,61 @@ h1 > span {
   color: #6c7b68;
   white-space: nowrap;
 }
+.pain-suggest {
+  margin-top: 12px;
+  border: 1px solid #6d805644;
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+}
+.pain-suggest summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.pain-suggest button {
+  white-space: normal;
+  max-width: 100%;
+}
+.pain-suggest .consent span {
+  min-width: 0;
+}
+.pain-suggest textarea {
+  margin-top: 8px;
+  min-height: 88px;
+  resize: vertical;
+}
+.pain-actions,
+.pain-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.pain-status,
+.pain-suggestion p,
+.pain-row span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c6d9b5;
+}
+.pain-suggestion {
+  margin-top: 10px;
+  border-left: 2px solid #7ea2d6;
+  padding-left: 10px;
+}
+.pain-suggestion strong {
+  font-size: 13px;
+}
+.pain-advice {
+  margin-top: 8px;
+  border: 1px solid #ba8a4e88;
+  background: #bd774516;
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+.pain-suggest .consent {
+  margin: 8px 0;
+}
 .voice-tools {
   display: flex;
   gap: 11px;

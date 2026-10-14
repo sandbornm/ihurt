@@ -38,15 +38,18 @@ class Settings(BaseSettings):
     max_audio_bytes: int = Field(default=3_000_000, ge=1024, le=3_000_000)
     turnstile_site_key: str = ""
     turnstile_secret_key: str = ""
+    typesafe_api_key: str = ""
+    jev_reservation_usd: Decimal = Field(default=Decimal("0.01"), ge=Decimal("0.01"))
 
     @model_validator(mode="after")
     def validate_deployment(self):
+        self.typesafe_api_key = self.typesafe_api_key.strip()
         if self.app_env == "production":
             if len(self.session_secret) < 32:
                 raise ValueError("Production requires SESSION_SECRET with at least 32 characters.")
             if any(not origin.startswith("https://") for origin in self.allowed_origins) or "*" in self.allowed_hosts:
                 raise ValueError("Production requires explicit HTTPS origins and hosts.")
-            if (self.openai_api_key or self.anthropic_api_key or self.xai_api_key or self.local_model or self.elevenlabs_api_key) and not (self.turnstile_site_key and self.turnstile_secret_key):
+            if (self.openai_api_key or self.anthropic_api_key or self.xai_api_key or self.local_model or self.elevenlabs_api_key or self.typesafe_api_key) and not (self.turnstile_site_key and self.turnstile_secret_key):
                 raise ValueError("Public live mode requires both Turnstile keys.")
         if self.llm_provider == "openai" and not self.openai_api_key:
             raise ValueError("Set OPENAI_API_KEY or use LLM_PROVIDER=demo.")

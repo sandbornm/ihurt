@@ -20,7 +20,7 @@ ORIGIN = {"Origin": "http://localhost:5173"}
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(_env_file=None, database_path=tmp_path / "quota.sqlite3", session_secret="test-secret-" * 4, requests_per_minute=60)
+    return Settings(_env_file=None, database_path=tmp_path / "quota.sqlite3", session_secret="test-secret-" * 4, requests_per_minute=60, typesafe_api_key="")
 
 
 @pytest.fixture

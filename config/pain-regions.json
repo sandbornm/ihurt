@@ -1,0 +1,333 @@
+{
+  "regions": [
+    {
+      "id": "neck",
+      "name": "Neck",
+      "side": null,
+      "anatomy_id": "neck",
+      "muscles": ["sternocleidomastoid", "upper trapezius", "levator scapulae", "splenius capitis"]
+    },
+    {
+      "id": "chest",
+      "name": "Chest",
+      "side": null,
+      "anatomy_id": "chest",
+      "muscles": ["pectoralis major"]
+    },
+    {
+      "id": "upper_back",
+      "name": "Upper back",
+      "side": null,
+      "anatomy_id": "upper_back",
+      "muscles": ["trapezius", "latissimus dorsi"]
+    },
+    {
+      "id": "lower_back",
+      "name": "Lower back",
+      "side": null,
+      "anatomy_id": "lower_back",
+      "muscles": ["erector spinae", "longissimus"]
+    },
+    {
+      "id": "abdomen",
+      "name": "Abdomen",
+      "side": null,
+      "anatomy_id": "abdomen",
+      "muscles": ["rectus abdominis", "external oblique"]
+    },
+    {
+      "id": "left_shoulder",
+      "name": "Left shoulder",
+      "side": "left",
+      "anatomy_id": "left_shoulder",
+      "muscles": ["deltoid", "supraspinatus", "infraspinatus", "subscapularis", "teres minor"]
+    },
+    {
+      "id": "right_shoulder",
+      "name": "Right shoulder",
+      "side": "right",
+      "anatomy_id": "right_shoulder",
+      "muscles": ["deltoid", "supraspinatus", "infraspinatus", "subscapularis", "teres minor"]
+    },
+    {
+      "id": "left_elbow",
+      "name": "Left elbow",
+      "side": "left",
+      "anatomy_id": "left_elbow",
+      "muscles": ["biceps brachii", "triceps brachii", "brachioradialis"]
+    },
+    {
+      "id": "right_elbow",
+      "name": "Right elbow",
+      "side": "right",
+      "anatomy_id": "right_elbow",
+      "muscles": ["biceps brachii", "triceps brachii", "brachioradialis"]
+    },
+    {
+      "id": "left_wrist",
+      "name": "Left wrist and hand",
+      "side": "left",
+      "anatomy_id": "left_wrist",
+      "muscles": ["flexor carpi radialis", "extensor carpi radialis", "flexor digitorum"]
+    },
+    {
+      "id": "right_wrist",
+      "name": "Right wrist and hand",
+      "side": "right",
+      "anatomy_id": "right_wrist",
+      "muscles": ["flexor carpi radialis", "extensor carpi radialis", "flexor digitorum"]
+    },
+    {
+      "id": "left_hip",
+      "name": "Left hip",
+      "side": "left",
+      "anatomy_id": "left_hip",
+      "muscles": ["gluteus maximus", "gluteus medius", "iliacus"]
+    },
+    {
+      "id": "right_hip",
+      "name": "Right hip",
+      "side": "right",
+      "anatomy_id": "right_hip",
+      "muscles": ["gluteus maximus", "gluteus medius", "iliacus"]
+    },
+    {
+      "id": "left_thigh",
+      "name": "Left thigh",
+      "side": "left",
+      "anatomy_id": "left_thigh",
+      "muscles": ["rectus femoris", "vastus medialis", "vastus lateralis", "biceps femoris"]
+    },
+    {
+      "id": "right_thigh",
+      "name": "Right thigh",
+      "side": "right",
+      "anatomy_id": "right_thigh",
+      "muscles": ["rectus femoris", "vastus medialis", "vastus lateralis", "biceps femoris"]
+    },
+    {
+      "id": "left_knee",
+      "name": "Left knee",
+      "side": "left",
+      "anatomy_id": "left_knee",
+      "muscles": ["quadriceps tendon", "patellar tendon"]
+    },
+    {
+      "id": "right_knee",
+      "name": "Right knee",
+      "side": "right",
+      "anatomy_id": "right_knee",
+      "muscles": ["quadriceps tendon", "patellar tendon"]
+    },
+    {
+      "id": "left_calf",
+      "name": "Left calf",
+      "side": "left",
+      "anatomy_id": "left_calf",
+      "muscles": ["gastrocnemius", "soleus"]
+    },
+    {
+      "id": "right_calf",
+      "name": "Right calf",
+      "side": "right",
+      "anatomy_id": "right_calf",
+      "muscles": ["gastrocnemius", "soleus"]
+    },
+    {
+      "id": "left_ankle",
+      "name": "Left ankle",
+      "side": "left",
+      "anatomy_id": "left_ankle",
+      "muscles": ["tibialis anterior", "achilles tendon"]
+    },
+    {
+      "id": "right_ankle",
+      "name": "Right ankle",
+      "side": "right",
+      "anatomy_id": "right_ankle",
+      "muscles": ["tibialis anterior", "achilles tendon"]
+    },
+    {
+      "id": "left_foot",
+      "name": "Left foot",
+      "side": "left",
+      "anatomy_id": "left_foot",
+      "muscles": ["plantar fascia"]
+    },
+    {
+      "id": "right_foot",
+      "name": "Right foot",
+      "side": "right",
+      "anatomy_id": "right_foot",
+      "muscles": ["plantar fascia"]
+    },
+    {
+      "id": "left_deltoid",
+      "name": "Left deltoid",
+      "side": "left",
+      "anatomy_id": "left_shoulder",
+      "muscles": ["deltoid"]
+    },
+    {
+      "id": "right_deltoid",
+      "name": "Right deltoid",
+      "side": "right",
+      "anatomy_id": "right_shoulder",
+      "muscles": ["deltoid"]
+    },
+    {
+      "id": "left_biceps",
+      "name": "Left biceps",
+      "side": "left",
+      "anatomy_id": "left_elbow",
+      "muscles": ["biceps brachii"]
+    },
+    {
+      "id": "right_biceps",
+      "name": "Right biceps",
+      "side": "right",
+      "anatomy_id": "right_elbow",
+      "muscles": ["biceps brachii"]
+    },
+    {
+      "id": "left_triceps",
+      "name": "Left triceps",
+      "side": "left",
+      "anatomy_id": "left_elbow",
+      "muscles": ["triceps brachii"]
+    },
+    {
+      "id": "right_triceps",
+      "name": "Right triceps",
+      "side": "right",
+      "anatomy_id": "right_elbow",
+      "muscles": ["triceps brachii"]
+    },
+    {
+      "id": "left_forearm",
+      "name": "Left forearm",
+      "side": "left",
+      "anatomy_id": "left_wrist",
+      "muscles": ["wrist flexors", "wrist extensors"]
+    },
+    {
+      "id": "right_forearm",
+      "name": "Right forearm",
+      "side": "right",
+      "anatomy_id": "right_wrist",
+      "muscles": ["wrist flexors", "wrist extensors"]
+    },
+    {
+      "id": "left_gluteus",
+      "name": "Left gluteus",
+      "side": "left",
+      "anatomy_id": "left_hip",
+      "muscles": ["gluteus maximus", "gluteus medius"]
+    },
+    {
+      "id": "right_gluteus",
+      "name": "Right gluteus",
+      "side": "right",
+      "anatomy_id": "right_hip",
+      "muscles": ["gluteus maximus", "gluteus medius"]
+    },
+    {
+      "id": "left_quadriceps",
+      "name": "Left quadriceps",
+      "side": "left",
+      "anatomy_id": "left_thigh",
+      "muscles": ["rectus femoris", "vastus lateralis", "vastus medialis"]
+    },
+    {
+      "id": "right_quadriceps",
+      "name": "Right quadriceps",
+      "side": "right",
+      "anatomy_id": "right_thigh",
+      "muscles": ["rectus femoris", "vastus lateralis", "vastus medialis"]
+    },
+    {
+      "id": "left_hamstring",
+      "name": "Left hamstring",
+      "side": "left",
+      "anatomy_id": "left_thigh",
+      "muscles": ["biceps femoris", "semitendinosus"]
+    },
+    {
+      "id": "right_hamstring",
+      "name": "Right hamstring",
+      "side": "right",
+      "anatomy_id": "right_thigh",
+      "muscles": ["biceps femoris", "semitendinosus"]
+    },
+    {
+      "id": "left_gastrocnemius",
+      "name": "Left gastrocnemius",
+      "side": "left",
+      "anatomy_id": "left_calf",
+      "muscles": ["gastrocnemius", "soleus"]
+    },
+    {
+      "id": "right_gastrocnemius",
+      "name": "Right gastrocnemius",
+      "side": "right",
+      "anatomy_id": "right_calf",
+      "muscles": ["gastrocnemius", "soleus"]
+    },
+    {
+      "id": "pectoralis",
+      "name": "Pectoralis",
+      "side": null,
+      "anatomy_id": "chest",
+      "muscles": ["pectoralis major"]
+    },
+    {
+      "id": "upper_trapezius",
+      "name": "Upper trapezius",
+      "side": null,
+      "anatomy_id": "neck",
+      "muscles": ["upper trapezius"]
+    },
+    {
+      "id": "erector_spinae",
+      "name": "Erector spinae",
+      "side": null,
+      "anatomy_id": "lower_back",
+      "muscles": ["erector spinae", "longissimus"]
+    },
+    {
+      "id": "rectus_abdominis",
+      "name": "Rectus abdominis",
+      "side": null,
+      "anatomy_id": "abdomen",
+      "muscles": ["rectus abdominis"]
+    }
+  ],
+  "pain_types": [
+    {"id": "sharp", "label": "Sharp", "description": "Sharp, stabbing, or shooting"},
+    {"id": "dull", "label": "Dull", "description": "Dull or vague"},
+    {"id": "burning", "label": "Burning", "description": "Burning"},
+    {"id": "aching", "label": "Aching", "description": "Aching or sore"},
+    {"id": "throbbing", "label": "Throbbing", "description": "Throbbing or pulsing"},
+    {"id": "tingling", "label": "Tingling", "description": "Tingling or pins and needles"},
+    {"id": "cramping", "label": "Cramping", "description": "Cramping or spasm"},
+    {"id": "stiffness", "label": "Stiffness", "description": "Stiff or tight"}
+  ],
+  "severity": [
+    {"id": "mild", "label": "Mild", "description": "Mild, slight, or a little"},
+    {"id": "moderate", "label": "Moderate", "description": "Moderate"},
+    {"id": "severe", "label": "Severe", "description": "Severe, intense, or the worst"}
+  ],
+  "triggers": [
+    {"id": "movement", "label": "Movement", "description": "Moving or using the area brings it on"},
+    {"id": "rest", "label": "Rest", "description": "It is present at rest or at night"},
+    {"id": "pressure", "label": "Pressure", "description": "Touch, pressure, or lying on it brings it on"},
+    {"id": "posture", "label": "Posture", "description": "Sitting, standing, or another posture brings it on"},
+    {"id": "load", "label": "Load", "description": "Lifting, carrying, or load brings it on"}
+  ],
+  "red_flags": [
+    {"id": "chest_pain", "label": "Chest pain", "description": "Chest pain, chest pressure, or chest tightness"},
+    {"id": "numbness_weakness", "label": "Numbness or weakness", "description": "New numbness, weakness, or loss of strength"},
+    {"id": "bladder_bowel", "label": "Bladder or bowel changes", "description": "Loss of bladder or bowel control, or numbness around the groin"},
+    {"id": "breathing", "label": "Trouble breathing", "description": "Trouble breathing or shortness of breath"}
+  ]
+}

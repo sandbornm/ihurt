@@ -19,7 +19,7 @@ npm start
 
 Open **http://127.0.0.1:5173**. The notebook needs no Python API server or AI account. For development, use `npm run dev`.
 
-Entries and the current draft save in this browser. Use **Notebook → Export notebook** for a JSON backup. **Import JSON** restores a version 2 export. **Print / Save PDF** opens a printout you can save as PDF. The SVG download is also printable.
+Entries and the current draft save in this browser. Use **History → Export notebook** for a JSON backup. **Import JSON** restores a version 2 export. **Print / Save PDF** opens a printout you can save as PDF. The SVG download is also printable.
 
 The production build caches the app and anatomy files after its first complete load. Wait for the offline indicator before disconnecting. Browser storage can be cleared or evicted; private windows usually erase it when closed. Keep backups.
 

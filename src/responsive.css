@@ -506,3 +506,45 @@
     font-size: 18px !important;
   }
 }
+
+.notebook-shell .stage-tools .stage-intro,
+.notebook-shell .stage-tools .view-switch,
+.notebook-shell .stage-tools .layer-fab {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  transform: none !important;
+}
+.notebook-shell .stage-tools .stage-intro button,
+.notebook-shell .new-map-button {
+  font-size: 14px !important;
+  gap: 8px !important;
+  margin-top: 0 !important;
+}
+.notebook-shell .page-tabs > button {
+  font-size: 14px !important;
+}
+@media (max-width: 800px) {
+  .notebook-shell .page-tabs > button {
+    font-size: 12px !important;
+  }
+  .notebook-shell .main-content {
+    padding-bottom: 96px !important;
+  }
+  .notebook-shell .anatomy-bottom {
+    position: static !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    font-size: 12px !important;
+  }
+  .notebook-shell .anatomy-stage {
+    height: 360px !important;
+    min-height: 360px !important;
+  }
+  .notebook-shell .mark-area {
+    bottom: 12px !important;
+    left: 16px !important;
+  }
+}

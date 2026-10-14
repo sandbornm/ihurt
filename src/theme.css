@@ -19,17 +19,47 @@
   text-underline-offset: 3px;
 }
 :root[data-theme="light"] {
-  color: #243627;
-  background: #f4f6f0;
+  color: var(--ink);
+  background: var(--bg);
+  --bg: #f3f4f0;
+  --ink: #1c1f1c;
   --lime: #376b22;
-  --muted: #52664e;
-  --line: #cbd5c5;
+  --muted: #6e756b;
+  --line: #e4e6e1;
   --panel: #ffffff;
+  --surface: #ffffff;
+  --chip: #eceee9;
   --soft: #344d33;
+  --shadow: 0 8px 24px #1c1f1c14;
+  --pin: #c46a3a;
+  --pin-bg: #f8e3d4;
   color-scheme: light;
 }
 [data-theme="light"] body {
-  background: #f4f6f0;
+  background: var(--bg);
+  color: var(--ink);
+}
+[data-theme="light"] .new-map-button {
+  background: #1c1f1c;
+  color: #f7f7f4;
+  border-color: #1c1f1c;
+}
+[data-theme="light"] .new-map-button:not(:disabled):hover {
+  background: #2a2d28;
+  color: #fff;
+}
+[data-theme="light"] .notebook-shell .page-tabs > button.selected {
+  color: #1c1f1c;
+  background: var(--chip);
+}
+[data-theme="light"] .notebook-shell .view-switch button.active {
+  background: #eceee9;
+  color: #1c1f1c;
+}
+@media (max-width: 800px) {
+  [data-theme="light"] .notebook-shell .page-tabs {
+    background: var(--bg);
+  }
 }
 [data-theme="light"]
   :is(
@@ -49,7 +79,12 @@
     .site-dialog,
     .example-cards article,
     .hand-camera,
-    .more-tools-menu
+    .more-tools-menu,
+    .moment-card,
+    .history-search,
+    .day-strip-head > button,
+    .mark-area,
+    .layer-fab
   ) {
   background: #fff;
   color: #243627;
@@ -157,7 +192,7 @@
   background: #dceacb;
   color: #294f1c;
 }
-[data-theme="light"] :is(.primary, .new-map-button, .cta-primary) {
+[data-theme="light"] :is(.primary, .cta-primary) {
   background: #376b22;
   color: #fff;
   border-color: #376b22;

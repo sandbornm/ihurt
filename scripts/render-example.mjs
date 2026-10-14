@@ -52,7 +52,7 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(60000);
   await page.goto(origin);
-  await page.getByRole("button", { name: /^Notebook/ }).click();
+  await page.getByRole("button", { name: /^History/ }).click();
   await page.locator("input[type=file]").setInputFiles(input);
   await page.getByText("Imported 1 entry.", { exact: true }).waitFor();
   await page

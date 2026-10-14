@@ -13,6 +13,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   Crosshair,
@@ -77,6 +78,15 @@ import AnatomyCredits from "./AnatomyCredits";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
+import {
+  dayKeys,
+  dayTitle,
+  historyMatch,
+  localDayKey,
+  momentClock,
+  momentLabel,
+  momentsOnDay,
+} from "./moments";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -145,6 +155,10 @@ export default function Notebook({
   const [saved, setSaved] = useState<SavedMap[]>([]),
     [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<"explore" | "journal">("explore");
+  const [day, setDay] = useState(() =>
+    localDayKey(new Date(example ? exampleEntry().created : Date.now())),
+  );
+  const [historyQuery, setHistoryQuery] = useState("");
   const [selected, setSelected] = useState<RegionId | null>(
       example ? "neck" : null,
     ),
@@ -235,6 +249,7 @@ export default function Notebook({
           setLayer(d.layer);
           setShowSkeleton(d.showSkeleton !== false);
           setReadingSources(d.sources);
+          setDay(localDayKey(new Date(d.entry.created)));
         }
         setHydrated(true);
       })
@@ -372,6 +387,7 @@ export default function Notebook({
     setView("front");
     setError("");
     setTab("explore");
+    setDay(localDayKey(new Date()));
     action("reset");
   }
   function openEntry(item: SavedMap) {
@@ -379,6 +395,7 @@ export default function Notebook({
     setSelected(item.map.regions[0] ?? null);
     setView((item.points?.[0]?.position[2] ?? 0) < 0 ? "back" : "front");
     setTab("explore");
+    setDay(localDayKey(new Date(item.created)));
     setError("");
     action("reset");
   }
@@ -481,18 +498,42 @@ export default function Notebook({
       );
     }
   }
+  const strip = momentsOnDay(saved, hasContent(entry) ? entry : null, day);
+  const keys = dayKeys(
+    saved.map((item) => item.created).concat(entry.created),
+    [day],
+  );
+  const dayIndex = Math.max(0, keys.indexOf(day));
+  const dayActivities = [
+    ...new Set(strip.map((item) => item.map.activity.trim()).filter(Boolean)),
+  ];
+  const historyItems = [...saved]
+    .filter((item) => historyMatch(item, historyQuery))
+    .sort((a, b) => b.created.localeCompare(a.created));
   return (
     <div
       className="app-shell notebook-shell"
       data-offline={offline ? "ready" : "preparing"}
     >
       <header className="topbar">
-        <a href={example ? "/" : "#"} className="brand" aria-label="iHurt home">
-          <span className="brand-mark">
-            <img src="/favicon.svg" width="34" height="34" alt="" />
-          </span>
-          iHurt<span className="brand-period">.</span>
-        </a>
+        <div className="today-heading">
+          <a
+            href={example ? "/" : "#"}
+            className="brand"
+            aria-label="iHurt home"
+          >
+            <span className="brand-mark">
+              <img src="/favicon.svg" width="22" height="22" alt="" />
+            </span>
+            iHurt<span className="brand-period">.</span>
+          </a>
+          <div>
+            <h1>{dayTitle(day)}</h1>
+            <p className="today-status" role="status">
+              {draftStatus}
+            </p>
+          </div>
+        </div>
         <div className="top-actions">
           <ThemeToggle />
           <button
@@ -516,6 +557,14 @@ export default function Notebook({
             <CircleHelp size={17} />
             <span>About & privacy</span>
           </button>
+          <button
+            className="new-map-button"
+            onClick={() => void newMap()}
+            disabled={busy || !hydrated}
+          >
+            <Plus size={17} />
+            New moment
+          </button>
         </div>
       </header>
       <div className="workspace">
@@ -538,46 +587,21 @@ export default function Notebook({
           }
         </nav>
         <main className="main-content">
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                {example ? "YOUR BROWSER NOTEBOOK" : "YOUR NOTEBOOK"}
-              </div>
-              <h1>
-                Map how you feel<span>.</span>
-              </h1>
-              <p>Pin the spots. Keep the context.</p>
-            </div>
-            <button
-              className="new-map-button"
-              onClick={() => void newMap()}
-              disabled={busy || !hydrated}
-            >
-              <Plus size={17} />
-              New entry
-            </button>
-          </div>
           <div className="page-tabs">
             <button
               className={tab === "explore" ? "selected" : ""}
               onClick={() => setTab("explore")}
             >
-              <Layers3 size={16} />
-              Body map
+              <Layers3 size={18} />
+              Today
             </button>
-            {
-              <button
-                className={tab === "journal" ? "selected" : ""}
-                onClick={() => setTab("journal")}
-              >
-                <BookOpen size={16} />
-                Notebook<span className="count">{saved.length}</span>
-              </button>
-            }
-            <span className="session-badge" role="status">
-              <span />
-              {draftStatus}
-            </span>
+            <button
+              className={tab === "journal" ? "selected" : ""}
+              onClick={() => setTab("journal")}
+            >
+              <BookOpen size={18} />
+              History<span className="count">{saved.length}</span>
+            </button>
           </div>
           {storageError && (
             <p className="error-notice" role="alert">
@@ -595,12 +619,24 @@ export default function Notebook({
           {tab === "journal" ? (
             <section className="journal">
               <div className="journal-heading">
-                <h2>Your entries</h2>
+                <h2>History</h2>
                 <p>
                   {isNativeApp()
                     ? "Saved on your device. Export a backup before uninstalling or changing devices."
                     : "Saved in this browser. Export a backup before clearing browser data or changing devices."}
                 </p>
+                {!!saved.length && (
+                  <label className="history-search">
+                    <Search size={16} />
+                    <input
+                      value={historyQuery}
+                      onChange={(event) => setHistoryQuery(event.target.value)}
+                      placeholder="Notes, activities, pins"
+                      aria-label="Search notes and activities"
+                      type="search"
+                    />
+                  </label>
+                )}
                 <div className="notebook-tools">
                   <button
                     className="secondary"
@@ -634,55 +670,56 @@ export default function Notebook({
               {!saved.length ? (
                 <div className="empty-journal">
                   <BookOpen size={40} />
-                  <h3>Your first entry starts with a spot.</h3>
+                  <h3>No moments yet.</h3>
                   <button className="primary" onClick={() => setTab("explore")}>
-                    Open body map
+                    Open today
                     <ArrowRight size={16} />
                   </button>
                 </div>
               ) : (
                 <div className="journal-grid">
-                  {[...saved]
-                    .sort((a, b) => b.created.localeCompare(a.created))
-                    .map((item) => (
-                      <article className="journal-card" key={item.id}>
-                        <div className="card-overline">
-                          <MapPin size={17} />
-                          {new Date(item.created).toLocaleDateString()}
-                          <button
-                            aria-label={`Delete ${item.map.title}`}
-                            disabled={busy}
-                            onClick={() => void erase(item)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                        <h3>{item.map.title}</h3>
-                        <p>{item.note}</p>
-                        <div className="region-tags">
-                          {item.map.regions.map((r) => (
-                            <span key={r}>{regionName(r)}</span>
-                          ))}
-                        </div>
+                  {!historyItems.length && (
+                    <p className="moment-empty">No matching moments.</p>
+                  )}
+                  {historyItems.map((item) => (
+                    <article className="journal-card" key={item.id}>
+                      <div className="card-overline">
+                        <MapPin size={17} />
+                        {new Date(item.created).toLocaleDateString()}
                         <button
-                          className="secondary"
-                          onClick={() => void openSaved(item)}
+                          aria-label={`Delete ${momentLabel(item)}`}
                           disabled={busy}
+                          onClick={() => void erase(item)}
                         >
-                          Open entry
-                          <ArrowRight size={16} />
+                          <Trash2 size={16} />
                         </button>
-                        <button
-                          className="text-button"
-                          onClick={() =>
-                            void exportFile(() => download(item, "json"))
-                          }
-                        >
-                          Export JSON
-                          <ArrowDownToLine size={14} />
-                        </button>
-                      </article>
-                    ))}
+                      </div>
+                      <h3>{momentLabel(item)}</h3>
+                      <p>{item.note}</p>
+                      <div className="region-tags">
+                        {item.map.regions.map((r) => (
+                          <span key={r}>{regionName(r)}</span>
+                        ))}
+                      </div>
+                      <button
+                        className="secondary"
+                        onClick={() => void openSaved(item)}
+                        disabled={busy}
+                      >
+                        Open entry
+                        <ArrowRight size={16} />
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          void exportFile(() => download(item, "json"))
+                        }
+                      >
+                        Export JSON
+                        <ArrowDownToLine size={14} />
+                      </button>
+                    </article>
+                  ))}
                 </div>
               )}
             </section>
@@ -694,8 +731,7 @@ export default function Notebook({
               >
                 <div className="body-toolbar">
                   <div>
-                    <span className="small-label">EXPLORE YOUR ANATOMY</span>
-                    <h2>Body map</h2>
+                    <h2>Body</h2>
                   </div>
                   <div className="more-tools-wrap">
                     <button
@@ -881,10 +917,44 @@ export default function Notebook({
                 </div>
                 <div className="anatomy-stage">
                   <div className="stage-grid" />
-                  <div className="stage-intro">
-                    <button onClick={openRegions}>
-                      <Search size={14} />
-                      Find a region
+                  <div className="stage-tools">
+                    <div className="stage-intro">
+                      <button aria-label="Find a region" onClick={openRegions}>
+                        <Search size={16} />
+                        Find
+                      </button>
+                    </div>
+                    <div className="view-switch" aria-label="Body orientation">
+                      <button
+                        aria-pressed={orientation === "front"}
+                        className={orientation === "front" ? "active" : ""}
+                        onClick={() => {
+                          setView("front");
+                          action("view");
+                        }}
+                      >
+                        Front
+                      </button>
+                      <button
+                        aria-pressed={orientation === "back"}
+                        className={orientation === "back" ? "active" : ""}
+                        onClick={() => {
+                          setView("back");
+                          action("view");
+                        }}
+                      >
+                        Back
+                      </button>
+                    </div>
+                    <button
+                      className="layer-fab"
+                      aria-label="Layer tools"
+                      onClick={() => {
+                        setAdvancedControls(true);
+                        action("tools:layers");
+                      }}
+                    >
+                      <Layers3 size={18} />
                     </button>
                   </div>
                   <FeatureBoundary label="The 3D view">
@@ -925,28 +995,15 @@ export default function Notebook({
                       />
                     </Suspense>
                   </FeatureBoundary>
-                  <div className="view-switch" aria-label="Body orientation">
-                    <button
-                      aria-pressed={orientation === "front"}
-                      className={orientation === "front" ? "active" : ""}
-                      onClick={() => {
-                        setView("front");
-                        action("view");
-                      }}
-                    >
-                      Front
-                    </button>
-                    <button
-                      aria-pressed={orientation === "back"}
-                      className={orientation === "back" ? "active" : ""}
-                      onClick={() => {
-                        setView("back");
-                        action("view");
-                      }}
-                    >
-                      Back
-                    </button>
-                  </div>
+                  <button
+                    className="mark-area"
+                    onClick={() => {
+                      setAdvancedControls(true);
+                      action("tools:highlight");
+                    }}
+                  >
+                    Mark area
+                  </button>
                   <div className="canvas-controls">
                     <button
                       onClick={() => action("zoom-in")}
@@ -968,16 +1025,85 @@ export default function Notebook({
                       <RotateCcw size={16} />
                     </button>
                   </div>
-                  <div className="anatomy-bottom">
-                    <span>Reference body · your left and right</span>
-                    <a
-                      href="/models/ATTRIBUTION.md"
-                      target="_blank"
-                      rel="noreferrer"
+                </div>
+                <div className="day-strip" aria-label="Moments">
+                  <div className="day-strip-head">
+                    <button
+                      aria-label="Previous day"
+                      disabled={dayIndex <= 0}
+                      onClick={() => {
+                        const next = keys[dayIndex - 1];
+                        if (next) setDay(next);
+                      }}
                     >
-                      Anatomy credits ↗
-                    </a>
+                      <ChevronLeft size={18} />
+                    </button>
+                    <div>
+                      <strong>{dayTitle(day)}</strong>
+                      <span className="day-count">
+                        {strip.length}{" "}
+                        {strip.length === 1 ? "moment" : "moments"}
+                      </span>
+                    </div>
+                    <button
+                      aria-label="Next day"
+                      disabled={dayIndex >= keys.length - 1}
+                      onClick={() => {
+                        const next = keys[dayIndex + 1];
+                        if (next) setDay(next);
+                      }}
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                    {dayActivities.length > 0 && (
+                      <span className="day-activity">
+                        {dayActivities.join(", ")}
+                      </span>
+                    )}
                   </div>
+                  {strip.length ? (
+                    <div className="moment-row">
+                      {strip.map((item) => (
+                        <button
+                          key={item.id}
+                          className="moment-card"
+                          aria-current={
+                            item.id === entry.id ? "true" : undefined
+                          }
+                          onClick={() => void openSaved(item)}
+                        >
+                          <span className="moment-pin" aria-hidden="true">
+                            <MapPin size={16} />
+                          </span>
+                          <span className="moment-copy">
+                            <span className="moment-time">
+                              {momentClock(item.created)}
+                            </span>
+                            <span className="moment-title">
+                              {momentLabel(item)}
+                            </span>
+                          </span>
+                          {item.map.intensity != null && (
+                            <span className="moment-score">
+                              {item.map.intensity}/10
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="moment-empty">No moments this day.</p>
+                  )}
+                </div>
+                <div className="anatomy-bottom">
+                  <span>Reference body · your left and right</span>
+                  <a
+                    href="/models/ATTRIBUTION.md"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Anatomy credits ↗
+                  </a>
                 </div>
                 {selected && (
                   <div className="region-callout">
@@ -1052,8 +1178,8 @@ export default function Notebook({
                     <BookOpen size={17} />
                   </span>
                   <div>
-                    <h2>Your entry</h2>
-                    <p>Your words, saved with your map.</p>
+                    <h2>This moment</h2>
+                    <p>Your words stay with this map.</p>
                   </div>
                 </div>
                 <div className="intake-content">

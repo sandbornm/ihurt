@@ -1266,6 +1266,10 @@ export default function Anatomy(props: Props) {
       setLayers((value) => !value);
       return;
     }
+    if (type === "tools:highlight") {
+      setDragMode("highlight");
+      return;
+    }
     if (type === "tools:hands") {
       setHands((value) => !value);
       return;

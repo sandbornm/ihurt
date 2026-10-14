@@ -8,7 +8,7 @@ The 3D model files are referenced, not embedded. The SVG is a derived view; the 
 
 Use **Share with AI** to choose whether to include entry notes, pin comments, saved sources, or a previous AI interpretation. Review the text summary or JSON preview, then use **Download sharing JSON** or **Copy summary**. The **Suggested prompt and .ihm file** section offers the same selected bundle with an `.ihm` filename. Your saved entry is unchanged. AI interpretations are excluded by default; search descriptions and AI text that could repeat omitted fields are also excluded.
 
-The main **Export JSON** button exports the complete entry. Attach either format and ask the model to follow the review prompt while treating notes as observations. Import either extension through **Notebook → Import map**.
+The main **Export JSON** button exports the complete entry. Attach either format and ask the model to follow the review prompt while treating notes as observations. Import either extension through **History → Import map**.
 
 The file includes personal information. It has no encryption or access controls. Sharing it with an AI sends that information to the service you choose. iHurt does not submit it automatically.
 

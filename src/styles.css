@@ -1,16 +1,30 @@
 :root {
   font-family: "DM Sans Variable", sans-serif;
-  color: #e8ece5;
-  background: #101513;
+  color: var(--ink);
+  background: var(--bg);
   font-synthesis: none;
   font-weight: 400;
   font-size: 14px;
+  --bg: #101513;
+  --ink: #e8ece5;
   --lime: #baf38b;
   --muted: #8e9b91;
-  --line: #ffffff10;
+  --line: #ffffff14;
   --panel: #19211d;
+  --surface: #19211d;
+  --chip: #2c3a2e;
   --soft: #c3cec2;
-  --radius: 15px;
+  --shadow: 0 10px 28px #00000040;
+  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --title: 34px;
+  --pin: #e7a07a;
+  --pin-bg: #f3d2be;
   color-scheme: dark;
 }
 * {
@@ -18,6 +32,8 @@
 }
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--ink);
 }
 button,
 input,
@@ -248,12 +264,19 @@ h1 > span {
   margin-top: 10px;
 }
 .new-map-button {
-  border: 1px solid #4a5e3e;
-  border-radius: 8px;
-  background: #baf38b08;
-  color: #c6e7ad;
-  font-size: 12px;
-  padding: 11px 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: #f4f6f1;
+  color: #1c1f1c;
+  font-size: 14px;
+  font-weight: 650;
+  min-height: 44px;
+  padding: 10px 16px;
+  box-shadow: var(--shadow);
+}
+.new-map-button:not(:disabled):hover {
+  background: #fff;
+  color: #1c1f1c;
 }
 .page-tabs {
   display: flex;
@@ -2754,6 +2777,8 @@ h1 > span {
 }
 .notebook-shell .top-actions {
   gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .notebook-shell .top-actions .tour-button {
   min-height: 44px;
@@ -2879,27 +2904,307 @@ h1 > span {
   margin: 6px 0;
 }
 
-.notebook-shell .view-switch {
-  left: auto;
-  right: 24px;
-  transform: none;
+.notebook-shell .topbar {
+  height: auto;
+  min-height: 76px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border-bottom: 0;
 }
-.notebook-shell .stage-intro .small-label {
+.today-heading {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.today-heading .brand {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  gap: 8px;
+}
+.today-heading .brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+}
+.today-heading .brand-mark img {
+  width: 22px;
+  height: 22px;
+}
+.today-heading h1 {
+  font-size: var(--title);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.today-status {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.notebook-shell .main-content {
+  padding-top: var(--space-3);
+}
+.notebook-shell .page-tabs {
+  height: auto;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: 0;
+}
+.notebook-shell .page-tabs > button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+}
+.notebook-shell .page-tabs > button.selected {
+  color: var(--ink);
+  background: var(--chip);
+}
+.notebook-shell .page-tabs > button.selected:after {
   display: none;
 }
-.notebook-shell .stage-intro button {
-  min-height: 44px;
-  font-size: 14px;
+.notebook-shell .stage-tools {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  pointer-events: none;
 }
-@media (max-width: 670px) {
-  .notebook-shell .view-switch {
-    left: auto;
-    right: 12px;
-    top: 12px;
+.notebook-shell .stage-tools > * {
+  pointer-events: auto;
+  position: static;
+  top: auto;
+  right: auto;
+  left: auto;
+  transform: none;
+}
+.notebook-shell .stage-intro button,
+.notebook-shell .layer-fab,
+.notebook-shell .mark-area,
+.day-strip-head > button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.notebook-shell .stage-intro button,
+.notebook-shell .mark-area {
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  gap: 8px;
+}
+.notebook-shell .stage-intro button:hover,
+.notebook-shell .layer-fab:hover,
+.notebook-shell .mark-area:hover,
+.day-strip-head > button:hover {
+  background: var(--chip);
+  color: var(--ink);
+}
+.notebook-shell .view-switch {
+  position: static;
+  transform: none;
+  border-radius: var(--radius-pill);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 4px;
+}
+.notebook-shell .view-switch button {
+  border-radius: var(--radius-pill);
+}
+.notebook-shell .view-switch button.active {
+  background: var(--chip);
+  color: var(--ink);
+}
+.notebook-shell .layer-fab {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  padding: 0;
+}
+.notebook-shell .mark-area {
+  position: absolute;
+  z-index: 4;
+  left: 16px;
+  bottom: 12px;
+}
+.notebook-shell .anatomy-navigation {
+  left: 16px;
+  bottom: 64px;
+  max-width: calc(100% - 78px);
+}
+.notebook-shell .anatomy-bottom {
+  position: static;
+  padding: 8px 16px 0;
+  font-size: 12px;
+  pointer-events: auto;
+}
+.day-strip {
+  display: grid;
+  gap: var(--space-3);
+  padding: 14px var(--space-4) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.day-strip-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.day-strip-head > button {
+  width: 44px;
+  border-radius: 50%;
+  padding: 0;
+}
+.day-strip-head strong {
+  font-size: 16px;
+  font-weight: 650;
+}
+.day-count,
+.day-activity,
+.moment-time,
+.moment-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+.day-count {
+  margin-left: 6px;
+}
+.day-activity {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.moment-row {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.moment-card {
+  flex: 0 0 230px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+.moment-card:hover {
+  color: var(--ink);
+  background: var(--panel);
+}
+.moment-card[aria-current="true"] {
+  border-color: var(--lime);
+}
+.moment-pin {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pin-bg);
+  color: var(--pin);
+}
+.moment-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.moment-title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.moment-score {
+  font-size: 15px;
+  font-weight: 700;
+}
+.moment-empty {
+  margin: 0;
+}
+.history-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  min-height: 44px;
+  margin-top: var(--space-4);
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--panel);
+}
+.history-search input {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.history-search input:focus {
+  outline: none;
+}
+@media (max-width: 800px) {
+  .notebook-shell .page-tabs {
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    justify-content: space-around;
+    margin: 0;
+    padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
   }
-  .notebook-shell .stage-intro {
-    top: 12px;
+  .notebook-shell .page-tabs > button {
+    flex-direction: column;
+    gap: 2px;
+    background: transparent;
+    font-size: 12px;
+  }
+  .notebook-shell .page-tabs > button.selected {
+    background: transparent;
+    color: var(--ink);
+  }
+  .notebook-shell .main-content {
+    padding-bottom: 96px;
+  }
+  .notebook-shell .toast {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    z-index: 40;
+  }
+  .notebook-shell .anatomy-navigation {
     left: 12px;
+    bottom: 64px;
+    max-width: calc(100% - 72px);
+  }
+  .notebook-shell .anatomy-stage {
+    height: 360px;
+    min-height: 360px;
   }
 }
 

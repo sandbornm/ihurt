@@ -94,9 +94,9 @@ does not lock the app or prevent screenshots while it is active. See Apple's
 
 To move an existing browser notebook:
 
-1. In the browser, open **Notebook → Export notebook**.
+1. In the browser, open **History → Export notebook**.
 2. Move the JSON file to your iPhone with Files, AirDrop, or another method you choose.
-3. In the iOS app, open **Notebook → Import map** and select that JSON file.
+3. In the iOS app, open **History → Import map** and select that JSON file.
 4. Check the imported entries and pins before deleting the original copy.
 
 The same export/import process moves entries back to the browser. Imports retain

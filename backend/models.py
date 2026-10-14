@@ -126,6 +126,13 @@ class PainLabel(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+class PainSubLocation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,40}$")
+    label: str = Field(max_length=80)
+    confidence: float = Field(ge=0, le=1)
+
+
 class PainRegionHit(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,40}$")
@@ -133,12 +140,48 @@ class PainRegionHit(BaseModel):
     side: Literal["left", "right"] | None
     name: str = Field(max_length=80)
     confidence: float = Field(ge=0, le=1)
+    sub_location: PainSubLocation | None = None
+
+
+# Band id -> (label, representative 0-10). The model picks a band. The number is assigned here.
+PAIN_LEVEL_BANDS: dict[str, tuple[str, int]] = {
+    "none": ("None", 0),
+    "mild": ("Mild (2-3)", 2),
+    "moderate": ("Moderate (4-5)", 4),
+    "severe": ("Severe (6-7)", 6),
+    "very_severe": ("Very severe (8-10)", 9),
+}
 
 
 class PainLevel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    band: Literal["none", "mild", "moderate", "severe", "very_severe"]
+    label: str = Field(max_length=80)
     value: int = Field(ge=0, le=10)
     confidence: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def matches_band(self):
+        label, number = PAIN_LEVEL_BANDS[self.band]
+        if self.label != label or self.value != number:
+            raise ValueError("Pain level does not match its band.")
+        return self
+
+
+class PainSide(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: Literal["left", "right", "both", "midline", "unspecified"]
+    label: str = Field(max_length=80)
+    confidence: float = Field(ge=0, le=1)
+
+
+class PainRadiation(BaseModel):
+    """A yes answer. Destinations are catalog regions. A no answer is omitted."""
+
+    model_config = ConfigDict(extra="forbid")
+    present: Literal[True]
+    confidence: float = Field(ge=0, le=1)
+    regions: list[PainRegionHit] | None
 
 
 class PainSuggestion(BaseModel):
@@ -146,9 +189,11 @@ class PainSuggestion(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     regions: list[PainRegionHit] | None
+    side: PainSide | None
     pain_type: PainLabel | None
     severity: PainLabel | None
     pain_level: PainLevel | None
+    radiation: PainRadiation | None
     triggers: list[PainLabel] | None
     red_flags: list[PainLabel] | None
     model: str = Field(pattern=r"^[A-Za-z0-9._-]{1,40}$")

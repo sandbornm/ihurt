@@ -54,14 +54,16 @@
       "name": "Left elbow",
       "side": "left",
       "anatomy_id": "left_elbow",
-      "muscles": ["biceps brachii", "triceps brachii", "brachioradialis"]
+      "muscles": ["biceps brachii", "triceps brachii", "brachioradialis"],
+      "mentions": "the arm"
     },
     {
       "id": "right_elbow",
       "name": "Right elbow",
       "side": "right",
       "anatomy_id": "right_elbow",
-      "muscles": ["biceps brachii", "triceps brachii", "brachioradialis"]
+      "muscles": ["biceps brachii", "triceps brachii", "brachioradialis"],
+      "mentions": "the arm"
     },
     {
       "id": "left_wrist",
@@ -96,14 +98,16 @@
       "name": "Left thigh",
       "side": "left",
       "anatomy_id": "left_thigh",
-      "muscles": ["rectus femoris", "vastus medialis", "vastus lateralis", "biceps femoris"]
+      "muscles": ["rectus femoris", "vastus medialis", "vastus lateralis", "biceps femoris"],
+      "mentions": "down the leg or the upper leg"
     },
     {
       "id": "right_thigh",
       "name": "Right thigh",
       "side": "right",
       "anatomy_id": "right_thigh",
-      "muscles": ["rectus femoris", "vastus medialis", "vastus lateralis", "biceps femoris"]
+      "muscles": ["rectus femoris", "vastus medialis", "vastus lateralis", "biceps femoris"],
+      "mentions": "down the leg or the upper leg"
     },
     {
       "id": "left_knee",
@@ -124,14 +128,16 @@
       "name": "Left calf",
       "side": "left",
       "anatomy_id": "left_calf",
-      "muscles": ["gastrocnemius", "soleus"]
+      "muscles": ["gastrocnemius", "soleus"],
+      "mentions": "the lower leg"
     },
     {
       "id": "right_calf",
       "name": "Right calf",
       "side": "right",
       "anatomy_id": "right_calf",
-      "muscles": ["gastrocnemius", "soleus"]
+      "muscles": ["gastrocnemius", "soleus"],
+      "mentions": "the lower leg"
     },
     {
       "id": "left_ankle",
@@ -264,14 +270,16 @@
       "name": "Left gastrocnemius",
       "side": "left",
       "anatomy_id": "left_calf",
-      "muscles": ["gastrocnemius", "soleus"]
+      "muscles": ["gastrocnemius", "soleus"],
+      "mentions": "the lower leg"
     },
     {
       "id": "right_gastrocnemius",
       "name": "Right gastrocnemius",
       "side": "right",
       "anatomy_id": "right_calf",
-      "muscles": ["gastrocnemius", "soleus"]
+      "muscles": ["gastrocnemius", "soleus"],
+      "mentions": "the lower leg"
     },
     {
       "id": "pectoralis",
@@ -329,5 +337,26 @@
     {"id": "numbness_weakness", "label": "Numbness or weakness", "description": "New numbness, weakness, or loss of strength"},
     {"id": "bladder_bowel", "label": "Bladder or bowel changes", "description": "Loss of bladder or bowel control, or numbness around the groin"},
     {"id": "breathing", "label": "Trouble breathing", "description": "Trouble breathing or shortness of breath"}
+  ],
+  "sub_locations": [
+    {
+      "id": "shoulder",
+      "label": "Shoulder",
+      "anatomy_ids": ["left_shoulder", "right_shoulder"],
+      "options": [
+        {"id": "front", "label": "Front", "description": "Front of the shoulder"},
+        {"id": "back", "label": "Back", "description": "Back of the shoulder"},
+        {"id": "top", "label": "Top", "description": "Top of the shoulder"}
+      ]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "anatomy_ids": ["upper_back", "lower_back"],
+      "options": [
+        {"id": "upper", "label": "Upper", "description": "Upper back"},
+        {"id": "lower", "label": "Lower", "description": "Lower back"}
+      ]
+    }
   ]
 }

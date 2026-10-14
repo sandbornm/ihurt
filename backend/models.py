@@ -109,3 +109,46 @@ class MapRequest(BaseModel):
         if len({a.key for a in self.answers}) != len(self.answers):
             raise ValueError("Each follow-up can be answered once.")
         return self
+
+
+class PainRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    text: str = Field(min_length=3, max_length=3000)
+    consent: bool = False
+    challenge_token: str = Field(default="", max_length=2048)
+
+
+class PainLabel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,40}$")
+    label: str = Field(max_length=80)
+    confidence: float = Field(ge=0, le=1)
+
+
+class PainRegionHit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,40}$")
+    anatomy_id: Region
+    side: Literal["left", "right"] | None
+    name: str = Field(max_length=80)
+    confidence: float = Field(ge=0, le=1)
+
+
+class PainLevel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: int = Field(ge=0, le=10)
+    confidence: float = Field(ge=0, le=1)
+
+
+class PainSuggestion(BaseModel):
+    """Structured suggestion. Region ids are catalog entries, never pin coordinates."""
+
+    model_config = ConfigDict(extra="forbid")
+    regions: list[PainRegionHit] | None
+    pain_type: PainLabel | None
+    severity: PainLabel | None
+    pain_level: PainLevel | None
+    triggers: list[PainLabel] | None
+    red_flags: list[PainLabel] | None
+    model: str = Field(pattern=r"^[A-Za-z0-9._-]{1,40}$")

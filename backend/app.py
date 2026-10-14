@@ -11,8 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .config import Settings
+from .jev import classify_pain
 from .limits import Limits
-from .models import MapRequest
+from .models import MapRequest, PainRequest, PainSuggestion
 from .transcription import create_transcriber
 from .providers import create_providers, possible_emergency, provider_error_message, SAFETY_MESSAGE
 
@@ -65,17 +66,19 @@ class RequestBoundary:
         await self.app(scope, receive, secure_send)
 
 
-def create_app(settings: Settings | None = None, provider=None):
+def create_app(settings: Settings | None = None, provider=None, jev_transport=None):
     settings = settings or Settings()
     limits = Limits(settings)
     providers = {"demo": provider} if provider else create_providers(settings)
     transcriber, transcription_name = create_transcriber(settings, providers)
     signer = URLSafeTimedSerializer(settings.session_secret, salt="ihurt-visitor-v1")
     gate = asyncio.Semaphore(4)
+    jev_client = httpx.AsyncClient(transport=jev_transport, timeout=30)
 
     @asynccontextmanager
     async def lifespan(app):
         yield
+        await jev_client.aclose()
         for provider in providers.values():
             if hasattr(provider, "client"):
                 await provider.client.close()
@@ -121,7 +124,7 @@ def create_app(settings: Settings | None = None, provider=None):
             limits.mint_session(ip)
             owner = secrets.token_urlsafe(24)
             response.set_cookie("ihurt_visitor", signer.dumps(owner), max_age=86400, httponly=True, secure=settings.app_env == "production", samesite="strict")
-        return {"provider": settings.llm_provider, "providers": [{"id": key, "name": name, "available": key in providers} for key, name in [("demo", "Demo · no AI"), ("local", "Local model"), ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("grok", "Grok")]], "remaining": limits.remaining(owner, ip), "limit": settings.activities_per_day, "turn_limit": settings.turns_per_activity, "turnstile_site_key": settings.turnstile_site_key, "max_audio_seconds": settings.max_audio_seconds, "transcription_available": transcriber is not None, "transcription_provider": transcription_name}
+        return {"provider": settings.llm_provider, "providers": [{"id": key, "name": name, "available": key in providers} for key, name in [("demo", "Demo · no AI"), ("local", "Local model"), ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("grok", "Grok")]], "remaining": limits.remaining(owner, ip), "limit": settings.activities_per_day, "turn_limit": settings.turns_per_activity, "turnstile_site_key": settings.turnstile_site_key, "max_audio_seconds": settings.max_audio_seconds, "transcription_available": transcriber is not None, "transcription_provider": transcription_name, "pain_suggestions": bool(settings.typesafe_api_key)}
 
     @app.post("/api/map")
     async def map_note(body: MapRequest, request: Request):
@@ -191,6 +194,31 @@ def create_app(settings: Settings | None = None, provider=None):
                 return {"text": text}
             except Exception:
                 raise HTTPException(502, "The recording could not be transcribed. You can type your note instead.") from None
+
+    @app.post("/api/pain")
+    async def pain(body: PainRequest, request: Request):
+        owner, ip = identity(request)
+        # No key: do not call Jev. The notebook keeps working.
+        if not settings.typesafe_api_key:
+            return {"suggestion": None}
+        text = body.text.strip()
+        if len(text) < 3:
+            raise HTTPException(422, "Describe the pain in a few words.")
+        if not body.consent:
+            raise HTTPException(400, "Please agree to send this description before asking for a suggestion.")
+        await challenge(body.challenge_token)
+        if gate.locked():
+            raise HTTPException(503, "The suggestion service is busy. Please try again shortly.", headers={"Retry-After": "10"})
+        async with gate:
+            limits.reserve(owner, ip, body.request_id, None, kind="jev", paid=True)
+            try:
+                raw = await asyncio.wait_for(classify_pain(text, settings.typesafe_api_key, jev_client), timeout=40)
+                suggestion = None if raw is None else PainSuggestion.model_validate(raw).model_dump()
+            except HTTPException:
+                raise
+            except Exception:
+                return JSONResponse({"detail": "The suggestion service could not finish. You can still edit your note and place pins."}, status_code=502)
+        return {"suggestion": suggestion}
 
     dist = Path(__file__).resolve().parent.parent / "dist" / "app"
     if dist.exists():

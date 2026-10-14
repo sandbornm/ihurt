@@ -239,3 +239,7 @@
 [data-theme="light"] :is(.pain-status, .pain-suggestion p, .pain-row span) {
   color: #243627;
 }
+[data-theme="light"] .pain-level-picks button[aria-checked="true"] {
+  color: #243627;
+  background: #c5e89a55;
+}

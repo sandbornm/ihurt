@@ -182,16 +182,23 @@ try {
   await page.getByText("Lower back, right side", { exact: true }).waitFor();
   await page.getByText("Spreads to Left thigh", { exact: true }).waitFor();
   await page.getByText("Severe (6-7) · 6 / 10", { exact: true }).waitFor();
+  const levelGroup = page.getByRole("radiogroup", { name: "Pain level" });
+  await levelGroup.waitFor();
+  assert.equal(
+    await levelGroup.getByRole("radio", { name: "6", exact: true }).getAttribute("aria-checked"),
+    "true",
+  );
   const beforeLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
   assert.equal(beforeLevel, "Not recorded");
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
+  await levelGroup.getByRole("radio", { name: "7", exact: true }).click();
   await page.getByRole("button", { name: "Use as level" }).click();
   const afterLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
-  assert.equal(afterLevel, "6 out of 10");
+  assert.equal(afterLevel, "7 out of 10");
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
   await page.waitForFunction(() =>
     document

@@ -41,7 +41,7 @@ export default function FeedbackLinks() {
         >
           <Lightbulb size={15} /> Suggest a feature
         </button>
-        <button type="button" className="privacy-link" onClick={copy}>
+        <button type="button" className="secondary" onClick={copy}>
           No mail app? Copy address
         </button>
       </div>

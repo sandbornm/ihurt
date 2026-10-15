@@ -74,9 +74,10 @@ test("suggestions keep only side and pain level", () => {
   );
 });
 
-test("chooseSpeech prefers on-device options in order", () => {
-  assert.equal(chooseSpeech({ apple: true, web: true, upload: true }), "apple");
-  assert.equal(chooseSpeech({ apple: false, web: true, upload: true }), "web");
-  assert.equal(chooseSpeech({ apple: false, web: false, upload: true }), "upload");
-  assert.equal(chooseSpeech({ apple: false, web: false, upload: false }), "none");
+test("speech uses Apple, then the browser, then an upload", () => {
+  assert.equal(chooseSpeech(true, true, false, true), "apple");
+  assert.equal(chooseSpeech(false, true, false, true), "web");
+  assert.equal(chooseSpeech(false, false, true, true), "none");
+  assert.equal(chooseSpeech(false, false, false, true), "upload");
+  assert.equal(chooseSpeech(false, false, false, false), "none");
 });

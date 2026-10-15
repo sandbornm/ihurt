@@ -7,17 +7,11 @@ import VisitorCheck from "../VisitorCheck.tsx";
 import { localVoiceClient } from "../voice/client.ts";
 import { startRecording, toWav, type Recording } from "../voice/recording.ts";
 import {
-  advisoryCopy,
-  highlightIds,
-  optionLabel,
   painLevelCopy,
   plainText,
   readSuggestion,
-  regionTitle,
   sideCopy,
-  type PainRegionHit,
   type PainSuggestion,
-  type PainSide,
 } from "./catalog.ts";
 import { liveSpeech, speechKind } from "./dictate.ts";
 
@@ -29,35 +23,6 @@ export interface PainSuggestProps {
   onUseIntensity(value: number): void;
   onUseActivity(value: string): void;
   onInsertText(value: string): void;
-}
-
-function RegionRow({
-  region,
-  side,
-  spread = false,
-  onShow,
-  onAddPin,
-}: {
-  region: PainRegionHit;
-  side: PainSide | null;
-  spread?: boolean;
-  onShow(region: RegionId): void;
-  onAddPin(region: RegionId): void;
-}) {
-  const name = regionTitle(region, side);
-  if (!name) return null;
-  const title = spread ? `Spreads to ${name}` : name;
-  return (
-    <div className="pain-row" data-anatomy={region.anatomy_id}>
-      <span>{title}</span>
-      <button type="button" onClick={() => onShow(region.anatomy_id)}>
-        Show {name} on the body
-      </button>
-      <button type="button" onClick={() => onAddPin(region.anatomy_id)}>
-        Add a pin for {name}
-      </button>
-    </div>
-  );
 }
 
 export default function PainSuggest(props: PainSuggestProps) {
@@ -74,6 +39,10 @@ export default function PainSuggest(props: PainSuggestProps) {
   const [nonce, setNonce] = useState(0);
   const kind = speechKind();
   const generation = useRef(0);
+  // Each suggest() call and unmount bumps this so stale responses are dropped.
+  const suggestRun = useRef(0);
+  const latestText = useRef("");
+  latestText.current = text;
   const capture = useRef<Recording | null>(null);
   const speech = useRef(liveSpeech());
   const heard = useRef("");
@@ -86,6 +55,7 @@ export default function PainSuggest(props: PainSuggestProps) {
   useEffect(() => {
     return () => {
       generation.current++;
+      suggestRun.current++;
       capture.current?.cancel();
       void speech.current?.cancel().catch(() => {});
     };
@@ -239,11 +209,15 @@ export default function PainSuggest(props: PainSuggestProps) {
       setError("Agree to send this description before asking for a suggestion.");
       return;
     }
+    const run = ++suggestRun.current;
+    const stale = () =>
+      suggestRun.current !== run || plainText(latestText.current) !== description;
     setBusy(true);
     setError("");
     setStatus("");
     try {
       const current = (await loadSession()) ?? session;
+      if (stale()) return;
       if (!current?.pain_suggestions) {
         clearSuggestion();
         setStatus("Suggestions are off on this server.");
@@ -259,6 +233,8 @@ export default function PainSuggest(props: PainSuggestProps) {
         consent: true,
         challenge_token: token,
       });
+      // The text changed or the panel closed while waiting: keep the new state, drop this answer.
+      if (stale()) return;
       if (response.suggestion == null) {
         clearSuggestion();
         setStatus("Suggestions are off on this server.");
@@ -271,24 +247,13 @@ export default function PainSuggest(props: PainSuggestProps) {
         return;
       }
       setResult(parsed);
-      props.onHighlight(
-        highlightIds([
-          ...(parsed.regions ?? []),
-          ...(parsed.radiation?.regions ?? []),
-        ]),
-      );
+      // Regions stay with the main map provider; Jev only suggests side and level.
+      props.onHighlight([]);
       const namedSide = parsed.side && parsed.side.id !== "unspecified";
-      const empty =
-        !parsed.regions &&
-        !namedSide &&
-        !parsed.pain_type &&
-        !parsed.severity &&
-        !parsed.pain_level &&
-        !parsed.radiation &&
-        !parsed.triggers &&
-        !parsed.red_flags;
+      const empty = !namedSide && !parsed.pain_level;
       setStatus(empty ? "Nothing in that description was clear enough to suggest." : "");
     } catch (caught) {
+      if (stale()) return;
       clearSuggestion();
       setError(
         caught instanceof Error
@@ -296,13 +261,12 @@ export default function PainSuggest(props: PainSuggestProps) {
           : "The suggestion could not be requested.",
       );
     } finally {
-      setBusy(false);
+      if (suggestRun.current === run) setBusy(false);
       setToken("");
       setNonce((value) => value + 1);
     }
   }
 
-  const advice = advisoryCopy(result?.red_flags);
   const speechNote =
     kind === "apple"
       ? "Speech stays on this device. The words stay in this box until you ask for a suggestion."
@@ -404,41 +368,10 @@ export default function PainSuggest(props: PainSuggestProps) {
       {result && (
         <div className="pain-suggestion">
           <strong>AI suggestion</strong>
-          {advice && (
-            <p className="pain-advice" role="status">
-              {advice}
-            </p>
-          )}
-          {result.red_flags?.map((flag) => {
-            const label = optionLabel("red_flags", flag.id);
-            return label ? <p key={flag.id}>{label}</p> : null;
-          })}
+          <p className="pain-status">
+            Side and pain level only. Place regions with the body map or your note.
+          </p>
           {result.side && sideCopy(result.side.id) && <p>{sideCopy(result.side.id)}</p>}
-          {result.regions?.map((region) => (
-            <RegionRow
-              key={region.id}
-              region={region}
-              side={result.side}
-              onShow={props.onShow}
-              onAddPin={props.onAddPin}
-            />
-          ))}
-          {result.pain_type && optionLabel("pain_types", result.pain_type.id) && (
-            <div className="pain-row">
-              <span>{optionLabel("pain_types", result.pain_type.id)}</span>
-              <button
-                type="button"
-                onClick={() =>
-                  props.onUseQuality(optionLabel("pain_types", result.pain_type!.id)!)
-                }
-              >
-                Use as feeling
-              </button>
-            </div>
-          )}
-          {result.severity && optionLabel("severity", result.severity.id) && (
-            <p>Severity hint: {optionLabel("severity", result.severity.id)}</p>
-          )}
           {result.pain_level && painLevelCopy(result.pain_level) && (
             <div className="pain-row">
               <span>{painLevelCopy(result.pain_level)}</span>
@@ -450,30 +383,6 @@ export default function PainSuggest(props: PainSuggestProps) {
               </button>
             </div>
           )}
-          {result.radiation && !result.radiation.regions && (
-            <p>Spreads. The destination was not clear enough to suggest.</p>
-          )}
-          {result.radiation?.regions?.map((region) => (
-            <RegionRow
-              key={`spread-${region.id}`}
-              region={region}
-              side={result.side}
-              spread
-              onShow={props.onShow}
-              onAddPin={props.onAddPin}
-            />
-          ))}
-          {result.triggers?.map((trigger) => {
-            const label = optionLabel("triggers", trigger.id);
-            return label ? (
-              <div className="pain-row" key={trigger.id}>
-                <span>{label}</span>
-                <button type="button" onClick={() => props.onUseActivity(label)}>
-                  Use {label} as activity
-                </button>
-              </div>
-            ) : null;
-          })}
           <button
             type="button"
             className="text-button"
@@ -482,7 +391,7 @@ export default function PainSuggest(props: PainSuggestProps) {
               setStatus("");
             }}
           >
-            Dismiss suggestion
+            Clear suggestion
           </button>
         </div>
       )}

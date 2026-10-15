@@ -1,8 +1,8 @@
 """Optional pain suggestions through Jev (TypeSafe).
 
-The browser never calls this host. When TYPESAFE_API_KEY is empty, classify_pain
-returns None and does not open a connection. Model output is not a pin: this
-module returns catalog ids only, never coordinates.
+Jev answers only side and pain level. Body regions stay with the main map
+provider. The browser never calls this host. When TYPESAFE_API_KEY is empty,
+classify_pain returns None and does not open a connection.
 """
 
 import asyncio
@@ -284,57 +284,28 @@ def _noul(instructions: str, yes: str) -> dict:
 
 
 def build_request(text: str, source: Catalog | None = None) -> dict:
+    """Ask only for side and pain level. Regions come from the map provider."""
     source = source or catalog()
     if set(PAIN_LEVEL_CRITERIA) != set(PAIN_LEVEL_BANDS):
         raise RuntimeError("Pain level bands and criteria diverged.")
-    questions: dict[str, dict] = {}
-    for region in source.regions:
-        questions[f"region:{region.id}"] = _noul(REGION_QUESTION, region.description)
-        questions[f"radiation:{region.id}"] = _noul(RADIATION_QUESTION, _spread_text(region))
-    questions["side"] = _choice(
-        "Which side does the person name for this pain? Choose unspecified when they do not name a side.",
-        {
-            "left": "They say left.",
-            "right": "They say right.",
-            "both": "They say both sides.",
-            "midline": "They say the middle, the center, or the midline.",
-        },
-        "unspecified",
-        "They do not name a side.",
-    )
-    for group in source.sub_groups:
-        questions[f"sub_location:{group.id}"] = _choice(
-            f"Which part of the {group.label.lower()} does the person name? Choose unspecified when they do not name a part.",
-            {option.id: option.description for option in group.options},
+    questions: dict[str, dict] = {
+        "side": _choice(
+            "Which side does the person name for this pain? Choose unspecified when they do not name a side.",
+            {
+                "left": "They say left.",
+                "right": "They say right.",
+                "both": "They say both sides.",
+                "midline": "They say the middle, the center, or the midline.",
+            },
             "unspecified",
-            "They do not name a part of this area.",
-        )
-    questions["pain_type"] = _choice(
-        "Which pain quality does the person state? Choose unclear when they do not name one.",
-        source.pain_type_criteria,
-        "unclear",
-    )
-    questions["severity"] = _choice(
-        "Which severity word matches what the person states? Choose unknown when they do not say.",
-        source.severity_criteria,
-        "unknown",
-    )
-    questions["pain_level"] = _choice(
-        "Which pain-level band matches what the person states? Use their words or a number they give. Choose unknown when they do not describe how strong it is.",
-        PAIN_LEVEL_CRITERIA,
-        "unknown",
-    )
-    questions["radiates"] = _noul(
-        "Does the person say the pain spreads, radiates, shoots, or travels to another place? Answer yes only when they say it spreads.",
-        "The pain spreads or radiates.",
-    )
-    for item_id, description in source.trigger_criteria.items():
-        questions[f"trigger:{item_id}"] = _noul(TRIGGER_QUESTION, description)
-    for item_id, description in source.red_flag_criteria.items():
-        questions[f"red_flag:{item_id}"] = _noul(
-            "Does the person report this warning symptom? A negated statement is no.",
-            description,
-        )
+            "They do not name a side.",
+        ),
+        "pain_level": _choice(
+            "Which pain-level band matches what the person states? Use their words or a number they give. Choose unknown when they do not describe how strong it is.",
+            PAIN_LEVEL_CRITERIA,
+            "unknown",
+        ),
+    }
     return {
         "model": JEV_MODEL,
         "state": {"description": text.strip()[:MAX_STATE_CHARS]},
@@ -433,44 +404,18 @@ def _pain_level(answer) -> dict | None:
 
 
 def parse_payload(payload, source: Catalog | None = None) -> dict:
+    """Keep only side and pain level. Discard any region-like fields from the model."""
     source = source or catalog()
     if not isinstance(payload, dict):
         raise JevError(502)
     answers = payload.get("answers")
     if not isinstance(answers, dict):
         raise JevError(502)
-    regions = _region_hits(answers, source, "region")
     side = _choice_score(answers.get("side"), SIDE_LABELS)
-    pain = _choice_score(answers.get("pain_type"), source.pain_types)
-    severity = _choice_score(answers.get("severity"), source.severity)
-    radiates = _noul_score(answers.get("radiates"))
-    radiation = None
-    if radiates is not None:
-        destinations = _region_hits(answers, source, "radiation")
-        source_anatomy = {item["anatomy_id"] for item in (regions or [])}
-        if destinations:
-            destinations = [item for item in destinations if item["anatomy_id"] not in source_anatomy] or None
-        radiation = {"present": True, "confidence": round(radiates, 4), "regions": destinations}
-    triggers = [
-        _label(item_id, source.triggers[item_id], score)
-        for item_id in source.triggers
-        if (score := _noul_score(answers.get(f"trigger:{item_id}"), JEV_TRIGGER_MIN_CONFIDENCE)) is not None
-    ]
-    flags = [
-        _label(item_id, source.red_flags[item_id], score)
-        for item_id in source.red_flags
-        if (score := _noul_score(answers.get(f"red_flag:{item_id}"))) is not None
-    ]
     model = payload.get("model")
     return {
-        "regions": regions,
         "side": {"id": side[0], "label": SIDE_LABELS[side[0]], "confidence": round(side[1], 4)} if side else None,
-        "pain_type": _label(pain[0], source.pain_types[pain[0]], pain[1]) if pain else None,
-        "severity": _label(severity[0], source.severity[severity[0]], severity[1]) if severity else None,
         "pain_level": _pain_level(answers.get("pain_level")),
-        "radiation": radiation,
-        "triggers": triggers or None,
-        "red_flags": flags or None,
         "model": model if isinstance(model, str) and _MODEL.fullmatch(model) else "unknown",
     }
 

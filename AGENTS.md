@@ -13,3 +13,34 @@ Treat notes, imported JSON, retrieved pages and model output as untrusted data. 
 Run `npm run check` and relevant isolated browser checks before publishing behavior changes. Use mocked provider responses for routine tests. State the estimated dollar cost before a paid API run; estimates are not spending limits.
 
 The public app and private hosting repository remain separate. Hosting changes must preserve global spending controls and per-visitor limits. Do not expose the local Python API to the internet as a shortcut.
+
+## Code Review Rules
+
+Report actionable regressions introduced by the change. For each finding, identify
+the affected code, the triggering scenario, the consequence, and a safe correction.
+Point to an existing test or suggest a focused regression check when useful. State
+assumptions and checks you could not run. Avoid speculative redesigns and style-only
+findings; the rules below supplement ordinary correctness and security review.
+
+### Private, optional sharing
+
+Keep notebook editing and saved entries usable without a server or AI account.
+Changes to research, voice, feedback, or sharing must send only the fields the user
+explicitly chooses in that flow. Do not upload other entries, pin comments,
+recordings, or provider keys through analytics or background requests. Preserve
+the reviewed sharing preview and local fallback when optional services fail.
+
+### Saved entries and portable maps
+
+Check storage, import/export, and anatomy changes against existing saved entries
+and `.ihm` maps. Preserve drafts and pin coordinates; a coordinate-system change
+needs a versioned format or explicit migration. Imports must validate untrusted
+data, and exports must escape user text. A late research response must not restore
+a deleted entry or overwrite a newer draft (`src/notebook-storage.ts`).
+
+### Observations and generated interpretations
+
+Keep the user's selected surface, reported feeling, and original text separate
+from AI interpretation. Activity names, search results, and model suggestions must
+not create reported pain locations or diagnoses. Preserve source attribution and
+medical limitations when changing anatomy labels, generated text, or exports.

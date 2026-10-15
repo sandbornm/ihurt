@@ -65,12 +65,11 @@ async def run_jev(model, text, client, key):
     parsed = jev.parse_payload(payload)
     usage = payload.get("usage") or {}
     tokens = usage.get("input_tokens") or 0
-    regions = [r["anatomy_id"] for r in parsed["regions"] or []]
     side = parsed["side"]["id"] if parsed["side"] else None
     if side in ("unspecified", "midline"):
         side = None
     level_band = parsed["pain_level"]["band"] if parsed["pain_level"] else None
-    return {"regions": regions, "side": side, "band": level_band, "latency": latency,
+    return {"regions": [], "side": side, "band": level_band, "latency": latency,
             "tokens": tokens, "cost": tokens * JEV_USD_PER_INPUT_TOKEN, "answered_by": parsed["model"]}
 
 

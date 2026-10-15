@@ -237,7 +237,7 @@ def test_classify_sends_bearer_auth_and_retries_only_retryable_status():
     asyncio.run(check())
     assert seen["url"] == JEV_ENDPOINT
     assert seen["auth"] == f"Bearer {KEY}"
-    assert seen["body"]["model"] == "jev-latest"
+    assert seen["body"]["model"] == JEV_MODEL
     assert seen["calls"] == 2
 
 
@@ -392,3 +392,7 @@ def test_production_typesafe_key_requires_turnstile():
             allowed_origins=["https://ihurt.app"],
             typesafe_api_key="test-not-a-real-key",
         )
+
+
+def test_jev_model_is_pinned_by_default():
+    assert JEV_MODEL == "jev-1.13.0"

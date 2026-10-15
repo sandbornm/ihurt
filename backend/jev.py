@@ -8,6 +8,7 @@ module returns catalog ids only, never coordinates.
 import asyncio
 import json
 import math
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +18,8 @@ import httpx
 from .models import PAIN_LEVEL_BANDS, Region
 
 JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-JEV_MODEL = "jev-latest"
+# Pinned so confidence cutoffs stay tuned to one model; jev-latest moves without notice.
+JEV_MODEL = os.environ.get("JEV_MODEL", "").strip() or "jev-1.13.0"
 JEV_MIN_CONFIDENCE = 0.5
 JEV_TRIGGER_MIN_CONFIDENCE = 0.7
 MAX_STATE_CHARS = 4000

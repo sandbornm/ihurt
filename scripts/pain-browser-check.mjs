@@ -29,6 +29,7 @@ server.stdout.on("data", (chunk) => {
 });
 
 const suggestion = {
+  // Region-like fields are ignored: Jev only suggests side and pain level now.
   regions: [
     {
       id: "left_deltoid",
@@ -36,45 +37,10 @@ const suggestion = {
       side: "left",
       name: "<img src=x onerror=alert(1)>",
       confidence: 0.82,
-      sub_location: { id: "front", label: "<b>Front</b>", confidence: 0.9 },
-    },
-    {
-      id: "lower_back",
-      anatomy_id: "lower_back",
-      side: null,
-      name: "Lower back",
-      confidence: 0.8,
-      sub_location: { id: "lower", label: "Lower", confidence: 0.84 },
-    },
-    {
-      id: "not_a_region",
-      anatomy_id: "not_a_region",
-      name: "<script>alert(1)</script>",
-      confidence: 0.99,
     },
   ],
   side: { id: "right", label: "<i>Right</i>", confidence: 0.9 },
-  pain_type: { id: "sharp", label: "<b>Sharp</b>", confidence: 0.9 },
-  severity: { id: "moderate", label: "Moderate", confidence: 0.7 },
   pain_level: { band: "severe", label: "<b>Severe</b>", value: 6, confidence: 0.8 },
-  radiation: {
-    present: true,
-    confidence: 0.86,
-    regions: [
-      {
-        id: "left_thigh",
-        anatomy_id: "left_thigh",
-        side: "left",
-        name: "<script>alert(1)</script>",
-        confidence: 0.77,
-      },
-    ],
-  },
-  triggers: [
-    { id: "movement", label: "<i>Movement</i>", confidence: 0.8 },
-    { id: "rest", label: "Rest", confidence: 0.66 },
-    { id: "pressure", label: "Pressure", confidence: 0.69 },
-  ],
   red_flags: [{ id: "chest_pain", label: "<img>", confidence: 0.91 }],
   model: "jev-1.13.0",
 };
@@ -171,58 +137,33 @@ try {
   await page.getByRole("checkbox", { name: /TypeSafe/ }).check();
   await page.getByRole("button", { name: "Suggest", exact: true }).click();
   await page.getByText("AI suggestion", { exact: true }).waitFor();
-  await page
-    .getByText("Consider seeking care. This is not a diagnosis.", { exact: true })
-    .waitFor();
   assert.equal(painPosts.length, 1);
   assert.equal(painPosts[0].consent, true);
   assert.match(painPosts[0].text, /left shoulder/);
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
-  await page.getByText("Left deltoid, front", { exact: true }).waitFor();
-  await page.getByText("Lower back, right side", { exact: true }).waitFor();
-  await page.getByText("Spreads to Left thigh", { exact: true }).waitFor();
+  await page.getByText("Right side", { exact: true }).waitFor();
   await page.getByText("Severe (6-7) · 6 / 10", { exact: true }).waitFor();
   const beforeLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
   assert.equal(beforeLevel, "Not recorded");
-  assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
   await page.getByRole("button", { name: "Use as level" }).click();
   const afterLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
   assert.equal(afterLevel, "6 out of 10");
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
-  await page.waitForFunction(() =>
-    document
-      .querySelector('[data-atlas="z-anatomy"]')
-      ?.getAttribute("data-suggested")
-      ?.includes("left_shoulder"),
-  );
+  const suggested = await page
+    .locator('[data-atlas="z-anatomy"]')
+    .getAttribute("data-suggested");
+  assert.equal(Boolean(suggested && suggested.includes("left_shoulder")), false);
   const suggestionText = await page.locator(".pain-suggestion").innerText();
   assert.equal(suggestionText.includes("<"), false);
   assert.equal(suggestionText.includes("onerror"), false);
-  assert.equal(suggestionText.includes("not_a_region"), false);
-  assert.match(suggestionText, /Left deltoid, front/);
-  assert.match(suggestionText, /Lower back, right side/);
-  assert.match(suggestionText, /Spreads to Left thigh/);
-  assert.equal(suggestionText.includes("Rest"), false);
-  assert.equal(suggestionText.includes("Pressure"), false);
-  assert.match(suggestionText, /Chest pain/);
-  assert.match(
-    suggestionText,
-    /Consider seeking care\. This is not a diagnosis\./,
-  );
-  await page.getByRole("button", { name: "Show Left deltoid, front on the body" }).click();
-  await page.getByText("AI SUGGESTION", { exact: true }).waitFor();
-  assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
-  await page.getByRole("button", { name: "Add a pin for Left deltoid, front" }).click();
-  const picker = page.getByRole("dialog", { name: "Choose anatomy layer" });
-  await picker.waitFor();
-  assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
-  await picker.getByRole("button", { name: "Pin this structure" }).click();
-  await page.getByText("PINNED SPOTS · 1", { exact: true }).waitFor();
-  assert.match(await page.locator(".pin-list").innerText(), /Left shoulder/);
+  assert.equal(suggestionText.includes("deltoid"), false);
+  assert.equal(suggestionText.includes("Chest pain"), false);
+  assert.equal(await page.getByRole("button", { name: /on the body$/ }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: /^Add a pin for/ }).count(), 0);
   assert.equal(leaks.length, 0);
   assert.deepEqual(errors, []);
 
@@ -246,7 +187,7 @@ try {
   assert.equal(await phone.getByText("PINNED SPOTS").count(), 0);
   await narrow.close();
   console.log(
-    "PASS pain suggestion: speech fills text, mocked Jev stays off the page, highlight is not a pin until confirm, red-flag notice is plain text.",
+    "PASS pain suggestion: speech fills text, Jev shows side and level only, no region highlight or pin from Jev.",
   );
 } finally {
   await browser?.close();

@@ -60,3 +60,44 @@ test("builder only accepts diagnostics, so no journal data can leak", () => {
   const body = feedbackBody("feature", ctx);
   assert.ok(!/pin|intensity|note:/i.test(body.split("---")[1]));
 });
+
+import {
+  feedbackMailto as relayMailto,
+  sendFeedback,
+} from "../src/feedback/feedback-client.ts";
+
+test("relay client: subject uses [ihurt] tag and summary", () => {
+  const href = relayMailto({
+    project: "ihurt",
+    type: "bug",
+    summary: "Crash",
+    message: "m",
+  });
+  assert.equal(
+    decodeURIComponent(href.split("subject=")[1].split("&")[0]),
+    "[ihurt] Bug: Crash",
+  );
+});
+
+test("relay client: posts JSON with empty honeypot, falls back on errors", async () => {
+  let sent: any;
+  const ok = (async (_u: string, init: RequestInit) => {
+    sent = JSON.parse(init.body as string);
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  const input = { project: "ihurt", type: "feature" as const, message: "m" };
+  assert.equal(await sendFeedback("https://x/feedback", input, ok), "sent");
+  assert.equal(sent.website, "");
+  assert.equal(sent.project, "ihurt");
+  const err = (async () => new Response("", { status: 500 })) as typeof fetch;
+  assert.equal(
+    await sendFeedback("https://x/feedback", input, err),
+    "fallback",
+  );
+  const limited = (async () =>
+    new Response("", { status: 429 })) as typeof fetch;
+  assert.equal(
+    await sendFeedback("https://x/feedback", input, limited),
+    "rate-limited",
+  );
+});

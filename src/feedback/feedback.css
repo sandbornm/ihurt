@@ -56,3 +56,10 @@
   opacity: 0.42;
   cursor: not-allowed;
 }
+.feedback-links .feedback-actions {
+  margin-top: 0;
+}
+.feedback-links p[role="status"] {
+  font-size: 12px;
+  margin: 10px 0 0;
+}

@@ -1,0 +1,38 @@
+{"id":"r_shoulder_serve","text":"Sharp pain in my right shoulder when I serve in tennis, about 6/10.","regions":["right_shoulder"],"side":"right","level":6}
+{"id":"l_knee_stairs","text":"My left knee aches going down stairs. Maybe a 4 out of 10.","regions":["left_knee"],"side":"left","level":4}
+{"id":"low_back_desk","text":"Dull ache in my lower back after sitting at my desk all day.","regions":["lower_back"],"side":null,"level":null}
+{"id":"neck_crick","text":"Woke up with a crick in my neck, can barely turn my head. 7/10.","regions":["neck"],"side":null,"level":7}
+{"id":"both_calves","text":"Both calves are tight and sore after my long run yesterday, mild, like a 2.","regions":["left_calf","right_calf"],"side":"both","level":2}
+{"id":"r_wrist_typing","text":"Burning in my right wrist from typing, it's maybe 3/10.","regions":["right_wrist"],"side":"right","level":3}
+{"id":"l_ankle_roll","text":"Rolled my left ankle playing basketball, it's swollen and throbbing, 8 out of 10.","regions":["left_ankle"],"side":"left","level":8}
+{"id":"r_hip_sleep","text":"Right hip hurts when I sleep on that side.","regions":["right_hip"],"side":"right","level":null}
+{"id":"upper_back_lift","text":"Pain between my shoulder blades after lifting boxes, moderate.","regions":["upper_back"],"side":null,"level":5}
+{"id":"l_elbow_golf","text":"Inside of my left elbow is sore, golfer's elbow maybe. 5/10.","regions":["left_elbow"],"side":"left","level":5}
+{"id":"r_foot_heel","text":"Stabbing pain in my right heel first thing in the morning.","regions":["right_foot"],"side":"right","level":null}
+{"id":"abdomen_crunches","text":"My abs are sore from crunches, nothing serious, 2/10.","regions":["abdomen"],"side":null,"level":2}
+{"id":"l_thigh_cramp","text":"Cramp in the front of my left thigh during cycling, about a 6.","regions":["left_thigh"],"side":"left","level":6}
+{"id":"sciatica","text":"Lower back pain that shoots down into my right thigh and calf, 7/10.","regions":["lower_back"],"side":"right","level":7}
+{"id":"two_places","text":"My right knee and my left shoulder both hurt after climbing. The knee is worse, around 5.","regions":["right_knee","left_shoulder"],"side":"both","level":5}
+{"id":"worst_ever","text":"Worst pain of my life in my lower back, 10/10, I can't stand up.","regions":["lower_back"],"side":null,"level":10}
+{"id":"no_pain_now","text":"My left knee used to hurt but today it's fine, no pain at all, 0/10.","regions":["left_knee"],"side":"left","level":0}
+{"id":"neg_rating","text":"My right shoulder hurts, it is not 7/10, more like a 3.","regions":["right_shoulder"],"side":"right","level":3}
+{"id":"neg_region","text":"Not my back this time, it's my neck that's stiff.","regions":["neck"],"side":null,"level":null}
+{"id":"neg_side","text":"It's not the left one, it's my right ankle that's sore.","regions":["right_ankle"],"side":"right","level":null}
+{"id":"decimal","text":"Left hip pain, about 7.5/10 when walking.","regions":["left_hip"],"side":"left","level":8}
+{"id":"article_number","text":"I walked a 5k and now my right calf aches a little.","regions":["right_calf"],"side":"right","level":2}
+{"id":"sport_no_region","text":"I play tennis three times a week and something hurts, not sure where.","regions":[],"side":null,"level":null}
+{"id":"vague","text":"I just feel kind of sore all over today.","regions":[],"side":null,"level":null}
+{"id":"vague_side","text":"My shoulder hurts, a moderate ache.","regions":["left_shoulder","right_shoulder"],"side":null,"level":5,"any_region":true}
+{"id":"no_body","text":"Feeling stressed about work lately.","regions":[],"side":null,"level":null}
+{"id":"chest_red","text":"Crushing chest pain spreading to my left arm and I'm sweating.","regions":["chest"],"side":"left","level":null}
+{"id":"es_rodilla","text":"Me duele la rodilla derecha cuando corro, como un 6 de 10.","regions":["right_knee"],"side":"right","level":6}
+{"id":"es_espalda","text":"Tengo dolor en la parte baja de la espalda desde ayer, es leve.","regions":["lower_back"],"side":null,"level":2}
+{"id":"fr_epaule","text":"J'ai mal à l'épaule gauche quand je lève le bras, environ 5 sur 10.","regions":["left_shoulder"],"side":"left","level":5}
+{"id":"fr_cheville","text":"Ma cheville droite est enflée et très douloureuse.","regions":["right_ankle"],"side":"right","level":8}
+{"id":"de_nacken","text":"Mein Nacken ist seit drei Tagen verspannt, Schmerz etwa 4 von 10.","regions":["neck"],"side":null,"level":4}
+{"id":"de_handgelenk","text":"Mein linkes Handgelenk tut beim Tippen weh.","regions":["left_wrist"],"side":"left","level":null}
+{"id":"pt_pe","text":"Dor no pé direito depois de correr, uns 3 de 10.","regions":["right_foot"],"side":"right","level":3}
+{"id":"ja_koshi","text":"腰が痛いです。10段階で7くらいです。","regions":["lower_back"],"side":null,"level":7}
+{"id":"slang","text":"My R knee is killing me after leg day lol","regions":["right_knee"],"side":"right","level":8}
+{"id":"word_level","text":"Severe stabbing pain in my left foot when I put weight on it.","regions":["left_foot"],"side":"left","level":7}
+{"id":"radiate_arm","text":"Neck pain radiating down my right arm into my elbow, about 5.","regions":["neck"],"side":"right","level":5}

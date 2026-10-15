@@ -73,6 +73,7 @@ import ThemeToggle from "./ThemeToggle";
 import Tutorial from "./Tutorial";
 import ShareWithAI from "./sharing/ShareWithAI";
 import Feedback from "./feedback/Feedback";
+import FeedbackLinks from "./feedback/FeedbackLinks";
 import AnatomyCredits from "./AnatomyCredits";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
@@ -1542,6 +1543,7 @@ export default function Notebook({
         >
           Privacy and limitations ↗
         </a>
+        <FeedbackLinks />
         <AnatomyCredits />
       </dialog>
       {toast && (

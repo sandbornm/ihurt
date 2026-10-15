@@ -97,6 +97,7 @@ export default function FeedbackLinks() {
         <button
           type="button"
           className="secondary"
+          disabled={busy}
           onClick={() => start("bug")}
         >
           <Bug size={15} /> Report a bug
@@ -104,6 +105,7 @@ export default function FeedbackLinks() {
         <button
           type="button"
           className="secondary"
+          disabled={busy}
           onClick={() => start("feature")}
         >
           <Lightbulb size={15} /> Suggest a feature
@@ -120,61 +122,63 @@ export default function FeedbackLinks() {
             void submit();
           }}
         >
-          <label htmlFor={`${id}-summary`}>
-            {kind === "bug" ? "Bug in a few words" : "Idea in a few words"}
-          </label>
-          <input
-            id={`${id}-summary`}
-            value={summary}
-            maxLength={120}
-            onChange={(e) => setSummary(e.target.value)}
-          />
-          <label htmlFor={`${id}-message`}>
-            {kind === "bug"
-              ? "What happened, steps, and what you expected"
-              : "What should iHurt do, and why?"}
-          </label>
-          <textarea
-            id={`${id}-message`}
-            value={message}
-            rows={5}
-            maxLength={4000}
-            required
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          <label htmlFor={`${id}-contact`}>Your email (optional)</label>
-          <input
-            id={`${id}-contact`}
-            type="email"
-            value={contact}
-            maxLength={254}
-            onChange={(e) => setContact(e.target.value)}
-          />
-          <input
-            className="feedback-hp"
-            tabIndex={-1}
-            autoComplete="off"
-            aria-hidden="true"
-            name="website"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-          />
-          <div className="feedback-actions">
-            <button
-              type="submit"
-              className="secondary"
-              disabled={busy || !message.trim()}
-            >
-              {busy ? "Sending…" : "Send"}
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => openMail(kind, message.trim())}
-            >
-              Use email instead
-            </button>
-          </div>
+          <fieldset disabled={busy} className="feedback-fieldset">
+            <label htmlFor={`${id}-summary`}>
+              {kind === "bug" ? "Bug in a few words" : "Idea in a few words"}
+            </label>
+            <input
+              id={`${id}-summary`}
+              value={summary}
+              maxLength={120}
+              onChange={(e) => setSummary(e.target.value)}
+            />
+            <label htmlFor={`${id}-message`}>
+              {kind === "bug"
+                ? "What happened, steps, and what you expected"
+                : "What should iHurt do, and why?"}
+            </label>
+            <textarea
+              id={`${id}-message`}
+              value={message}
+              rows={5}
+              maxLength={4000}
+              required
+              onChange={(e) => setMessage(e.target.value)}
+            />
+            <label htmlFor={`${id}-contact`}>Your email (optional)</label>
+            <input
+              id={`${id}-contact`}
+              type="email"
+              value={contact}
+              maxLength={254}
+              onChange={(e) => setContact(e.target.value)}
+            />
+            <input
+              className="feedback-hp"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              name="website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+            />
+            <div className="feedback-actions">
+              <button
+                type="submit"
+                className="secondary"
+                disabled={busy || !message.trim()}
+              >
+                {busy ? "Sending…" : "Send"}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => openMail(kind, message.trim())}
+              >
+                Use email instead
+              </button>
+            </div>
+          </fieldset>
         </form>
       )}
       <p role="status">

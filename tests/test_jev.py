@@ -15,12 +15,14 @@ from backend.jev import (
     JEV_ENDPOINT,
     JEV_MIN_CONFIDENCE,
     JEV_MODEL,
+    JEV_PAIN_LEVEL_MIN_CONFIDENCE,
     JEV_TRIGGER_MIN_CONFIDENCE,
     JevError,
     build_request,
     catalog,
     classify_pain,
     load_catalog,
+    parse_explicit_pain_level,
     parse_payload,
 )
 from backend.models import Region
@@ -96,6 +98,7 @@ def test_catalog_covers_anatomy_and_rejects_unknown_regions(tmp_path):
 def test_request_uses_the_systemone_shape_and_fixed_list():
     assert JEV_ENDPOINT == "https://api.typesafe.ai/v1/systemone"
     assert JEV_MIN_CONFIDENCE == 0.5
+    assert JEV_PAIN_LEVEL_MIN_CONFIDENCE == 0.3
     assert JEV_TRIGGER_MIN_CONFIDENCE == 0.7
     body = build_request("x" * 5000)
     assert body["model"] == JEV_MODEL
@@ -138,7 +141,13 @@ def test_confidence_threshold_nulls_weak_and_unknown_fields():
     assert parsed["side"] == {"id": "right", "label": "Right", "confidence": 0.9}
     assert parsed["pain_type"]["id"] == "sharp"
     assert parsed["severity"]["id"] == "moderate"
-    assert parsed["pain_level"] == {"band": "severe", "label": "Severe (6-7)", "value": 6, "confidence": 0.8}
+    assert parsed["pain_level"] == {
+        "band": "severe",
+        "label": "Severe (6-7)",
+        "value": 6,
+        "confidence": 0.8,
+        "source": "model",
+    }
     assert [item["id"] for item in parsed["radiation"]["regions"]] == ["left_thigh"]
     assert [item["id"] for item in parsed["triggers"]] == ["movement"]
     assert [item["id"] for item in parsed["red_flags"]] == ["chest_pain"]
@@ -357,6 +366,40 @@ def test_side_radiation_sublocation_and_stated_triggers_only():
     assert very["pain_level"]["value"] == 9
     closed = parse_payload(payload({"radiates": noul(0.2), "radiation:left_elbow": noul(0.99)}))
     assert closed["radiation"] is None
+
+
+def test_explicit_pain_level_overrides_band_midpoint():
+    assert parse_explicit_pain_level("six out of ten") == 6
+    assert parse_explicit_pain_level("7/10") == 7
+    assert parse_explicit_pain_level("about an 8") == 8
+    assert parse_explicit_pain_level("about an 8.") == 8
+    assert parse_explicit_pain_level("a 7") == 7
+    assert parse_explicit_pain_level("a 7, sharp") == 7
+    assert parse_explicit_pain_level("pain is 7") == 7
+    assert parse_explicit_pain_level("level 3") == 3
+    assert parse_explicit_pain_level("rated it 5") == 5
+    assert parse_explicit_pain_level("6 out of 10") == 6
+    assert parse_explicit_pain_level("it hurts a lot") is None
+    assert parse_explicit_pain_level("for 3 days") is None
+    assert parse_explicit_pain_level("10 minutes") is None
+    assert parse_explicit_pain_level("2 weeks") is None
+    assert parse_explicit_pain_level("2 knees") is None
+    assert parse_explicit_pain_level("I am 8 years old") is None
+    assert parse_explicit_pain_level("it's a 6 or an 8") is None
+    stated = parse_payload(payload({"pain_level": choice("severe", 0.8)}), text="7/10")
+    assert stated["pain_level"] == {
+        "band": "severe",
+        "label": "Severe (6-7)",
+        "value": 7,
+        "confidence": 1.0,
+        "source": "stated",
+    }
+    mid = parse_payload(payload({"pain_level": choice("severe", 0.4)}))
+    assert mid["pain_level"]["band"] == "severe"
+    assert mid["pain_level"]["value"] == 6
+    assert mid["pain_level"]["source"] == "model"
+    assert parse_payload(payload({"pain_level": choice("severe", 0.2)}))["pain_level"] is None
+    assert parse_payload(payload({"pain_level": choice("unknown", 0.9)}))["pain_level"] is None
 
 
 def test_sub_locations_are_an_optional_addition(tmp_path):

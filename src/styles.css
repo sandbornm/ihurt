@@ -1052,6 +1052,27 @@ h1 > span {
 .pain-suggest .consent {
   margin: 8px 0;
 }
+.pain-level-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.pain-level-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.pain-level-picks button {
+  min-width: 28px;
+  padding: 6px 4px;
+  font-size: 12px;
+  border: 1px solid #69855255;
+  border-radius: 7px;
+}
+.pain-level-picks button[aria-checked="true"] {
+  background: #baf38b22;
+  border-color: #baf38b88;
+  color: #e8ece5;
+}
 .voice-tools {
   display: flex;
   gap: 11px;

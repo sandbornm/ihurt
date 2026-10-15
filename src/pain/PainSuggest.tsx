@@ -11,10 +11,13 @@ import {
   highlightIds,
   optionLabel,
   painLevelCopy,
+  PAIN_LEVEL_SCALE,
   plainText,
   readSuggestion,
   regionTitle,
   sideCopy,
+  suggestedIntensity,
+  type PainLevel,
   type PainRegionHit,
   type PainSuggestion,
   type PainSide,
@@ -60,6 +63,47 @@ function RegionRow({
   );
 }
 
+function PainLevelControl({
+  suggested,
+  value,
+  onChange,
+  onApply,
+}: {
+  suggested: PainLevel | null;
+  value: number | null;
+  onChange(value: number): void;
+  onApply(value: number): void;
+}) {
+  const copy = suggested ? painLevelCopy(suggested) : null;
+  return (
+    <div className="pain-row pain-level-row">
+      {copy && <span>{copy}</span>}
+      <div className="pain-level-picks" role="radiogroup" aria-label="Pain level">
+        {PAIN_LEVEL_SCALE.map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={value === n}
+            onClick={() => onChange(n)}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        disabled={value === null}
+        onClick={() => {
+          if (value !== null) onApply(value);
+        }}
+      >
+        Use as level
+      </button>
+    </div>
+  );
+}
+
 export default function PainSuggest(props: PainSuggestProps) {
   const [text, setText] = useState("");
   const [consent, setConsent] = useState(false);
@@ -69,6 +113,7 @@ export default function PainSuggest(props: PainSuggestProps) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<PainSuggestion | null>(null);
+  const [chosenLevel, setChosenLevel] = useState<number | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [token, setToken] = useState("");
   const [nonce, setNonce] = useState(0);
@@ -80,6 +125,7 @@ export default function PainSuggest(props: PainSuggestProps) {
 
   function clearSuggestion() {
     setResult(null);
+    setChosenLevel(null);
     props.onHighlight([]);
   }
 
@@ -271,6 +317,7 @@ export default function PainSuggest(props: PainSuggestProps) {
         return;
       }
       setResult(parsed);
+      setChosenLevel(suggestedIntensity(parsed.pain_level));
       props.onHighlight(
         highlightIds([
           ...(parsed.regions ?? []),
@@ -439,17 +486,12 @@ export default function PainSuggest(props: PainSuggestProps) {
           {result.severity && optionLabel("severity", result.severity.id) && (
             <p>Severity hint: {optionLabel("severity", result.severity.id)}</p>
           )}
-          {result.pain_level && painLevelCopy(result.pain_level) && (
-            <div className="pain-row">
-              <span>{painLevelCopy(result.pain_level)}</span>
-              <button
-                type="button"
-                onClick={() => props.onUseIntensity(result.pain_level!.value)}
-              >
-                Use as level
-              </button>
-            </div>
-          )}
+          <PainLevelControl
+            suggested={result.pain_level}
+            value={chosenLevel}
+            onChange={setChosenLevel}
+            onApply={props.onUseIntensity}
+          />
           {result.radiation && !result.radiation.regions && (
             <p>Spreads. The destination was not clear enough to suggest.</p>
           )}

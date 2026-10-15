@@ -15,12 +15,13 @@ from pathlib import Path
 
 import httpx
 
-from .models import PAIN_LEVEL_BANDS, Region
+from .models import PAIN_LEVEL_BANDS, Region, band_for_pain_value
 
 JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 # Pinned so confidence cutoffs stay tuned to one model; jev-latest moves without notice.
 JEV_MODEL = os.environ.get("JEV_MODEL", "").strip() or "jev-1.13.0"
 JEV_MIN_CONFIDENCE = 0.5
+JEV_PAIN_LEVEL_MIN_CONFIDENCE = 0.3
 JEV_TRIGGER_MIN_CONFIDENCE = 0.7
 MAX_STATE_CHARS = 4000
 CATALOG_PATH = Path(__file__).resolve().parent.parent / "config" / "pain-regions.json"
@@ -422,17 +423,93 @@ def _region_hits(answers: dict, source: Catalog, prefix: str) -> list[dict] | No
     return hits or None
 
 
-def _pain_level(answer) -> dict | None:
+_NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+_NUM = r"(?P<n>zero|one|two|three|four|five|six|seven|eight|nine|ten|10|[0-9])"
+_SCALE_RE = re.compile(rf"\b{_NUM}\s*(?:/\s*|\s+out\s+of\s+)(?:10|ten)\b", re.I)
+_CONTEXT_RES = (
+    re.compile(rf"\b(?:about\s+)?(?:an?)\s+{_NUM}\b", re.I),
+    re.compile(rf"\bpain\s+(?:level\s+)?is\s+{_NUM}\b", re.I),
+    re.compile(rf"\blevel\s+(?:is\s+)?{_NUM}\b", re.I),
+    re.compile(rf"\brated\s+(?:it\s+)?(?:as\s+)?(?:an?\s+)?{_NUM}\b", re.I),
+)
+_UNIT_SUFFIX = re.compile(
+    r"^\s*[-]?\s*(?:"
+    r"days?|weeks?|months?|years?|hours?|hrs?|minutes?|mins?|seconds?|secs?|"
+    r"old|o'?clock|a\.?m\.?|p\.?m\.?|percent|times?|"
+    r"miles?|kilometers?|km|meters?|metres?|pounds?|lbs?|kg|"
+    r"knees?|shoulders?|elbows?|hips?|ankles?|wrists?|hands?|feet|foot|"
+    r"fingers?|toes?|legs?|arms?"
+    r")\b",
+    re.I,
+)
+_SCALE_TAIL = re.compile(r"^/\s*(?:10|ten)\b", re.I)
+
+
+def _parse_rating_token(token: str) -> int:
+    if token.isdigit():
+        return int(token)
+    return _NUMBER_WORDS[token.lower()]
+
+
+def _non_rating_context(rest: str) -> bool:
+    if re.match(r"^\d", rest) or re.match(r"^[.,]\d", rest):
+        return True
+    stripped = rest.lstrip()
+    if stripped.startswith("%"):
+        return True
+    if stripped.startswith("/") and not _SCALE_TAIL.match(stripped):
+        return True
+    return bool(_UNIT_SUFFIX.match(rest))
+
+
+def parse_explicit_pain_level(text: str) -> int | None:
+    """Return a single explicit 0-10 rating, or None when none/ambiguous/not a rating."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    found: list[int] = []
+    for match in _SCALE_RE.finditer(text):
+        found.append(_parse_rating_token(match.group("n")))
+    for pattern in _CONTEXT_RES:
+        for match in pattern.finditer(text):
+            if _non_rating_context(text[match.end() :]):
+                continue
+            found.append(_parse_rating_token(match.group("n")))
+    unique = set(found)
+    if len(unique) != 1:
+        return None
+    return unique.pop()
+
+
+def _pain_level(answer, text: str | None = None) -> dict | None:
+    if text:
+        stated = parse_explicit_pain_level(text)
+        if stated is not None:
+            band = band_for_pain_value(stated)
+            if band is not None:
+                label, _number = PAIN_LEVEL_BANDS[band]
+                return {"band": band, "label": label, "value": stated, "confidence": 1.0, "source": "stated"}
     labels = {band: label for band, (label, _value) in PAIN_LEVEL_BANDS.items()}
-    picked = _choice_score(answer, labels)
+    picked = _choice_score(answer, labels, JEV_PAIN_LEVEL_MIN_CONFIDENCE)
     if picked is None:
         return None
     band = picked[0]
     label, number = PAIN_LEVEL_BANDS[band]
-    return {"band": band, "label": label, "value": number, "confidence": round(picked[1], 4)}
+    return {"band": band, "label": label, "value": number, "confidence": round(picked[1], 4), "source": "model"}
 
 
-def parse_payload(payload, source: Catalog | None = None) -> dict:
+def parse_payload(payload, source: Catalog | None = None, *, text: str | None = None) -> dict:
     source = source or catalog()
     if not isinstance(payload, dict):
         raise JevError(502)
@@ -467,7 +544,7 @@ def parse_payload(payload, source: Catalog | None = None) -> dict:
         "side": {"id": side[0], "label": SIDE_LABELS[side[0]], "confidence": round(side[1], 4)} if side else None,
         "pain_type": _label(pain[0], source.pain_types[pain[0]], pain[1]) if pain else None,
         "severity": _label(severity[0], source.severity[severity[0]], severity[1]) if severity else None,
-        "pain_level": _pain_level(answers.get("pain_level")),
+        "pain_level": _pain_level(answers.get("pain_level"), text),
         "radiation": radiation,
         "triggers": triggers or None,
         "red_flags": flags or None,
@@ -518,4 +595,4 @@ async def classify_pain(text: str, api_key: str, client: httpx.AsyncClient | Non
     if client is None:
         raise JevError(0)
     payload = await post_systemone(client, api_key.strip(), build_request(text), retries=retries, sleep=sleep)
-    return parse_payload(payload)
+    return parse_payload(payload, text=text)

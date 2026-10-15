@@ -144,6 +144,7 @@ class PainRegionHit(BaseModel):
 
 
 # Band id -> (label, representative 0-10). The model picks a band. The number is assigned here.
+# Stated 0-10 numbers use PAIN_LEVEL_CRITERIA ranges: 0 none, 1-3 mild, 4-5 moderate, 6-7 severe, 8-10 very_severe.
 PAIN_LEVEL_BANDS: dict[str, tuple[str, int]] = {
     "none": ("None", 0),
     "mild": ("Mild (2-3)", 2),
@@ -153,17 +154,37 @@ PAIN_LEVEL_BANDS: dict[str, tuple[str, int]] = {
 }
 
 
+def band_for_pain_value(value: int) -> str | None:
+    if type(value) is not int or not 0 <= value <= 10:
+        return None
+    if value == 0:
+        return "none"
+    if value <= 3:
+        return "mild"
+    if value <= 5:
+        return "moderate"
+    if value <= 7:
+        return "severe"
+    return "very_severe"
+
+
 class PainLevel(BaseModel):
     model_config = ConfigDict(extra="forbid")
     band: Literal["none", "mild", "moderate", "severe", "very_severe"]
     label: str = Field(max_length=80)
     value: int = Field(ge=0, le=10)
     confidence: float = Field(ge=0, le=1)
+    source: Literal["stated", "model"] = "model"
 
     @model_validator(mode="after")
     def matches_band(self):
         label, number = PAIN_LEVEL_BANDS[self.band]
-        if self.label != label or self.value != number:
+        if self.label != label:
+            raise ValueError("Pain level does not match its band.")
+        if self.source == "stated":
+            if band_for_pain_value(self.value) != self.band:
+                raise ValueError("Pain level does not match its band.")
+        elif self.value != number:
             raise ValueError("Pain level does not match its band.")
         return self
 

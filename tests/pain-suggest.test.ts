@@ -11,6 +11,7 @@ import {
   regionLabel,
   regionTitle,
   sideCopy,
+  suggestedIntensity,
 } from "../src/pain/catalog.ts";
 import { chooseSpeech } from "../src/pain/dictate.ts";
 
@@ -119,7 +120,7 @@ test("side, radiation, sub-location, and pain level stay on the fixed lists", ()
       },
     ],
     side: { id: "right", label: "<i>Right</i>", confidence: 0.93 },
-    pain_level: { band: "severe", value: 7, confidence: 0.99 },
+    pain_level: { band: "severe", value: 8, confidence: 0.99 },
     radiation: {
       present: true,
       confidence: 0.84,
@@ -176,6 +177,28 @@ test("side, radiation, sub-location, and pain level stay on the fixed lists", ()
   assert.equal(openNumber?.side, null);
   assert.equal(openNumber?.radiation, null);
   assert.equal(openNumber?.triggers, null);
+});
+
+test("a stated 0-10 number in the band is kept", () => {
+  const parsed = readSuggestion({
+    pain_level: { band: "severe", value: 7, confidence: 1, source: "stated" },
+  });
+  assert.equal(parsed?.pain_level?.value, 7);
+  assert.equal(parsed?.pain_level?.source, "stated");
+  assert.equal(painLevelCopy(parsed!.pain_level!), "Severe (6-7) · 7 / 10");
+  assert.equal(suggestedIntensity(parsed!.pain_level), 7);
+  const model = readSuggestion({
+    pain_level: { band: "severe", value: 6, confidence: 0.4, source: "model" },
+  });
+  assert.equal(model?.pain_level?.value, 6);
+  assert.equal(model?.pain_level?.source, "model");
+  assert.equal(suggestedIntensity(null), null);
+  assert.equal(
+    readSuggestion({
+      pain_level: { band: "severe", value: 6, confidence: 0.2, source: "model" },
+    })?.pain_level,
+    null,
+  );
 });
 
 test("speech uses Apple, then the browser, then an upload", () => {

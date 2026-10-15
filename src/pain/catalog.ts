@@ -28,6 +28,7 @@ export interface PainLevel {
   band: string;
   value: number;
   confidence: number;
+  source?: "stated" | "model";
 }
 export interface PainSide {
   id: "left" | "right" | "both" | "midline" | "unspecified";
@@ -74,6 +75,16 @@ const PAIN_LEVELS: Record<string, { label: string; value: number }> = {
   severe: { label: "Severe (6-7)", value: 6 },
   very_severe: { label: "Very severe (8-10)", value: 9 },
 };
+// Stated 0-10 numbers use the same ranges as PAIN_LEVEL_CRITERIA in backend/jev.py.
+const PAIN_LEVEL_RANGES: Record<string, readonly [number, number]> = {
+  none: [0, 0],
+  mild: [1, 3],
+  moderate: [4, 5],
+  severe: [6, 7],
+  very_severe: [8, 10],
+};
+const PAIN_LEVEL_MIN = 0.3;
+export const PAIN_LEVEL_SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 const SIDE_IDS = ["left", "right", "both", "midline", "unspecified"] as const;
 const SIDE_COPY: Record<(typeof SIDE_IDS)[number], string> = {
   left: "Left side",
@@ -191,13 +202,31 @@ function readSide(value: unknown): PainSide | null {
   return id ? { id, confidence: score } : null;
 }
 
+function inBand(band: string, value: unknown): value is number {
+  const range = PAIN_LEVEL_RANGES[band];
+  return (
+    !!range &&
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= range[0] &&
+    value <= range[1]
+  );
+}
+
 function readLevel(value: unknown): PainLevel | null {
   const row = record(value);
-  const score = row ? scoreOf(row.confidence) : null;
+  const score = row ? scoreOf(row.confidence, PAIN_LEVEL_MIN) : null;
   if (!row || score === null || typeof row.band !== "string") return null;
   const known = PAIN_LEVELS[row.band];
-  if (!known || row.value !== known.value) return null;
-  return { band: row.band, value: known.value, confidence: score };
+  if (!known || !inBand(row.band, row.value)) return null;
+  const source =
+    row.source === "stated" || row.source === "model" ? row.source : undefined;
+  return {
+    band: row.band,
+    value: row.value,
+    confidence: score,
+    ...(source ? { source } : {}),
+  };
 }
 
 function readRadiation(value: unknown): PainRadiation | null {
@@ -236,8 +265,12 @@ export function sideCopy(id: string) {
 
 export function painLevelCopy(level: PainLevel) {
   const known = PAIN_LEVELS[level.band];
-  if (!known || known.value !== level.value) return null;
-  return `${known.label} · ${known.value} / 10`;
+  if (!known || !inBand(level.band, level.value)) return null;
+  return `${known.label} · ${level.value} / 10`;
+}
+
+export function suggestedIntensity(level: PainLevel | null | undefined) {
+  return level && inBand(level.band, level.value) ? level.value : null;
 }
 
 /** Catalog name, plus a configured part and a side the anatomy id does not already carry. */

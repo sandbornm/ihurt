@@ -95,7 +95,11 @@ class Limits:
             elif kind == "audio":
                 for key in (owner, ip):
                     self.increment(db, f"audio:{key}:{day}", self.settings.activities_per_day, expiry)
-            elif kind != "jev":
+            elif kind == "jev":
+                # Same per-visitor and owner daily cap as analysis/audio so shared hosts cannot burn Jev calls.
+                for key in (owner, ip):
+                    self.increment(db, f"jev:{key}:{day}", self.settings.activities_per_day, expiry)
+            else:
                 raise HTTPException(400, "Unknown request kind.")
             if paid:
                 reservation = {"analysis": self.settings.analysis_reservation_usd, "audio": self.settings.transcription_reservation_usd, "jev": self.settings.jev_reservation_usd}[kind]

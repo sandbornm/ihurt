@@ -185,15 +185,9 @@ class PainRadiation(BaseModel):
 
 
 class PainSuggestion(BaseModel):
-    """Structured suggestion. Region ids are catalog entries, never pin coordinates."""
+    """Side and pain level only. Regions come from the main map provider, never from Jev."""
 
     model_config = ConfigDict(extra="forbid")
-    regions: list[PainRegionHit] | None
     side: PainSide | None
-    pain_type: PainLabel | None
-    severity: PainLabel | None
     pain_level: PainLevel | None
-    radiation: PainRadiation | None
-    triggers: list[PainLabel] | None
-    red_flags: list[PainLabel] | None
     model: str = Field(pattern=r"^[A-Za-z0-9._-]{1,40}$")

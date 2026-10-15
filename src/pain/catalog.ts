@@ -38,15 +38,10 @@ export interface PainRadiation {
   confidence: number;
   regions: PainRegionHit[] | null;
 }
+/** Side and pain level only. Regions come from the main map provider. */
 export interface PainSuggestion {
-  regions: PainRegionHit[] | null;
   side: PainSide | null;
-  pain_type: PainLabel | null;
-  severity: PainLabel | null;
   pain_level: PainLevel | null;
-  radiation: PainRadiation | null;
-  triggers: PainLabel[] | null;
-  red_flags: PainLabel[] | null;
 }
 
 const CARE = "Consider seeking care. This is not a diagnosis.";
@@ -82,8 +77,6 @@ const SIDE_COPY: Record<(typeof SIDE_IDS)[number], string> = {
   midline: "Midline",
   unspecified: "Side not stated",
 };
-const TRIGGER_MIN = 0.7;
-
 const subByAnatomy = new Map<string, (typeof data.sub_locations)[number]>();
 for (const group of data.sub_locations) {
   for (const anatomyId of group.anatomy_ids) {
@@ -127,61 +120,7 @@ function scoreOf(value: unknown, minimum = 0.5) {
     : null;
 }
 
-function readLabel(
-  value: unknown,
-  table: readonly { id: string; label: string }[],
-  minimum = 0.5,
-): PainLabel | null {
-  const row = record(value);
-  const score = row ? scoreOf(row.confidence, minimum) : null;
-  if (!row || score === null || typeof row.id !== "string") return null;
-  const known = table.find((item) => item.id === row.id);
-  return known ? { id: known.id, confidence: score } : null;
-}
 
-function readList(
-  value: unknown,
-  table: readonly { id: string; label: string }[],
-  minimum = 0.5,
-) {
-  if (!Array.isArray(value)) return null;
-  const items = value.flatMap((item) => {
-    const label = readLabel(item, table, minimum);
-    return label ? [label] : [];
-  });
-  return items.length ? items : null;
-}
-
-function readSubLocation(anatomyId: string, value: unknown): PainSubLocation | null {
-  const group = subByAnatomy.get(anatomyId);
-  const row = record(value);
-  const score = row ? scoreOf(row.confidence) : null;
-  if (!group || !row || score === null || typeof row.id !== "string") return null;
-  const known = group.options.find((option) => option.id === row.id);
-  return known ? { id: known.id, confidence: score } : null;
-}
-
-function readRegions(value: unknown): PainRegionHit[] | null {
-  if (!Array.isArray(value)) return null;
-  const hits: PainRegionHit[] = [];
-  for (const item of value) {
-    const hit = record(item);
-    const known =
-      hit && typeof hit.id === "string" ? byId.get(hit.id) : undefined;
-    const score = hit ? scoreOf(hit.confidence) : null;
-    if (!hit || !known || score === null || hit.anatomy_id !== known.anatomy_id)
-      continue;
-    if (hits.some((existing) => existing.anatomy_id === known.anatomy_id))
-      continue;
-    hits.push({
-      id: known.id,
-      anatomy_id: known.anatomy_id,
-      confidence: score,
-      sub_location: readSubLocation(known.anatomy_id, hit.sub_location),
-    });
-  }
-  return hits.length ? hits : null;
-}
 
 function readSide(value: unknown): PainSide | null {
   const row = record(value);
@@ -200,30 +139,15 @@ function readLevel(value: unknown): PainLevel | null {
   return { band: row.band, value: known.value, confidence: score };
 }
 
-function readRadiation(value: unknown): PainRadiation | null {
-  const row = record(value);
-  const score = row ? scoreOf(row.confidence) : null;
-  if (!row || row.present !== true || score === null) return null;
-  return {
-    present: true,
-    confidence: score,
-    regions: readRegions(row.regions),
-  };
-}
+
 
 /** Keep ids that exist in the fixed catalog. Ignore model strings. */
 export function readSuggestion(value: unknown): PainSuggestion | null {
   const row = record(value);
   if (!row) return null;
   return {
-    regions: readRegions(row.regions),
     side: readSide(row.side),
-    pain_type: readLabel(row.pain_type, data.pain_types),
-    severity: readLabel(row.severity, data.severity),
     pain_level: readLevel(row.pain_level),
-    radiation: readRadiation(row.radiation),
-    triggers: readList(row.triggers, data.triggers, TRIGGER_MIN),
-    red_flags: readList(row.red_flags, data.red_flags),
   };
 }
 

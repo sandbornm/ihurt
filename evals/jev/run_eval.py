@@ -84,24 +84,27 @@ async def run_provider(provider, text):
             "latency": latency, "tokens": None, "cost": None}
 
 
-def score(case, got):
-    exp = set(case["regions"])
-    pred = set(got["regions"])
-    if case.get("any_region"):
-        region_ok = bool(pred) and pred <= exp
-        fps = len(pred - exp)
-    else:
-        region_ok = pred == exp
-        fps = len(pred - exp)
+def score(case, got, *, regions_from_model: bool):
     exp_band = band(case["level"])
-    return {
-        "region_ok": region_ok,
-        "fp": fps,
-        "fp_case": fps > 0,
+    out = {
         "side_ok": (got["side"] == case["side"]) if case["side"] else None,
         "band_ok": (got["band"] == exp_band) if exp_band else None,
         "invented_level": (got["band"] not in (None, "unknown")) if exp_band is None else None,
     }
+    if not regions_from_model:
+        # Jev no longer proposes regions; those stay with the map provider.
+        out["region_ok"] = None
+        out["fp_case"] = None
+        return out
+    exp = set(case["regions"])
+    pred = set(got["regions"])
+    if case.get("any_region"):
+        out["region_ok"] = bool(pred) and pred <= exp
+        out["fp_case"] = len(pred - exp) > 0
+    else:
+        out["region_ok"] = pred == exp
+        out["fp_case"] = len(pred - exp) > 0
+    return out
 
 
 def summarize(name, rows):
@@ -159,7 +162,7 @@ async def main():
                         got = await run_jev(target, case["text"], client, key)
                     else:
                         got = await run_provider(providers[target], case["text"])
-                    rows.append({"id": case["id"], **got, **score(case, got)})
+                    rows.append({"id": case["id"], **got, **score(case, got, regions_from_model=not target.startswith("jev-"))})
                 except Exception as exc:  # record the type only; never echo request content or keys
                     rows.append({"id": case["id"], "error": type(exc).__name__, "region_ok": False, "fp_case": False})
             (OUT / f"{target}.json").write_text(json.dumps(rows, indent=1))

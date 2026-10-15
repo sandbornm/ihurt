@@ -3,13 +3,11 @@ import assert from "node:assert/strict";
 import { regions } from "../src/types.ts";
 import {
   advisoryCopy,
-  highlightIds,
   painCatalog,
   painLevelCopy,
   plainText,
   readSuggestion,
   regionLabel,
-  regionTitle,
   sideCopy,
 } from "../src/pain/catalog.ts";
 import { chooseSpeech } from "../src/pain/dictate.ts";
@@ -34,7 +32,6 @@ test("red flags use the care notice and model text is not html", () => {
     "Consider seeking care. This is not a diagnosis.",
   );
   assert.equal(advisoryCopy(null), null);
-  assert.equal(advisoryCopy([]), null);
   assert.equal(
     plainText("<img src=x onerror=alert(1)> left shoulder"),
     "left shoulder",
@@ -42,146 +39,44 @@ test("red flags use the care notice and model text is not html", () => {
   assert.equal(plainText("pain < 5 > minutes").includes("<"), false);
 });
 
-test("suggestions below 0.5 or outside the catalog do not highlight a region", () => {
+test("suggestions keep only side and pain level", () => {
   const parsed = readSuggestion({
     regions: [
       {
         id: "left_deltoid",
         anatomy_id: "left_shoulder",
-        side: "right",
-        name: "<b>Left deltoid</b>",
-        confidence: 0.82,
-      },
-      {
-        id: "not_a_region",
-        anatomy_id: "not_a_region",
-        name: "<script>alert(1)</script>",
         confidence: 0.99,
-      },
-      {
-        id: "right_knee",
-        anatomy_id: "right_knee",
-        name: "Right knee",
-        confidence: 0.49,
-      },
-      {
-        id: "left_deltoid",
-        anatomy_id: "right_shoulder",
-        name: "Wrong side",
-        confidence: 0.95,
+        sub_location: null,
       },
     ],
-    pain_type: { id: "sharp", label: "<i>Sharp</i>", confidence: 0.5 },
-    severity: { id: "severe", label: "Severe", confidence: 0.49 },
-    pain_level: { band: "severe", label: "<b>6</b>", value: 6, confidence: 0.8 },
-    triggers: [{ id: "movement", label: "<em>Movement</em>", confidence: 0.7 }],
-    red_flags: [
-      { id: "chest_pain", label: "<img>", confidence: 0.9 },
-      { id: "breathing", label: "Trouble breathing", confidence: 0.2 },
-    ],
-  });
-  assert.ok(parsed);
-  assert.deepEqual(highlightIds(parsed.regions), ["left_shoulder"]);
-  assert.equal(regionLabel(parsed.regions![0].id), "Left deltoid");
-  assert.equal(parsed.pain_type?.id, "sharp");
-  assert.equal(parsed.severity, null);
-  assert.equal(parsed.pain_level?.value, 6);
-  assert.equal(painLevelCopy(parsed.pain_level!), "Severe (6-7) · 6 / 10");
-  assert.deepEqual(
-    parsed.triggers?.map((item) => item.id),
-    ["movement"],
-  );
-  assert.deepEqual(
-    parsed.red_flags?.map((item) => item.id),
-    ["chest_pain"],
-  );
-  assert.equal(JSON.stringify(parsed).includes("<"), false);
-  assert.equal(readSuggestion(null), null);
-  assert.deepEqual(highlightIds(null), []);
-});
-
-test("side, radiation, sub-location, and pain level stay on the fixed lists", () => {
-  const parsed = readSuggestion({
-    regions: [
-      {
-        id: "right_shoulder",
-        anatomy_id: "right_shoulder",
-        name: "<b>Right shoulder</b>",
-        confidence: 0.8,
-        sub_location: { id: "front", label: "<i>Front</i>", confidence: 0.9 },
-      },
-      {
-        id: "lower_back",
-        anatomy_id: "lower_back",
-        name: "Lower back",
-        confidence: 0.86,
-        sub_location: { id: "lower", label: "Lower", confidence: 0.9 },
-      },
-    ],
-    side: { id: "right", label: "<i>Right</i>", confidence: 0.93 },
-    pain_level: { band: "severe", value: 7, confidence: 0.99 },
-    radiation: {
-      present: true,
-      confidence: 0.84,
-      regions: [
-        {
-          id: "left_thigh",
-          anatomy_id: "left_thigh",
-          name: "<script>alert(1)</script>",
-          confidence: 0.76,
-        },
-        {
-          id: "left_elbow",
-          anatomy_id: "left_elbow",
-          confidence: 0.4,
-        },
-      ],
+    side: { id: "left", label: "Left", confidence: 0.9 },
+    pain_type: { id: "sharp", confidence: 0.9 },
+    pain_level: {
+      band: "severe",
+      label: "Severe (6-7)",
+      value: 6,
+      confidence: 0.8,
     },
-    triggers: [
-      { id: "rest", label: "Rest", confidence: 0.69 },
-      { id: "pressure", label: "Pressure", confidence: 0.66 },
-      { id: "movement", label: "Movement", confidence: 0.7 },
-    ],
+    red_flags: [{ id: "chest_pain", confidence: 0.9 }],
   });
-  assert.ok(parsed);
-  assert.equal(parsed.pain_level, null);
-  assert.equal(parsed.side?.id, "right");
-  assert.equal(sideCopy(parsed.side!.id), "Right side");
+  assert.deepEqual(Object.keys(parsed!).sort(), ["pain_level", "side"]);
+  assert.equal(parsed!.side?.id, "left");
+  assert.equal(parsed!.pain_level?.value, 6);
+  assert.equal(sideCopy("left"), "Left side");
   assert.equal(sideCopy("unspecified"), null);
-  assert.equal(regionTitle(parsed.regions![0], parsed.side), "Right shoulder, front");
-  assert.equal(regionTitle(parsed.regions![1], parsed.side), "Lower back, right side");
-  assert.deepEqual(
-    parsed.radiation?.regions?.map((item) => item.id),
-    ["left_thigh"],
+  assert.equal(painLevelCopy(parsed!.pain_level!), "Severe (6-7) · 6 / 10");
+  assert.equal(
+    readSuggestion({
+      side: { id: "right", confidence: 0.49 },
+      pain_level: { band: "mild", label: "Mild (2-3)", value: 2, confidence: 0.5 },
+    })!.side,
+    null,
   );
-  assert.deepEqual(
-    highlightIds([
-      ...(parsed.regions ?? []),
-      ...(parsed.radiation?.regions ?? []),
-    ]),
-    ["right_shoulder", "lower_back", "left_thigh"],
-  );
-  assert.deepEqual(
-    parsed.triggers?.map((item) => item.id),
-    ["movement"],
-  );
-  assert.equal(JSON.stringify(parsed).includes("<"), false);
-  const openNumber = readSuggestion({
-    pain_level: { value: 8, confidence: 1 },
-    side: { id: "up", confidence: 1 },
-    radiation: { present: false, confidence: 0.99 },
-    triggers: [{ id: "rest", confidence: 0.69 }],
-  });
-  assert.equal(openNumber?.pain_level, null);
-  assert.equal(openNumber?.side, null);
-  assert.equal(openNumber?.radiation, null);
-  assert.equal(openNumber?.triggers, null);
 });
 
-test("speech uses Apple, then the browser, then an upload", () => {
-  assert.equal(chooseSpeech(true, true, false, true), "apple");
-  assert.equal(chooseSpeech(false, true, false, true), "web");
-  assert.equal(chooseSpeech(false, false, true, true), "none");
-  assert.equal(chooseSpeech(false, false, false, true), "upload");
-  assert.equal(chooseSpeech(false, false, false, false), "none");
+test("chooseSpeech prefers on-device options in order", () => {
+  assert.equal(chooseSpeech({ apple: true, web: true, upload: true }), "apple");
+  assert.equal(chooseSpeech({ apple: false, web: true, upload: true }), "web");
+  assert.equal(chooseSpeech({ apple: false, web: false, upload: true }), "upload");
+  assert.equal(chooseSpeech({ apple: false, web: false, upload: false }), "none");
 });

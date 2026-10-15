@@ -37,6 +37,7 @@
     .rail,
     .body-workspace,
     .intake-panel,
+    .pain-suggest,
     .journal-card,
     .dialog,
     .anatomy-navigation,
@@ -234,4 +235,7 @@
 [data-theme="light"] .spark-icon {
   background: #e7f0db;
   color: #426732;
+}
+[data-theme="light"] :is(.pain-status, .pain-suggestion p, .pain-row span) {
+  color: #243627;
 }

@@ -78,6 +78,7 @@ import AnatomyCredits from "./AnatomyCredits";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
+import PainSuggest from "./pain/PainSuggest";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -149,6 +150,7 @@ export default function Notebook({
   const [selected, setSelected] = useState<RegionId | null>(
       example ? "neck" : null,
     ),
+    [suggestedRegions, setSuggestedRegions] = useState<RegionId[]>([]),
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">(example ? "back" : "front");
   const [command, setCommand] = useState({ type: "", id: 0 }),
@@ -304,6 +306,9 @@ export default function Notebook({
     const id = setTimeout(() => setToast(""), 6000);
     return () => clearTimeout(id);
   }, [toast]);
+  useEffect(() => {
+    setSuggestedRegions([]);
+  }, [entry.id]);
   function selectRegion(id: RegionId) {
     setSelected(id);
     setView(id.includes("back") ? "back" : "front");
@@ -911,6 +916,7 @@ export default function Notebook({
                         command={command}
                         onSelect={setSelected}
                         points={points}
+                        suggested={suggestedRegions}
                         onPoint={(point) => {
                           setPoints((old) => [...old, point]);
                         }}
@@ -987,7 +993,9 @@ export default function Notebook({
                       <span>
                         {result?.regions.includes(selected)
                           ? "REPORTED REGION"
-                          : "SELECTED REGION"}
+                          : suggestedRegions.includes(selected)
+                            ? "AI SUGGESTION"
+                            : "SELECTED REGION"}
                       </span>
                       <strong>{regionName(selected)}</strong>
                     </div>
@@ -1138,6 +1146,32 @@ export default function Notebook({
                       <span>{note.length}/3000</span>
                     </div>
                   </div>
+                  <PainSuggest
+                    key={entry.id}
+                    onHighlight={setSuggestedRegions}
+                    onShow={(id) => {
+                      selectRegion(id);
+                      action("focus");
+                    }}
+                    onAddPin={(id) => {
+                      selectRegion(id);
+                      action("pin-center");
+                    }}
+                    onUseQuality={(value) => context("quality", value)}
+                    onUseIntensity={(value) => context("intensity", value)}
+                    onUseActivity={(value) => context("activity", value)}
+                    onInsertText={(value) => {
+                      const next = [note.trim(), value]
+                        .filter(Boolean)
+                        .join("\n\n");
+                      if (next.length > 3000) {
+                        setToast("Shorten the note before adding these words.");
+                        return;
+                      }
+                      change({ note: next });
+                      setToast("Added your words to the note.");
+                    }}
+                  />
                   <IntensityDial
                     value={entry.map.intensity}
                     onChange={(value) => context("intensity", value)}

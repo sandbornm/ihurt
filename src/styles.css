@@ -997,6 +997,61 @@ h1 > span {
   color: #6c7b68;
   white-space: nowrap;
 }
+.pain-suggest {
+  margin-top: 12px;
+  border: 1px solid #6d805644;
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+}
+.pain-suggest summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.pain-suggest button {
+  white-space: normal;
+  max-width: 100%;
+}
+.pain-suggest .consent span {
+  min-width: 0;
+}
+.pain-suggest textarea {
+  margin-top: 8px;
+  min-height: 88px;
+  resize: vertical;
+}
+.pain-actions,
+.pain-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.pain-status,
+.pain-suggestion p,
+.pain-row span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c6d9b5;
+}
+.pain-suggestion {
+  margin-top: 10px;
+  border-left: 2px solid #7ea2d6;
+  padding-left: 10px;
+}
+.pain-suggestion strong {
+  font-size: 13px;
+}
+.pain-advice {
+  margin-top: 8px;
+  border: 1px solid #ba8a4e88;
+  background: #bd774516;
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+.pain-suggest .consent {
+  margin: 8px 0;
+}
 .voice-tools {
   display: flex;
   gap: 11px;
@@ -2319,6 +2374,37 @@ h1 > span {
 }
 .notebook-shell .page-footer > span:nth-child(2) {
   margin-left: auto;
+}
+/* iPad portrait puts the Save entry center in the home-indicator band at
+   scroll 0. The control is hittable, and the tap never reaches the page.
+   Hold that center above the band. */
+@media (min-width: 671px) and (max-width: 980px) and (max-height: 1250px) {
+  .notebook-shell .intake-content .field-label {
+    margin-top: 12px;
+  }
+  .notebook-shell .intake-content .field-label:first-child {
+    margin-top: 0;
+  }
+  .notebook-shell .note-field textarea {
+    height: 104px;
+    min-height: 0;
+  }
+  .notebook-shell .pain-suggest {
+    margin-top: 8px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .notebook-shell .intensity-control {
+    margin: 12px 0;
+  }
+  .notebook-shell .entry-context {
+    margin-top: 8px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .notebook-shell .report-actions {
+    margin-top: 8px;
+  }
 }
 @media (max-width: 670px) {
   .notebook-shell .page-tabs {

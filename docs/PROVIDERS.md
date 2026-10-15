@@ -76,6 +76,18 @@ A ChatGPT or Claude chat subscription does not pay for API calls. Live cloud ada
 
 **Dictate** uses the browser’s speech-recognition feature when available. That service may transmit audio to a browser vendor. Browser support varies; typing always works. Microphone features require localhost or HTTPS. Local speech-to-text is not included in this version.
 
+### Jev pain suggestions
+
+Pain suggestions are optional. Leave `TYPESAFE_API_KEY` blank and the server skips Jev. The notebook still saves notes and pins. The key stays in `.env` on the local server. The browser calls `/api/pain` only. It does not call `api.typesafe.ai`.
+
+Open **Pain suggestion**, type a description or use **Start speech**, then agree before you send it. On iPhone and iPad, speech uses Apple speech on the device. In a browser that provides Web Speech, the microphone uses that. Otherwise the same server transcription as voice notes turns the recording into text first. Classification runs on that text.
+
+Jev receives the description and a fixed question list from `config/pain-regions.json`. Answers below 0.5 confidence are dropped. Region ids that are not in that file are dropped. The file maps muscle groups and body regions onto the anatomy ids already in the app. A suggestion can highlight those regions. It does not place a pin. Choose **Add a pin** when you want a pin on the surface you are viewing.
+
+A red-flag match shows “Consider seeking care. This is not a diagnosis.” The notice is a fixed reminder. It can miss urgent symptoms.
+
+Jev lists $0.042 per million input tokens, and output tokens are free (TypeSafe models page, checked October 13, 2026). A suggestion sends the description plus the fixed questions. A few thousand tokens cost about $0.001. This estimate is not a spending limit. Each suggestion reserves $0.01 against `DAILY_BUDGET_USD`, including a failed call. Set `JEV_RESERVATION_USD` to change that reservation. The reservation is not the provider’s invoice.
+
 ### Costs and limits
 
 The browser notebook works without AI. Optional hosted source searches use a separate site key and shared allowance. Static hosting and the domain are separate; the hosting provider’s plan applies. The source and demo mode have no fee. Local inference uses your hardware and electricity.

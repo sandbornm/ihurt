@@ -27,6 +27,7 @@
     "ios:build": "node scripts/ios-build.mjs",
     "test:ios-web": "node scripts/ios-browser-check.mjs",
     "test:voice": "node scripts/voice-browser-check.mjs",
+    "test:pain": "node scripts/pain-browser-check.mjs",
     "test:ios-speech": "node scripts/ios-speech-browser-check.mjs",
     "test:ios-native": "node scripts/ios-native-check.mjs",
     "test:api-browser": "node scripts/api-browser-check.mjs"

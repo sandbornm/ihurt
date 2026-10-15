@@ -92,11 +92,17 @@ class Limits:
                         self.increment(db, f"activities:{key}:{day}", self.settings.activities_per_day, expiry)
                     activity_id = str(uuid.uuid4())
                     db.execute("INSERT INTO activities VALUES (?, ?, 1, ?, ?)", (activity_id, owner, expiry, now+180))
-            else:
+            elif kind == "audio":
                 for key in (owner, ip):
                     self.increment(db, f"audio:{key}:{day}", self.settings.activities_per_day, expiry)
+            elif kind == "jev":
+                # Same per-visitor and owner daily cap as analysis/audio so shared hosts cannot burn Jev calls.
+                for key in (owner, ip):
+                    self.increment(db, f"jev:{key}:{day}", self.settings.activities_per_day, expiry)
+            else:
+                raise HTTPException(400, "Unknown request kind.")
             if paid:
-                reservation = self.settings.analysis_reservation_usd if kind == "analysis" else self.settings.transcription_reservation_usd
+                reservation = {"analysis": self.settings.analysis_reservation_usd, "audio": self.settings.transcription_reservation_usd, "jev": self.settings.jev_reservation_usd}[kind]
                 self.increment(db, f"budget:{day}", int(self.settings.daily_budget_usd * Decimal(1_000_000)), expiry, int(reservation * Decimal(1_000_000)))
             db.execute("INSERT INTO requests VALUES (?, ?)", (request_id, expiry))
         return activity_id

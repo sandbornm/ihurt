@@ -11,6 +11,7 @@ import {
   plainText,
   readSuggestion,
   sideCopy,
+  statedIntensity,
   type PainSuggestion,
 } from "./catalog.ts";
 import { liveSpeech, speechKind } from "./dictate.ts";
@@ -34,6 +35,7 @@ export default function PainSuggest(props: PainSuggestProps) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<PainSuggestion | null>(null);
+  const [sourceText, setSourceText] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [token, setToken] = useState("");
   const [nonce, setNonce] = useState(0);
@@ -49,7 +51,16 @@ export default function PainSuggest(props: PainSuggestProps) {
 
   function clearSuggestion() {
     setResult(null);
+    setSourceText("");
     props.onHighlight([]);
+  }
+
+  function updateDescription(value: string) {
+    setText(value);
+    // Drop a finished or in-flight suggestion so "Use as level" cannot apply the old answer.
+    suggestRun.current++;
+    clearSuggestion();
+    setStatus("");
   }
 
   useEffect(() => {
@@ -89,7 +100,7 @@ export default function PainSuggest(props: PainSuggestProps) {
           (value) => {
             if (generation.current !== current) return;
             heard.current = value.slice(0, 3000);
-            setText(value.slice(0, 3000));
+            updateDescription(value.slice(0, 3000));
           },
           (message) => {
             ended = true;
@@ -155,7 +166,7 @@ export default function PainSuggest(props: PainSuggestProps) {
     if (kind === "apple" || kind === "web") {
       setRecording(false);
       await speech.current?.stop().catch(() => {});
-      if (heard.current) setText(heard.current.slice(0, 3000));
+      if (heard.current) updateDescription(heard.current.slice(0, 3000));
       return;
     }
     const pending = capture.current;
@@ -174,7 +185,7 @@ export default function PainSuggest(props: PainSuggestProps) {
         token,
         new AbortController().signal,
       );
-      if (generation.current === current) setText(transcript.slice(0, 3000));
+      if (generation.current === current) updateDescription(transcript.slice(0, 3000));
     } catch (caught) {
       if (generation.current === current)
         setError(
@@ -247,6 +258,7 @@ export default function PainSuggest(props: PainSuggestProps) {
         return;
       }
       setResult(parsed);
+      setSourceText(description);
       // Regions stay with the main map provider; Jev only suggests side and level.
       props.onHighlight([]);
       const namedSide = parsed.side && parsed.side.id !== "unspecified";
@@ -297,7 +309,7 @@ export default function PainSuggest(props: PainSuggestProps) {
         maxLength={3000}
         value={text}
         placeholder="Sharp pain on the left shoulder when I lift my arm"
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => updateDescription(event.target.value)}
       />
       <div className="pain-actions">
         {recording ? (
@@ -375,12 +387,22 @@ export default function PainSuggest(props: PainSuggestProps) {
           {result.pain_level && painLevelCopy(result.pain_level) && (
             <div className="pain-row">
               <span>{painLevelCopy(result.pain_level)}</span>
-              <button
-                type="button"
-                onClick={() => props.onUseIntensity(result.pain_level!.value)}
-              >
-                Use as level
-              </button>
+              {statedIntensity(sourceText) != null ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const exact = statedIntensity(sourceText);
+                    if (exact == null) return;
+                    props.onUseIntensity(exact);
+                  }}
+                >
+                  {`Use stated level (${statedIntensity(sourceText)}/10)`}
+                </button>
+              ) : (
+                <span className="pain-status">
+                  Band only. Set the reported intensity on the dial yourself.
+                </span>
+              )}
             </div>
           )}
           <button

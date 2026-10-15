@@ -161,7 +161,23 @@ export function sideCopy(id: string) {
 export function painLevelCopy(level: PainLevel) {
   const known = PAIN_LEVELS[level.band];
   if (!known || known.value !== level.value) return null;
-  return `${known.label} · ${known.value} / 10`;
+  // Band label only. The representative midpoint is not a reported intensity.
+  return `AI band: ${known.label}`;
+}
+
+/** Exact 0-10 from the person's words, or null when absent, negated, or ambiguous. */
+export function statedIntensity(text: string): number | null {
+  const source = plainText(text);
+  if (!source) return null;
+  const withoutNegation = source.replace(
+    /\b(?:not|no|isn't|isn'?t|wasn't|wasn'?t|weren't|weren'?t)\s+(?:a\s+)?(?:10|[0-9])(?:\s*\/\s*10|\s+out of\s+10)\b/gi,
+    " ",
+  );
+  const matches = [
+    ...withoutNegation.matchAll(/\b(10|[0-9])(?:\s*\/\s*10|\s+out of\s+10)\b/gi),
+  ];
+  if (matches.length !== 1) return null;
+  return Number(matches[0][1]);
 }
 
 /** Catalog name, plus a configured part and a side the anatomy id does not already carry. */

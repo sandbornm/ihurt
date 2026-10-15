@@ -85,7 +85,7 @@ try {
     class FakeSpeech {
       start() {
         this.onresult?.({
-          results: [[{ transcript: "sharp pain in my left shoulder" }]],
+          results: [[{ transcript: "sharp pain in my left shoulder about 7 out of 10" }]],
         });
       }
       stop() {
@@ -142,16 +142,16 @@ try {
   assert.match(painPosts[0].text, /left shoulder/);
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
   await page.getByText("Right side", { exact: true }).waitFor();
-  await page.getByText("Severe (6-7) · 6 / 10", { exact: true }).waitFor();
+  await page.getByText("AI band: Severe (6-7)", { exact: true }).waitFor();
   const beforeLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
   assert.equal(beforeLevel, "Not recorded");
-  await page.getByRole("button", { name: "Use as level" }).click();
+  await page.getByRole("button", { name: "Use stated level (7/10)" }).click();
   const afterLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
-  assert.equal(afterLevel, "6 out of 10");
+  assert.equal(afterLevel, "7 out of 10");
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
   const suggested = await page
     .locator('[data-atlas="z-anatomy"]')

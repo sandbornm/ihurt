@@ -12,7 +12,7 @@ The anatomy uses Z-Anatomy and BodyParts3D muscle and skeleton models, with appr
 
 If you have sudden chest pain, trouble breathing, new weakness, or loss of bladder or bowel control, seek emergency help. The app cannot assess emergencies; optional AI reminders are incomplete and can be wrong. See the [NHS guidance on back pain and warning signs](https://www.nhs.uk/conditions/back-pain/).
 
-Optional pain suggestions use Jev on the local server when `TYPESAFE_API_KEY` is set. The notebook works with the key unset. Suggestions stay labelled separately from your notes. A suggested region can be highlighted on the body. It becomes a pin only after you add one. A match on chest pain, numbness or weakness, trouble breathing, or loss of bladder or bowel control shows “Consider seeking care. This is not a diagnosis.” That sentence is a fixed reminder. It can miss urgent symptoms. TypeSafe’s terms apply to text you agree to send. See the [TypeSafe legal notes](https://docs.typesafe.ai/legal).
+Optional pain suggestions use Jev on the local server when `TYPESAFE_API_KEY` is set. The notebook works with the key unset. Suggestions stay labelled separately from your notes. Jev may suggest a side and a pain-level band from the words you send. It does not name body regions, place or highlight pins, or watch for urgent symptoms. Regions stay with the main map tools and with pins you place yourself. The app cannot assess emergencies; seek emergency help for sudden chest pain, trouble breathing, new weakness, or loss of bladder or bowel control. TypeSafe’s terms apply to text you agree to send. See the [TypeSafe legal notes](https://docs.typesafe.ai/legal).
 
 ## Privacy and limitations
 

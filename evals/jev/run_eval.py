@@ -21,6 +21,8 @@ sys.path.insert(0, str(ROOT))
 CASES = Path(__file__).with_name("cases.jsonl")
 OUT = ROOT / ".tmp" / "jev-eval"
 JEV_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000  # docs.typesafe.ai/models, Oct 2026
+# Rough side+level cost from the Oct 2026 live run (~$0.001 / 38). Estimate only; not a spending limit.
+EST_JEV_USD_PER_CASE = 0.00003
 MIDLINE = {"neck", "chest", "upper_back", "lower_back", "abdomen"}
 
 
@@ -144,6 +146,23 @@ async def main():
         if t not in targets:
             targets.append(t)
     OUT.mkdir(parents=True, exist_ok=True)
+    jev_targets = [t for t in targets if t.startswith("jev-") and key]
+    if jev_targets:
+        paid = len(jev_targets) * len(cases)
+        est = paid * EST_JEV_USD_PER_CASE
+        print(
+            f"Estimated Jev spend: ~${est:.4f} for {paid} calls "
+            f"({len(jev_targets)} model(s) × {len(cases)} cases). "
+            "Estimate only; not a spending limit.",
+            flush=True,
+        )
+    cloud = [t for t in targets if t in {"openai", "anthropic", "grok"} and t in providers]
+    if cloud:
+        print(
+            f"Also running paid map providers: {', '.join(cloud)}. "
+            "Their cost is not estimated here.",
+            flush=True,
+        )
     print("| target | region exact | side | level band | cases w/ false-positive region | invented level | errors | p50 latency | cost |")
     print("|---|---|---|---|---|---|---|---|---|")
     async with httpx.AsyncClient(timeout=40) as client:

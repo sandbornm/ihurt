@@ -9,6 +9,7 @@ import {
   readSuggestion,
   regionLabel,
   sideCopy,
+  statedIntensity,
 } from "../src/pain/catalog.ts";
 import { chooseSpeech } from "../src/pain/dictate.ts";
 
@@ -64,7 +65,7 @@ test("suggestions keep only side and pain level", () => {
   assert.equal(parsed!.pain_level?.value, 6);
   assert.equal(sideCopy("left"), "Left side");
   assert.equal(sideCopy("unspecified"), null);
-  assert.equal(painLevelCopy(parsed!.pain_level!), "Severe (6-7) · 6 / 10");
+  assert.equal(painLevelCopy(parsed!.pain_level!), "AI band: Severe (6-7)");
   assert.equal(
     readSuggestion({
       side: { id: "right", confidence: 0.49 },
@@ -72,6 +73,15 @@ test("suggestions keep only side and pain level", () => {
     })!.side,
     null,
   );
+});
+
+test("statedIntensity keeps exact ratings and drops negated ones", () => {
+  assert.equal(statedIntensity("about 7/10 in my knee"), 7);
+  assert.equal(statedIntensity("pain is 3 out of 10"), 3);
+  assert.equal(statedIntensity("it is not 7/10, more like a 3/10"), 3);
+  assert.equal(statedIntensity("sharp pain in my left shoulder"), null);
+  assert.equal(statedIntensity("not 7/10"), null);
+  assert.equal(statedIntensity("5/10 and also 8/10"), null);
 });
 
 test("speech uses Apple, then the browser, then an upload", () => {

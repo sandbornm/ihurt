@@ -142,6 +142,7 @@ try {
   page.setDefaultTimeout(30000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin);
+  await page.waitForSelector('[data-notebook-hydrated="true"]');
   const note = page.getByRole("textbox", { name: "Describe your discomfort" });
   await note.fill("An earlier observation.");
   await page.getByRole("button", { name: "Use voice", exact: true }).click();

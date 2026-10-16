@@ -52,6 +52,7 @@ try {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(origin);
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     const atlas = page.locator('[data-atlas="z-anatomy"]');
     await atlas.waitFor();
     assert.equal(
@@ -155,6 +156,7 @@ try {
       animations: "disabled",
     });
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await atlas.waitFor();
     assert.equal(
       await page.locator("html").getAttribute("data-theme"),
@@ -607,6 +609,7 @@ try {
       .getByText("Draft saved on this device", { exact: true })
       .waitFor();
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await atlas.waitFor();
     assert.equal(await atlas.getAttribute("data-bones"), "hidden");
     assert.equal(await page.locator(".notebook-pin").count(), 2);
@@ -643,6 +646,7 @@ try {
       .getByText("Draft saved on this device", { exact: true })
       .waitFor();
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await atlas.waitFor();
     assert.equal(await page.locator(".notebook-pin").count(), 12);
     assert.equal(
@@ -689,6 +693,7 @@ try {
         modelRequests.push(request.url());
     });
     await page.goto(origin);
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     const toggle = async () => {
       await page
         .getByRole("button", { name: "More tools", exact: true })

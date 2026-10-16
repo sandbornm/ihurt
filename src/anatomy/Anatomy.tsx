@@ -1279,6 +1279,7 @@ export default function Anatomy(props: Props) {
       setHands(false);
       if (dragMode === "move") setDragMode("pin");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dragMode is read when advanced controls turn off, and mode changes should not reset open tools
   }, [props.advancedControls]);
   return (
     <div

@@ -1,10 +1,11 @@
 import json
 import re
 from typing import Protocol
-from openai import AsyncOpenAI, APIStatusError
-from anthropic import AsyncAnthropic, APIStatusError as AnthropicStatusError
+from openai import APIStatusError
+from anthropic import APIStatusError as AnthropicStatusError
 from .config import Settings
 from .models import HurtMap, MapRequest, Question, Region
+from .spend_gate import SpendGate
 
 
 SAFETY_MESSAGE = "Some symptoms need prompt medical attention. If you have sudden chest pain, trouble breathing, new weakness, or loss of bladder or bowel control, contact local emergency services now. Do not wait for this map."
@@ -98,14 +99,14 @@ class DemoProvider:
 
 
 class OpenAIProvider:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, gate: SpendGate):
         self.settings = settings
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key, timeout=35, max_retries=0)
+        self.gate = gate
 
     async def map(self, request: MapRequest) -> HurtMap:
         instructions = MAPPING_INSTRUCTIONS
         payload = request.model_dump(exclude={"request_id", "activity_id", "challenge_token", "consent", "provider"})
-        response = await self.client.responses.parse(
+        response = await self.gate.openai_responses_parse(
             model=self.settings.openai_model,
             instructions=instructions,
             input=json.dumps(payload),
@@ -122,18 +123,18 @@ class OpenAIProvider:
         return result
 
     async def transcribe(self, audio: bytes) -> str:
-        response = await self.client.audio.transcriptions.create(model=self.settings.openai_transcription_model, file=("note.wav", audio, "audio/wav"), response_format="json")
+        response = await self.gate.openai_transcription(model=self.settings.openai_transcription_model, file=("note.wav", audio, "audio/wav"), response_format="json")
         return response.text[:3000]
 
 
 class AnthropicProvider:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, gate: SpendGate):
         self.settings = settings
-        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=35, max_retries=0)
+        self.gate = gate
 
     async def map(self, request: MapRequest) -> HurtMap:
         payload = request.model_dump(exclude={"request_id", "activity_id", "challenge_token", "consent", "provider"})
-        response = await self.client.messages.parse(
+        response = await self.gate.anthropic_messages_parse(
             model=self.settings.anthropic_model,
             max_tokens=2000,
             system=MAPPING_INSTRUCTIONS,
@@ -147,11 +148,11 @@ class AnthropicProvider:
 
 class CompatibleProvider:
     """Grok and local OpenAI-compatible servers share a validated output contract."""
-    def __init__(self, settings: Settings, local=False):
+    def __init__(self, settings: Settings, gate: SpendGate, local=False):
         self.local = local
         self.model = settings.local_model if local else settings.xai_model
         self.json_mode = settings.local_json_mode
-        self.client = AsyncOpenAI(api_key=settings.local_api_key if local else settings.xai_api_key, base_url=settings.local_base_url if local else "https://api.x.ai/v1", timeout=110 if local else 35, max_retries=0)
+        self.gate = gate
 
     async def map(self, request: MapRequest) -> HurtMap:
         payload = request.model_dump(exclude={"request_id", "activity_id", "challenge_token", "consent", "provider"})
@@ -162,20 +163,20 @@ class CompatibleProvider:
         else:
             kwargs["response_format"] = {"type": "json_schema", "json_schema": {"name": "hurt_map", "strict": True, "schema": HurtMap.model_json_schema()}}
         instructions = MAPPING_INSTRUCTIONS + " Return only a JSON object matching this schema: " + json.dumps(HurtMap.model_json_schema())
-        response = await self.client.chat.completions.create(model=self.model, max_tokens=2000, messages=[{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(payload)}], **kwargs)
+        response = await self.gate.compatible_chat(local=self.local, model=self.model, max_tokens=2000, messages=[{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(payload)}], **kwargs)
         if not response.choices or response.choices[0].finish_reason != "stop":
             raise RuntimeError("The provider did not return a complete map.")
         return HurtMap.model_validate_json(response.choices[0].message.content or "")
 
 
-def create_providers(settings: Settings):
+def create_providers(settings: Settings, gate: SpendGate):
     providers = {"demo": DemoProvider()}
     if settings.openai_api_key:
-        providers["openai"] = OpenAIProvider(settings)
+        providers["openai"] = OpenAIProvider(settings, gate)
     if settings.anthropic_api_key:
-        providers["anthropic"] = AnthropicProvider(settings)
+        providers["anthropic"] = AnthropicProvider(settings, gate)
     if settings.xai_api_key:
-        providers["grok"] = CompatibleProvider(settings)
+        providers["grok"] = CompatibleProvider(settings, gate)
     if settings.local_model:
-        providers["local"] = CompatibleProvider(settings, local=True)
+        providers["local"] = CompatibleProvider(settings, gate, local=True)
     return providers

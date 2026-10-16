@@ -9,10 +9,12 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.config import Settings
+from backend.limits import Limits
+from backend.spend_gate import SpendGate
 from backend.transcription import ElevenLabsTranscriber
 
 
-def test_elevenlabs_request_uses_only_speech_endpoint_and_validates_response(monkeypatch):
+def test_elevenlabs_request_uses_only_speech_endpoint_and_validates_response(monkeypatch, tmp_path):
     actual_client = httpx.AsyncClient
     def handler(request):
         assert str(request.url) == "https://api.elevenlabs.io/v1/speech-to-text"
@@ -20,9 +22,15 @@ def test_elevenlabs_request_uses_only_speech_endpoint_and_validates_response(mon
         assert b"scribe_v2" in request.content
         assert b"note.wav" in request.content
         return httpx.Response(200, json={"text": "My left calf feels tight."})
-    monkeypatch.setattr("backend.transcription.httpx.AsyncClient", lambda **kwargs: actual_client(transport=httpx.MockTransport(handler), **kwargs))
-    settings = Settings(_env_file=None, elevenlabs_api_key="test-not-a-real-key")
-    assert asyncio.run(ElevenLabsTranscriber(settings).transcribe(b"synthetic-audio")) == "My left calf feels tight."
+    monkeypatch.setattr("backend.spend_gate.httpx.AsyncClient", lambda **kwargs: actual_client(transport=httpx.MockTransport(handler), **kwargs))
+    settings = Settings(_env_file=None, database_path=tmp_path / "usage.sqlite3", session_secret="test-" * 10, elevenlabs_api_key="test-not-a-real-key")
+    gate = SpendGate(settings, Limits(settings))
+
+    async def transcribe():
+        with gate.guard(owner="owner", ip="ip", request_id=str(uuid.uuid4()), activity_id=None, kind="audio", paid=True):
+            return await ElevenLabsTranscriber(gate).transcribe(b"synthetic-audio")
+
+    assert asyncio.run(transcribe()) == "My left calf feels tight."
 
 
 def test_transcription_consent_limits_and_errors_do_not_expose_content(tmp_path, monkeypatch):

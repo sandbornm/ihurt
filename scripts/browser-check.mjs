@@ -145,14 +145,14 @@ try {
     await page
       .getByText("Entry saved on this device.", { exact: true })
       .waitFor();
-    await page.getByRole("button", { name: "New entry", exact: true }).click();
+    await page.getByRole("button", { name: "New moment", exact: true }).click();
     await page.waitForFunction(
       () => document.querySelector("#pain-note")?.value === "",
     );
     await note.fill("Second entry: a long walk.");
     await page.locator("#entry-title").fill("Walking");
     await page.getByRole("button", { name: "Save entry", exact: true }).click();
-    await page.getByRole("button", { name: /^Notebook/ }).click();
+    await page.getByRole("button", { name: /^History/ }).click();
     await page
       .getByRole("button", { name: "Open entry", exact: true })
       .first()
@@ -176,7 +176,7 @@ try {
     }));
     assert.equal(layout.overflow, false);
     assert.equal(layout.columns, width > 670 ? 2 : 1);
-    await page.getByRole("button", { name: /^Notebook/ }).click();
+    await page.getByRole("button", { name: /^History/ }).click();
     assert.equal(
       await page
         .getByRole("button", { name: "Open entry", exact: true })

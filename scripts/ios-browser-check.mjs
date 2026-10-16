@@ -166,7 +166,7 @@ try {
     );
     await page.screenshot({ path: `${deviceOutput}/landscape.png` });
     await page.setViewportSize(portrait);
-    await page.getByRole("button", { name: /^Notebook/ }).click();
+    await page.getByRole("button", { name: /^History/ }).click();
     await page
       .locator('input[type="file"]')
       .setInputFiles("docs/examples/neck-tennis.json");
@@ -271,7 +271,7 @@ try {
       (expected) => document.querySelector("#pain-note")?.value === expected,
       unfinished,
     );
-    await page.getByRole("button", { name: /^Notebook/ }).click();
+    await page.getByRole("button", { name: /^History/ }).click();
     assert.equal(
       await page
         .getByRole("button", { name: "Open entry", exact: true })

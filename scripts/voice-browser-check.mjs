@@ -248,7 +248,7 @@ try {
     .getByRole("textbox", { name: "Review transcript" })
     .fill("Only for the old entry.");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "New entry", exact: true }).click();
+  await page.getByRole("button", { name: "New moment", exact: true }).click();
   await page.getByRole("button", { name: "Use voice", exact: true }).click();
   assert.equal(
     await dialog

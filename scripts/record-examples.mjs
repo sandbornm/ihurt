@@ -87,7 +87,7 @@ try {
   for (const [index, example] of examples.entries()) {
     if (index) {
       await page
-        .getByRole("button", { name: "New entry", exact: true })
+        .getByRole("button", { name: "New moment", exact: true })
         .click();
       await page.waitForFunction(
         () => document.querySelector("#pain-note")?.value === "",

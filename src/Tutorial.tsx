@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 const steps = [
   {
     title: "Find your spot",
-    text: "Choose Front or Back, then Find a region to move closer. Left and right always mean your own left and right.",
+    text: "Choose Front or Back, then Find to move closer. Left and right always mean your own left and right.",
     picture: "locate",
   },
   {
@@ -14,7 +14,7 @@ const steps = [
   },
   {
     title: "Describe what you feel",
-    text: "Add a note, an activity, and an intensity. For a wider area, choose Highlight and drag across the body. Undo removes a mistaken mark.",
+    text: "Add a note, an activity, and an intensity. For a wider area, choose Mark area and drag across the body. Undo removes a mistaken mark.",
     picture: "note",
   },
   {

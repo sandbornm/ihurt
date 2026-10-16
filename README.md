@@ -14,6 +14,7 @@ A visual notebook for how your body feels. Pin a spot on a 3D body, record what 
 - **Keep the context.** Record intensity, activity, timing, and your own words. Save multiple entries and return to edit them.
 - **Keep a copy.** Export an [.ihm map](docs/IHM.md), JSON, a body-view image, or a report. Print from the browser to save a PDF.
 - **Read or share when you choose.** Explore sources or bring an exported map to an AI chat. Journaling works without an AI account.
+- **Today and History.** Look through one day at a time. Switch days, open a moment, and search notes and activities.
 
 The notebook works offline after its first complete load. Notes and drafts stay in this browser on this device. Export a backup before clearing browser data or switching devices.
 
@@ -21,7 +22,7 @@ The notebook works offline after its first complete load. Notes and drafts stay 
 
 The development build brings the notebook closer to the moments you want to remember:
 
-- **Today and History.** See a day’s pins together, with a timeline of moments. Add a quick entry, switch days, and search earlier notes and activities.
+- **Phone layout.** Today and History sit with the body map: one day, a row of moments, and a new moment when you want one.
 - **Quick pin editing.** Adjust intensity with a dial, add a nearby note, compare overlapping anatomy surfaces, and undo a removed pin.
 - **On-device dictation.** Speak a note, review the words, then add them to your entry. Typing is always available; Apple speech support depends on the device and language.
 - **Movement recording.** Use either camera to record a short, silent exercise clip. Review estimated body and hand positions, choose a moment, then mark where you felt discomfort. Pose estimates do not detect pain or place pins for you.

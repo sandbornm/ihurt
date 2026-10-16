@@ -107,6 +107,7 @@ try {
         : route.abort();
     });
     await page.goto(origin);
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await page
       .locator('[data-atlas="z-anatomy"][data-heat-engine="wasm"]')
       .waitFor();
@@ -264,6 +265,7 @@ try {
       .waitFor();
     await waitForDraft(page, unfinished);
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await page
       .locator('[data-atlas="z-anatomy"][data-heat-engine="wasm"]')
       .waitFor();

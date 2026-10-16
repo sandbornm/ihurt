@@ -486,7 +486,17 @@ export default function Notebook({
     <div
       className="app-shell notebook-shell"
       data-offline={offline ? "ready" : "preparing"}
+      data-notebook-hydrated={hydrated ? "true" : undefined}
     >
+      {hydrated && (
+        <div
+          id="notebook-hydrated"
+          className="notebook-hydrated-signal"
+          aria-label="notebook-hydrated"
+        >
+          notebook-hydrated
+        </div>
+      )}
       <header className="topbar">
         <a href={example ? "/" : "#"} className="brand" aria-label="iHurt home">
           <span className="brand-mark">

@@ -1600,6 +1600,18 @@ h1 > span {
   white-space: nowrap;
   border: 0;
 }
+/* Kept in the accessibility tree for XCUITest. Clip-to-zero is dropped there. */
+.notebook-hydrated-signal {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  pointer-events: none;
+  color: transparent;
+}
 .visitor-check {
   margin-bottom: 12px;
   min-height: 1px;

@@ -13,6 +13,12 @@ final class NotebookUITests: XCTestCase {
         XCTAssertTrue(element.isHittable, "Control should be reachable by scrolling: \(element)")
     }
 
+    private func waitForHydratedNotebook(_ app: XCUIApplication) {
+        XCTAssertTrue(
+            app.descendants(matching: .any)["notebook-hydrated"].waitForExistence(timeout: 90)
+        )
+    }
+
     func testNotebookSurvivesRelaunchAndBackground() throws {
         continueAfterFailure = false
         XCTAssertTrue(
@@ -23,6 +29,7 @@ final class NotebookUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }
         app.launch()
+        waitForHydratedNotebook(app)
 
         XCTAssertTrue(app.buttons["New entry"].waitForExistence(timeout: 90))
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 30))
@@ -52,6 +59,7 @@ final class NotebookUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 10))
         app.terminate()
         app.launch()
+        waitForHydratedNotebook(app)
         XCTAssertTrue(app.buttons["New entry"].waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.descendants(matching: .any)["Pin"].waitForExistence(timeout: 90))
@@ -75,7 +83,7 @@ final class NotebookUITests: XCTestCase {
         XCUIDevice.shared.press(.home)
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10))
         app.activate()
-        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        waitForHydratedNotebook(app)
         XCTAssertFalse(app.otherElements["notebook-privacy-cover"].exists)
         XCTAssertEqual(editor.value as? String, note)
 

@@ -160,3 +160,26 @@ def test_unreserved_provider_call_does_not_construct_a_client(tmp_path, monkeypa
     with pytest.raises(HTTPException) as rejected:
         asyncio.run(gate.openai_responses_parse(model="gpt-5-mini"))
     assert rejected.value.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda g: g.openai_transcription(model="m", file=b""),
+        lambda g: g.anthropic_messages_parse(model="m"),
+        lambda g: g.compatible_chat(local=False, model="m"),
+        lambda g: g.compatible_chat(local=True, model="m"),
+        lambda g: g.elevenlabs_speech(b""),
+    ],
+)
+def test_every_unreserved_provider_method_is_rejected(tmp_path, monkeypatch, call):
+    def boom(*args, **kwargs):
+        raise AssertionError("provider client constructed")
+
+    for name in ("AsyncOpenAI", "AsyncAnthropic"):
+        monkeypatch.setattr(f"backend.spend_gate.{name}", boom)
+    monkeypatch.setattr("backend.spend_gate.httpx.AsyncClient", boom)
+    gate = SpendGate(settings(tmp_path), Limits(settings(tmp_path)))
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(call(gate))
+    assert rejected.value.status_code == 403

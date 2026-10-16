@@ -193,6 +193,8 @@ def create_app(settings: Settings | None = None, provider=None):
                 try:
                     text = await asyncio.wait_for(transcriber.transcribe(cleaned.getvalue()), timeout=40)
                     return {"text": text}
+                except HTTPException:
+                    raise
                 except Exception:
                     raise HTTPException(502, "The recording could not be transcribed. You can type your note instead.") from None
 

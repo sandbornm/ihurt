@@ -182,6 +182,7 @@ function VoiceEditor({
       cancelCapture();
       document.removeEventListener("visibilitychange", hide);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: re-running would cancel an in-progress capture
   }, []);
   useEffect(() => {
     if (mode !== "recording") return;

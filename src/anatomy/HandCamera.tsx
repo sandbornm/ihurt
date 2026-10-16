@@ -418,7 +418,7 @@ export default function HandCamera({
       if (!document.hidden) schedule();
     };
     document.addEventListener("visibilitychange", visibilityChanged);
-    (async () => {
+    void (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,

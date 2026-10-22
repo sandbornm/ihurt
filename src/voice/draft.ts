@@ -1,4 +1,10 @@
-import { regions, type RegionId, type SavedMap } from "../types.ts";
+import {
+  regionNameIn,
+  regions,
+  type RegionId,
+  type SavedMap,
+} from "../types.ts";
+import { t } from "../i18n/index.ts";
 
 export type DraftFields = Partial<
   Pick<SavedMap["map"], "intensity" | "quality" | "activity" | "duration">
@@ -25,8 +31,33 @@ const numbers = [
   "nine",
   "ten",
 ];
+const spanish = [
+  "cero",
+  "uno",
+  "dos",
+  "tres",
+  "cuatro",
+  "cinco",
+  "seis",
+  "siete",
+  "ocho",
+  "nueve",
+  "diez",
+];
+const rating = (word: string) =>
+  /^\d+$/.test(word)
+    ? Number(word)
+    : numbers.includes(word)
+      ? numbers.indexOf(word)
+      : spanish.indexOf(word);
+// Letters on both sides, so accented words such as "quemazón" match whole.
+const word = (body: string) =>
+  new RegExp(`(?<![\\p{L}\\p{N}])(?:${body})(?![\\p{L}\\p{N}])`, "gu");
+const fold = (value: string) =>
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-// Suggestions quote explicit phrases. They never choose surface coordinates.
+// Suggestions quote explicit phrases in English or Spanish. They never choose
+// surface coordinates.
 export function suggestVoiceDraft(text: string) {
   const fields: DraftFields = {};
   const clauses = text
@@ -36,40 +67,53 @@ export function suggestVoiceDraft(text: string) {
       (part) =>
         !/\b(no|not|without|never|denies|doesn't|don't|isn't|wasn't)\b/.test(
           part,
-        ),
+        ) && !word("nunca|sin|tampoco|niega|niego|ningún|ninguna").test(part),
     );
   const clean = clauses.join(". ");
   const ratings = [
     ...clean.matchAll(
       /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:\/\s*10|out of (?:10|ten))\b/g,
     ),
-  ].map((match) =>
-    /^\d+$/.test(match[1]) ? Number(match[1]) : numbers.indexOf(match[1]),
-  );
+    ...fold(clean).matchAll(
+      /\b(10|[0-9]|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:\/\s*10|(?:de|sobre) (?:10|diez))\b/g,
+    ),
+  ].map((match) => rating(match[1]));
   if (ratings.length === 1) fields.intensity = ratings[0];
   const qualities = [
     ...new Set(
       clean.match(
-        /\b(?:aching|sharp|burning|tingling|numb|stiff|tight|dull|throbbing|sore|cramping)\b/g,
+        word(
+          "aching|sharp|burning|tingling|numb|stiff|tight|dull|throbbing|sore|cramping|ardor|ardiente|quemazón|punzante|pinchazos?|sordo|hormigueo|entumecid[oa]|adormecid[oa]|rigidez|rígid[oa]|tens[oa]|tirante|palpitante|pulsátil|calambres?|adolorid[oa]|molestia|agud[oa]",
+        ),
       ) ?? [],
     ),
   ];
   if (qualities.length) fields.quality = qualities.join(", ");
   // Labeled phrases avoid guessing an activity from unrelated mentions.
-  const activity = text.match(/\bactivity\s*:\s*([^.!?;\n]{1,120})/i);
+  const activity = text.match(
+    /(?:\bactivity|\bactividad)\s*:\s*([^.!?;\n]{1,120})/i,
+  );
   const duration = text.match(
-    /\b(?:duration|timing)\s*:\s*([^.!?;\n]{1,120})/i,
+    /(?:\b(?:duration|timing)|\bduraci[oó]n|\bdesde cu[aá]ndo)\s*:\s*([^.!?;\n]{1,120})/i,
   );
   if (activity) fields.activity = activity[1].trim();
   if (duration) fields.duration = duration[1].trim();
   const locations = regions
     .filter(({ id }) => {
       const label = id.replaceAll("_", " ");
+      // The Spanish name as people say it: "muñeca izquierda", not "muñeca y
+      // mano izquierda".
+      const nombre = fold(regionNameIn("es", id)).replace(" y mano", "");
       return clauses.some(
         (part) =>
-          /\b(?:hurts?|pain|aches?|aching|discomfort|sore|tight|stiff|burning|tingling|numb|throbbing|cramping)\b/.test(
+          (/\b(?:hurts?|pain|aches?|aching|discomfort|sore|tight|stiff|burning|tingling|numb|throbbing|cramping)\b/.test(
             part,
-          ) && new RegExp(`\\b${label}\\b`).test(part),
+          ) &&
+            new RegExp(`\\b${label}\\b`).test(part)) ||
+          (/\b(?:duele|duelen|dolor|dolores|molesta|molestia|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
+            fold(part),
+          ) &&
+            new RegExp(`\\b${nombre}\\b`).test(fold(part))),
       );
     })
     .map(({ id }) => id);
@@ -82,12 +126,9 @@ export function applyVoiceDraft(
 ): SavedMap {
   const text = draft.text.trim();
   if (!text || text.length > 3000)
-    throw new Error("Use a transcript of 3,000 characters or fewer.");
+    throw new Error(t("native.transcript-too-long"));
   const note = [entry.note.trim(), text].filter(Boolean).join("\n\n");
-  if (note.length > 3000)
-    throw new Error(
-      "The combined note is too long. Shorten the transcript before adding it.",
-    );
+  if (note.length > 3000) throw new Error(t("voice.error.noteTooLong"));
   return { ...entry, note, map: { ...entry.map, ...draft.fields } };
 }
 
@@ -101,10 +142,12 @@ export function voiceNotice(state: {
   available: boolean;
   maxSeconds: number;
 }) {
-  if (state.native)
-    return "Apple speech recognition runs on your device. Review the words before adding them.";
-  if (state.checking) return "Checking voice transcription…";
+  if (state.native) return t("voice.notice.native");
+  if (state.checking) return t("voice.notice.checking");
   if (state.available && state.provider)
-    return `Stopping or reaching the ${state.maxSeconds}-second limit sends audio to ${state.provider}. Its retention policy applies.`;
-  return "Voice transcription is off here, so no audio is recorded or sent. Type or paste what you noticed.";
+    return t("voice.notice.provider", {
+      seconds: state.maxSeconds,
+      provider: state.provider,
+    });
+  return t("voice.notice.off");
 }

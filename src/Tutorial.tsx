@@ -1,32 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { useI18n } from "./i18n/react";
 
-const steps = [
-  {
-    title: "Find your spot",
-    text: "Choose Front or Back, then Find a region to move closer. Left and right always mean your own left and right.",
-    picture: "locate",
-  },
-  {
-    title: "Place a pin",
-    text: "Tap the body to pin a spot. Drag to turn it. Use two fingers to zoom or move, or use the + and − buttons.",
-    picture: "pin",
-  },
-  {
-    title: "Describe what you feel",
-    text: "Add a note, an activity, and an intensity. For a wider area, choose Highlight and drag across the body. Undo removes a mistaken mark.",
-    picture: "note",
-  },
-  {
-    title: "Keep it or share it",
-    text: "Your draft saves on this device. Print a report or export an .ihm file to keep the map and notes together. Optional source search lets you review what goes to Grok first.",
-    picture: "share",
-  },
-];
+const steps = (["locate", "pin", "note", "share"] as const).map(
+  (picture, index) => ({ picture, n: (index + 1) as 1 | 2 | 3 | 4 }),
+);
 
 export default function Tutorial({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState(0);
+  const { t } = useI18n();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
@@ -44,10 +27,10 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
     >
       <div className="dialog-heading">
         <span>
-          QUICK TOUR · {step + 1} OF {steps.length}
+          {t("tour.progress", { step: step + 1, total: steps.length })}
         </span>
         <button
-          aria-label="Close tutorial"
+          aria-label={t("tour.close")}
           onClick={() => dialog.current?.close()}
         >
           <X size={22} />
@@ -79,13 +62,12 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         </svg>
       </div>
       <h2 ref={heading} tabIndex={-1} id="tutorial-title">
-        {item.title}
+        {t(`tour.${item.n}.title`)}
       </h2>
-      <p>{item.text}</p>
+      <p>{t(`tour.${item.n}.text`)}</p>
       {step === 0 && (
         <p className="tutorial-limit">
-          This is reference anatomy. Pins help describe a location; they do not
-          measure your body or identify the cause of pain.
+          {t("tour.limit")}
         </p>
       )}
       <div className="tutorial-actions">
@@ -95,7 +77,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
           onClick={() => setStep(step - 1)}
         >
           <ArrowLeft size={18} />
-          Back
+          {t("tour.back")}
         </button>
         <button
           className="primary"
@@ -105,7 +87,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
               : setStep(step + 1)
           }
         >
-          {step === steps.length - 1 ? "Start mapping" : "Next"}
+          {step === steps.length - 1 ? t("tour.start") : t("tour.next")}
           <ArrowRight size={18} />
         </button>
       </div>

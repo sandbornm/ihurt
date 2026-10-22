@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Bug, Lightbulb } from "lucide-react";
 import { isNativeApp } from "../platform/files";
 import { FEEDBACK_ADDRESS, feedbackBody } from "./mailto";
+import { useI18n } from "../i18n/react";
 import {
   feedbackMailto,
   sendFeedback,
@@ -24,6 +25,7 @@ function diagnostics() {
 
 export default function FeedbackLinks() {
   const id = useId();
+  const { t } = useI18n();
   const [kind, setKind] = useState<FeedbackType | null>(null);
   const [summary, setSummary] = useState("");
   const [message, setMessage] = useState("");
@@ -45,7 +47,7 @@ export default function FeedbackLinks() {
       platform: d.platform,
       userAgent: d.userAgent,
     });
-    setStatus(`If no email app opened, write to ${FEEDBACK_ADDRESS}.`);
+    setStatus(t("fb.noMailApp", { address: FEEDBACK_ADDRESS }));
   };
 
   const start = (type: FeedbackType) => {
@@ -71,15 +73,15 @@ export default function FeedbackLinks() {
     });
     setBusy(false);
     if (result === "sent") {
-      setStatus("Thanks, sent.");
+      setStatus(t("fb.sent"));
       setKind(null);
       setSummary("");
       setMessage("");
       setContact("");
     } else if (result === "rate-limited") {
-      setStatus("Too many reports for now. Try again later or use email.");
+      setStatus(t("fb.rateLimited"));
     } else {
-      setStatus("Couldn't send. Opening an email draft instead.");
+      setStatus(t("fb.fallback"));
       openMail(kind, message.trim());
     }
   };
@@ -88,14 +90,14 @@ export default function FeedbackLinks() {
     void Promise.resolve()
       .then(() => navigator.clipboard.writeText(FEEDBACK_ADDRESS))
       .then(
-        () => setStatus(`Copied ${FEEDBACK_ADDRESS}`),
-        () => setStatus(`Email ${FEEDBACK_ADDRESS}`),
+        () => setStatus(t("fb.copiedAddress", { address: FEEDBACK_ADDRESS })),
+        () => setStatus(t("fb.emailAddress", { address: FEEDBACK_ADDRESS })),
       );
   };
 
   return (
-    <section className="feedback-links" aria-label="Send feedback">
-      <h3>Feedback</h3>
+    <section className="feedback-links" aria-label={t("fb.send")}>
+      <h3>{t("fb.title")}</h3>
       <div className="feedback-actions">
         <button
           type="button"
@@ -103,7 +105,7 @@ export default function FeedbackLinks() {
           disabled={busy}
           onClick={() => start("bug")}
         >
-          <Bug size={15} /> Report a bug
+          <Bug size={15} /> {t("fb.bug")}
         </button>
         <button
           type="button"
@@ -111,10 +113,10 @@ export default function FeedbackLinks() {
           disabled={busy}
           onClick={() => start("feature")}
         >
-          <Lightbulb size={15} /> Suggest a feature
+          <Lightbulb size={15} /> {t("fb.feature")}
         </button>
         <button type="button" className="secondary" onClick={copy}>
-          No mail app? Copy address
+          {t("fb.copyAddress")}
         </button>
       </div>
       {kind && (
@@ -127,7 +129,7 @@ export default function FeedbackLinks() {
         >
           <fieldset disabled={busy} className="feedback-fieldset">
             <label htmlFor={`${id}-summary`}>
-              {kind === "bug" ? "Bug in a few words" : "Idea in a few words"}
+              {kind === "bug" ? t("fb.bugSummary") : t("fb.ideaSummary")}
             </label>
             <input
               id={`${id}-summary`}
@@ -136,9 +138,7 @@ export default function FeedbackLinks() {
               onChange={(e) => setSummary(e.target.value)}
             />
             <label htmlFor={`${id}-message`}>
-              {kind === "bug"
-                ? "What happened, steps, and what you expected"
-                : "What should iHurt do, and why?"}
+              {kind === "bug" ? t("fb.bugMessage") : t("fb.ideaMessage")}
             </label>
             <textarea
               id={`${id}-message`}
@@ -148,7 +148,7 @@ export default function FeedbackLinks() {
               required
               onChange={(e) => setMessage(e.target.value)}
             />
-            <label htmlFor={`${id}-contact`}>Your email (optional)</label>
+            <label htmlFor={`${id}-contact`}>{t("fb.contact")}</label>
             <input
               id={`${id}-contact`}
               type="email"
@@ -171,21 +171,21 @@ export default function FeedbackLinks() {
                 className="secondary"
                 disabled={busy || !message.trim()}
               >
-                {busy ? "Sending…" : "Send"}
+                {busy ? t("fb.sending") : t("fb.sendButton")}
               </button>
               <button
                 type="button"
                 className="secondary"
                 onClick={() => openMail(kind, message.trim())}
               >
-                Use email instead
+                {t("fb.useEmail")}
               </button>
             </div>
           </fieldset>
         </form>
       )}
       <p role="status">
-        {status || "Leave out health details. Your notebook is never attached."}
+        {status || t("fb.noHealth")}
       </p>
     </section>
   );

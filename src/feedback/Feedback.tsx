@@ -1,10 +1,12 @@
 import { useId, useRef, useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import "./feedback.css";
+import { useI18n } from "../i18n/react";
 
 export default function Feedback() {
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const [status, setStatus] = useState("");
   const message = text.trim();
@@ -18,7 +20,7 @@ export default function Feedback() {
           dialog.current?.showModal();
         }}
       >
-        <MessageSquare size={15} /> Feedback
+        <MessageSquare size={15} /> {t("fb.title")}
       </button>
       <dialog
         ref={dialog}
@@ -26,17 +28,17 @@ export default function Feedback() {
         aria-labelledby={`${id}-title`}
       >
         <div className="feedback-heading">
-          <h2 id={`${id}-title`}>Make iHurt better</h2>
+          <h2 id={`${id}-title`}>{t("fb.makeBetter")}</h2>
           <button
             type="button"
-            aria-label="Close feedback"
+            aria-label={t("fb.close")}
             onClick={() => dialog.current?.close()}
           >
             <X size={20} />
           </button>
         </div>
         <label htmlFor={`${id}-note`}>
-          What was confusing, broken, or missing?
+          {t("fb.whatConfusing")}
         </label>
         <textarea
           id={`${id}-note`}
@@ -47,11 +49,10 @@ export default function Feedback() {
           }}
           rows={5}
           maxLength={1500}
-          placeholder="I tried to…"
+          placeholder={t("fb.placeholder")}
         />
         <p>
-          Leave out health details. Your notebook and recordings are not
-          attached.
+          {t("fb.noHealthRec")}
         </p>
         <div className="feedback-actions">
           <a
@@ -62,11 +63,11 @@ export default function Feedback() {
               if (!message) event.preventDefault();
               else
                 setStatus(
-                  "Finish sending in your email app. If it did not open, copy the feedback and email michael@msandborn.dev.",
+                  t("fb.finishInMail"),
                 );
             }}
           >
-            Open email draft
+            {t("fb.openDraft")}
           </a>
           <button
             type="button"
@@ -76,19 +77,19 @@ export default function Feedback() {
               void Promise.resolve()
                 .then(() => navigator.clipboard.writeText(message))
                 .then(
-                  () => setStatus("Copied. Email it to michael@msandborn.dev."),
+                  () => setStatus(t("fb.copied")),
                   () =>
                     setStatus(
-                      "Copy the text above and email it to michael@msandborn.dev.",
+                      t("fb.copyManual"),
                     ),
                 );
             }}
           >
-            Copy feedback
+            {t("fb.copy")}
           </button>
         </div>
         <p role="status">
-          {status || "You review and send the email yourself."}
+          {status || t("fb.youSend")}
         </p>
       </dialog>
     </>

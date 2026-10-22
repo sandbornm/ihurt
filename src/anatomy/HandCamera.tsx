@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import HandEntryPanel from "./HandEntryPanel";
+import { t } from "../i18n";
 import {
   HandEntryGesture,
   type HandEntryControls,
@@ -89,13 +90,7 @@ function drawHands(
   }
 }
 
-const MODE_LABEL: Record<Grabber["mode"], string> = {
-  rest: "Rest",
-  turn: "Turn",
-  zoom: "Zoom",
-  slide: "Slide",
-  point: "Point",
-};
+const modeLabel = (mode: Grabber["mode"]) => t(`hands.mode.${mode}`);
 
 function paintGrabbers(
   overlay: HTMLElement,
@@ -118,7 +113,7 @@ function paintGrabbers(
     node.style.top = `${point.y * 100}%`;
     node.style.setProperty("--pinch", String(1 - grabber.pinch * 0.45));
     const label = node.querySelector("span");
-    if (label) label.textContent = MODE_LABEL[grabber.mode];
+    if (label) label.textContent = modeLabel(grabber.mode);
   });
   for (let index = grabbers.length; index < nodes.length; index++)
     nodes[index].classList.remove("is-on");
@@ -136,14 +131,14 @@ function paintGrabbers(
 
 function statusFor(grabbers: Grabber[]) {
   if (grabbers.length > 1 && grabbers[0]?.mode === "zoom")
-    return "Pull fists apart to zoom in";
-  if (grabbers.length > 1) return "Slide both grabbers to pan";
+    return t("hands.zoom");
+  if (grabbers.length > 1) return t("hands.pan");
   const mode = grabbers[0]?.mode;
-  if (mode === "zoom") return "Pull fists apart to zoom in";
-  if (mode === "turn") return "Move the closed hand to turn";
-  if (mode === "point") return "Hold the pointer still on a muscle to pin";
-  if (mode === "rest") return "Closed fist turns · point to pin";
-  return "Raise a hand — a grabber appears on the body";
+  if (mode === "zoom") return t("hands.zoom");
+  if (mode === "turn") return t("hands.turn");
+  if (mode === "point") return t("hands.point");
+  if (mode === "rest") return t("hands.rest");
+  return t("hands.raise");
 }
 
 export default function HandCamera({
@@ -180,7 +175,7 @@ export default function HandCamera({
   const [entryState, setEntryState] = useState({ ...gesture.current.state });
   const publishRef = useRef<() => void>(() => {});
   const saveRef = useRef<() => void>(() => {});
-  const [status, setStatus] = useState("Opening camera…");
+  const [status, setStatus] = useState(t("hands.opening"));
   const [trackingHint, setTrackingHint] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -205,7 +200,7 @@ export default function HandCamera({
     setEntryState({ ...flow.state });
     resetHandLog();
     setCopyStatus("");
-    setStatus("Opening camera…");
+    setStatus(t("hands.opening"));
     setTrackingHint("");
     const shown: { x: number; y: number }[] = [];
     let stream: MediaStream | null = null;
@@ -282,8 +277,8 @@ export default function HandCamera({
       const issue =
         !navigating && hands.length !== 1
           ? hands.length
-            ? "Use one hand to rate or save"
-            : "Raise a hand to continue"
+            ? t("hands.oneHand")
+            : t("hands.continue")
           : "";
       reportTracking(issue);
       const delta = tracker.apply(hands);
@@ -346,8 +341,8 @@ export default function HandCamera({
         navigating
           ? statusFor(grabbers)
           : !hands.length
-            ? "Raise a hand to continue"
-            : "Pinch and twist · Thumbs-up saves",
+            ? t("hands.continue")
+            : t("hands.pinchShort"),
       );
     };
     let spoofed = false;
@@ -393,9 +388,9 @@ export default function HandCamera({
         feed([]);
         stopCamera();
         reportTracking(
-          "Hand tracking stopped. Turn Hands off and on to retry.",
+          t("hands.stopped"),
         );
-        report("Hand tracking stopped. Turn Hands off and on to retry.");
+        report(t("hands.stopped"));
         return;
       }
       schedule();
@@ -467,16 +462,16 @@ export default function HandCamera({
         }
         canvas.width = 160;
         canvas.height = 120;
-        report("Raise a hand — a grabber appears on the body");
+        report(t("hands.raise"));
         schedule();
       } catch {
         stopCamera();
         if (!cancelled) {
           reportTracking(
-            "Camera unavailable. Check permission, then turn Hands off and on.",
+            t("hands.noCamera"),
           );
           report(
-            "Camera unavailable. Check permission, then turn Hands off and on.",
+            t("hands.noCamera"),
           );
         }
       }
@@ -532,18 +527,18 @@ export default function HandCamera({
         </svg>
         <div className="hand-grabber">
           <b />
-          <span>Turn</span>
+          <span>{t("hands.mode.turn")}</span>
         </div>
         <div className="hand-grabber">
           <b />
-          <span>Turn</span>
+          <span>{t("hands.mode.turn")}</span>
         </div>
       </div>
       <div className="hand-camera" data-hands="live">
         <video ref={videoRef} playsInline muted hidden />
         <canvas ref={canvasRef} aria-hidden="true" />
         <p>{status}</p>
-        <small>The camera stays on this device. Nothing is uploaded.</small>
+        <small>{t("hands.local")}</small>
         <button
           type="button"
           className="hand-log-copy"
@@ -551,19 +546,19 @@ export default function HandCamera({
             const text = formatHandLog();
             clearTimeout(copyTimer.current);
             if (!text) {
-              setCopyStatus("No gestures yet");
+              setCopyStatus(t("hands.noGestures"));
               return;
             }
             try {
               await navigator.clipboard.writeText(text);
-              setCopyStatus("Copied");
+              setCopyStatus(t("hands.copied"));
             } catch {
-              setCopyStatus("Could not copy");
+              setCopyStatus(t("hands.copyFailed"));
             }
             copyTimer.current = setTimeout(() => setCopyStatus(""), 1500);
           }}
         >
-          {copyStatus || "Copy hands log"}
+          {copyStatus || t("hands.copyLog")}
         </button>
       </div>
     </>

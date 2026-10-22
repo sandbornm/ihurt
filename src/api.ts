@@ -1,4 +1,5 @@
 import { isNativeApp } from "./platform/files.ts";
+import { t } from "./i18n/index.ts";
 
 export class ApiError extends Error {
   activityId?: string;
@@ -20,7 +21,7 @@ export async function api<T>(
 ): Promise<T> {
   if (isNativeApp())
     throw new ApiError(
-      "The local AI server is available in the web app. On iOS, use on-device dictation or Share with AI.",
+      t("api.nativeOnly"),
       {},
     );
   // Keep the deadline even when the caller also needs to cancel. Use a
@@ -33,7 +34,7 @@ export async function api<T>(
     () =>
       controller.abort(
         new DOMException(
-          "The request timed out. Please try again.",
+          t("api.timeout"),
           "TimeoutError",
         ),
       ),
@@ -68,8 +69,8 @@ export async function api<T>(
         typeof object?.detail === "string"
           ? object.detail
           : response.status === 422
-            ? "Please check your note and try again."
-            : "The server could not complete your request.";
+            ? t("api.check")
+            : t("api.server");
       throw new ApiError(message, {
         activity_id:
           typeof object?.activity_id === "string"
@@ -81,7 +82,7 @@ export async function api<T>(
     }
     if (!object)
       throw new ApiError(
-        "The local AI server returned an unreadable response. Check that it is running and try again.",
+        t("api.unreadable"),
         {},
       );
     return object as T;

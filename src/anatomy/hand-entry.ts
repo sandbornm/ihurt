@@ -4,6 +4,7 @@ import {
   type HandTap,
   type Landmark,
 } from "./hands.ts";
+import { t } from "../i18n/index.ts";
 
 export type HandTarget = { key: string; label: string };
 export type HandPin = { id: string; label: string };
@@ -68,7 +69,7 @@ export class HandEntryGesture {
   state: HandEntryState = {
     phase: "aim",
     pin: null,
-    hint: "Point and hold on the body to pin",
+    hint: t("hands.entry.aim"),
     progress: 0,
     turning: false,
   };
@@ -86,7 +87,7 @@ export class HandEntryGesture {
     this.state = {
       phase: "aim",
       pin: null,
-      hint: "Point and hold on the body to pin",
+      hint: t("hands.entry.aim"),
       progress: 0,
       turning: false,
     };
@@ -113,7 +114,7 @@ export class HandEntryGesture {
       pin,
       progress: 0,
       turning: false,
-      hint: "Pinch and twist to rate · Hold thumbs-up to save",
+      hint: t("hands.entry.rate"),
     };
   }
 
@@ -121,7 +122,7 @@ export class HandEntryGesture {
     if (this.state.phase !== "rate") return false;
     this.interrupt();
     this.state.phase = "saving";
-    this.state.hint = "Saving on your device…";
+    this.state.hint = t("hands.entry.saving");
     return true;
   }
 
@@ -131,8 +132,8 @@ export class HandEntryGesture {
     this.state.phase = success ? "saved" : "rate";
     this.saveFailed = !success;
     this.state.hint = success
-      ? "Saved. Open your hand for another pin."
-      : "Could not save. Try again or export your entry.";
+      ? t("hands.entry.saved")
+      : t("hands.entry.failed");
   }
 
   frame({
@@ -201,16 +202,16 @@ export class HandEntryGesture {
       this.saveStart = null;
       this.state.progress = 0;
       if (!this.saveFailed)
-        this.state.hint = "Pinch and twist to rate · Hold thumbs-up to save";
+        this.state.hint = t("hands.entry.rate");
     } else {
       this.lastRoll = null;
       this.state.turning = false;
       if (!this.saveArmed) {
         if (!this.saveFailed)
-          this.state.hint = "Lower your thumb, then hold thumbs-up to save.";
+          this.state.hint = t("hands.entry.lower");
         return null;
       }
-      this.state.hint = "Hold thumbs-up to save…";
+      this.state.hint = t("hands.entry.hold");
       this.saveStart ??= now;
       this.state.progress = Math.min(
         1,

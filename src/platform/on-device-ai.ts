@@ -1,6 +1,10 @@
+import { language as currentLanguage, speechLocale, t, type Language } from "../i18n/index.ts";
+import { nativeError, nativeMessage } from "./native-messages.ts";
+
 export interface OnDeviceAIAvailability {
   available: boolean;
   reason?: string;
+  code?: string;
 }
 
 // Raw fields copied from the dictated note. Treat as untrusted model output:
@@ -22,14 +26,15 @@ export const EXTRACTION_TIMEOUT_MS = 20000;
 // timeout is a plain Error with a message the person can read.
 export class ExtractionCancelled extends Error {
   constructor() {
-    super("Apple Intelligence stopped reading this note.");
+    super(t("native.ai-cancelled"));
     this.name = "ExtractionCancelled";
   }
 }
 
 export interface OnDeviceAI {
   // Checking availability never downloads a model or asks for permission.
-  isAvailable(): Promise<OnDeviceAIAvailability>;
+  // The language decides which locale the model must support.
+  isAvailable(language?: Language): Promise<OnDeviceAIAvailability>;
   // Stops after timeoutMs (default 20 s) or when signal aborts, and asks the
   // native side to cancel so the next request starts cleanly.
   extractPainEntry(
@@ -37,23 +42,29 @@ export interface OnDeviceAI {
       transcript: string;
       anatomyList: string[];
       today: string;
+      language?: Language;
     },
     control?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<RawPainExtraction>;
   cancel(): Promise<void>;
-  speak(text: string): Promise<void>;
+  speak(text: string, language?: Language): Promise<void>;
   stopSpeaking(): Promise<void>;
 }
 
 export interface AppleIntelligenceBridge {
-  isAvailable(): Promise<OnDeviceAIAvailability>;
+  isAvailable(options?: {
+    language: Language;
+    locale: string;
+  }): Promise<OnDeviceAIAvailability>;
   extractPainEntry(options: {
     transcript: string;
     anatomyList: string[];
     today: string;
+    language?: Language;
+    locale?: string;
   }): Promise<unknown>;
   cancelExtraction(): Promise<void>;
-  speak(options: { text: string }): Promise<unknown>;
+  speak(options: { text: string; locale?: string }): Promise<unknown>;
   stopSpeaking(): Promise<void>;
 }
 
@@ -62,7 +73,7 @@ const text = (value: unknown, max: number) =>
 
 export function parseRawExtraction(value: unknown): RawPainExtraction {
   if (!value || typeof value !== "object")
-    throw new Error("Apple Intelligence returned no fields.");
+    throw new Error(t("native.ai-no-fields"));
   const raw = value as Record<string, unknown>;
   const side = ["left", "right", "both"].includes(raw.side as string)
     ? (raw.side as RawPainExtraction["side"])
@@ -96,10 +107,18 @@ export function createAppleIntelligence(
 ): OnDeviceAI {
   const cancel = () => bridge.cancelExtraction().catch(() => {});
   return {
-    async isAvailable() {
+    async isAvailable(lang = currentLanguage()) {
       try {
-        const state = await bridge.isAvailable();
-        return { available: state.available === true, reason: state.reason };
+        const state = await bridge.isAvailable({
+          language: lang,
+          locale: speechLocale(lang),
+        });
+        if (state.available === true) return { available: true };
+        return {
+          available: false,
+          code: state.code,
+          reason: nativeMessage(state.code, state.reason) ?? state.reason,
+        };
       } catch {
         return { available: false };
       }
@@ -113,9 +132,7 @@ export function createAppleIntelligence(
         timer = setTimeout(() => {
           void cancel();
           reject(
-            new Error(
-              "Apple Intelligence took too long. Review the transcript and fields yourself.",
-            ),
+            new Error(t("native.ai-timeout")),
           );
         }, timeoutMs);
         onAbort = () => {
@@ -124,21 +141,38 @@ export function createAppleIntelligence(
         };
         signal?.addEventListener("abort", onAbort, { once: true });
       });
-      const pending = bridge.extractPainEntry(options);
+      const lang = options.language ?? currentLanguage();
+      const pending = bridge.extractPainEntry({
+        ...options,
+        language: lang,
+        locale: speechLocale(lang),
+      });
       // After a timeout or cancel nobody awaits the native call. Its late
       // rejection is swallowed explicitly so it can never surface as
       // unhandled, even if the race below is refactored away.
       pending.catch(() => {});
       try {
-        return parseRawExtraction(await Promise.race([pending, stopped]));
+        let value: unknown;
+        try {
+          value = await Promise.race([pending, stopped]);
+        } catch (error) {
+          if (error instanceof ExtractionCancelled) throw error;
+          if (error instanceof Error && error.message === t("native.ai-timeout"))
+            throw error;
+          throw nativeError(error, t("native.ai-failed"));
+        }
+        return parseRawExtraction(value);
       } finally {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
       }
     },
     cancel,
-    async speak(value) {
-      await bridge.speak({ text: value.slice(0, 300) });
+    async speak(value, lang = currentLanguage()) {
+      await bridge.speak({
+        text: value.slice(0, 300),
+        locale: speechLocale(lang),
+      });
     },
     stopSpeaking: () => bridge.stopSpeaking(),
   };

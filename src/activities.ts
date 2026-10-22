@@ -1,5 +1,6 @@
 import type { RegionId } from "./types.ts";
-type Activity = { name: string; regions: RegionId[]; terms?: string[] };
+import { language, translate, type Language, type MessageKey } from "./i18n/index.ts";
+export type Activity = { name: string; regions: RegionId[]; terms?: string[] };
 const shoulders: RegionId[] = ["left_shoulder", "right_shoulder", "upper_back"];
 const legs: RegionId[] = [
   "left_hip",
@@ -118,14 +119,43 @@ export const activities: Activity[] = [
   ...commonActivities,
   ...more.map(([name, regions]) => ({ name, regions })),
 ];
+// Activity names are stored as typed. Matching accepts the English name, the
+// Spanish name, and a few everyday words in either language.
+const fold = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+export const activityKey = (activity: Activity) =>
+  `activity.${activity.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}` as MessageKey;
+export const activityName = (activity: Activity, lang: Language = language()) =>
+  translate(lang, activityKey(activity));
+const names = (activity: Activity) =>
+  [activity.name, activityName(activity, "es")].map(fold);
+const spanishTerms: Record<string, string[]> = {
+  Walking: ["caminar", "camine", "caminata", "caminando"],
+  Running: ["correr", "corri", "corriendo", "trotar", "trote"],
+  "Strength training": ["pesas", "gimnasio", "gym"],
+  Cycling: ["bici", "bicicleta", "ciclismo"],
+  Swimming: ["nadar", "nade", "nadando", "natacion"],
+  Tennis: ["tenis", "raqueta", "saque"],
+  Hiking: ["senderismo", "caminata"],
+  Soccer: ["futbol"],
+  Golf: ["golf"],
+  "Desk work": ["escritorio", "computadora", "sentado", "sentada"],
+  Sleep: ["dormir", "dormi", "cama"],
+  Padel: ["padel"],
+};
 export function activityMatch(value: string): Activity | undefined {
-  const text = value.toLowerCase();
+  const text = fold(value);
+  const words = text.split(/[^\p{L}\p{N}]+/u);
   return (
-    activities.find((a) => text === a.name.toLowerCase()) ??
+    activities.find((a) => names(a).includes(text)) ??
     activities.find(
       (a) =>
-        text.includes(a.name.toLowerCase()) ||
-        a.terms?.some((t) => text.split(/\W+/).includes(t)),
+        names(a).some((name) => text.includes(name)) ||
+        a.terms?.some((t) => words.includes(t)) ||
+        spanishTerms[a.name]?.some((t) => words.includes(t)),
     )
   );
 }

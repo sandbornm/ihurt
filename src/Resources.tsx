@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { regionName, type RegionId } from "./types";
 import { findReadings, sources, recommendedSources } from "./reading";
+import { useI18n } from "./i18n/react";
 export default function Resources({
   region,
   activity,
@@ -21,6 +22,7 @@ export default function Resources({
   onSources: (sources: string[]) => void;
 }) {
   const [query, setQuery] = useState("");
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   if (urgent) return null;
   const matches = findReadings(
@@ -36,19 +38,16 @@ export default function Resources({
         <div>
           <h3>
             {region
-              ? `Reading for ${regionName(region).toLowerCase()}`
-              : "Related reading"}
+              ? t("res.readingFor", { region: regionName(region).toLowerCase() })
+              : t("export.html.readingTitle")}
           </h3>
-          <p>
-            Curated links matched on this device. These are not live search
-            results.
-          </p>
+          <p>{t("res.curated")}</p>
         </div>
       </div>
       <details className="source-picker">
         <summary>
           <SlidersHorizontal size={13} />
-          Sources · {selectedSources.length} selected
+          {t("res.sources", { count: selectedSources.length })}
         </summary>
         <div>
           {sources.map((source) => (
@@ -68,14 +67,14 @@ export default function Resources({
                 {source.name}
                 <small>
                   {source.kind}
-                  {source.recommended ? " · Recommended" : ""}
+                  {source.recommended ? ` · ${t("res.recommended")}` : ""}
                 </small>
               </span>
             </label>
           ))}
         </div>
         <button onClick={() => onSources(recommendedSources)}>
-          Use recommended list
+          {t("res.useRecommended")}
         </button>
       </details>
       <label className="resource-search">
@@ -86,8 +85,8 @@ export default function Resources({
             setQuery(e.target.value);
             setExpanded(false);
           }}
-          placeholder="Search topics or exercises"
-          aria-label="Search educational resources"
+          placeholder={t("res.search")}
+          aria-label={t("res.searchLabel")}
         />
       </label>
       {matches.length ? (
@@ -106,7 +105,7 @@ export default function Resources({
                     {resource.type}
                   </small>
                   <strong>{resource.title}</strong>
-                  <small>Link checked {resource.checked}</small>
+                  <small>{t("res.checked", { date: resource.checked })}</small>
                 </span>
                 <ArrowUpRight size={15} />
               </a>
@@ -118,23 +117,22 @@ export default function Resources({
               onClick={() => setExpanded((v) => !v)}
             >
               {expanded
-                ? "Show fewer references"
-                : `See all ${matches.length} references`}
+                ? t("res.fewer")
+                : t("res.all", { count: matches.length })}
             </button>
           )}
         </>
       ) : (
         <p className="resource-empty">
           {!selectedSources.length
-            ? "Choose at least one source above."
+            ? t("res.chooseSource")
             : query
-              ? "No match in the curated library. Try another topic or source."
-              : "Select a body region to see related reading."}
+              ? t("res.noMatch")
+              : t("res.selectRegion")}
         </p>
       )}
       <p className="resource-notice">
-        Independent publishers provide these resources. Links are background
-        reading, not a personal treatment plan. Check the source’s precautions.
+        {t("res.notice")}
       </p>
     </section>
   );

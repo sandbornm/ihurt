@@ -176,24 +176,36 @@ function tokens(clause: string) {
 // Punctuation separates clauses. "and", "but", "or", and "though" do too, so
 // a denial on one side does not cancel the other. Words joined only by those
 // conjunctions still count as together ("left knee and ankle").
-function clauseGrounds(clause: string, needed: string[]) {
+// With `together`, the words must share one conjunction-free clause, so "my
+// left knee and right foot" does not ground "left foot".
+function clauseGrounds(clause: string, needed: string[], together: boolean) {
   const soft = clause
     .split(/\b(?:and|but|or|though)\b/i)
     .map(tokens)
     .filter((words) => words.length);
   if (soft.some((words) => covers(words, needed))) return true;
+  if (together) return false;
   const affirmative = soft.filter((words) => !words.some(isNegator));
   return covers(affirmative.flat(), needed);
 }
 
-export function grounded(value: string, transcript: string) {
+export function grounded(
+  value: string,
+  transcript: string,
+  together = false,
+): boolean {
+  // "knee and ankle" names two parts; each must be said together on its own.
+  if (together && /\b(?:and|but|or|though)\b/i.test(value))
+    return value
+      .split(/\b(?:and|but|or|though)\b/i)
+      .every((part) => !part.trim() || grounded(part, transcript, true));
   const needed = normalize(value)
     .split(" ")
     .filter((word) => word && !stop.has(word));
   if (!needed.length) return false;
   return transcript
     .split(/[.!?;:,\n]+/)
-    .some((clause) => clause.trim() && clauseGrounds(clause, needed));
+    .some((clause) => clause.trim() && clauseGrounds(clause, needed, together));
 }
 
 export type LocationResult =
@@ -211,7 +223,8 @@ export function mapLocation(
 ): LocationResult {
   const words = spoken.trim();
   if (!words) return { status: "missing" };
-  if (!grounded(words, transcript))
+  // A side and a body part count only when said together.
+  if (!grounded(words, transcript, true))
     return { status: "unmapped", spoken: words };
   const parts = partsIn(words);
   if (parts.length === 0) return { status: "unmapped", spoken: words };

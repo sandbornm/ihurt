@@ -658,3 +658,19 @@ test("earlier is today only in a same-day phrase", () => {
     assert.equal(onset.phrase, phrase);
   }
 });
+
+test("a side and a part from different phrases do not map", () => {
+  const said = "my left knee and right foot hurt";
+  assert.equal(mapLocation("left foot", "left", said).status, "unmapped");
+  assert.equal(mapLocation("right knee", "right", said).status, "unmapped");
+  assert.deepEqual(mapLocation("left knee", "left", said), {
+    status: "mapped",
+    region: "left_knee",
+    spoken: "left knee",
+  });
+  assert.deepEqual(mapLocation("right foot", "right", said), {
+    status: "mapped",
+    region: "right_foot",
+    spoken: "right foot",
+  });
+});

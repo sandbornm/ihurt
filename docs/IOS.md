@@ -213,6 +213,12 @@ implies a location. Unknown areas, a missing side, or two areas become one short
 question. Relative start dates such as "yesterday" or "last Saturday" resolve
 against the device's local date in TypeScript, not in the model.
 
+Extraction stops after 20 seconds, or when the person records again, cancels,
+or closes the panel; the native call is cancelled too, so the next request
+starts cleanly. A new request replaces one in flight, and the native side keeps
+its state on the main thread. A recording that finishes before the availability
+check returns is read once the check succeeds.
+
 The proposal lives only in the voice panel's state. "Add to entry" confirms the
 note and fields. A proposed pin is then drawn as a hollow blue marker, separate
 from saved pins, and becomes a pin only after **Confirm pin** in the region

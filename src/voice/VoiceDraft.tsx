@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Square, X } from "lucide-react";
 import { nativeSpeech } from "../platform/speech";
-import { onDeviceAI } from "../platform/on-device-ai";
+import { ExtractionCancelled, onDeviceAI } from "../platform/on-device-ai";
 import { isNativeApp } from "../platform/files";
 import { regionName, type SavedMap } from "../types";
 import VisitorCheck from "../VisitorCheck";
 import type { VoiceClient, VoiceSession } from "./client";
 import {
   suggestVoiceDraft,
+  voiceNotice,
   type DraftFields,
   type VoiceDraftValue,
 } from "./draft";
@@ -19,8 +20,10 @@ import {
   describeLocation,
   localToday,
   proposedRegion,
+  seedSuggestedFields,
   type PainProposal,
 } from "./extraction";
+import { createAvailabilityGate } from "./ai-gate";
 import { startRecording, toWav, type Recording } from "./recording";
 import "./voice.css";
 
@@ -110,6 +113,8 @@ function VoiceEditor({
   const [answer, setAnswer] = useState("");
   const [pin, setPin] = useState(true);
   const extraction = useRef(0);
+  const extractAbort = useRef<AbortController | null>(null);
+  const gate = useRef(createAvailabilityGate()).current;
   const textRef = useRef(text);
   textRef.current = text;
   const recording = useRef<Recording | null>(null);
@@ -142,9 +147,16 @@ function VoiceEditor({
     upload.current?.abort();
     upload.current = null;
     void speech?.cancel().catch(() => {});
-    extraction.current++;
-    setExtracting(false);
+    stopExtraction();
     void ai?.stopSpeaking().catch(() => {});
+  }
+
+  function stopExtraction() {
+    extraction.current++;
+    extractAbort.current?.abort();
+    extractAbort.current = null;
+    gate.clear();
+    setExtracting(false);
   }
   useEffect(() => {
     dialog.current?.showModal();
@@ -161,13 +173,20 @@ function VoiceEditor({
               "On-device speech is unavailable. Type or paste a transcript below."),
       );
     };
+    const settle = (ready: boolean) => {
+      if (!active) return;
+      setAiReady(ready);
+      // A recording that finished during the check is read now.
+      const queued = gate.settle(ready);
+      if (queued && queued === textRef.current.trim())
+        void runExtraction(queued);
+    };
     if (ai && native)
       void ai
         .isAvailable()
-        .then((state) => {
-          if (active) setAiReady(state.available);
-        })
-        .catch(() => {});
+        .then((state) => settle(state.available))
+        .catch(() => settle(false));
+    else gate.settle(false);
     void (async () => {
       try {
         if (speech) {
@@ -182,10 +201,6 @@ function VoiceEditor({
           if (!active) return;
           setSession(next);
           setAvailable(next.transcription_available);
-          if (!next.transcription_available)
-            setError(
-              "Voice transcription is not configured. Type or paste a transcript below.",
-            );
         }
       } catch {
         if (active)
@@ -229,8 +244,7 @@ function VoiceEditor({
     if (!available || busy) return;
     const current = ++generation.current;
     previousText.current = text;
-    extraction.current++;
-    setExtracting(false);
+    stopExtraction();
     setProposal(null);
     void ai?.stopSpeaking().catch(() => {});
     setError("");
@@ -322,26 +336,36 @@ function VoiceEditor({
     }
   }
 
-  async function propose(transcript: string) {
+  function propose(transcript: string) {
     const value = transcript.trim();
-    if (!ai || !aiReady || !value) return;
+    if (!ai || !value) return;
+    const now = gate.request(value);
+    if (now) void runExtraction(now);
+  }
+
+  async function runExtraction(value: string) {
+    if (!ai) return;
+    extractAbort.current?.abort();
+    const controller = new AbortController();
+    extractAbort.current = controller;
     const current = ++extraction.current;
     setExtracting(true);
     setProposal(null);
     setAnswer("");
     try {
       const today = localToday();
-      const raw = await ai.extractPainEntry({
-        transcript: value,
-        anatomyList,
-        today,
-      });
+      const raw = await ai.extractPainEntry(
+        { transcript: value, anatomyList, today },
+        { signal: controller.signal },
+      );
       if (extraction.current !== current) return;
       const next = buildProposal(raw, value, today);
       setProposal(next);
+      setFields((old) => seedSuggestedFields(old, {}, next.fields, entry.map));
       setPin(next.location.status === "mapped");
       if (next.followUp) void ai.speak(next.followUp.question).catch(() => {});
     } catch (caught) {
+      if (caught instanceof ExtractionCancelled) return;
       if (extraction.current === current)
         setError(
           caught instanceof Error
@@ -349,7 +373,10 @@ function VoiceEditor({
             : "Apple Intelligence could not read this note. You can still add it as text.",
         );
     } finally {
-      if (extraction.current === current) setExtracting(false);
+      if (extraction.current === current) {
+        setExtracting(false);
+        extractAbort.current = null;
+      }
     }
   }
 
@@ -358,6 +385,9 @@ function VoiceEditor({
     void ai?.stopSpeaking().catch(() => {});
     const next = answerFollowUp(live, skip ? "" : answer);
     setProposal(next);
+    setFields((old) =>
+      seedSuggestedFields(old, live.fields, next.fields, entry.map),
+    );
     setText(next.transcript);
     setAnswer("");
     setPin(next.location.status === "mapped");
@@ -419,11 +449,15 @@ function VoiceEditor({
         </button>
       </div>
       <p>
-        {native
-          ? "Apple speech recognition runs on your device. Review the words before adding them."
-          : `Stopping or reaching the ${maxSeconds}-second limit sends audio to ${session?.transcription_provider ?? "the transcription service"}. Its retention policy applies.`}
+        {voiceNotice({
+          native,
+          checking: mode === "loading",
+          provider: session?.transcription_provider,
+          available,
+          maxSeconds,
+        })}
       </p>
-      {!native && session?.transcription_provider && (
+      {!native && available && session?.transcription_provider && (
         <a
           href={
             session.transcription_provider === "OpenAI"
@@ -564,7 +598,7 @@ function VoiceEditor({
               type="button"
               className="secondary"
               disabled={busy || !text.trim()}
-              onClick={() => void propose(text)}
+              onClick={() => propose(text)}
             >
               Suggest fields
             </button>

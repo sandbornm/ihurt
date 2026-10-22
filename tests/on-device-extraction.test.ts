@@ -4,14 +4,21 @@ import {
   answerFollowUp,
   buildProposal,
   confirmProposal,
+  describeLocation,
+  grounded,
   mapLocation,
+  seedSuggestedFields,
   parseIntensityAnswer,
   proposedPinStep,
   resolveOnset,
 } from "../src/voice/extraction.ts";
+import { createAvailabilityGate } from "../src/voice/ai-gate.ts";
+import { voiceNotice } from "../src/voice/draft.ts";
 import {
   createAppleIntelligence,
+  ExtractionCancelled,
   parseRawExtraction,
+  type AppleIntelligenceBridge,
   type RawPainExtraction,
 } from "../src/platform/on-device-ai.ts";
 
@@ -267,6 +274,7 @@ test("bridge output is validated as untrusted", async () => {
       calls.push(options);
       return { intensity: 3, side: "left" };
     },
+    cancelExtraction: async () => {},
     speak: async (options) => calls.push(options),
     stopSpeaking: async () => {},
   });
@@ -278,4 +286,186 @@ test("bridge output is validated as untrusted", async () => {
   );
   await ai.speak("a".repeat(400));
   assert.equal((calls[1] as { text: string }).text.length, 300);
+});
+
+// A bridge whose extraction never answers until told to, like a slow model.
+function slowBridge() {
+  const log: string[] = [];
+  let next = 0;
+  const pending = new Map<number, (value: unknown) => void>();
+  const bridge: AppleIntelligenceBridge = {
+    isAvailable: async () => ({ available: true }),
+    extractPainEntry: () =>
+      new Promise((resolve) => {
+        const id = ++next;
+        log.push(`start ${id}`);
+        pending.set(id, resolve);
+      }),
+    cancelExtraction: async () => {
+      log.push("cancel");
+    },
+    speak: async () => {},
+    stopSpeaking: async () => {},
+  };
+  return { bridge, log, pending };
+}
+const request = {
+  transcript: "my left knee",
+  anatomyList: ["left_knee"],
+  today,
+};
+
+test("an extraction times out, cancels natively, and the next one works", async () => {
+  const { bridge, log, pending } = slowBridge();
+  const ai = createAppleIntelligence(bridge);
+  await assert.rejects(ai.extractPainEntry(request, { timeoutMs: 10 }), {
+    message: /took too long/,
+  });
+  assert.deepEqual(log, ["start 1", "cancel"]);
+  const second = ai.extractPainEntry(request, { timeoutMs: 1000 });
+  pending.get(2)?.({ intensity: 4 });
+  assert.equal((await second).intensity, 4);
+  // A late answer from the timed-out call changes nothing.
+  pending.get(1)?.({ intensity: 9 });
+});
+
+test("cancel stops an in-flight extraction and a new request still runs", async () => {
+  const { bridge, log, pending } = slowBridge();
+  const ai = createAppleIntelligence(bridge);
+  const controller = new AbortController();
+  const first = ai.extractPainEntry(request, { signal: controller.signal });
+  controller.abort();
+  await assert.rejects(first, ExtractionCancelled);
+  assert.deepEqual(log, ["start 1", "cancel"]);
+  await assert.rejects(
+    ai.extractPainEntry(request, { signal: controller.signal }),
+    ExtractionCancelled,
+  );
+  const second = ai.extractPainEntry(request);
+  pending.get(2)?.({ side: "left" });
+  assert.equal((await second).side, "left");
+  await ai.cancel();
+  assert.equal(log.at(-1), "cancel");
+});
+
+test("the voice notice matches the transcription state", () => {
+  const base = { checking: false, maxSeconds: 60 };
+  assert.match(
+    voiceNotice({ ...base, native: true, provider: null, available: true }),
+    /runs on your device/,
+  );
+  const off = voiceNotice({
+    ...base,
+    native: false,
+    provider: null,
+    available: false,
+  });
+  assert.match(off, /off here/);
+  assert.doesNotMatch(off, /sends audio/);
+  // A provider name without a working server is still off.
+  assert.doesNotMatch(
+    voiceNotice({
+      ...base,
+      native: false,
+      provider: "ElevenLabs",
+      available: false,
+    }),
+    /sends audio/,
+  );
+  assert.match(
+    voiceNotice({
+      ...base,
+      native: false,
+      provider: "ElevenLabs",
+      available: true,
+    }),
+    /sends audio to ElevenLabs/,
+  );
+  assert.match(
+    voiceNotice({
+      ...base,
+      checking: true,
+      native: false,
+      provider: null,
+      available: false,
+    }),
+    /Checking/,
+  );
+});
+
+test("new suggestions are pre-ticked and reach the entry", () => {
+  const proposal = buildProposal(
+    raw({ onsetPhrase: "yesterday", qualities: ["burning"] }),
+    "burning since yesterday in my left foot",
+    today,
+  );
+  // The person had unticked duration on an earlier draft.
+  const choice = seedSuggestedFields(
+    { duration: false, quality: false, intensity: true },
+    {},
+    proposal.fields,
+    { quality: "dull" },
+  );
+  assert.equal(choice.duration, true);
+  // Replacing an existing value stays the person's choice.
+  assert.equal(choice.quality, false);
+  const value = confirmProposal(proposal, {
+    confirmed: true,
+    fields: choice,
+    pin: true,
+  });
+  assert.equal(value.fields.duration, "Since yesterday (2026-10-21)");
+  assert.equal(value.fields.quality, undefined);
+  // An intensity that arrives with the follow-up answer is ticked too, but a
+  // field the person already saw and unticked stays unticked.
+  const answered = answerFollowUp(proposal, "about a 6");
+  const after = seedSuggestedFields(
+    { ...choice, duration: false },
+    proposal.fields,
+    answered.fields,
+    {},
+  );
+  assert.equal(after.intensity, true);
+  assert.equal(after.duration, false);
+  // The confirm gate is unchanged.
+  assert.throws(
+    () =>
+      confirmProposal(answered, { confirmed: false, fields: after, pin: true }),
+    /Confirm the proposed entry/,
+  );
+});
+
+test("a recording that finishes during the availability check is read once ready", () => {
+  const gate = createAvailabilityGate();
+  assert.equal(gate.request("first note"), undefined);
+  assert.equal(gate.request("second note"), undefined);
+  assert.equal(gate.settle(true), "second note");
+  assert.equal(gate.settle(true), undefined);
+  assert.equal(gate.request("third"), "third");
+  const off = createAvailabilityGate();
+  off.request("note");
+  assert.equal(off.settle(false), undefined);
+  assert.equal(off.request("later"), undefined);
+  const cleared = createAvailabilityGate();
+  cleared.request("note");
+  cleared.clear();
+  assert.equal(cleared.settle(true), undefined);
+});
+
+test("location text tells the truth for side and ambiguous questions", () => {
+  assert.equal(
+    describeLocation({ status: "need-side", spoken: "knee", part: "knee" }),
+    "You said “knee” · left or right?",
+  );
+  assert.match(
+    describeLocation({ status: "ambiguous", spoken: "knee and hip" }),
+    /more than one area/,
+  );
+});
+
+test("grounding accepts irregular plurals", () => {
+  assert.ok(grounded("foot", "both feet ache"));
+  assert.ok(grounded("calves", "my calf is tight"));
+  assert.ok(grounded("calf", "tight calves"));
+  assert.equal(grounded("ankle", "both feet ache"), false);
 });

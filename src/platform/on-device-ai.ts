@@ -16,14 +16,31 @@ export interface RawPainExtraction {
   surface: string;
 }
 
+export const EXTRACTION_TIMEOUT_MS = 20000;
+
+// Thrown when the caller cancels an extraction. The panel ignores it; a
+// timeout is a plain Error with a message the person can read.
+export class ExtractionCancelled extends Error {
+  constructor() {
+    super("Apple Intelligence stopped reading this note.");
+    this.name = "ExtractionCancelled";
+  }
+}
+
 export interface OnDeviceAI {
   // Checking availability never downloads a model or asks for permission.
   isAvailable(): Promise<OnDeviceAIAvailability>;
-  extractPainEntry(options: {
-    transcript: string;
-    anatomyList: string[];
-    today: string;
-  }): Promise<RawPainExtraction>;
+  // Stops after timeoutMs (default 20 s) or when signal aborts, and asks the
+  // native side to cancel so the next request starts cleanly.
+  extractPainEntry(
+    options: {
+      transcript: string;
+      anatomyList: string[];
+      today: string;
+    },
+    control?: { signal?: AbortSignal; timeoutMs?: number },
+  ): Promise<RawPainExtraction>;
+  cancel(): Promise<void>;
   speak(text: string): Promise<void>;
   stopSpeaking(): Promise<void>;
 }
@@ -35,6 +52,7 @@ export interface AppleIntelligenceBridge {
     anatomyList: string[];
     today: string;
   }): Promise<unknown>;
+  cancelExtraction(): Promise<void>;
   speak(options: { text: string }): Promise<unknown>;
   stopSpeaking(): Promise<void>;
 }
@@ -76,6 +94,7 @@ export function parseRawExtraction(value: unknown): RawPainExtraction {
 export function createAppleIntelligence(
   bridge: AppleIntelligenceBridge,
 ): OnDeviceAI {
+  const cancel = () => bridge.cancelExtraction().catch(() => {});
   return {
     async isAvailable() {
       try {
@@ -85,9 +104,36 @@ export function createAppleIntelligence(
         return { available: false };
       }
     },
-    async extractPainEntry(options) {
-      return parseRawExtraction(await bridge.extractPainEntry(options));
+    async extractPainEntry(options, control = {}) {
+      const { signal, timeoutMs = EXTRACTION_TIMEOUT_MS } = control;
+      if (signal?.aborted) throw new ExtractionCancelled();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let onAbort = () => {};
+      const stopped = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          void cancel();
+          reject(
+            new Error(
+              "Apple Intelligence took too long. Review the transcript and fields yourself.",
+            ),
+          );
+        }, timeoutMs);
+        onAbort = () => {
+          void cancel();
+          reject(new ExtractionCancelled());
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
+      });
+      try {
+        return parseRawExtraction(
+          await Promise.race([bridge.extractPainEntry(options), stopped]),
+        );
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      }
     },
+    cancel,
     async speak(value) {
       await bridge.speak({ text: value.slice(0, 300) });
     },

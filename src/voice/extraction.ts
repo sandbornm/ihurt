@@ -104,20 +104,32 @@ const stop = new Set([
 
 // Every meaningful word must appear in the transcript. This keeps model
 // paraphrases, guesses and invented details out of the proposal.
+const irregular: Record<string, string> = {
+  feet: "foot",
+  calves: "calf",
+  halves: "half",
+  teeth: "tooth",
+};
+
+// Reduces a word to a rough singular so "knee" matches "both knees" and
+// "foot" matches "feet". English only; anything else fails closed.
+const singular = (word: string) =>
+  irregular[word] ??
+  (word.length > 3 && word.endsWith("es") && /(?:ch|sh|x|s)es$/.test(word)
+    ? word.slice(0, -2)
+    : word.length > 3 && word.endsWith("s") && !word.endsWith("ss")
+      ? word.slice(0, -1)
+      : word);
+
 export function grounded(value: string, transcript: string) {
   const words = normalize(value)
     .split(" ")
     .filter((word) => word && !stop.has(word));
   if (!words.length) return false;
-  const said = new Set(normalize(transcript).split(" "));
-  // Allow simple plurals so "knee" matches "both knees".
-  return words.every(
-    (word) =>
-      said.has(word) ||
-      said.has(`${word}s`) ||
-      said.has(`${word}es`) ||
-      (word.endsWith("s") && said.has(word.slice(0, -1))),
-  );
+  const said = normalize(transcript).split(" ");
+  const exact = new Set(said);
+  const singles = new Set(said.map(singular));
+  return words.every((word) => exact.has(word) || singles.has(singular(word)));
 }
 
 export type LocationResult =
@@ -381,9 +393,32 @@ export function describeLocation(location: LocationResult) {
       return `${regionName(location.region)} · you said “${location.spoken}”`;
     case "missing":
       return "No body area named";
+    case "need-side":
+      return `You said “${location.spoken}” · left or right?`;
+    case "ambiguous":
+      return `You said “${location.spoken}” · more than one area`;
     default:
       return `“${location.spoken}” is not on the body map yet`;
   }
+}
+
+// Ticks fields the proposal newly suggests so they are not dropped on "Add to
+// entry". A field that would replace a value already in the entry keeps the
+// person's current choice. Fields they already saw keep their choice too.
+export function seedSuggestedFields(
+  choice: Record<string, boolean>,
+  previous: DraftFields,
+  next: DraftFields,
+  existing: DraftFields,
+): Record<string, boolean> {
+  const seeded = { ...choice };
+  for (const key of Object.keys(next) as (keyof DraftFields)[]) {
+    if (key in previous) continue;
+    const current = existing[key];
+    if (current === undefined || current === null || current === "")
+      seeded[key] = true;
+  }
+  return seeded;
 }
 
 // The confirm gate. Without an explicit confirmation the caller gets nothing

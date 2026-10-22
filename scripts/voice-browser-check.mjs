@@ -223,7 +223,12 @@ try {
 
   configured = false;
   await page.getByRole("button", { name: "Use voice", exact: true }).click();
-  await dialog.getByRole("alert").waitFor();
+  await dialog
+    .getByText(
+      "Voice transcription is off here, so no audio is recorded or sent. Type or paste what you noticed.",
+    )
+    .waitFor();
+  assert.equal(await dialog.getByRole("alert").count(), 0);
   assert.equal(
     await dialog
       .getByRole("button", { name: "Record", exact: true })

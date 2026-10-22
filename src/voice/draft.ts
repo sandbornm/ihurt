@@ -90,3 +90,21 @@ export function applyVoiceDraft(
     );
   return { ...entry, note, map: { ...entry.map, ...draft.fields } };
 }
+
+// What the panel tells the person about where their voice goes. It must match
+// what will actually happen: on iOS speech stays on the device; on the web the
+// server only accepts audio when a transcription provider is turned on.
+export function voiceNotice(state: {
+  native: boolean;
+  checking: boolean;
+  provider: string | null | undefined;
+  available: boolean;
+  maxSeconds: number;
+}) {
+  if (state.native)
+    return "Apple speech recognition runs on your device. Review the words before adding them.";
+  if (state.checking) return "Checking voice transcription…";
+  if (state.available && state.provider)
+    return `Stopping or reaching the ${state.maxSeconds}-second limit sends audio to ${state.provider}. Its retention policy applies.`;
+  return "Voice transcription is off here, so no audio is recorded or sent. Type or paste what you noticed.";
+}

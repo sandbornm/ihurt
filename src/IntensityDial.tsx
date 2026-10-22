@@ -24,7 +24,9 @@ export default function IntensityDial({
       <div className="intensity-dial" aria-hidden="true">
         <strong>
           {value ?? "—"}
-          <small>{value === null ? t("dial.unrated") : t("dial.outOf10")}</small>
+          <small>
+            {value === null ? t("dial.unrated") : t("dial.outOf10")}
+          </small>
         </strong>
       </div>
       <div className="intensity-adjust">
@@ -47,21 +49,17 @@ export default function IntensityDial({
           value={value ?? 0}
           aria-label={t("dial.reported")}
           aria-valuetext={
-            value === null ? t("dial.notRecorded") : t("dial.valueText", { value })
+            value === null
+              ? t("dial.notRecorded")
+              : t("dial.valueText", { value })
           }
           onChange={(event) => onChange(Number(event.target.value))}
         />
         <div className="intensity-scale">
-          <button
-            onClick={() => onChange(0)}
-            aria-label={t("dial.setZero")}
-          >
+          <button onClick={() => onChange(0)} aria-label={t("dial.setZero")}>
             {t("dial.none")}
           </button>
-          <button
-            onClick={() => onChange(10)}
-            aria-label={t("dial.setTen")}
-          >
+          <button onClick={() => onChange(10)} aria-label={t("dial.setTen")}>
             {t("dial.strongest")}
           </button>
         </div>

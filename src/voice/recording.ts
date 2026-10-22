@@ -11,9 +11,7 @@ export async function startRecording(
   onError: (message: string) => void,
 ): Promise<Recording> {
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)
-    throw new Error(
-      t("rec.unavailable"),
-    );
+    throw new Error(t("rec.unavailable"));
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   let recorder: MediaRecorder;
   try {
@@ -46,10 +44,7 @@ export async function startRecording(
     clearTimeout(timer);
     release();
     cancelled = true;
-    if (fail)
-      fail(
-        new Error(t("rec.stopped")),
-      );
+    if (fail) fail(new Error(t("rec.stopped")));
     else onError(t("rec.stopped"));
   };
   try {

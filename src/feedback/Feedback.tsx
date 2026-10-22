@@ -37,9 +37,7 @@ export default function Feedback() {
             <X size={20} />
           </button>
         </div>
-        <label htmlFor={`${id}-note`}>
-          {t("fb.whatConfusing")}
-        </label>
+        <label htmlFor={`${id}-note`}>{t("fb.whatConfusing")}</label>
         <textarea
           id={`${id}-note`}
           value={text}
@@ -51,9 +49,7 @@ export default function Feedback() {
           maxLength={1500}
           placeholder={t("fb.placeholder")}
         />
-        <p>
-          {t("fb.noHealthRec")}
-        </p>
+        <p>{t("fb.noHealthRec")}</p>
         <div className="feedback-actions">
           <a
             className="secondary"
@@ -61,10 +57,7 @@ export default function Feedback() {
             aria-disabled={!message}
             onClick={(event) => {
               if (!message) event.preventDefault();
-              else
-                setStatus(
-                  t("fb.finishInMail"),
-                );
+              else setStatus(t("fb.finishInMail"));
             }}
           >
             {t("fb.openDraft")}
@@ -78,19 +71,14 @@ export default function Feedback() {
                 .then(() => navigator.clipboard.writeText(message))
                 .then(
                   () => setStatus(t("fb.copied")),
-                  () =>
-                    setStatus(
-                      t("fb.copyManual"),
-                    ),
+                  () => setStatus(t("fb.copyManual")),
                 );
             }}
           >
             {t("fb.copy")}
           </button>
         </div>
-        <p role="status">
-          {status || t("fb.youSend")}
-        </p>
+        <p role="status">{status || t("fb.youSend")}</p>
       </dialog>
     </>
   );

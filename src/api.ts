@@ -19,11 +19,7 @@ export async function api<T>(
   body?: unknown | FormData,
   signal?: AbortSignal,
 ): Promise<T> {
-  if (isNativeApp())
-    throw new ApiError(
-      t("api.nativeOnly"),
-      {},
-    );
+  if (isNativeApp()) throw new ApiError(t("api.nativeOnly"), {});
   // Keep the deadline even when the caller also needs to cancel. Use a
   // controller instead of AbortSignal.any for older supported WebKit versions.
   if (signal?.aborted) throw signal.reason;
@@ -31,13 +27,7 @@ export async function api<T>(
   const cancel = () => controller.abort(signal?.reason);
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(
-    () =>
-      controller.abort(
-        new DOMException(
-          t("api.timeout"),
-          "TimeoutError",
-        ),
-      ),
+    () => controller.abort(new DOMException(t("api.timeout"), "TimeoutError")),
     135000,
   );
   try {
@@ -80,11 +70,7 @@ export async function api<T>(
           typeof object?.remaining === "number" ? object.remaining : undefined,
       });
     }
-    if (!object)
-      throw new ApiError(
-        t("api.unreadable"),
-        {},
-      );
+    if (!object) throw new ApiError(t("api.unreadable"), {});
     return object as T;
   } finally {
     clearTimeout(timer);

@@ -387,9 +387,7 @@ export default function HandCamera({
       } catch {
         feed([]);
         stopCamera();
-        reportTracking(
-          t("hands.stopped"),
-        );
+        reportTracking(t("hands.stopped"));
         report(t("hands.stopped"));
         return;
       }
@@ -467,12 +465,8 @@ export default function HandCamera({
       } catch {
         stopCamera();
         if (!cancelled) {
-          reportTracking(
-            t("hands.noCamera"),
-          );
-          report(
-            t("hands.noCamera"),
-          );
+          reportTracking(t("hands.noCamera"));
+          report(t("hands.noCamera"));
         }
       }
     })();

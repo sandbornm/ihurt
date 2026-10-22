@@ -128,10 +128,7 @@ export default function Anatomy(props: Props) {
     renderer.outputColorSpace = T.SRGBColorSpace;
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
-    renderer.domElement.setAttribute(
-      "aria-label",
-      t("anatomy.canvasLabel"),
-    );
+    renderer.domElement.setAttribute("aria-label", t("anatomy.canvasLabel"));
     renderer.domElement.setAttribute("role", "img");
     root.appendChild(renderer.domElement);
     const scene = new T.Scene();
@@ -935,7 +932,9 @@ export default function Anatomy(props: Props) {
             stroke.length > 1
               ? {
                   ...first,
-                  structure: t("anatomy.areaStarting", { structure: first.structure }),
+                  structure: t("anatomy.areaStarting", {
+                    structure: first.structure,
+                  }),
                   area: {
                     path: stroke.map((item) => item.point.position),
                     radius: 0.12,
@@ -1085,9 +1084,7 @@ export default function Anatomy(props: Props) {
       } else if (forcePicker || intent === "pick") {
         setLayers(intent !== "pick");
         setPickHint(
-          intent === "pick"
-            ? t("anatomy.pointHold")
-            : t("anatomy.clickMuscle"),
+          intent === "pick" ? t("anatomy.pointHold") : t("anatomy.clickMuscle"),
         );
       }
     }
@@ -1303,7 +1300,10 @@ export default function Anatomy(props: Props) {
     >
       {props.navigation && ready && !failure && (
         <>
-          <div className="anatomy-navigation" aria-label={t("anatomy.controls")}>
+          <div
+            className="anatomy-navigation"
+            aria-label={t("anatomy.controls")}
+          >
             <div className="navigation-modes">
               {(["pin", "turn", "highlight", "move"] as const).map((mode) => (
                 <button
@@ -1337,7 +1337,9 @@ export default function Anatomy(props: Props) {
               ).map(([direction, Icon]) => (
                 <button
                   key={direction}
-                  aria-label={t(`anatomy.nudge.${dragMode === "move" ? "move" : "turn"}.${direction}`)}
+                  aria-label={t(
+                    `anatomy.nudge.${dragMode === "move" ? "move" : "turn"}.${direction}`,
+                  )}
                   onClick={() => engine.current?.command(`nudge:${direction}`)}
                 >
                   <Icon size={17} />
@@ -1468,7 +1470,10 @@ export default function Anatomy(props: Props) {
             >
               <div className="layer-picker-heading">
                 <strong>{t("anatomy.atSpot")}</strong>
-                <button aria-label={t("anatomy.closeLayers")} onClick={closePicker}>
+                <button
+                  aria-label={t("anatomy.closeLayers")}
+                  onClick={closePicker}
+                >
                   <X size={16} />
                 </button>
               </div>

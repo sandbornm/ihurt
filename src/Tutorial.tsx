@@ -65,11 +65,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         {t(`tour.${item.n}.title`)}
       </h2>
       <p>{t(`tour.${item.n}.text`)}</p>
-      {step === 0 && (
-        <p className="tutorial-limit">
-          {t("tour.limit")}
-        </p>
-      )}
+      {step === 0 && <p className="tutorial-limit">{t("tour.limit")}</p>}
       <div className="tutorial-actions">
         <button
           className="secondary"

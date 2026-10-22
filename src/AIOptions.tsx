@@ -41,9 +41,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
       setSession(data);
       setProvider(data.provider);
     } catch {
-      setError(
-        t("ai.noServer"),
-      );
+      setError(t("ai.noServer"));
     } finally {
       setBusy(false);
     }
@@ -51,9 +49,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
   async function submit(value = answer) {
     if (!session || submitted.current || tooManyPins) return;
     if (activityId && snapshot.current !== entryFingerprint(entry)) {
-      setError(
-        t("ai.changed"),
-      );
+      setError(t("ai.changed"));
       return;
     }
     const seeded: Answer[] = (
@@ -112,9 +108,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
           answers: nextAnswers,
         });
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : t("ai.failed"),
-      );
+      setError(e instanceof Error ? e.message : t("ai.failed"));
       if (e instanceof ApiError) {
         if (e.activityId) {
           setActivityId(e.activityId);
@@ -187,11 +181,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                 {provider === "local" ? t("ai.local") : t("ai.cloud")}{" "}
                 {t("ai.remaining", { count: session.remaining })}
               </p>
-              {tooManyPins && (
-                <p role="status">
-                  {t("ai.tooManyPins")}
-                </p>
-              )}
+              {tooManyPins && <p role="status">{t("ai.tooManyPins")}</p>}
               {live && (
                 <label className="consent">
                   <input
@@ -199,9 +189,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                     checked={consent}
                     onChange={(e) => setConsent(e.target.checked)}
                   />
-                  <span>
-                    {t("ai.consent")}
-                  </span>
+                  <span>{t("ai.consent")}</span>
                 </label>
               )}
               <VisitorCheck
@@ -275,9 +263,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
               )}
             </>
           )}
-          {busy && !session && (
-            <p role="status">{t("ai.connecting")}</p>
-          )}
+          {busy && !session && <p role="status">{t("ai.connecting")}</p>}
           {error && (
             <p className="error-notice" role="alert">
               {error}

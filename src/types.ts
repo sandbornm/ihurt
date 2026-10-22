@@ -184,11 +184,7 @@ export const isRegionId = (id: string): id is RegionId =>
   regions.some((r) => r.id === id);
 
 const fold = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .trim();
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
 // Region search matches the name in English and Spanish, without accents.
 export const regionMatches = (id: RegionId, query: string) => {
   const q = fold(query);

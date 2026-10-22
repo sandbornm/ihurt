@@ -34,7 +34,8 @@ export function resolveLanguage(
       .trim()
       .toLowerCase()
       .split(/[-_]/)[0];
-    if ((languages as readonly string[]).includes(base)) return base as Language;
+    if ((languages as readonly string[]).includes(base))
+      return base as Language;
   }
   return "en";
 }
@@ -73,7 +74,8 @@ export function formatMessage(
 
 // Lists the {placeholders} in a message, for parity tests.
 export function placeholders(message: Message): string[] {
-  const texts = typeof message === "string" ? [message] : Object.values(message);
+  const texts =
+    typeof message === "string" ? [message] : Object.values(message);
   return [
     ...new Set(
       texts.flatMap((text) =>

@@ -100,10 +100,7 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
         dirty = true;
       })
       .catch(() => {
-        if (!disposed)
-          setStatus(
-            t("ref.failed"),
-          );
+        if (!disposed) setStatus(t("ref.failed"));
       });
     const resize = () => {
       renderer.setSize(root.clientWidth, root.clientHeight);

@@ -24,7 +24,11 @@ export default function HandEntryPanel({
       className="hand-entry-controls"
       aria-label={t("hands.panel.controls")}
     >
-      <strong>{state.phase === "saved" ? t("hands.panel.saved") : t("hands.panel.placed")}</strong>
+      <strong>
+        {state.phase === "saved"
+          ? t("hands.panel.saved")
+          : t("hands.panel.placed")}
+      </strong>
       <span className="hand-pin-label">{state.pin?.label}</span>
       <div
         className="hand-entry-dial"
@@ -38,13 +42,15 @@ export default function HandEntryPanel({
       >
         <output aria-label={t("hands.panel.intensityLabel")}>
           {intensity ?? "—"}
-          <small>{intensity === null ? t("hands.panel.unrated") : t("hands.panel.outOf")}</small>
+          <small>
+            {intensity === null
+              ? t("hands.panel.unrated")
+              : t("hands.panel.outOf")}
+          </small>
         </output>
       </div>
       <span className="hand-entry-scope">
-        {state.turning
-          ? t("hands.panel.dialHeld")
-          : t("hands.panel.intensity")}
+        {state.turning ? t("hands.panel.dialHeld") : t("hands.panel.intensity")}
       </span>
       <p role="status">
         {state.phase === "rate" && trackingHint ? trackingHint : state.hint}

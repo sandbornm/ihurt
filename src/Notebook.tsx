@@ -167,7 +167,9 @@ export default function Notebook({
     [error, setError] = useState(""),
     [storageError, setStorageError] = useState("");
   const [busy, setBusy] = useState(false),
-    [draftStatus, setDraftStatus] = useState<MessageKey>("notebook.status.opening"),
+    [draftStatus, setDraftStatus] = useState<MessageKey>(
+      "notebook.status.opening",
+    ),
     [removed, setRemoved] = useState<SavedMap | null>(null);
   const draftRef = useRef<Draft>({
     entry,
@@ -250,9 +252,7 @@ export default function Notebook({
       .catch(() => {
         if (!cancelled) {
           setHydrated(true);
-          setStorageError(
-            t("notebook.error.storageUnavailable"),
-          );
+          setStorageError(t("notebook.error.storageUnavailable"));
         }
       });
     return () => {
@@ -274,9 +274,7 @@ export default function Notebook({
         .catch(() => {
           if (!cancelled) {
             setDraftStatus("notebook.status.notSaved");
-            setStorageError(
-              t("notebook.error.draftNotSaved"),
-            );
+            setStorageError(t("notebook.error.draftNotSaved"));
           }
         });
     const timer = setTimeout(() => {
@@ -365,9 +363,7 @@ export default function Notebook({
       setToast(t("notebook.toast.saved"));
       return true;
     } catch {
-      setError(
-        t("notebook.error.saveFailed"),
-      );
+      setError(t("notebook.error.saveFailed"));
       return false;
     } finally {
       setBusy(false);
@@ -421,9 +417,7 @@ export default function Notebook({
       }
       openEntry(item);
     } catch {
-      setError(
-        t("notebook.error.saveBeforeOpen"),
-      );
+      setError(t("notebook.error.saveBeforeOpen"));
     } finally {
       setBusy(false);
     }
@@ -479,11 +473,11 @@ export default function Notebook({
       await storeEntries(additions);
       setSaved((old) => [...old, ...additions]);
       setTab("journal");
-      setToast(
-        t("notebook.toast.imported", { count: additions.length }),
-      );
+      setToast(t("notebook.toast.imported", { count: additions.length }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("notebook.error.importFailed"));
+      setError(
+        e instanceof Error ? e.message : t("notebook.error.importFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -497,9 +491,7 @@ export default function Notebook({
     try {
       setToast(await work());
     } catch {
-      setError(
-        t("notebook.error.fileSaveFailed"),
-      );
+      setError(t("notebook.error.fileSaveFailed"));
     }
   }
   return (
@@ -508,7 +500,11 @@ export default function Notebook({
       data-offline={offline ? "ready" : "preparing"}
     >
       <header className="topbar">
-        <a href={example ? "/" : "#"} className="brand" aria-label={t("notebook.home")}>
+        <a
+          href={example ? "/" : "#"}
+          className="brand"
+          aria-label={t("notebook.home")}
+        >
           <span className="brand-mark">
             <img src="/favicon.svg" width="34" height="34" alt="" />
           </span>
@@ -566,7 +562,8 @@ export default function Notebook({
                 {example ? t("notebook.eyebrowBrowser") : t("notebook.eyebrow")}
               </div>
               <h1>
-                {t("notebook.heading")}<span>.</span>
+                {t("notebook.heading")}
+                <span>.</span>
               </h1>
               <p>{t("notebook.tagline")}</p>
             </div>
@@ -593,7 +590,8 @@ export default function Notebook({
                 onClick={() => setTab("journal")}
               >
                 <BookOpen size={16} />
-                {t("notebook.notebookTab")}<span className="count">{saved.length}</span>
+                {t("notebook.notebookTab")}
+                <span className="count">{saved.length}</span>
               </button>
             }
             <span className="session-badge" role="status">
@@ -609,7 +607,10 @@ export default function Notebook({
           {error && (
             <div className="error-notice" role="alert">
               {error}
-              <button onClick={() => setError("")} aria-label={t("notebook.dismissError")}>
+              <button
+                onClick={() => setError("")}
+                aria-label={t("notebook.dismissError")}
+              >
                 <X size={14} />
               </button>
             </div>
@@ -672,7 +673,9 @@ export default function Notebook({
                           <MapPin size={17} />
                           {formatDate(item.created)}
                           <button
-                            aria-label={t("notebook.deleteEntry", { title: item.map.title })}
+                            aria-label={t("notebook.deleteEntry", {
+                              title: item.map.title,
+                            })}
                             disabled={busy}
                             onClick={() => void erase(item)}
                           >
@@ -716,7 +719,9 @@ export default function Notebook({
               >
                 <div className="body-toolbar">
                   <div>
-                    <span className="small-label">{t("notebook.exploreEyebrow")}</span>
+                    <span className="small-label">
+                      {t("notebook.exploreEyebrow")}
+                    </span>
                     <h2>{t("notebook.bodyMap")}</h2>
                   </div>
                   <div className="more-tools-wrap">
@@ -869,7 +874,9 @@ export default function Notebook({
                                   </button>
                                 ))}
                               </div>
-                              <span className="small-label">{t("notebook.muscleGroups")}</span>
+                              <span className="small-label">
+                                {t("notebook.muscleGroups")}
+                              </span>
                               {muscleGroups(selected).map((m) => (
                                 <button
                                   key={m.match}
@@ -948,7 +955,10 @@ export default function Notebook({
                       />
                     </Suspense>
                   </FeatureBoundary>
-                  <div className="view-switch" aria-label={t("notebook.orientation")}>
+                  <div
+                    className="view-switch"
+                    aria-label={t("notebook.orientation")}
+                  >
                     <button
                       aria-pressed={orientation === "front"}
                       className={orientation === "front" ? "active" : ""}
@@ -1064,7 +1074,9 @@ export default function Notebook({
                 )}
                 <div className="body-footer">
                   {bodyReference && (
-                    <Suspense fallback={<span>{t("notebook.loadingReference")}</span>}>
+                    <Suspense
+                      fallback={<span>{t("notebook.loadingReference")}</span>}
+                    >
                       <BodyReference onClose={() => setBodyReference(false)} />
                     </Suspense>
                   )}
@@ -1076,10 +1088,14 @@ export default function Notebook({
                     </span>
                     <div />
                     <span>
-                      {result?.intensity != null ? t("notebook.legend.mild") : t("notebook.legend.location")}
+                      {result?.intensity != null
+                        ? t("notebook.legend.mild")
+                        : t("notebook.legend.location")}
                     </span>
                     <span>
-                      {result?.intensity != null ? t("notebook.legend.strong") : t("notebook.legend.unrated")}
+                      {result?.intensity != null
+                        ? t("notebook.legend.strong")
+                        : t("notebook.legend.unrated")}
                     </span>
                   </div>
                 </div>
@@ -1119,7 +1135,8 @@ export default function Notebook({
                     onChange={(e) => context("title", e.target.value)}
                   />
                   <label className="field-label" htmlFor="activity">
-                    {t("notebook.activity")} <span>{t("notebook.optional")}</span>
+                    {t("notebook.activity")}{" "}
+                    <span>{t("notebook.optional")}</span>
                   </label>
                   <input
                     className="notebook-input"
@@ -1185,9 +1202,7 @@ export default function Notebook({
                                   }).state,
                                 );
                             }
-                            setToast(
-                              t("notebook.toast.voiceAdded"),
-                            );
+                            setToast(t("notebook.toast.voiceAdded"));
                           }}
                         />
                       )}
@@ -1198,7 +1213,10 @@ export default function Notebook({
                     value={entry.map.intensity}
                     onChange={(value) => context("intensity", value)}
                   />
-                  <div className="mark-history" aria-label={t("notebook.markHistory")}>
+                  <div
+                    className="mark-history"
+                    aria-label={t("notebook.markHistory")}
+                  >
                     <span>{t("notebook.pinsHighlights")}</span>
                     <button
                       disabled={!markHistory.current.canUndo}
@@ -1288,7 +1306,8 @@ export default function Notebook({
                   )}
                   <details className="entry-context">
                     <summary>
-                      {t("notebook.moreContext")} <span>{t("notebook.optional")}</span>
+                      {t("notebook.moreContext")}{" "}
+                      <span>{t("notebook.optional")}</span>
                     </summary>
                     <label className="field-label" htmlFor="quality">
                       {t("notebook.feeling")}
@@ -1321,9 +1340,7 @@ export default function Notebook({
                       onSave={async (research) => {
                         const updated = await saveResearch(entry.id, research);
                         if (!updated)
-                          throw Error(
-                            t("notebook.error.removedDuringSearch"),
-                          );
+                          throw Error(t("notebook.error.removedDuringSearch"));
                         setEntry((e) =>
                           e.id === entry.id
                             ? {
@@ -1371,10 +1388,7 @@ export default function Notebook({
                             void exportFile(() =>
                               downloadViewport(image, entry.created),
                             );
-                          else
-                            setError(
-                              t("notebook.error.viewNotReady"),
-                            );
+                          else setError(t("notebook.error.viewNotReady"));
                         }}
                         disabled={!valid}
                       >
@@ -1426,22 +1440,24 @@ export default function Notebook({
                           capture.current?.() ?? undefined,
                         )
                       )
-                        setError(
-                          t("notebook.error.printBlocked"),
-                        );
+                        setError(t("notebook.error.printBlocked"));
                     }}
                   >
-                    {isNativeApp() ? t("notebook.shareReport") : t("notebook.printPdf")}
+                    {isNativeApp()
+                      ? t("notebook.shareReport")
+                      : t("notebook.printPdf")}
                     <ArrowUpRight size={14} />
                   </button>
                   <ShareWithAI entry={currentEntry()} valid={valid} />
                   {entry.ai && (
                     <details className="saved-ai">
-                      <summary>{t("notebook.savedAiNote", { provider: entry.ai.provider })}</summary>
+                      <summary>
+                        {t("notebook.savedAiNote", {
+                          provider: entry.ai.provider,
+                        })}
+                      </summary>
                       {entry.ai.based_on !== entryFingerprint(entry) && (
-                        <p className="subtle">
-                          {t("notebook.aiStale")}
-                        </p>
+                        <p className="subtle">{t("notebook.aiStale")}</p>
                       )}
                       <p>{entry.ai.map.summary}</p>
                       {entry.ai.map.safety_message && (
@@ -1473,9 +1489,7 @@ export default function Notebook({
                   )}
                   <div className="intake-footnote">
                     <LockKeyhole size={13} />
-                    <span>
-                      {t("notebook.storedHere")}
-                    </span>
+                    <span>{t("notebook.storedHere")}</span>
                   </div>
                 </div>
               </aside>
@@ -1563,25 +1577,15 @@ export default function Notebook({
             ? t("notebook.info.storageNative")
             : t("notebook.info.storageBrowser")}
         </p>
-        <p>
-          {t("notebook.info.ai")}
-        </p>
+        <p>{t("notebook.info.ai")}</p>
         {isNativeApp() && (
           <>
-            <p>
-              {t("notebook.info.native")}
-            </p>
-            <p>
-              {t("notebook.info.exports")}
-            </p>
+            <p>{t("notebook.info.native")}</p>
+            <p>{t("notebook.info.exports")}</p>
           </>
         )}
-        <p>
-          {t("notebook.info.medical")}
-        </p>
-        <p>
-          {t("notebook.info.resources")}
-        </p>
+        <p>{t("notebook.info.medical")}</p>
+        <p>{t("notebook.info.resources")}</p>
         <a
           href="https://github.com/sandbornm/ihurt/blob/main/docs/SAFETY.md"
           target="_blank"

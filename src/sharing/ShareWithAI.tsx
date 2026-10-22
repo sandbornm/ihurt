@@ -58,9 +58,7 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
     try {
       setStatus(await download(shared, format));
     } catch {
-      setStatus(
-        t("share.saveFailed"),
-      );
+      setStatus(t("share.saveFailed"));
     }
   }
   return (
@@ -101,9 +99,7 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
         <button
           className="secondary"
           disabled={!valid}
-          onClick={() =>
-            void copy(summary, t("share.summaryCopied"))
-          }
+          onClick={() => void copy(summary, t("share.summaryCopied"))}
         >
           <Copy size={15} />
           {t("share.copySummary")}
@@ -139,12 +135,7 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
         <div className="export-pair">
           <button
             className="secondary"
-            onClick={() =>
-              void copy(
-                aiPrompt(),
-                t("share.promptCopied"),
-              )
-            }
+            onClick={() => void copy(aiPrompt(), t("share.promptCopied"))}
           >
             <Copy size={15} />
             {t("share.copyPrompt")}

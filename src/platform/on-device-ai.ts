@@ -1,4 +1,9 @@
-import { language as currentLanguage, speechLocale, t, type Language } from "../i18n/index.ts";
+import {
+  language as currentLanguage,
+  speechLocale,
+  t,
+  type Language,
+} from "../i18n/index.ts";
 import { nativeError, nativeMessage } from "./native-messages.ts";
 
 export interface OnDeviceAIAvailability {
@@ -131,9 +136,7 @@ export function createAppleIntelligence(
       const stopped = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           void cancel();
-          reject(
-            new Error(t("native.ai-timeout")),
-          );
+          reject(new Error(t("native.ai-timeout")));
         }, timeoutMs);
         onAbort = () => {
           void cancel();
@@ -157,7 +160,10 @@ export function createAppleIntelligence(
           value = await Promise.race([pending, stopped]);
         } catch (error) {
           if (error instanceof ExtractionCancelled) throw error;
-          if (error instanceof Error && error.message === t("native.ai-timeout"))
+          if (
+            error instanceof Error &&
+            error.message === t("native.ai-timeout")
+          )
             throw error;
           throw nativeError(error, t("native.ai-failed"));
         }

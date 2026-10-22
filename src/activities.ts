@@ -1,5 +1,10 @@
 import type { RegionId } from "./types.ts";
-import { language, translate, type Language, type MessageKey } from "./i18n/index.ts";
+import {
+  language,
+  translate,
+  type Language,
+  type MessageKey,
+} from "./i18n/index.ts";
 export type Activity = { name: string; regions: RegionId[]; terms?: string[] };
 const shoulders: RegionId[] = ["left_shoulder", "right_shoulder", "upper_back"];
 const legs: RegionId[] = [
@@ -122,12 +127,12 @@ export const activities: Activity[] = [
 // Activity names are stored as typed. Matching accepts the English name, the
 // Spanish name, and a few everyday words in either language.
 const fold = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase();
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 export const activityKey = (activity: Activity) =>
-  `activity.${activity.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}` as MessageKey;
+  `activity.${activity.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")}` as MessageKey;
 export const activityName = (activity: Activity, lang: Language = language()) =>
   translate(lang, activityKey(activity));
 const names = (activity: Activity) =>

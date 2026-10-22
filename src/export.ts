@@ -59,8 +59,7 @@ export function renderMapSvg(map: SavedMap) {
   const facts = wrap(
     [
       map.map.quality && t("export.svg.feeling", { value: map.map.quality }),
-      map.map.activity &&
-        t("export.svg.activity", { value: map.map.activity }),
+      map.map.activity && t("export.svg.activity", { value: map.map.activity }),
       map.map.duration && t("export.svg.timing", { value: map.map.duration }),
       map.map.intensity !== null &&
         t("export.svg.intensity", { value: map.map.intensity }),

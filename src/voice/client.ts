@@ -29,9 +29,7 @@ export const localVoiceClient: VoiceClient = {
       response.text.length > 3000 ||
       !response.text.trim()
     )
-      throw new Error(
-        t("rec.noTranscript"),
-      );
+      throw new Error(t("rec.noTranscript"));
     return response.text;
   },
 };

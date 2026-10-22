@@ -276,9 +276,7 @@ function parseReferences(v: unknown): NonNullable<SavedMap["references"]> {
                 context.username ||
                 context.password
               )
-                throw Error(
-                  t("data.err.videoLink"),
-                );
+                throw Error(t("data.err.videoLink"));
               return context.href;
             })(),
           }

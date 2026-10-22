@@ -38,7 +38,9 @@ export default function Resources({
         <div>
           <h3>
             {region
-              ? t("res.readingFor", { region: regionName(region).toLowerCase() })
+              ? t("res.readingFor", {
+                  region: regionName(region).toLowerCase(),
+                })
               : t("export.html.readingTitle")}
           </h3>
           <p>{t("res.curated")}</p>
@@ -131,9 +133,7 @@ export default function Resources({
               : t("res.selectRegion")}
         </p>
       )}
-      <p className="resource-notice">
-        {t("res.notice")}
-      </p>
+      <p className="resource-notice">{t("res.notice")}</p>
     </section>
   );
 }

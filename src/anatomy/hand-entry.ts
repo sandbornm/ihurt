@@ -201,14 +201,12 @@ export class HandEntryGesture {
       this.saveArmed = true;
       this.saveStart = null;
       this.state.progress = 0;
-      if (!this.saveFailed)
-        this.state.hint = t("hands.entry.rate");
+      if (!this.saveFailed) this.state.hint = t("hands.entry.rate");
     } else {
       this.lastRoll = null;
       this.state.turning = false;
       if (!this.saveArmed) {
-        if (!this.saveFailed)
-          this.state.hint = t("hands.entry.lower");
+        if (!this.saveFailed) this.state.hint = t("hands.entry.lower");
         return null;
       }
       this.state.hint = t("hands.entry.hold");

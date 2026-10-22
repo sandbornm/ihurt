@@ -184,9 +184,7 @@ export default function FeedbackLinks() {
           </fieldset>
         </form>
       )}
-      <p role="status">
-        {status || t("fb.noHealth")}
-      </p>
+      <p role="status">{status || t("fb.noHealth")}</p>
     </section>
   );
 }

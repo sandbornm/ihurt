@@ -124,10 +124,13 @@ export function createAppleIntelligence(
         };
         signal?.addEventListener("abort", onAbort, { once: true });
       });
+      const pending = bridge.extractPainEntry(options);
+      // After a timeout or cancel nobody awaits the native call. Its late
+      // rejection is swallowed explicitly so it can never surface as
+      // unhandled, even if the race below is refactored away.
+      pending.catch(() => {});
       try {
-        return parseRawExtraction(
-          await Promise.race([bridge.extractPainEntry(options), stopped]),
-        );
+        return parseRawExtraction(await Promise.race([pending, stopped]));
       } finally {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);

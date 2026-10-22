@@ -168,3 +168,44 @@ test("native start failure removes listeners and permits a retry", async () => {
   await f.adapter.start(() => {});
   await f.adapter.cancel();
 });
+
+test("stop resolves with the final transcript even when the last event was partial", async () => {
+  const f = fixture(),
+    texts: string[] = [];
+  await f.adapter.start((text) => texts.push(text));
+  f.emit("transcript", { text: "my left" });
+  f.final("my left calf feels tight");
+  assert.equal(await f.adapter.stop(), "my left calf feels tight");
+  assert.equal(texts.at(-1), "my left calf feels tight");
+  assert.equal(await f.adapter.stop(), "my left calf feels tight");
+});
+
+test("automatic completion hands the final transcript to onEnd, errors do not", async () => {
+  const f = fixture(),
+    endings: [string | undefined, string | undefined][] = [];
+  await f.adapter.start(
+    () => {},
+    (error, text) => endings.push([error, text]),
+  );
+  f.emit("transcript", { text: "sore" });
+  f.emit("transcript", { text: "sore right knee" });
+  f.emit("ended");
+  assert.deepEqual(endings, [[undefined, "sore right knee"]]);
+  assert.equal(await f.adapter.stop(), "sore right knee");
+
+  await f.adapter.start(
+    () => {},
+    (error, text) => endings.push([error, text]),
+  );
+  f.emit("transcript", { text: "partial" });
+  f.emit("ended", { error: "Recording interrupted" });
+  assert.deepEqual(endings.at(-1), ["Recording interrupted", undefined]);
+});
+
+test("stop without an active recording resolves undefined", async () => {
+  const f = fixture();
+  assert.equal(await f.adapter.stop(), undefined);
+  await f.adapter.start(() => {});
+  await f.adapter.cancel();
+  assert.equal(await f.adapter.stop(), undefined);
+});

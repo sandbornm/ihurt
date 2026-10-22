@@ -348,6 +348,40 @@ test("cancel stops an in-flight extraction and a new request still runs", async 
   assert.equal(log.at(-1), "cancel");
 });
 
+test("a late native rejection after a timeout or cancel is not unhandled", async () => {
+  const unhandled: unknown[] = [];
+  const record = (reason: unknown) => unhandled.push(reason);
+  process.on("unhandledRejection", record);
+  try {
+    const rejects: ((reason: Error) => void)[] = [];
+    const bridge: AppleIntelligenceBridge = {
+      isAvailable: async () => ({ available: true }),
+      extractPainEntry: () =>
+        new Promise((_, reject) => {
+          rejects.push(reject);
+        }),
+      cancelExtraction: async () => {},
+      speak: async () => {},
+      stopSpeaking: async () => {},
+    };
+    const ai = createAppleIntelligence(bridge);
+    await assert.rejects(ai.extractPainEntry(request, { timeoutMs: 5 }), {
+      message: /took too long/,
+    });
+    const controller = new AbortController();
+    const second = ai.extractPainEntry(request, { signal: controller.signal });
+    controller.abort();
+    await assert.rejects(second, ExtractionCancelled);
+    // The native side answers late, as it does when cancelled.
+    for (const reject of rejects)
+      reject(new Error("Apple Intelligence stopped reading this note."));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off("unhandledRejection", record);
+  }
+});
+
 test("the voice notice matches the transcription state", () => {
   const base = { checking: false, maxSeconds: 60 };
   assert.match(

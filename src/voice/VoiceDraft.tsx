@@ -124,6 +124,8 @@ function VoiceEditor({
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const previousText = useRef("");
+  // The recording generation whose final transcript was already suggested.
+  const suggested = useRef(-1);
   const native = isNativeApp();
   const maxSeconds = Math.min(
     60,
@@ -176,10 +178,10 @@ function VoiceEditor({
     const settle = (ready: boolean) => {
       if (!active) return;
       setAiReady(ready);
-      // A recording that finished during the check is read now.
+      // A recording that finished during the check is read now. Recording
+      // again or cancelling clears the queue, so the value is still current.
       const queued = gate.settle(ready);
-      if (queued && queued === textRef.current.trim())
-        void runExtraction(queued);
+      if (queued) void runExtraction(queued);
     };
     if (ai && native)
       void ai
@@ -257,11 +259,12 @@ function VoiceEditor({
           (value) => {
             if (generation.current === current) setText(value.slice(0, 3000));
           },
-          (message) => {
+          (message, final) => {
             ended = true;
             if (generation.current !== current) return;
             setMode("idle");
             if (message) setError(message);
+            else if (final !== undefined) suggestFinal(current, final);
           },
         );
         if (!ended && generation.current === current) setMode("recording");
@@ -298,8 +301,9 @@ function VoiceEditor({
     const current = generation.current;
     setMode("processing");
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let final: string | undefined;
     try {
-      if (speech) await speech.stop();
+      if (speech) final = await speech.stop();
       else if (recording.current) {
         const capture = recording.current;
         const blob = await capture.stop();
@@ -331,9 +335,17 @@ function VoiceEditor({
         setMode("idle");
         setChallenge("");
         setNonce((value) => value + 1);
-        if (speech) void propose(textRef.current);
+        if (speech && final !== undefined) suggestFinal(current, final);
       }
     }
+  }
+
+  // Suggest once per recording, from the recognizer's final transcript rather
+  // than the text box, which may not have rendered the last words yet.
+  function suggestFinal(current: number, final: string) {
+    if (suggested.current === current) return;
+    suggested.current = current;
+    propose(final.slice(0, 3000));
   }
 
   function propose(transcript: string) {

@@ -503,3 +503,174 @@ test("grounding accepts irregular plurals", () => {
   assert.ok(grounded("calf", "tight calves"));
   assert.equal(grounded("ankle", "both feet ache"), false);
 });
+
+test("intensity needs a rating, not any number", () => {
+  const accepted: [string, number][] = [
+    ["The pain is 7 out of 10", 7],
+    ["It was 7/10", 7],
+    ["I would call it a 7", 7],
+    ["about a seven", 7],
+    ["the pain is 7", 7],
+    ["I rated it 7", 7],
+    ["pain level 7", 7],
+    ["intensity 7", 7],
+    ["seven out of ten", 7],
+    ["it's a 4", 4],
+  ];
+  for (const [transcript, intensity] of accepted)
+    assert.equal(
+      buildProposal(raw({ intensity }), transcript, today).fields.intensity,
+      intensity,
+      transcript,
+    );
+  const rejected: [string, number][] = [
+    ["My left knee started 3 days ago", 3],
+    ["It has been 2 weeks", 2],
+    ["I walked 5 miles", 5],
+    ["It woke me at 7 am", 7],
+    ["It happened 3 times", 3],
+  ];
+  for (const [transcript, intensity] of rejected)
+    assert.equal(
+      buildProposal(raw({ intensity }), transcript, today).fields.intensity,
+      undefined,
+      transcript,
+    );
+  // "3" is how long ago it started. "7" is the rating.
+  const both = "My left knee started 3 days ago and the pain is 7";
+  assert.equal(
+    buildProposal(raw({ intensity: 3 }), both, today).fields.intensity,
+    undefined,
+  );
+  assert.equal(
+    buildProposal(raw({ intensity: 7 }), both, today).fields.intensity,
+    7,
+  );
+  // The 10 in "7 out of 10" is the scale, not the rating.
+  assert.equal(
+    buildProposal(raw({ intensity: 10 }), "pain is 7 out of 10", today).fields
+      .intensity,
+    undefined,
+  );
+  const started = buildProposal(
+    raw({ spokenLocation: "left knee", side: "left", intensity: 3 }),
+    "My left knee started 3 days ago",
+    today,
+  );
+  assert.equal(started.fields.intensity, undefined);
+  assert.equal(started.location.status, "mapped");
+  assert.equal(started.followUp?.key, "intensity");
+});
+
+test("a value in a denied clause is not grounded", () => {
+  const denied = "It is not my left knee and it isn't burning";
+  const dropped = buildProposal(
+    raw({
+      spokenLocation: "left knee",
+      side: "left",
+      qualities: ["burning"],
+    }),
+    denied,
+    today,
+  );
+  assert.notEqual(dropped.location.status, "mapped");
+  assert.equal(mapLocation("left knee", "left", denied).status, "unmapped");
+  assert.equal(dropped.fields.quality, undefined);
+
+  const mixed = "my left knee isn't burning, it's aching";
+  const kept = buildProposal(
+    raw({
+      spokenLocation: "left knee",
+      side: "left",
+      qualities: ["burning", "aching"],
+    }),
+    mixed,
+    today,
+  );
+  assert.deepEqual(kept.location, {
+    status: "mapped",
+    region: "left_knee",
+    spoken: "left knee",
+  });
+  assert.equal(kept.fields.quality, "aching");
+
+  const affirmed = "my left knee is burning";
+  const yes = buildProposal(
+    raw({
+      spokenLocation: "left knee",
+      side: "left",
+      qualities: ["burning"],
+    }),
+    affirmed,
+    today,
+  );
+  assert.deepEqual(yes.location, {
+    status: "mapped",
+    region: "left_knee",
+    spoken: "left knee",
+  });
+  assert.equal(yes.fields.quality, "burning");
+
+  // The denial stops at "and". The knee was still named.
+  const ordered = "it isn't burning and my left knee hurts";
+  const after = buildProposal(
+    raw({
+      spokenLocation: "left knee",
+      side: "left",
+      qualities: ["burning"],
+    }),
+    ordered,
+    today,
+  );
+  assert.equal(after.location.status, "mapped");
+  assert.equal(after.fields.quality, undefined);
+  const hurting = "my left knee hurts and it's burning";
+  const both = buildProposal(
+    raw({
+      spokenLocation: "left knee",
+      side: "left",
+      qualities: ["burning"],
+    }),
+    hurting,
+    today,
+  );
+  assert.equal(both.location.status, "mapped");
+  assert.equal(both.fields.quality, "burning");
+});
+
+test("earlier is today only in a same-day phrase", () => {
+  for (const phrase of [
+    "earlier",
+    "earlier today",
+    "earlier this morning",
+    "earlier this afternoon",
+    "earlier this evening",
+  ])
+    assert.equal(resolveOnset(phrase, today).date, today, phrase);
+  for (const phrase of [
+    "earlier this year",
+    "earlier in my life",
+    "earlier this month",
+    "earlier this week",
+  ]) {
+    const onset = resolveOnset(phrase, today);
+    assert.equal(onset.date, undefined, phrase);
+    assert.equal(onset.phrase, phrase);
+  }
+});
+
+test("a side and a part from different phrases do not map", () => {
+  const said = "my left knee and right foot hurt";
+  assert.equal(mapLocation("left foot", "left", said).status, "unmapped");
+  assert.equal(mapLocation("right knee", "right", said).status, "unmapped");
+  assert.deepEqual(mapLocation("left knee", "left", said), {
+    status: "mapped",
+    region: "left_knee",
+    spoken: "left knee",
+  });
+  assert.deepEqual(mapLocation("right foot", "right", said), {
+    status: "mapped",
+    region: "right_foot",
+    spoken: "right foot",
+  });
+});

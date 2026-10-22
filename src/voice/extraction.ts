@@ -193,66 +193,142 @@ const matches = (a: string, b: string) => {
   return false;
 };
 
-// Every meaningful word must appear in the transcript. This keeps model
-// paraphrases, guesses and invented details out of the proposal.
-export function grounded(value: string, transcript: string) {
-  const words = normalize(value)
-    .split(" ")
-    .filter((word) => word && !stop.has(word));
-  if (!words.length) return false;
-  const said = normalize(transcript).split(" ");
-  return words.every((word) => said.some((other) => matches(word, other)));
+// "n't" covers isn't, don't, can't, and the rest. The bare forms are the same
+// words when speech drops the apostrophe. Spanish denials, after accents are
+// removed: "no es", "no me duele", "sin", "nunca", "tampoco", "ni", "ningun".
+const contraction = [
+  "isn't",
+  "wasn't",
+  "don't",
+  "doesn't",
+  "didn't",
+  "can't",
+  "won't",
+  "wouldn't",
+  "couldn't",
+  "shouldn't",
+  "aren't",
+  "weren't",
+  "haven't",
+  "hasn't",
+  "hadn't",
+  "mustn't",
+  "ain't",
+];
+const negators = new Set([
+  "not",
+  "no",
+  "never",
+  "without",
+  "nothing",
+  "none",
+  "cannot",
+  "neither",
+  "nor",
+  "deny",
+  "denies",
+  ...contraction,
+  ...contraction.map((word) => word.replaceAll("'", "")),
+  "sin",
+  "nunca",
+  "jamas",
+  "tampoco",
+  "ni",
+  "ningun",
+  "ninguna",
+  "ninguno",
+  "nada",
+  "nadie",
+  "niego",
+  "niega",
+]);
+
+const isNegator = (word: string) => word.includes("n't") || negators.has(word);
+
+// Words that join two phrases. A denial on one side does not cancel the
+// other: "it isn't burning and my left knee hurts", "no es ardor pero duele".
+const conjunctions = new Set([
+  "and",
+  "but",
+  "or",
+  "though",
+  "although",
+  "y",
+  "e",
+  "pero",
+  "o",
+  "u",
+  "aunque",
+  "sino",
+]);
+
+const tokens = (text: string) => normalize(text).split(" ").filter(Boolean);
+
+// Punctuation separates clauses; conjunctions separate the soft parts inside
+// one clause.
+function softParts(clause: string) {
+  const parts: string[][] = [[]];
+  for (const word of tokens(clause))
+    if (conjunctions.has(word)) parts.push([]);
+    else parts[parts.length - 1].push(word);
+  return parts.filter((words) => words.length);
+}
+
+const clauses = (transcript: string) =>
+  transcript.split(/[.!?;:,\n¿¡]+/).filter((clause) => clause.trim());
+
+// True when every wanted word occurs, and no negator stands before it.
+// "my left knee isn't burning" keeps the knee and drops "burning";
+// "no me duele la rodilla" drops the knee.
+function covers(words: string[], needed: string[]) {
+  return needed.every((want) => {
+    const at = words.findIndex((said) => matches(said, want));
+    return at >= 0 && !words.slice(0, at).some(isNegator);
+  });
+}
+
+// With `together`, the words must share one conjunction-free part, so "my
+// left knee and right foot" does not ground "left foot". Without it, words
+// joined only by conjunctions still count ("left knee and ankle"), as long as
+// none comes from a denied part.
+function clauseGrounds(clause: string, needed: string[], together: boolean) {
+  const soft = softParts(clause);
+  if (soft.some((words) => covers(words, needed))) return true;
+  if (together) return false;
+  const affirmative = soft.filter((words) => !words.some(isNegator));
+  return covers(affirmative.flat(), needed);
+}
+
+// Every meaningful word must appear in the transcript, in a clause that is
+// not denying it. This keeps model paraphrases, guesses, invented details and
+// denied details out of the proposal, in English and Spanish.
+export function grounded(
+  value: string,
+  transcript: string,
+  together = false,
+): boolean {
+  const parts = softParts(value);
+  // "knee and ankle" names two parts; each must be said together on its own.
+  if (together && parts.length > 1)
+    return parts.every((part) => grounded(part.join(" "), transcript, true));
+  const needed = tokens(value).filter((word) => !stop.has(word));
+  if (!needed.length) return false;
+  return clauses(transcript).some((clause) =>
+    clauseGrounds(clause, needed, together),
+  );
 }
 
 // The span must occur in the transcript as consecutive words, ignoring case,
 // accents and plural endings. A location stitched together from words said in
 // different places does not count.
 export function spanIn(value: string, transcript: string) {
-  const span = normalize(value).split(" ").filter(Boolean);
-  const said = normalize(transcript).split(" ").filter(Boolean);
+  const span = tokens(value);
+  const said = tokens(transcript);
   if (!span.length) return false;
   for (let start = 0; start + span.length <= said.length; start++)
     if (span.every((word, i) => matches(word, said[start + i]))) return true;
   return false;
 }
-
-// Clauses split on punctuation and on "but", "pero", "aunque" and "sino", so
-// "no es ardor, es punzante" keeps "punzante" and drops "ardor".
-const clauseBreak =
-  /[.,;:!?¿¡\n]+|\b(?:but|pero|aunque|sino|though|although)\b/;
-// Negation cues in English and Spanish, after normalization (accents gone):
-// "no es", "no me duele", "sin", "nunca", "tampoco", "ni", "ningun".
-const negation =
-  /\b(?:no|not|never|without|none|neither|nor|denies|deny|isn't|wasn't|don't|doesn't|didn't|aren't|weren't|haven't|hasn't|can't|nunca|jamas|sin|tampoco|ni|ningun|ninguna|ninguno|niego|niega|nada)\b|n't\b/;
-
-const clausesOf = (transcript: string) =>
-  transcript
-    .split(clauseBreak)
-    .map((part) => normalize(part ?? ""))
-    .filter(Boolean);
-
-// The span occurs in a clause with no negation. A phrase the person only said
-// in a negated clause, such as "no me duele la rodilla", "sin hormigueo" or
-// "my knee doesn't hurt", is never proposed. A clause with any negation is
-// skipped whole, like the dictation suggestions do, so an unclear clause
-// leads to a question rather than a guess.
-export function affirmedIn(value: string, transcript: string) {
-  const span = normalize(value).split(" ").filter(Boolean);
-  if (!span.length) return false;
-  return clausesOf(transcript).some(
-    (clause) => !negation.test(clause) && spanIn(value, clause),
-  );
-}
-
-// Every word is in the transcript, and the whole phrase is said at least
-// once outside a negated clause.
-const stated = (value: string, transcript: string) =>
-  grounded(value, transcript) &&
-  (spanIn(value, transcript)
-    ? affirmedIn(value, transcript)
-    : !clausesOf(transcript).some(
-        (clause) => grounded(value, clause) && negation.test(clause),
-      ));
 
 export type LocationResult =
   | { status: "mapped"; region: RegionId; spoken: string }
@@ -269,11 +345,8 @@ export function mapLocation(
 ): LocationResult {
   const words = spoken.trim();
   if (!words) return { status: "missing" };
-  if (
-    !grounded(words, transcript) ||
-    !spanIn(words, transcript) ||
-    !affirmedIn(words, transcript)
-  )
+  // A side and a body part count only when said together, as one phrase.
+  if (!grounded(words, transcript, true) || !spanIn(words, transcript))
     return { status: "unmapped", spoken: words };
   const parts = partsIn(words);
   if (parts.length === 0) return { status: "unmapped", spoken: words };
@@ -335,35 +408,37 @@ const numberValue = (word: string) =>
       : spanishNumbers.indexOf(word);
 
 // A number counts as a rating only when it is said as one: "7 out of 10",
-// "7/10", "about a six", "pain is 4", "7 de 10", "un siete", "dolor de 6",
-// "intensidad 5". "3 days ago" or "hace 3 dias" is not a rating, and neither
-// is a number in a negated clause.
+// "7/10", "about a six", "pain is 4", "I rated it 7", "7 de 10", "un siete",
+// "dolor de 6", "intensidad 5". "3 days ago", "at 7 am" or "hace 3 dias" is
+// not a rating, and neither is a number after a denial ("no es un 8"). When
+// unsure, drop it so the follow-up question can ask.
 const ratingBefore =
-  /\b(?:about|around|maybe|like|roughly|a|an|is|was|at|rate|rated|rating|level|pain|intensity|un|una|como|es|era|esta|estaba|en|nivel|intensidad|calificacion|dolor|doy|daria|unos|unas)$/;
+  /\b(?:about|around|maybe|like|roughly|a|an|is|was|rate|rated|rated it|rating|level|pain|intensity|un|una|como|es|era|esta|estaba|en|nivel|intensidad|calificacion|dolor|doy|daria|unos|unas)$/;
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))\b/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?)\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|de la (?:manana|tarde|noche))\b/;
 
 export function ratedIn(transcript: string, value: number) {
   if (!Number.isInteger(value) || value < 0 || value > 10) return false;
-  const number = `(?:${value}|${numberWords[value]}|${spanishNumbers[value]})`;
-  const slash = new RegExp(`\\b${value}\\s*/\\s*10\\b`);
-  for (const part of transcript.split(clauseBreak)) {
-    const clause = normalize(part ?? "");
-    if (!clause) continue;
-    const found = new RegExp(`\\b${number}\\b`, "g");
-    for (const match of clause.matchAll(found)) {
-      const before = clause.slice(0, match.index).trim();
-      const after = clause.slice(match.index + match[0].length).trim();
-      if (negation.test(clause) || notRatingAfter.test(after)) continue;
-      if (
-        slash.test(part) ||
-        ratingAfter.test(after) ||
-        ratingBefore.test(before)
-      )
-        return true;
+  const number = new RegExp(
+    `^(?:${value}|${numberWords[value]}|${spanishNumbers[value]})$`,
+  );
+  for (const clause of clauses(transcript)) {
+    // "7/10" is one rating; the slash would otherwise split it.
+    if (new RegExp(`(?:^|[^0-9])${value}\\s*/\\s*10\\b`).test(clause)) {
+      const before = tokens(clause.split("/")[0]);
+      if (!before.some(isNegator)) return true;
     }
+    for (const words of softParts(clause))
+      for (const [at, word] of words.entries()) {
+        if (!number.test(word)) continue;
+        const before = words.slice(0, at);
+        const after = words.slice(at + 1).join(" ");
+        if (before.some(isNegator) || notRatingAfter.test(after)) continue;
+        if (ratingAfter.test(after) || ratingBefore.test(before.join(" ")))
+          return true;
+      }
   }
   return false;
 }
@@ -428,8 +503,11 @@ export function resolveOnset(
   if (/\b(?:yesterday|last night|ayer|anoche)\b/.test(text))
     return { phrase, date: shift(today, 1) };
   if (
-    // A bare "earlier" or "mas temprano" could be any day, so only same-day
-    // phrases resolve to today: "earlier today", "hoy", "hace un rato".
+    // "Earlier" and "mas temprano" are today only on their own or with this
+    // day ("earlier this morning", "mas temprano hoy"), not "earlier this
+    // week" or "mas temprano este ano".
+    text === "earlier" ||
+    text === "mas temprano" ||
     /\b(?:today|this morning|this afternoon|this evening|tonight|earlier this (?:morning|afternoon|evening)|a little while ago|hoy|esta manana|esta tarde|esta noche|hace un rato|hace rato|hace unas horas|hace unos minutos|mas temprano hoy)\b/.test(
       text,
     )
@@ -539,21 +617,21 @@ export function buildProposal(
   for (const quality of raw.qualities) {
     const word = display(quality);
     const key = normalize(word);
-    if (!key || seen.has(key) || !stated(word, transcript)) continue;
+    if (!key || seen.has(key) || !grounded(word, transcript)) continue;
     seen.add(key);
     qualities.push(word);
   }
   if (qualities.length) fields.quality = qualities.join(", ");
   if (raw.intensity !== null && ratedIn(transcript, raw.intensity))
     fields.intensity = raw.intensity;
-  const activity = stated(raw.activity, transcript) ? raw.activity : "";
-  const surface = stated(raw.surface, transcript) ? raw.surface : "";
+  const activity = grounded(raw.activity, transcript) ? raw.activity : "";
+  const surface = grounded(raw.surface, transcript) ? raw.surface : "";
   if (activity)
     fields.activity = surface
       ? translate(lang, "extraction.activityOn", { activity, surface })
       : activity;
   let onset: PainProposal["onset"];
-  if (stated(raw.onsetPhrase, transcript)) {
+  if (grounded(raw.onsetPhrase, transcript)) {
     onset = resolveOnset(raw.onsetPhrase, today);
     fields.duration = onset.date
       ? translate(lang, "extraction.sinceDate", {

@@ -251,11 +251,54 @@ test("negated clauses are rejected in Spanish and English", () => {
   assert.equal(nunca.fields.duration, undefined);
   const english = buildProposal(
     raw({ spokenLocation: "knee", qualities: ["burning", "sharp"] }),
-    "It's not burning, it's sharp. My knee doesn't hurt",
+    "It's not burning, it's sharp. It is not my knee",
     today,
   );
   assert.equal(english.fields.quality, "sharp");
   assert.equal(english.location.status, "unmapped");
+  // A denial covers what follows it, so the knee said before it still counts.
+  const mixed = buildProposal(
+    raw({
+      spokenLocation: "rodilla izquierda",
+      side: "left",
+      qualities: ["ardor", "punzante"],
+    }),
+    "mi rodilla izquierda no tiene ardor, es punzante",
+    today,
+    "es",
+  );
+  assert.equal(mixed.location.status, "mapped");
+  assert.equal(mixed.fields.quality, "punzante");
+  // The denial stops at "y" and "pero".
+  const after = buildProposal(
+    raw({
+      spokenLocation: "rodilla izquierda",
+      side: "left",
+      qualities: ["ardor"],
+    }),
+    "no es ardor pero me duele la rodilla izquierda",
+    today,
+    "es",
+  );
+  assert.equal(after.location.status, "mapped");
+  assert.equal(after.fields.quality, undefined);
+});
+
+test("a Spanish side and part from different phrases do not map", () => {
+  const said = "me duele la rodilla izquierda y el pie derecho";
+  assert.equal(mapLocation("pie izquierdo", "left", said).status, "unmapped");
+  assert.equal(
+    mapLocation("rodilla derecha", "right", said).status,
+    "unmapped",
+  );
+  assert.equal(mapLocation("rodilla izquierda", "left", said).status, "mapped");
+  assert.equal(mapLocation("pie derecho", "right", said).status, "mapped");
+});
+
+test("Spanish intensity ignores times of day", () => {
+  assert.equal(ratedIn("me despertó a las 7 de la mañana", 7), false);
+  assert.equal(ratedIn("I rated it 7", 7), true);
+  assert.equal(ratedIn("it woke me at 7 am", 7), false);
 });
 
 test("intensity needs rating context in Spanish and English", () => {
@@ -280,10 +323,11 @@ test("intensity needs rating context in Spanish and English", () => {
 });
 
 test("only same-day phrases resolve to today", () => {
-  assert.equal(resolveOnset("earlier", today).date, undefined);
+  assert.equal(resolveOnset("earlier", today).date, today);
   assert.equal(resolveOnset("earlier this week", today).date, undefined);
   assert.equal(resolveOnset("earlier today", today).date, today);
-  assert.equal(resolveOnset("más temprano", today).date, undefined);
+  assert.equal(resolveOnset("más temprano", today).date, today);
+  assert.equal(resolveOnset("más temprano este año", today).date, undefined);
   assert.equal(resolveOnset("más temprano hoy", today).date, today);
   assert.equal(resolveOnset("hace un rato", today).date, today);
   assert.equal(resolveOnset("esta tarde", today).date, today);

@@ -102,14 +102,50 @@ const stop = new Set([
   "i",
 ]);
 
-// Every meaningful word must appear in the transcript. This keeps model
-// paraphrases, guesses and invented details out of the proposal.
+// Every meaningful word must appear in the transcript, in a clause that is
+// not denying it. This keeps model paraphrases, guesses and invented details
+// out of the proposal.
 const irregular: Record<string, string> = {
   feet: "foot",
   calves: "calf",
   halves: "half",
   teeth: "tooth",
 };
+
+// "n't" covers isn't, don't, can't, and the rest. The bare forms are the same
+// words when speech drops the apostrophe. "cannot" has no apostrophe to drop.
+const contraction = [
+  "isn't",
+  "wasn't",
+  "don't",
+  "doesn't",
+  "didn't",
+  "can't",
+  "won't",
+  "wouldn't",
+  "couldn't",
+  "shouldn't",
+  "aren't",
+  "weren't",
+  "haven't",
+  "hasn't",
+  "hadn't",
+  "mustn't",
+  "ain't",
+];
+const negators = new Set([
+  "not",
+  "no",
+  "never",
+  "without",
+  "nothing",
+  "none",
+  "cannot",
+  ...contraction,
+  ...contraction.map((word) => word.replaceAll("'", "")),
+]);
+
+const isNegator = (word: string) => word.includes("n't") || negators.has(word);
 
 // Reduces a word to a rough singular so "knee" matches "both knees" and
 // "foot" matches "feet". English only; anything else fails closed.
@@ -121,15 +157,43 @@ const singular = (word: string) =>
       ? word.slice(0, -1)
       : word);
 
+const sameWord = (said: string, want: string) =>
+  said === want || singular(said) === singular(want);
+
+// True when every wanted word occurs, and no negator stands before it.
+// "my left knee isn't burning" keeps the knee and drops "burning".
+function covers(words: string[], needed: string[]) {
+  return needed.every((want) => {
+    const at = words.findIndex((said) => sameWord(said, want));
+    return at >= 0 && !words.slice(0, at).some(isNegator);
+  });
+}
+
+function tokens(clause: string) {
+  return normalize(clause).split(" ").filter(Boolean);
+}
+
+// Punctuation separates clauses. "and", "but", "or", and "though" do too, so
+// a denial on one side does not cancel the other. Words joined only by those
+// conjunctions still count as together ("left knee and ankle").
+function clauseGrounds(clause: string, needed: string[]) {
+  const soft = clause
+    .split(/\b(?:and|but|or|though)\b/i)
+    .map(tokens)
+    .filter((words) => words.length);
+  if (soft.some((words) => covers(words, needed))) return true;
+  const affirmative = soft.filter((words) => !words.some(isNegator));
+  return covers(affirmative.flat(), needed);
+}
+
 export function grounded(value: string, transcript: string) {
-  const words = normalize(value)
+  const needed = normalize(value)
     .split(" ")
     .filter((word) => word && !stop.has(word));
-  if (!words.length) return false;
-  const said = normalize(transcript).split(" ");
-  const exact = new Set(said);
-  const singles = new Set(said.map(singular));
-  return words.every((word) => exact.has(word) || singles.has(singular(word)));
+  if (!needed.length) return false;
+  return transcript
+    .split(/[.!?;:,\n]+/)
+    .some((clause) => clause.trim() && clauseGrounds(clause, needed));
 }
 
 export type LocationResult =
@@ -185,9 +249,32 @@ const numberWords = [
   "ten",
 ];
 
-function mentionsNumber(transcript: string, value: number) {
-  const text = normalize(transcript);
-  return new RegExp(`\\b(?:${value}|${numberWords[value]})\\b`).test(text);
+// Intensity counts only when the person stated that number as a rating.
+// "3 days ago", "5 miles", and "at 7 am" are not ratings. When unsure, drop it
+// so the follow-up question can ask.
+function statesRating(transcript: string, value: number) {
+  if (!Number.isInteger(value) || value < 0 || value > 10) return false;
+  const text = transcript
+    .toLowerCase()
+    .replace(/[’']/g, "'")
+    .replace(/[^a-z0-9'/ ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const number = `\\b(?:${value}|${numberWords[value]})\\b`;
+  const unit =
+    "day|days|week|weeks|month|months|year|years|hour|hours|minute|minutes|mile|miles|km|time|times|am|pm|o'clock";
+  const notAUnit = `(?!\\s+(?:${unit})\\b)`;
+  return new RegExp(
+    [
+      `${number}\\s+out\\s+of\\s+(?:10|ten)\\b`,
+      `${number}\\s*/\\s*10\\b`,
+      `\\b(?:a|an)\\s+${number}${notAUnit}`,
+      `\\bpain\\s+is\\s+${number}${notAUnit}`,
+      `\\brated\\s+it\\s+${number}${notAUnit}`,
+      `\\blevel\\s+${number}${notAUnit}`,
+      `\\bintensity\\s+${number}${notAUnit}`,
+    ].join("|"),
+  ).test(text);
 }
 
 export function parseIntensityAnswer(answer: string): number | null {
@@ -227,7 +314,8 @@ export function localToday(now = new Date()) {
 }
 
 // Resolves common relative phrases against the device's local date. Anything
-// else keeps the person's words without a date.
+// else keeps the person's words without a date. "Earlier" is today only on
+// its own or with this day ("earlier today", "earlier this morning").
 export function resolveOnset(
   phrase: string,
   today: string,
@@ -243,9 +331,8 @@ export function resolveOnset(
   if (/\b(?:yesterday|last night)\b/.test(text))
     return { phrase, date: shift(today, 1) };
   if (
-    /\b(?:today|this morning|this afternoon|this evening|tonight|earlier)\b/.test(
-      text,
-    )
+    text === "earlier" ||
+    /\b(?:today|this morning|this afternoon|this evening|tonight)\b/.test(text)
   )
     return { phrase, date: today };
   const ago = text.match(
@@ -320,7 +407,7 @@ export function buildProposal(
     ),
   ];
   if (qualities.length) fields.quality = qualities.join(", ");
-  if (raw.intensity !== null && mentionsNumber(transcript, raw.intensity))
+  if (raw.intensity !== null && statesRating(transcript, raw.intensity))
     fields.intensity = raw.intensity;
   const activity = grounded(raw.activity, transcript) ? raw.activity : "";
   const surface = grounded(raw.surface, transcript) ? raw.surface : "";

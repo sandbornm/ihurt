@@ -216,6 +216,44 @@ export function spanIn(value: string, transcript: string) {
   return false;
 }
 
+// Clauses split on punctuation and on "but", "pero", "aunque" and "sino", so
+// "no es ardor, es punzante" keeps "punzante" and drops "ardor".
+const clauseBreak =
+  /[.,;:!?¿¡\n]+|\b(?:but|pero|aunque|sino|though|although)\b/;
+// Negation cues in English and Spanish, after normalization (accents gone):
+// "no es", "no me duele", "sin", "nunca", "tampoco", "ni", "ningun".
+const negation =
+  /\b(?:no|not|never|without|none|neither|nor|denies|deny|isn't|wasn't|don't|doesn't|didn't|aren't|weren't|haven't|hasn't|can't|nunca|jamas|sin|tampoco|ni|ningun|ninguna|ninguno|niego|niega|nada)\b|n't\b/;
+
+const clausesOf = (transcript: string) =>
+  transcript
+    .split(clauseBreak)
+    .map((part) => normalize(part ?? ""))
+    .filter(Boolean);
+
+// The span occurs in a clause with no negation. A phrase the person only said
+// in a negated clause, such as "no me duele la rodilla", "sin hormigueo" or
+// "my knee doesn't hurt", is never proposed. A clause with any negation is
+// skipped whole, like the dictation suggestions do, so an unclear clause
+// leads to a question rather than a guess.
+export function affirmedIn(value: string, transcript: string) {
+  const span = normalize(value).split(" ").filter(Boolean);
+  if (!span.length) return false;
+  return clausesOf(transcript).some(
+    (clause) => !negation.test(clause) && spanIn(value, clause),
+  );
+}
+
+// Every word is in the transcript, and the whole phrase is said at least
+// once outside a negated clause.
+const stated = (value: string, transcript: string) =>
+  grounded(value, transcript) &&
+  (spanIn(value, transcript)
+    ? affirmedIn(value, transcript)
+    : !clausesOf(transcript).some(
+        (clause) => grounded(value, clause) && negation.test(clause),
+      ));
+
 export type LocationResult =
   | { status: "mapped"; region: RegionId; spoken: string }
   | { status: "missing" }
@@ -231,7 +269,11 @@ export function mapLocation(
 ): LocationResult {
   const words = spoken.trim();
   if (!words) return { status: "missing" };
-  if (!grounded(words, transcript) || !spanIn(words, transcript))
+  if (
+    !grounded(words, transcript) ||
+    !spanIn(words, transcript) ||
+    !affirmedIn(words, transcript)
+  )
     return { status: "unmapped", spoken: words };
   const parts = partsIn(words);
   if (parts.length === 0) return { status: "unmapped", spoken: words };
@@ -282,12 +324,9 @@ const spanishNumbers = [
   "nueve",
   "diez",
 ];
-const numberPattern = [
-  "10",
-  "[0-9]",
-  ...numberWords,
-  ...spanishNumbers,
-].join("|");
+const numberPattern = ["10", "[0-9]", ...numberWords, ...spanishNumbers].join(
+  "|",
+);
 const numberValue = (word: string) =>
   /^\d+$/.test(word)
     ? Number(word)
@@ -295,11 +334,38 @@ const numberValue = (word: string) =>
       ? numberWords.indexOf(word)
       : spanishNumbers.indexOf(word);
 
-function mentionsNumber(transcript: string, value: number) {
-  const text = normalize(transcript);
-  return new RegExp(
-    `\\b(?:${value}|${numberWords[value]}|${spanishNumbers[value]})\\b`,
-  ).test(text);
+// A number counts as a rating only when it is said as one: "7 out of 10",
+// "7/10", "about a six", "pain is 4", "7 de 10", "un siete", "dolor de 6",
+// "intensidad 5". "3 days ago" or "hace 3 dias" is not a rating, and neither
+// is a number in a negated clause.
+const ratingBefore =
+  /\b(?:about|around|maybe|like|roughly|a|an|is|was|at|rate|rated|rating|level|pain|intensity|un|una|como|es|era|esta|estaba|en|nivel|intensidad|calificacion|dolor|doy|daria|unos|unas)$/;
+const ratingAfter =
+  /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))\b/;
+const notRatingAfter =
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?)\b/;
+
+export function ratedIn(transcript: string, value: number) {
+  if (!Number.isInteger(value) || value < 0 || value > 10) return false;
+  const number = `(?:${value}|${numberWords[value]}|${spanishNumbers[value]})`;
+  const slash = new RegExp(`\\b${value}\\s*/\\s*10\\b`);
+  for (const part of transcript.split(clauseBreak)) {
+    const clause = normalize(part ?? "");
+    if (!clause) continue;
+    const found = new RegExp(`\\b${number}\\b`, "g");
+    for (const match of clause.matchAll(found)) {
+      const before = clause.slice(0, match.index).trim();
+      const after = clause.slice(match.index + match[0].length).trim();
+      if (negation.test(clause) || notRatingAfter.test(after)) continue;
+      if (
+        slash.test(part) ||
+        ratingAfter.test(after) ||
+        ratingBefore.test(before)
+      )
+        return true;
+    }
+  }
+  return false;
 }
 
 export function parseIntensityAnswer(answer: string): number | null {
@@ -362,7 +428,9 @@ export function resolveOnset(
   if (/\b(?:yesterday|last night|ayer|anoche)\b/.test(text))
     return { phrase, date: shift(today, 1) };
   if (
-    /\b(?:today|this morning|this afternoon|this evening|tonight|earlier|hoy|esta manana|esta tarde|esta noche|hace un rato)\b/.test(
+    // A bare "earlier" or "mas temprano" could be any day, so only same-day
+    // phrases resolve to today: "earlier today", "hoy", "hace un rato".
+    /\b(?:today|this morning|this afternoon|this evening|tonight|earlier this (?:morning|afternoon|evening)|a little while ago|hoy|esta manana|esta tarde|esta noche|hace un rato|hace rato|hace unas horas|hace unos minutos|mas temprano hoy)\b/.test(
       text,
     )
   )
@@ -438,7 +506,10 @@ function followUpFor(
   if (location.status === "need-side")
     return {
       key: "side",
-      question: translate(lang, `extraction.ask.side.${location.part}` as MessageKey),
+      question: translate(
+        lang,
+        `extraction.ask.side.${location.part}` as MessageKey,
+      ),
     };
   if (fields.intensity === undefined)
     return {
@@ -468,21 +539,21 @@ export function buildProposal(
   for (const quality of raw.qualities) {
     const word = display(quality);
     const key = normalize(word);
-    if (!key || seen.has(key) || !grounded(word, transcript)) continue;
+    if (!key || seen.has(key) || !stated(word, transcript)) continue;
     seen.add(key);
     qualities.push(word);
   }
   if (qualities.length) fields.quality = qualities.join(", ");
-  if (raw.intensity !== null && mentionsNumber(transcript, raw.intensity))
+  if (raw.intensity !== null && ratedIn(transcript, raw.intensity))
     fields.intensity = raw.intensity;
-  const activity = grounded(raw.activity, transcript) ? raw.activity : "";
-  const surface = grounded(raw.surface, transcript) ? raw.surface : "";
+  const activity = stated(raw.activity, transcript) ? raw.activity : "";
+  const surface = stated(raw.surface, transcript) ? raw.surface : "";
   if (activity)
     fields.activity = surface
       ? translate(lang, "extraction.activityOn", { activity, surface })
       : activity;
   let onset: PainProposal["onset"];
-  if (grounded(raw.onsetPhrase, transcript)) {
+  if (stated(raw.onsetPhrase, transcript)) {
     onset = resolveOnset(raw.onsetPhrase, today);
     fields.duration = onset.date
       ? translate(lang, "extraction.sinceDate", {

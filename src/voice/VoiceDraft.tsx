@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Square, X } from "lucide-react";
 import { nativeSpeech } from "../platform/speech";
+import { onDeviceAI } from "../platform/on-device-ai";
 import { isNativeApp } from "../platform/files";
 import { regionName, type SavedMap } from "../types";
 import VisitorCheck from "../VisitorCheck";
@@ -10,6 +11,16 @@ import {
   type DraftFields,
   type VoiceDraftValue,
 } from "./draft";
+import {
+  anatomyList,
+  answerFollowUp,
+  buildProposal,
+  confirmProposal,
+  describeLocation,
+  localToday,
+  proposedRegion,
+  type PainProposal,
+} from "./extraction";
 import { startRecording, toWav, type Recording } from "./recording";
 import "./voice.css";
 
@@ -90,6 +101,17 @@ function VoiceEditor({
     },
   );
   const speech = useRef(nativeSpeech()).current;
+  const ai = useRef(onDeviceAI()).current;
+  const [aiReady, setAiReady] = useState(false);
+  // The proposal stays in this panel's state. It is not autosaved and nothing
+  // from it reaches the entry until "Add to entry".
+  const [proposal, setProposal] = useState<PainProposal | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const [pin, setPin] = useState(true);
+  const extraction = useRef(0);
+  const textRef = useRef(text);
+  textRef.current = text;
   const recording = useRef<Recording | null>(null);
   const upload = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -103,6 +125,10 @@ function VoiceEditor({
     Math.max(1, session?.max_audio_seconds ?? 60),
   );
   const suggestions = useMemo(() => suggestVoiceDraft(text), [text]);
+  const live =
+    proposal && proposal.transcript === text.trim() ? proposal : null;
+  const shownFields = live ? live.fields : suggestions.fields;
+  const liveRegion = live ? proposedRegion(live) : null;
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
@@ -116,6 +142,9 @@ function VoiceEditor({
     upload.current?.abort();
     upload.current = null;
     void speech?.cancel().catch(() => {});
+    extraction.current++;
+    setExtracting(false);
+    void ai?.stopSpeaking().catch(() => {});
   }
   useEffect(() => {
     dialog.current?.showModal();
@@ -132,6 +161,13 @@ function VoiceEditor({
               "On-device speech is unavailable. Type or paste a transcript below."),
       );
     };
+    if (ai && native)
+      void ai
+        .isAvailable()
+        .then((state) => {
+          if (active) setAiReady(state.available);
+        })
+        .catch(() => {});
     void (async () => {
       try {
         if (speech) {
@@ -193,6 +229,10 @@ function VoiceEditor({
     if (!available || busy) return;
     const current = ++generation.current;
     previousText.current = text;
+    extraction.current++;
+    setExtracting(false);
+    setProposal(null);
+    void ai?.stopSpeaking().catch(() => {});
     setError("");
     setSeconds(0);
     setMode("starting");
@@ -277,14 +317,71 @@ function VoiceEditor({
         setMode("idle");
         setChallenge("");
         setNonce((value) => value + 1);
+        if (speech) void propose(textRef.current);
       }
     }
+  }
+
+  async function propose(transcript: string) {
+    const value = transcript.trim();
+    if (!ai || !aiReady || !value) return;
+    const current = ++extraction.current;
+    setExtracting(true);
+    setProposal(null);
+    setAnswer("");
+    try {
+      const today = localToday();
+      const raw = await ai.extractPainEntry({
+        transcript: value,
+        anatomyList,
+        today,
+      });
+      if (extraction.current !== current) return;
+      const next = buildProposal(raw, value, today);
+      setProposal(next);
+      setPin(next.location.status === "mapped");
+      if (next.followUp) void ai.speak(next.followUp.question).catch(() => {});
+    } catch (caught) {
+      if (extraction.current === current)
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Apple Intelligence could not read this note. You can still add it as text.",
+        );
+    } finally {
+      if (extraction.current === current) setExtracting(false);
+    }
+  }
+
+  function submitAnswer(skip = false) {
+    if (!live) return;
+    void ai?.stopSpeaking().catch(() => {});
+    const next = answerFollowUp(live, skip ? "" : answer);
+    setProposal(next);
+    setText(next.transcript);
+    setAnswer("");
+    setPin(next.location.status === "mapped");
   }
   stopLatest.current = () => {
     void stop();
   };
 
   function apply() {
+    if (live) {
+      try {
+        // "Add to entry" is the explicit confirmation of the proposal.
+        onApply(confirmProposal(live, { confirmed: true, fields, pin }));
+        void ai?.stopSpeaking().catch(() => {});
+        close();
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "The draft could not be added.",
+        );
+      }
+      return;
+    }
     const chosen: DraftFields = {};
     for (const key of Object.keys(suggestions.fields) as (keyof DraftFields)[])
       if (fields[key])
@@ -324,12 +421,12 @@ function VoiceEditor({
       <p>
         {native
           ? "Apple speech recognition runs on your device. Review the words before adding them."
-          : `Stopping or reaching the ${maxSeconds}-second limit sends audio to ${session?.transcription_provider ?? "ElevenLabs"}. Its retention policy applies.`}
+          : `Stopping or reaching the ${maxSeconds}-second limit sends audio to ${session?.transcription_provider ?? "the transcription service"}. Its retention policy applies.`}
       </p>
-      {!native && (
+      {!native && session?.transcription_provider && (
         <a
           href={
-            session?.transcription_provider === "OpenAI"
+            session.transcription_provider === "OpenAI"
               ? "https://openai.com/policies/privacy-policy/"
               : "https://elevenlabs.io/privacy-policy"
           }
@@ -404,10 +501,84 @@ function VoiceEditor({
         rows={5}
         placeholder="My left calf feels tight, four out of ten. Activity: running. Duration: since yesterday."
       />
-      {Object.keys(suggestions.fields).length > 0 && (
+      {aiReady && (extracting || live || text.trim()) && (
+        <section className="voice-proposal" aria-live="polite">
+          <h3>Suggested from your words</h3>
+          {extracting ? (
+            <p>Reading your note on this device…</p>
+          ) : live ? (
+            <>
+              <p>{describeLocation(live.location)}</p>
+              {liveRegion && (
+                <label className="voice-field">
+                  <input
+                    type="checkbox"
+                    checked={pin}
+                    onChange={(event) => setPin(event.target.checked)}
+                  />{" "}
+                  <span>
+                    Propose a pin on {regionName(liveRegion)}. You confirm it on
+                    the body.
+                  </span>
+                </label>
+              )}
+              {live.followUp && !live.asked && (
+                <div className="voice-follow-up">
+                  <label htmlFor="voice-follow-up">
+                    {live.followUp.question}
+                  </label>
+                  <input
+                    id="voice-follow-up"
+                    value={answer}
+                    maxLength={300}
+                    onChange={(event) => setAnswer(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && answer.trim()) {
+                        event.preventDefault();
+                        submitAnswer();
+                      }
+                    }}
+                  />
+                  <div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={!answer.trim()}
+                      onClick={() => submitAnswer()}
+                    >
+                      Answer
+                    </button>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => submitAnswer(true)}
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || !text.trim()}
+              onClick={() => void propose(text)}
+            >
+              Suggest fields
+            </button>
+          )}
+          <p className="subtle">
+            Runs on this device. It uses only what you said and saves nothing
+            until you add it.
+          </p>
+        </section>
+      )}
+      {Object.keys(shownFields).length > 0 && (
         <fieldset>
           <legend>Fill these fields</legend>
-          {Object.entries(suggestions.fields).map(([key, value]) => (
+          {Object.entries(shownFields).map(([key, value]) => (
             <label className="voice-field" key={key}>
               <input
                 type="checkbox"
@@ -427,7 +598,7 @@ function VoiceEditor({
           ))}
         </fieldset>
       )}
-      {suggestions.locations.length > 0 && (
+      {!live && suggestions.locations.length > 0 && (
         <label>
           Locate an area after adding the note
           <select
@@ -459,7 +630,7 @@ function VoiceEditor({
       <button
         type="button"
         className="primary"
-        disabled={!text.trim() || busy}
+        disabled={!text.trim() || busy || extracting}
         onClick={apply}
       >
         Add to entry

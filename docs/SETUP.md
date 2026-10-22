@@ -82,11 +82,12 @@ Setup creates a private `.env` without overwriting existing keys. Put the Grok k
 
 ## Optional voice drafts
 
-Web recording uses ElevenLabs through the local Python server. Follow the
+Web recording is off by default. To opt in to ElevenLabs through the local
+Python server, follow the
 [voice setup guide](VOICE.md#web-and-local-server) for key permissions, `.env`
 settings, costs, and a check that makes no paid request. Voice works with
 `LLM_PROVIDER=demo`; you do not need another AI provider. Typed voice drafts and
-Apple on-device speech on supported iPhones do not need an ElevenLabs key.
+Apple on-device speech and Apple Intelligence on supported iPhones need no key.
 
 ## Troubleshooting
 

@@ -2,6 +2,7 @@ import {
   Group,
   InstancedMesh,
   Matrix4,
+  Mesh,
   MeshBasicMaterial,
   SphereGeometry,
 } from "three";
@@ -44,5 +45,35 @@ export class PinMarkers extends Group {
     this.geometry.dispose();
     this.material.dispose();
     this.clear();
+  }
+}
+
+// A pin proposed from voice. Drawn hollow and blue, apart from saved pins, and
+// never part of the entry until the person confirms it.
+export class ProposedPinMarker extends Mesh<SphereGeometry, MeshBasicMaterial> {
+  constructor() {
+    super(
+      new SphereGeometry(0.06, 16, 12),
+      new MeshBasicMaterial({
+        color: "#7fb0ff",
+        wireframe: true,
+        transparent: true,
+        opacity: 0.85,
+        depthTest: false,
+      }),
+    );
+    this.name = "proposed-pin";
+    this.visible = false;
+    this.renderOrder = 10;
+  }
+
+  place(position: readonly number[] | null) {
+    this.visible = !!position;
+    if (position) this.position.set(position[0], position[1], position[2]);
+  }
+
+  dispose() {
+    this.geometry.dispose();
+    this.material.dispose();
   }
 }

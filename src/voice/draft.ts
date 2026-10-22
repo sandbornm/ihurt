@@ -7,6 +7,9 @@ export type VoiceDraftValue = {
   text: string;
   fields: DraftFields;
   region?: RegionId;
+  // Set only by the on-device proposal: show a proposed pin that still needs
+  // its own confirmation in the region callout.
+  proposePin?: boolean;
 };
 
 const numbers = [

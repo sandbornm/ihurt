@@ -196,6 +196,33 @@ overwrite a new draft. Try dictation while Hands is enabled to check audio-sessi
 and camera coexistence. Simulator compilation and mocked adapter tests do not
 validate recognition quality, language assets, or microphone behavior.
 
+### Apple Intelligence suggestions
+
+`AppleIntelligencePlugin.swift` exposes `isAvailable`, `extractPainEntry`,
+`speak`, and `stopSpeaking`. Extraction uses Foundation Models guided generation
+(`@Generable`) on iOS 26 and later and is compiled only when the SDK provides
+`FoundationModels`. Older systems, ineligible devices, or Apple Intelligence
+turned off report unavailable, and the voice panel keeps the plain transcript flow.
+Nothing leaves the device and no key is involved.
+
+The model only quotes the note. `src/voice/extraction.ts` treats its output as
+untrusted and keeps a field only when its words appear in the transcript. A body
+area must map to one id in the fixed anatomy list (toe, heel, and arch map to the
+foot; finger, thumb, and palm to the wrist and hand). A sport or surface never
+implies a location. Unknown areas, a missing side, or two areas become one short
+question. Relative start dates such as "yesterday" or "last Saturday" resolve
+against the device's local date in TypeScript, not in the model.
+
+The proposal lives only in the voice panel's state. "Add to entry" confirms the
+note and fields. A proposed pin is then drawn as a hollow blue marker, separate
+from saved pins, and becomes a pin only after **Confirm pin** in the region
+callout. Selecting another region or **Dismiss** drops it.
+
+There is no Swift unit test target. `tests/on-device-extraction.test.ts` covers
+mapping, laterality, dates, the follow-up, and the confirm gates. Test extraction
+quality, spoken questions, and audio-session handoff with dictation on a real
+Apple Intelligence device; the simulator build only proves compilation.
+
 ### Shared app and native adapters
 
 - `src/platform/files.ts` is the framework-free export adapter used by Notebook.

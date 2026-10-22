@@ -27,7 +27,7 @@ def test_elevenlabs_request_uses_only_speech_endpoint_and_validates_response(mon
 
 def test_transcription_consent_limits_and_errors_do_not_expose_content(tmp_path, monkeypatch):
     settings = Settings(_env_file=None, database_path=tmp_path / "usage.sqlite3", session_secret="test-" * 10,
-                        elevenlabs_api_key="test-not-a-real-key", daily_budget_usd=Decimal("0.03"))
+                        transcription_provider="elevenlabs", elevenlabs_api_key="test-not-a-real-key", daily_budget_usd=Decimal("0.03"))
     calls = []
     async def transcribe(self, audio):
         calls.append(audio)
@@ -55,3 +55,14 @@ def test_transcription_consent_limits_and_errors_do_not_expose_content(tmp_path,
         assert client.post("/api/transcribe", data=fields, files=files).status_code == 429
         assert len(calls) == 1
         assert b"PRIVATE" not in settings.database_path.read_bytes()
+
+
+def test_transcription_is_off_by_default_even_with_a_key(tmp_path):
+    settings = Settings(_env_file=None, database_path=tmp_path / "usage.sqlite3", session_secret="test-" * 10,
+                        elevenlabs_api_key="test-not-a-real-key")
+    assert settings.transcription_provider == "off"
+    with TestClient(create_app(settings)) as client:
+        client.headers["Origin"] = "http://localhost:5173"
+        session = client.get("/api/session").json()
+        assert session["transcription_available"] is False
+        assert session["transcription_provider"] is None

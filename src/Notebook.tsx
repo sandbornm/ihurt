@@ -46,6 +46,7 @@ import {
 } from "./export";
 import { isNativeApp } from "./platform/files";
 import { applyVoiceDraft } from "./voice/draft";
+import { proposedPinStep, type ProposedPinAction } from "./voice/extraction";
 import type { VoiceDraftProps } from "./voice/VoiceDraft";
 import type { ViewportCapture } from "./anatomy/capture";
 import {
@@ -151,6 +152,8 @@ export default function Notebook({
     ),
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">(example ? "back" : "front");
+  // Unconfirmed pin proposed from voice. Kept out of the autosaved draft.
+  const [proposedPin, setProposedPin] = useState<RegionId | null>(null);
   const [command, setCommand] = useState({ type: "", id: 0 }),
     [landmarks, setLandmarks] = useState(false);
   const [readingSources, setReadingSources] = useState(recommendedSources);
@@ -304,6 +307,18 @@ export default function Notebook({
     const id = setTimeout(() => setToast(""), 6000);
     return () => clearTimeout(id);
   }, [toast]);
+  function proposal(step: ProposedPinAction) {
+    const next = proposedPinStep(proposedPin, step);
+    setProposedPin(next.state);
+    if (next.command) action(next.command);
+  }
+  useEffect(() => {
+    setProposedPin(
+      (current) =>
+        proposedPinStep(current, { type: "select", region: selected }).state,
+    );
+  }, [selected]);
+  useEffect(() => setProposedPin(null), [entry.id]);
   function selectRegion(id: RegionId) {
     setSelected(id);
     setView(id.includes("back") ? "back" : "front");
@@ -910,6 +925,7 @@ export default function Notebook({
                         view={view}
                         command={command}
                         onSelect={setSelected}
+                        proposed={proposedPin}
                         points={points}
                         onPoint={(point) => {
                           setPoints((old) => [...old, point]);
@@ -982,28 +998,55 @@ export default function Notebook({
                 </div>
                 {selected && (
                   <div className="region-callout">
-                    <span className="callout-dot" />
+                    <span
+                      className={
+                        proposedPin === selected
+                          ? "callout-dot proposed"
+                          : "callout-dot"
+                      }
+                    />
                     <div>
                       <span>
-                        {result?.regions.includes(selected)
-                          ? "REPORTED REGION"
-                          : "SELECTED REGION"}
+                        {proposedPin === selected
+                          ? "PROPOSED PIN · NOT PLACED"
+                          : result?.regions.includes(selected)
+                            ? "REPORTED REGION"
+                            : "SELECTED REGION"}
                       </span>
                       <strong>{regionName(selected)}</strong>
                     </div>
-                    <button
-                      title="Focus on region"
-                      aria-label="Focus on selected region"
-                      onClick={() => action("focus")}
-                    >
-                      <span>Focus</span>
-                    </button>
-                    <button
-                      onClick={() => action("pin-center")}
-                      aria-label="Add pin in selected region"
-                    >
-                      <Plus size={14} /> Add pin
-                    </button>
+                    {proposedPin === selected ? (
+                      <>
+                        <button
+                          onClick={() => proposal({ type: "confirm" })}
+                          aria-label="Confirm proposed pin"
+                        >
+                          <Plus size={14} /> Confirm pin
+                        </button>
+                        <button
+                          onClick={() => proposal({ type: "dismiss" })}
+                          aria-label="Dismiss proposed pin"
+                        >
+                          <span>Dismiss</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          title="Focus on region"
+                          aria-label="Focus on selected region"
+                          onClick={() => action("focus")}
+                        >
+                          <span>Focus</span>
+                        </button>
+                        <button
+                          onClick={() => action("pin-center")}
+                          aria-label="Add pin in selected region"
+                        >
+                          <Plus size={14} /> Add pin
+                        </button>
+                      </>
+                    )}
                     <button
                       title="Clear selection"
                       aria-label="Clear selection"
@@ -1128,6 +1171,13 @@ export default function Notebook({
                             if (draft.region) {
                               selectRegion(draft.region);
                               action("focus");
+                              if (draft.proposePin)
+                                setProposedPin(
+                                  proposedPinStep(null, {
+                                    type: "propose",
+                                    region: draft.region,
+                                  }).state,
+                                );
                             }
                             setToast(
                               "Voice draft added. Review your entry, then save it.",

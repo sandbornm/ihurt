@@ -47,17 +47,17 @@
   "overall": {
     "cases": 138,
     "oneShot": {
-      "hit": 97,
+      "hit": 98,
       "total": 113,
-      "rate": 0.8584070796460177
+      "rate": 0.8672566371681416
     },
     "falseFillCases": 0,
     "falseFillRate": 0,
     "wrongValueFills": 0,
-    "followUpAsked": 25,
-    "followUpRate": 0.18115942028985507,
-    "followUpCorrect": 134,
-    "followUpAccuracy": 0.9710144927536232,
+    "followUpAsked": 24,
+    "followUpRate": 0.17391304347826086,
+    "followUpCorrect": 135,
+    "followUpAccuracy": 0.9782608695652174,
     "fields": {
       "location": {
         "correct": 106,
@@ -172,17 +172,17 @@
     "es": {
       "cases": 58,
       "oneShot": {
-        "hit": 41,
+        "hit": 42,
         "total": 48,
-        "rate": 0.8541666666666666
+        "rate": 0.875
       },
       "falseFillCases": 0,
       "falseFillRate": 0,
       "wrongValueFills": 0,
-      "followUpAsked": 12,
-      "followUpRate": 0.20689655172413793,
-      "followUpCorrect": 56,
-      "followUpAccuracy": 0.9655172413793104,
+      "followUpAsked": 11,
+      "followUpRate": 0.1896551724137931,
+      "followUpCorrect": 57,
+      "followUpAccuracy": 0.9827586206896551,
       "fields": {
         "location": {
           "correct": 45,
@@ -347,13 +347,6 @@
       "id": "es-036",
       "reasons": [
         "activity got null, expected correr"
-      ]
-    },
-    {
-      "id": "es-038",
-      "reasons": [
-        "location got null/need-side/null, expected null/both/both",
-        "follow-up got side, expected none"
       ]
     },
     {

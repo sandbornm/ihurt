@@ -47,12 +47,12 @@
   "overall": {
     "cases": 138,
     "oneShot": {
-      "hit": 51,
+      "hit": 52,
       "total": 113,
-      "rate": 0.45132743362831856
+      "rate": 0.46017699115044247
     },
-    "falseFillCases": 8,
-    "falseFillRate": 0.057971014492753624,
+    "falseFillCases": 7,
+    "falseFillRate": 0.050724637681159424,
     "wrongValueFills": 2,
     "followUpAsked": 23,
     "followUpRate": 0.16666666666666666,
@@ -88,20 +88,20 @@
       },
       "onset": {
         "correct": 65,
-        "fills": 68,
+        "fills": 67,
         "expected": 74,
-        "falseFill": 3,
+        "falseFill": 2,
         "wrongValue": 0,
-        "precision": 0.9558823529411765,
+        "precision": 0.9701492537313433,
         "recall": 0.8783783783783784
       },
       "activity": {
         "correct": 18,
-        "fills": 22,
+        "fills": 21,
         "expected": 24,
-        "falseFill": 3,
+        "falseFill": 2,
         "wrongValue": 1,
-        "precision": 0.8181818181818182,
+        "precision": 0.8571428571428571,
         "recall": 0.75
       }
     }
@@ -172,12 +172,12 @@
     "es": {
       "cases": 58,
       "oneShot": {
-        "hit": 31,
+        "hit": 32,
         "total": 48,
-        "rate": 0.6458333333333334
+        "rate": 0.6666666666666666
       },
-      "falseFillCases": 6,
-      "falseFillRate": 0.10344827586206896,
+      "falseFillCases": 5,
+      "falseFillRate": 0.08620689655172414,
       "wrongValueFills": 1,
       "followUpAsked": 12,
       "followUpRate": 0.20689655172413793,
@@ -213,20 +213,20 @@
         },
         "onset": {
           "correct": 30,
-          "fills": 32,
+          "fills": 31,
           "expected": 30,
-          "falseFill": 2,
+          "falseFill": 1,
           "wrongValue": 0,
-          "precision": 0.9375,
+          "precision": 0.967741935483871,
           "recall": 1
         },
         "activity": {
           "correct": 6,
-          "fills": 9,
+          "fills": 8,
           "expected": 8,
-          "falseFill": 3,
+          "falseFill": 2,
           "wrongValue": 0,
-          "precision": 0.6666666666666666,
+          "precision": 0.75,
           "recall": 0.75
         }
       }
@@ -733,18 +733,9 @@
       ]
     },
     {
-      "id": "es-053",
-      "reasons": [
-        "activity got correr, expected null",
-        "false fill activity"
-      ]
-    },
-    {
       "id": "es-054",
       "reasons": [
-        "onset got 2026-10-21, expected null",
         "activity got ir al gimnasio, expected null",
-        "false fill onset",
         "false fill activity"
       ]
     },

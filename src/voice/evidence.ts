@@ -12,6 +12,7 @@ import {
   phraseTokens,
   ratedIn,
   resolveOnset,
+  sideAt,
   sideIn,
   type LocationResult,
 } from "./extraction.ts";
@@ -191,8 +192,8 @@ function sideSpans(value: string, transcript: string): TokenSpan[] {
   return found;
 }
 
-// The matched word has to be a side in this spot. "right" inside "right now"
-// or "all right", and "left" as a verb, do not count.
+// The matched word has to be a side in this spot. "right now", "all right",
+// and the verb "left" do not count.
 function realSideAt(
   transcript: string,
   at: TokenSpan,
@@ -200,23 +201,9 @@ function realSideAt(
 ) {
   if (side === "both") return true;
   const said = phraseTokens(transcript);
-  for (let index = at.start; index < at.end; index++) {
-    const word = said[index];
-    const prev = said[index - 1] ?? "";
-    const next = said[index + 1] ?? "";
-    if (side === "right" && (word === "right" || /^derech/.test(word))) {
-      if (next === "now" || next === "away" || next === "after") return false;
-      if (prev === "all" || prev === "todo" || prev === "siga" || prev === "sigue")
-        return false;
-    }
-    if (side === "left" && word === "left") {
-      if (["pain", "i", "we", "he", "she", "they", "it"].includes(prev))
-        return false;
-      if (["my", "the", "a", "an", "his", "her", "our", "their"].includes(next))
-        return false;
-    }
-  }
-  return true;
+  for (let index = at.start; index < at.end; index++)
+    if (sideAt(said, index) === side) return true;
+  return false;
 }
 
 const sideOnlyWord =
@@ -311,12 +298,47 @@ function sidesInRange(
           : null;
     if (!side) continue;
     const at = { start: index, end: index + 1 };
-    if (!realSideAt(transcript, at, side) || !sideReachable(part, at, transcript))
+    if (
+      !realSideAt(transcript, at, side) ||
+      !sideReachable(part, at, transcript)
+    )
       continue;
     if (!grounded(word, transcript, true)) continue;
     sides.add(side);
   }
   return sides;
+}
+
+function bothSpans(transcript: string): TokenSpan[] {
+  const said = phraseTokens(transcript);
+  const found: TokenSpan[] = [];
+  for (let index = 0; index < said.length; index++) {
+    const word = said[index];
+    if (word === "both" || word === "ambos" || word === "ambas")
+      found.push({ start: index, end: index + 1 });
+    if ((word === "los" || word === "las") && said[index + 1] === "dos")
+      found.push({ start: index, end: index + 2 });
+  }
+  return found;
+}
+
+// "both knees", "las dos rodillas", "ambas rodillas", "ambos tobillos".
+// The both-word has to modify this part. "both braces and my knee" does not,
+// and neither does "a las dos".
+function bothAttached(item: Candidate, transcript: string) {
+  const clause = clauseAt(transcript, item.at);
+  if (!clause || partsIn(clause.text).length !== 1) return false;
+  const said = phraseTokens(transcript);
+  return bothSpans(transcript).some((at) => {
+    if (!sideReachable(item.at, at, transcript)) return false;
+    const gap =
+      at.end <= item.at.start
+        ? said.slice(at.end, item.at.start)
+        : item.at.end <= at.start
+          ? said.slice(item.at.end, at.start)
+          : [];
+    return gap.every((word) => sideOnlyWord.test(word));
+  });
 }
 
 // The model omitted sideEvidence, but this clause has one part and one real
@@ -330,7 +352,12 @@ function clauseSide(item: Candidate, transcript: string) {
   if (!sides.size) {
     for (const other of clauseBounds(transcript)) {
       if (other.start === clause.start || !sideOnlyClause(other.text)) continue;
-      for (const side of sidesInRange(transcript, other.start, other.end, item.at))
+      for (const side of sidesInRange(
+        transcript,
+        other.start,
+        other.end,
+        item.at,
+      ))
         sides.add(side);
     }
   }
@@ -346,6 +373,7 @@ function attachedSide(item: Candidate, transcript: string) {
     (item.sideEvidence
       ? sideFromPhrase(item.sideEvidence, item, transcript)
       : null) ??
+    (bothAttached(item, transcript) ? ("both" as const) : null) ??
     clauseSide(item, transcript)
   );
 }
@@ -359,6 +387,8 @@ function locateOne(item: Candidate, transcript: string): LocationResult {
   const located = mapLocation(item.evidence, modelSide, transcript);
   // The side span was checked above. The rest of the note may still contain
   // the side they corrected away, so the transcript-wide fallback cannot see it.
+  if (located.status === "need-side" && side === "both")
+    return { status: "both", spoken: item.evidence, side: "both" };
   if (located.status === "need-side" && (side === "left" || side === "right")) {
     const region = `${side}_${located.part}`;
     if ((anatomyList as readonly string[]).includes(region))
@@ -716,12 +746,14 @@ function momentPhrase(phrase: string) {
 // "can't walk" and "no pude ayer" did not happen. "I ran but I couldn't play
 // tennis" still keeps "ran", because a verb follows the inability.
 const blockedActivity =
-  /\b(?:can't|cannot|couldn't|cant|couldnt|no puedo|no pude|no podia|no podria)\b/;
+  /\b(?:can't|cannot|couldn't|won't|wouldn't|cant|couldnt|wont|wouldnt|no puedo|no pude|no podia|no podria)\b/;
 
 function unanswered(after: string[]) {
-  const match = after.join(" ").match(
-    /^(?:but |pero )?(?:i )?(?:can't|cannot|couldn't|cant|couldnt|no puedo|no pude|no podia|no podria)\b(.*)$/,
-  );
+  const match = after
+    .join(" ")
+    .match(
+      /^(?:but |pero )?(?:i )?(?:can't|cannot|couldn't|won't|wouldn't|cant|couldnt|wont|wouldnt|no puedo|no pude|no podia|no podria)\b(.*)$/,
+    );
   if (!match) return false;
   return phraseTokens(match[1]).every(
     (word) => timeWords.has(word) || skipWords.has(word),

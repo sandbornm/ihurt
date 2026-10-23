@@ -115,25 +115,72 @@ export function partsIn(value: string): Part[] {
 const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
 const bothWords = /\b(?:both|ambos|ambas|los dos|las dos)\b/;
+const sideDeterminer = new Set([
+  "the",
+  "on",
+  "my",
+  "your",
+  "his",
+  "her",
+  "our",
+  "their",
+]);
+const verbSubject = new Set(["pain", "i", "we", "he", "she", "they", "it"]);
 
-// "right now", "all right", "todo derecho", and the verb "left" ("I left",
-// "the pain left", "left my brace") are not sides. Mask those before the
-// word test so a real side later in the same note still counts.
-function maskNonSides(text: string) {
-  return text
-    .replace(/\bright (?:now|away|after)\b/g, " ")
-    .replace(/\ball right\b/g, " ")
-    .replace(/\b(?:todo|siga|sigue) derecho\b/g, " ")
-    .replace(/\b(?:pain|i|we|he|she|they|it) left\b/g, " ")
-    .replace(/\bleft (?:my|the|a|an|his|her|our|their)\b/g, " ");
+// "left" is a side when it modifies a part or a side word ("left knee",
+// "left big toe", "the left", "on the left"). "I left work", "the pain left"
+// and "left my brace" are the verb, even with a part later in the object.
+function leftIsSide(words: string[], index: number) {
+  const prev = words[index - 1] ?? "";
+  const next = words[index + 1] ?? "";
+  if (next === "side" || next === "one") return true;
+  if (sideDeterminer.has(prev)) return true;
+  const ahead = words.slice(index + 1, index + 4);
+  if (
+    ahead.some(
+      (word) => sideDeterminer.has(word) || word === "a" || word === "an",
+    )
+  )
+    return false;
+  if (partsIn(ahead.join(" ")).length > 0) return true;
+  return !next && !verbSubject.has(prev);
+}
+
+// One token's side, or null when this spot is an idiom or the verb "left".
+// "right now", "all right" and "todo derecho" are not sides.
+export function sideAt(
+  words: string[],
+  index: number,
+): "left" | "right" | null {
+  const word = words[index] ?? "";
+  const prev = words[index - 1] ?? "";
+  const next = words[index + 1] ?? "";
+  if (word === "left") return leftIsSide(words, index) ? "left" : null;
+  if (/^izquierd/.test(word)) return "left";
+  if (word === "right") {
+    if (next === "now" || next === "away" || next === "after") return null;
+    if (prev === "all") return null;
+    return "right";
+  }
+  if (/^derech/.test(word)) {
+    if (prev === "todo" || prev === "siga" || prev === "sigue") return null;
+    return "right";
+  }
+  return null;
 }
 
 // A side counts only when the person said it. "right now" and "todo derecho"
 // are not sides.
 export function sideIn(value: string): "left" | "right" | "both" | null {
-  const text = maskNonSides(normalize(value));
-  const left = leftWords.test(text),
-    right = rightWords.test(text);
+  const words = phraseTokens(value);
+  const text = words.join(" ");
+  let left = false;
+  let right = false;
+  for (let index = 0; index < words.length; index++) {
+    const side = sideAt(words, index);
+    if (side === "left") left = true;
+    if (side === "right") right = true;
+  }
   if (bothWords.test(text) || (left && right)) return "both";
   return left ? "left" : right ? "right" : null;
 }
@@ -280,6 +327,9 @@ const ability = new Set([
   "nopude",
   "nopodia",
 ]);
+// "no puedo" is rewritten to one token. It denies a quality, an activity or a
+// rating, and it does not deny the body part ("no puedo doblar la rodilla").
+for (const word of ["nopuedo", "nopude", "nopodia"]) negators.add(word);
 const denies = (word: string, part = false) =>
   isNegator(word) && !(part && ability.has(word));
 

@@ -3,7 +3,7 @@
     "es-010" : "May contain unsafe content"
   },
   "metadata" : {
-    "cases" : 115,
+    "cases" : 138,
     "errorCount" : 1,
     "model" : "SystemLanguageModel.default",
     "modelVariant" : "AFM 3 Core Advanced",
@@ -902,6 +902,188 @@
       "surface" : "",
       "today" : "2026-10-22"
     },
+    "en-067" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "left knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-068" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "neck",
+      "side" : "unspecified",
+      "spokenLocation" : "neck",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-069" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "left knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-070" : {
+      "activity" : "",
+      "intensity" : 8,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "Left knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-071" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "Pain on the left side of my knee.",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-072" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-073" : {
+      "activity" : "walk",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "left knee",
+      "surface" : "unknown",
+      "today" : "2026-10-22"
+    },
+    "en-074" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "left knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-075" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-076" : {
+      "activity" : "running",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "right_ankle",
+      "side" : "right",
+      "spokenLocation" : "right ankle",
+      "surface" : "pavement",
+      "today" : "2026-10-22"
+    },
+    "en-077" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "lower_back",
+      "side" : "both",
+      "spokenLocation" : "knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-078" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "lower_back",
+      "side" : "left",
+      "spokenLocation" : "knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-079" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "lower_back",
+      "side" : "left",
+      "spokenLocation" : "knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-080" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "right_knee",
+      "side" : "right",
+      "spokenLocation" : "right knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
     "es-001" : {
       "activity" : "none",
       "intensity" : 5,
@@ -1525,6 +1707,123 @@
       "side" : "unspecified",
       "spokenLocation" : "cuello",
       "surface" : "unknown",
+      "today" : "2026-10-22"
+    },
+    "es-050" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+        "no mucho"
+      ],
+      "region" : "left_knee",
+      "side" : "right",
+      "spokenLocation" : "rodilla",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-051" : {
+      "activity" : "no doblar",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "right_knee",
+      "side" : "right",
+      "spokenLocation" : "rodilla derecha",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-052" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_ankle",
+      "side" : "left",
+      "spokenLocation" : "left ankle",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-053" : {
+      "activity" : "correr",
+      "intensity" : 7,
+      "onsetPhrase" : "hace 3 días",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "rodilla izquierda",
+      "surface" : "unknown",
+      "today" : "2026-10-22"
+    },
+    "es-054" : {
+      "activity" : "ir al gimnasio",
+      "intensity" : -1,
+      "onsetPhrase" : "ayer",
+      "qualities" : [
+
+      ],
+      "region" : "right_shoulder",
+      "side" : "right",
+      "spokenLocation" : "hombro derecho",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-055" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "right",
+      "spokenLocation" : "rodilla",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-056" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "rodilla",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-057" : {
+      "activity" : "sin especificar",
+      "intensity" : 7,
+      "onsetPhrase" : "sin especificar",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "right_knee",
+      "side" : "right",
+      "spokenLocation" : "rodilla derecha",
+      "surface" : "sin especificar",
+      "today" : "2026-10-22"
+    },
+    "es-058" : {
+      "activity" : "pádel",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "right_elbow",
+      "side" : "right",
+      "spokenLocation" : "codo derecho",
+      "surface" : "",
       "today" : "2026-10-22"
     }
   }

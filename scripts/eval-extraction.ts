@@ -6,6 +6,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { regions } from "../src/types.ts";
 import { suggestVoiceDraft } from "../src/voice/draft.ts";
+import { buildProposal as buildLegacyProposal } from "../src/voice/legacy-extraction.ts";
 import { buildProposal } from "../src/voice/extraction.ts";
 import { parseRawExtraction } from "../src/platform/on-device-ai.ts";
 
@@ -79,7 +80,7 @@ export interface MetricBlock {
 
 export interface EvalReport {
   name: string;
-  pipeline: "proposal" | "rules";
+  pipeline: "proposal" | "legacy" | "rules";
   recorded: string | null;
   metadata: unknown;
   cases: number;
@@ -104,7 +105,7 @@ export interface ThresholdBlock {
 
 export interface Thresholds {
   recorded: string;
-  pipeline: "proposal" | "rules";
+  pipeline: "proposal" | "legacy" | "rules";
   overall?: ThresholdBlock;
   byLang?: Partial<Record<Lang, ThresholdBlock>>;
 }
@@ -533,10 +534,20 @@ function summarize(
   };
 }
 
-function proposalActual(raw: unknown, note: string, lang: Lang): Actual {
+function proposalActual(
+  raw: unknown,
+  note: string,
+  lang: Lang,
+  pipeline: "proposal" | "legacy",
+): Actual {
   try {
     const parsed = parseRawExtraction(raw);
-    const proposal = buildProposal(parsed, note, TODAY, lang);
+    // legacy is buildProposal as of 273f429, including its intensity question.
+    // The live proposal path is the evidence verifier and never asks intensity.
+    const proposal =
+      pipeline === "legacy"
+        ? buildLegacyProposal(parsed, note, TODAY, lang)
+        : buildProposal(parsed, note, TODAY, lang);
     return fromProposal(proposal);
   } catch (error) {
     return emptyActual(error instanceof Error ? error.message : String(error));
@@ -569,7 +580,7 @@ function rulesActual(note: string): Actual {
 
 export function scoreCases(
   cases: EvalCase[],
-  pipeline: "proposal" | "rules",
+  pipeline: "proposal" | "legacy" | "rules",
   recorded?: {
     metadata?: unknown;
     outputs?: Record<string, unknown>;
@@ -585,7 +596,7 @@ export function scoreCases(
     let actual: Actual;
     if (pipeline === "rules") actual = rulesActual(item.note);
     else if (outputs[item.id])
-      actual = proposalActual(outputs[item.id], item.note, item.lang);
+      actual = proposalActual(outputs[item.id], item.note, item.lang, pipeline);
     else actual = emptyActual(errors[item.id] ?? "no model output");
     return { item, actual, reasons: reasonsFor(item, actual) };
   });
@@ -594,7 +605,7 @@ export function scoreCases(
 
 export function buildReport(
   name: string,
-  pipeline: "proposal" | "rules",
+  pipeline: "proposal" | "legacy" | "rules",
   recordedName: string | null,
   cases: EvalCase[],
   recorded?: {
@@ -823,9 +834,13 @@ function main() {
     console.log("\nThresholds held.");
     return;
   }
-  if (values.pipeline !== "proposal" && values.pipeline !== "rules") {
+  if (
+    values.pipeline !== "proposal" &&
+    values.pipeline !== "legacy" &&
+    values.pipeline !== "rules"
+  ) {
     console.error(
-      "Usage: npm run eval:extraction -- --pipeline proposal|rules --name <name> [--recorded path] [--check]",
+      "Usage: npm run eval:extraction -- --pipeline proposal|legacy|rules --name <name> [--recorded path] [--check]",
     );
     process.exit(1);
   }
@@ -833,20 +848,22 @@ function main() {
     console.error("Pass --name for the report file.");
     process.exit(1);
   }
-  const recorded =
-    values.pipeline === "proposal"
-      ? readRecorded(
-          values.recorded ??
-            resolve(
-              "tests/fixtures/extraction-eval/recorded",
-              `${values.name}.json`,
-            ),
-        )
-      : undefined;
+  const recordedPath =
+    values.pipeline === "rules"
+      ? null
+      : (values.recorded ??
+        resolve(
+          "tests/fixtures/extraction-eval/recorded",
+          `${values.name}.json`,
+        ));
+  const recorded = recordedPath ? readRecorded(recordedPath) : undefined;
+  const recordedName = recordedPath
+    ? (recordedPath.split("/").pop() ?? "").replace(/\.json$/, "")
+    : null;
   const report = buildReport(
     values.name,
     values.pipeline,
-    values.pipeline === "proposal" ? (values.name ?? null) : null,
+    recordedName,
     cases,
     recorded,
   );

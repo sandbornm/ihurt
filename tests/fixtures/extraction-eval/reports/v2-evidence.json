@@ -3,7 +3,7 @@
   "pipeline": "proposal",
   "recorded": "v2-evidence",
   "metadata": {
-    "cases": 115,
+    "cases": 138,
     "errorCount": 2,
     "model": "SystemLanguageModel.default",
     "modelVariant": "AFM 3 Core Advanced",
@@ -43,39 +43,39 @@
     "supportsSpanish": true,
     "temperature": 0
   },
-  "cases": 115,
+  "cases": 138,
   "overall": {
-    "cases": 115,
+    "cases": 138,
     "oneShot": {
-      "hit": 70,
-      "total": 100,
-      "rate": 0.7
+      "hit": 77,
+      "total": 113,
+      "rate": 0.6814159292035398
     },
-    "falseFillCases": 0,
-    "falseFillRate": 0,
+    "falseFillCases": 5,
+    "falseFillRate": 0.036231884057971016,
     "wrongValueFills": 0,
-    "followUpAsked": 18,
-    "followUpRate": 0.1565217391304348,
-    "followUpCorrect": 108,
-    "followUpAccuracy": 0.9391304347826087,
+    "followUpAsked": 27,
+    "followUpRate": 0.1956521739130435,
+    "followUpCorrect": 124,
+    "followUpAccuracy": 0.8985507246376812,
     "fields": {
       "location": {
-        "correct": 89,
-        "fills": 89,
-        "expected": 95,
-        "falseFill": 0,
+        "correct": 100,
+        "fills": 103,
+        "expected": 108,
+        "falseFill": 3,
         "wrongValue": 0,
-        "precision": 1,
-        "recall": 0.9368421052631579
+        "precision": 0.970873786407767,
+        "recall": 0.9259259259259259
       },
       "intensity": {
         "correct": 39,
         "fills": 39,
-        "expected": 52,
+        "expected": 54,
         "falseFill": 0,
         "wrongValue": 0,
         "precision": 1,
-        "recall": 0.75
+        "recall": 0.7222222222222222
       },
       "quality": {
         "correct": 74,
@@ -88,57 +88,57 @@
       },
       "onset": {
         "correct": 70,
-        "fills": 70,
+        "fills": 71,
         "expected": 74,
-        "falseFill": 0,
+        "falseFill": 1,
         "wrongValue": 0,
-        "precision": 1,
+        "precision": 0.9859154929577465,
         "recall": 0.9459459459459459
       },
       "activity": {
-        "correct": 19,
-        "fills": 19,
-        "expected": 21,
-        "falseFill": 0,
+        "correct": 22,
+        "fills": 24,
+        "expected": 24,
+        "falseFill": 2,
         "wrongValue": 0,
-        "precision": 1,
-        "recall": 0.9047619047619048
+        "precision": 0.9166666666666666,
+        "recall": 0.9166666666666666
       }
     }
   },
   "byLang": {
     "en": {
-      "cases": 66,
+      "cases": 80,
       "oneShot": {
-        "hit": 49,
-        "total": 58,
-        "rate": 0.8448275862068966
+        "hit": 54,
+        "total": 65,
+        "rate": 0.8307692307692308
       },
-      "falseFillCases": 0,
-      "falseFillRate": 0,
+      "falseFillCases": 3,
+      "falseFillRate": 0.0375,
       "wrongValueFills": 0,
-      "followUpAsked": 7,
-      "followUpRate": 0.10606060606060606,
-      "followUpCorrect": 65,
-      "followUpAccuracy": 0.9848484848484849,
+      "followUpAsked": 12,
+      "followUpRate": 0.15,
+      "followUpCorrect": 74,
+      "followUpAccuracy": 0.925,
       "fields": {
         "location": {
-          "correct": 53,
-          "fills": 53,
-          "expected": 55,
-          "falseFill": 0,
+          "correct": 59,
+          "fills": 62,
+          "expected": 62,
+          "falseFill": 3,
           "wrongValue": 0,
-          "precision": 1,
-          "recall": 0.9636363636363636
+          "precision": 0.9516129032258065,
+          "recall": 0.9516129032258065
         },
         "intensity": {
           "correct": 30,
           "fills": 30,
-          "expected": 33,
+          "expected": 34,
           "falseFill": 0,
           "wrongValue": 0,
           "precision": 1,
-          "recall": 0.9090909090909091
+          "recall": 0.8823529411764706
         },
         "quality": {
           "correct": 51,
@@ -159,48 +159,48 @@
           "recall": 0.9545454545454546
         },
         "activity": {
-          "correct": 13,
-          "fills": 13,
-          "expected": 14,
+          "correct": 15,
+          "fills": 15,
+          "expected": 16,
           "falseFill": 0,
           "wrongValue": 0,
           "precision": 1,
-          "recall": 0.9285714285714286
+          "recall": 0.9375
         }
       }
     },
     "es": {
-      "cases": 49,
+      "cases": 58,
       "oneShot": {
-        "hit": 21,
-        "total": 42,
-        "rate": 0.5
+        "hit": 23,
+        "total": 48,
+        "rate": 0.4791666666666667
       },
-      "falseFillCases": 0,
-      "falseFillRate": 0,
+      "falseFillCases": 2,
+      "falseFillRate": 0.034482758620689655,
       "wrongValueFills": 0,
-      "followUpAsked": 11,
-      "followUpRate": 0.22448979591836735,
-      "followUpCorrect": 43,
-      "followUpAccuracy": 0.8775510204081632,
+      "followUpAsked": 15,
+      "followUpRate": 0.25862068965517243,
+      "followUpCorrect": 50,
+      "followUpAccuracy": 0.8620689655172413,
       "fields": {
         "location": {
-          "correct": 36,
-          "fills": 36,
-          "expected": 40,
+          "correct": 41,
+          "fills": 41,
+          "expected": 46,
           "falseFill": 0,
           "wrongValue": 0,
           "precision": 1,
-          "recall": 0.9
+          "recall": 0.8913043478260869
         },
         "intensity": {
           "correct": 9,
           "fills": 9,
-          "expected": 19,
+          "expected": 20,
           "falseFill": 0,
           "wrongValue": 0,
           "precision": 1,
-          "recall": 0.47368421052631576
+          "recall": 0.45
         },
         "quality": {
           "correct": 23,
@@ -213,21 +213,21 @@
         },
         "onset": {
           "correct": 28,
-          "fills": 28,
+          "fills": 29,
           "expected": 30,
-          "falseFill": 0,
+          "falseFill": 1,
           "wrongValue": 0,
-          "precision": 1,
+          "precision": 0.9655172413793104,
           "recall": 0.9333333333333333
         },
         "activity": {
-          "correct": 6,
-          "fills": 6,
-          "expected": 7,
-          "falseFill": 0,
+          "correct": 7,
+          "fills": 9,
+          "expected": 8,
+          "falseFill": 2,
           "wrongValue": 0,
-          "precision": 1,
-          "recall": 0.8571428571428571
+          "precision": 0.7777777777777778,
+          "recall": 0.875
         }
       }
     }
@@ -444,6 +444,86 @@
         "model error Response may contain sensitive or unsafe content",
         "location got null/missing/null, expected right_ankle/mapped/right",
         "activity got null, expected chasing my son"
+      ]
+    },
+    {
+      "id": "en-068",
+      "reasons": [
+        "location got neck/mapped/null, expected null/missing/null",
+        "follow-up got none, expected location",
+        "false fill location"
+      ]
+    },
+    {
+      "id": "en-069",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "en-070",
+      "reasons": [
+        "intensity got null, expected 8"
+      ]
+    },
+    {
+      "id": "en-074",
+      "reasons": [
+        "location got left_knee/mapped/left, expected null/missing/null",
+        "follow-up got none, expected location",
+        "false fill location"
+      ]
+    },
+    {
+      "id": "en-075",
+      "reasons": [
+        "location got left_knee/mapped/left, expected null/need-side/null",
+        "follow-up got none, expected side",
+        "false fill location"
+      ]
+    },
+    {
+      "id": "en-077",
+      "reasons": [
+        "location got null/need-side/null, expected null/missing/null",
+        "follow-up got side, expected location"
+      ]
+    },
+    {
+      "id": "es-052",
+      "reasons": [
+        "location got null/need-side/null, expected left_ankle/mapped/left",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-053",
+      "reasons": [
+        "activity got correr, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-054",
+      "reasons": [
+        "onset got 2026-10-21, expected null",
+        "activity got no pude ayer, expected null",
+        "false fill onset",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-056",
+      "reasons": [
+        "location got null/need-side/null, expected null/missing/null",
+        "follow-up got side, expected location"
+      ]
+    },
+    {
+      "id": "es-057",
+      "reasons": [
+        "intensity got null, expected 7"
       ]
     }
   ]

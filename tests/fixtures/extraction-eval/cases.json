@@ -1984,5 +1984,373 @@
       "activity": null,
       "followUp": "none"
     }
+  },
+  {
+    "id": "en-067",
+    "lang": "en",
+    "note": "My left knee doesn't hurt, it's fine.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "en-068",
+    "lang": "en",
+    "note": "My neck doesn't hurt a bit.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "en-069",
+    "lang": "en",
+    "note": "Nothing hurts except my left knee.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "en-070",
+    "lang": "en",
+    "note": "Left knee, not a 7 but an 8.",
+    "tags": ["regression", "rating"],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 8,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "en-071",
+    "lang": "en",
+    "note": "Pain on the left side of my knee.",
+    "tags": ["regression", "side"],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "en-072",
+    "lang": "en",
+    "note": "My knee hurts on the left.",
+    "tags": ["regression", "side"],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "en-073",
+    "lang": "en",
+    "note": "I can't walk because my left knee is the problem.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "en-074",
+    "lang": "en",
+    "note": "The pain left my knee.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "en-075",
+    "lang": "en",
+    "note": "I slept on the left side. My knee hurts.",
+    "tags": ["regression", "side"],
+    "expect": {
+      "location": null,
+      "locationStatus": "need-side",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": "slept",
+      "followUp": "side"
+    }
+  },
+  {
+    "id": "en-076",
+    "lang": "en",
+    "note": "I ran on pavement and played tennis on clay, now my right ankle aches.",
+    "tags": ["regression", "activity"],
+    "expect": {
+      "location": "right_ankle",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": "played tennis",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "en-077",
+    "lang": "en",
+    "note": "My knee doesn't hurt anymore.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "en-078",
+    "lang": "en",
+    "note": "I left my knee brace at home and my knee hurts.",
+    "tags": ["regression", "side"],
+    "expect": {
+      "location": null,
+      "locationStatus": "need-side",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "side"
+    }
+  },
+  {
+    "id": "en-079",
+    "lang": "en",
+    "note": "My knee hurts, all right?",
+    "tags": ["regression", "side"],
+    "expect": {
+      "location": null,
+      "locationStatus": "need-side",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "side"
+    }
+  },
+  {
+    "id": "en-080",
+    "lang": "en",
+    "note": "My right knee hurts right now.",
+    "tags": ["regression", "side"],
+    "expect": {
+      "location": "right_knee",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "es-050",
+    "lang": "es",
+    "note": "Me duele la rodilla, pero no mucho.",
+    "tags": ["regression", "denial", "need-side"],
+    "expect": {
+      "location": null,
+      "locationStatus": "need-side",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "side"
+    }
+  },
+  {
+    "id": "es-051",
+    "lang": "es",
+    "note": "No puedo doblar la rodilla derecha.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": "right_knee",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "es-052",
+    "lang": "es",
+    "note": "Me duele el tobillo izquierdo, sin hinchazón.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": "left_ankle",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "es-053",
+    "lang": "es",
+    "note": "No puedo correr por la rodilla izquierda.",
+    "tags": ["regression", "denial", "activity"],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "es-054",
+    "lang": "es",
+    "note": "Me duele el hombro derecho, quise ir al gimnasio pero no pude ayer.",
+    "tags": ["regression", "relative-date"],
+    "expect": {
+      "location": "right_shoulder",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "es-055",
+    "lang": "es",
+    "note": "Ya no me duele la rodilla.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "es-056",
+    "lang": "es",
+    "note": "La rodilla no me duele ya.",
+    "tags": ["regression", "denial"],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "es-057",
+    "lang": "es",
+    "note": "Me duele la rodilla derecha, sin duda un 7.",
+    "tags": ["regression", "rating"],
+    "expect": {
+      "location": "right_knee",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 7,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "es-058",
+    "lang": "es",
+    "note": "Jugando al pádel, la raqueta... me duele el codo derecho.",
+    "tags": ["regression", "activity"],
+    "expect": {
+      "location": "right_elbow",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": "pádel",
+      "followUp": "none"
+    }
   }
 ]

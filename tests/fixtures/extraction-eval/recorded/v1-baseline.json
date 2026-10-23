@@ -1,17 +1,17 @@
 {
   "errors" : {
-
+    "es-010" : "May contain unsafe content"
   },
   "metadata" : {
-    "cases" : 100,
-    "errorCount" : 0,
+    "cases" : 115,
+    "errorCount" : 1,
     "model" : "SystemLanguageModel.default",
     "modelVariant" : "AFM 3 Core Advanced",
     "name" : "v1-baseline",
     "osBuild" : "26A434",
     "osProduct" : "27.0.1",
     "osVersionString" : "Version 27.0.1 (Build 26A434)",
-    "recordedAt" : "2026-10-23T00:15:06Z",
+    "recordedAt" : "2026-10-23T00:40:35Z",
     "schema" : "v1",
     "supportedLanguages" : [
       "da",
@@ -49,7 +49,7 @@
       "intensity" : 4,
       "onsetPhrase" : "since yesterday",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "left_knee",
       "side" : "left",
@@ -62,20 +62,20 @@
       "intensity" : 6,
       "onsetPhrase" : "started this morning",
       "qualities" : [
-        "throbbing"
+
       ],
       "region" : "right_ankle",
       "side" : "right",
-      "spokenLocation" : "Right ankle",
+      "spokenLocation" : "Right ankle is throbbing",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-003" : {
       "activity" : "",
-      "intensity" : 7,
+      "intensity" : 1,
       "onsetPhrase" : "since last night",
       "qualities" : [
-        "sharp"
+
       ],
       "region" : "left_shoulder",
       "side" : "left",
@@ -85,34 +85,34 @@
     },
     "en-004" : {
       "activity" : "",
-      "intensity" : -1,
+      "intensity" : 3,
       "onsetPhrase" : "",
       "qualities" : [
 
       ],
       "region" : "lower_back",
       "side" : "unspecified",
-      "spokenLocation" : "lower back",
+      "spokenLocation" : "Lower back",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-005" : {
       "activity" : "sitting at my desk",
       "intensity" : 1,
-      "onsetPhrase" : "after sitting at my desk",
+      "onsetPhrase" : "",
       "qualities" : [
-        "tight"
+
       ],
       "region" : "neck",
       "side" : "unspecified",
       "spokenLocation" : "neck",
-      "surface" : "unknown",
+      "surface" : "",
       "today" : "2026-10-22"
     },
     "en-006" : {
       "activity" : "",
       "intensity" : 5,
-      "onsetPhrase" : "yesterday",
+      "onsetPhrase" : "started yesterday",
       "qualities" : [
         "burning"
       ],
@@ -140,17 +140,17 @@
       "intensity" : 4,
       "onsetPhrase" : "since this morning",
       "qualities" : [
-        "dull"
+
       ],
       "region" : "chest",
-      "side" : "unspecified",
+      "side" : "both",
       "spokenLocation" : "chest",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-009" : {
       "activity" : "",
-      "intensity" : -1,
+      "intensity" : 1,
       "onsetPhrase" : "since the day before yesterday",
       "qualities" : [
 
@@ -164,9 +164,9 @@
     "en-010" : {
       "activity" : "",
       "intensity" : 7,
-      "onsetPhrase" : "a week ago",
+      "onsetPhrase" : "started a week ago",
       "qualities" : [
-        "tight"
+
       ],
       "region" : "right_hip",
       "side" : "right",
@@ -177,14 +177,14 @@
     "en-011" : {
       "activity" : "running",
       "intensity" : -1,
-      "onsetPhrase" : "after I went running",
+      "onsetPhrase" : "",
       "qualities" : [
 
       ],
       "region" : "left_calf",
       "side" : "left",
       "spokenLocation" : "left calf",
-      "surface" : "unknown",
+      "surface" : "",
       "today" : "2026-10-22"
     },
     "en-012" : {
@@ -195,32 +195,32 @@
 
       ],
       "region" : "abdomen",
-      "side" : "unspecified",
+      "side" : "both",
       "spokenLocation" : "abdomen",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-013" : {
       "activity" : "",
-      "intensity" : 3,
+      "intensity" : 1,
       "onsetPhrase" : "3 days ago",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "upper_back",
-      "side" : "left",
+      "side" : "both",
       "spokenLocation" : "Upper back",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-014" : {
       "activity" : "",
-      "intensity" : -1,
-      "onsetPhrase" : "this afternoon",
+      "intensity" : 1,
+      "onsetPhrase" : "since this afternoon",
       "qualities" : [
 
       ],
-      "region" : "right_wrist",
+      "region" : "right_hand",
       "side" : "right",
       "spokenLocation" : "right hand",
       "surface" : "",
@@ -229,26 +229,26 @@
     "en-015" : {
       "activity" : "",
       "intensity" : 8,
-      "onsetPhrase" : "yesterday",
+      "onsetPhrase" : "since yesterday",
       "qualities" : [
-
+        "throbbing"
       ],
       "region" : "left_elbow",
       "side" : "left",
-      "spokenLocation" : "Left elbow",
+      "spokenLocation" : "Left elbow is throbbing",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-016" : {
       "activity" : "walking",
-      "intensity" : 1,
+      "intensity" : 5,
       "onsetPhrase" : "last night",
       "qualities" : [
         "sharp"
       ],
       "region" : "left_thigh",
       "side" : "left",
-      "spokenLocation" : "left thigh",
+      "spokenLocation" : "Pain in my left thigh",
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
@@ -257,11 +257,11 @@
       "intensity" : 1,
       "onsetPhrase" : "since this morning",
       "qualities" : [
-        "tight"
+
       ],
       "region" : "right_shoulder",
       "side" : "right",
-      "spokenLocation" : "Right shoulder blade",
+      "spokenLocation" : "Right shoulder blade is tight",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -281,7 +281,7 @@
     "en-019" : {
       "activity" : "",
       "intensity" : -1,
-      "onsetPhrase" : "this morning",
+      "onsetPhrase" : "",
       "qualities" : [
 
       ],
@@ -293,8 +293,8 @@
     },
     "en-020" : {
       "activity" : "",
-      "intensity" : 1,
-      "onsetPhrase" : "yesterday",
+      "intensity" : 7,
+      "onsetPhrase" : "started yesterday",
       "qualities" : [
         "burning"
       ],
@@ -309,9 +309,9 @@
       "intensity" : 3,
       "onsetPhrase" : "since last night",
       "qualities" : [
-        "throbbing"
+
       ],
-      "region" : "left_wrist",
+      "region" : "left_thumb",
       "side" : "left",
       "spokenLocation" : "left thumb",
       "surface" : "",
@@ -320,13 +320,13 @@
     "en-022" : {
       "activity" : "gardening",
       "intensity" : 5,
-      "onsetPhrase" : "yesterday",
+      "onsetPhrase" : "since yesterday",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "lower_back",
-      "side" : "unspecified",
-      "spokenLocation" : "lower back",
+      "side" : "left",
+      "spokenLocation" : "Lower back",
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
@@ -335,7 +335,7 @@
       "intensity" : 6,
       "onsetPhrase" : "",
       "qualities" : [
-        "tight"
+
       ],
       "region" : "right_knee",
       "side" : "right",
@@ -352,7 +352,7 @@
       ],
       "region" : "neck",
       "side" : "unspecified",
-      "spokenLocation" : "neck",
+      "spokenLocation" : "neck was stiff",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -361,7 +361,7 @@
       "intensity" : 4,
       "onsetPhrase" : "since the day before yesterday",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "left_hip",
       "side" : "left",
@@ -371,7 +371,7 @@
     },
     "en-026" : {
       "activity" : "typing",
-      "intensity" : 8,
+      "intensity" : 7,
       "onsetPhrase" : "started this morning",
       "qualities" : [
         "sharp"
@@ -385,33 +385,33 @@
     "en-027" : {
       "activity" : "running",
       "intensity" : 7,
-      "onsetPhrase" : "yesterday",
+      "onsetPhrase" : "began yesterday",
       "qualities" : [
 
       ],
       "region" : "left_calf",
       "side" : "left",
-      "spokenLocation" : "left calf",
+      "spokenLocation" : "Left calf",
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
     "en-028" : {
-      "activity" : "",
+      "activity" : "unknown",
       "intensity" : 3,
       "onsetPhrase" : "since last night",
       "qualities" : [
         "tight"
       ],
       "region" : "chest",
-      "side" : "unspecified",
+      "side" : "both",
       "spokenLocation" : "Chest",
-      "surface" : "",
+      "surface" : "unknown",
       "today" : "2026-10-22"
     },
     "en-029" : {
       "activity" : "",
       "intensity" : -1,
-      "onsetPhrase" : "since this morning",
+      "onsetPhrase" : "",
       "qualities" : [
 
       ],
@@ -424,11 +424,11 @@
     "en-030" : {
       "activity" : "",
       "intensity" : 4,
-      "onsetPhrase" : "2 days ago",
+      "onsetPhrase" : "started 2 days ago",
       "qualities" : [
 
       ],
-      "region" : "right_foot",
+      "region" : "foot",
       "side" : "right",
       "spokenLocation" : "Right foot arch",
       "surface" : "",
@@ -437,7 +437,7 @@
     "en-031" : {
       "activity" : "",
       "intensity" : 1,
-      "onsetPhrase" : "started earlier this week",
+      "onsetPhrase" : "earlier this week",
       "qualities" : [
 
       ],
@@ -450,7 +450,7 @@
     "en-032" : {
       "activity" : "swimming",
       "intensity" : 5,
-      "onsetPhrase" : "yesterday",
+      "onsetPhrase" : "since yesterday",
       "qualities" : [
 
       ],
@@ -468,32 +468,32 @@
         "burning"
       ],
       "region" : "lower_back",
-      "side" : "unspecified",
-      "spokenLocation" : "lower back",
+      "side" : "both",
+      "spokenLocation" : "burning pain",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-034" : {
-      "activity" : "unknown",
+      "activity" : "",
       "intensity" : 1,
       "onsetPhrase" : "since last Monday",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "right_elbow",
       "side" : "right",
-      "spokenLocation" : "right elbow",
-      "surface" : "unknown",
+      "spokenLocation" : "Right elbow aching",
+      "surface" : "",
       "today" : "2026-10-22"
     },
     "en-035" : {
       "activity" : "",
-      "intensity" : 1,
-      "onsetPhrase" : "last night",
+      "intensity" : -1,
+      "onsetPhrase" : "",
       "qualities" : [
-        "dull"
+
       ],
-      "region" : "left_foot",
+      "region" : "left_heel",
       "side" : "left",
       "spokenLocation" : "left heel",
       "surface" : "",
@@ -507,7 +507,7 @@
 
       ],
       "region" : "abdomen",
-      "side" : "unspecified",
+      "side" : "both",
       "spokenLocation" : "abdomen",
       "surface" : "",
       "today" : "2026-10-22"
@@ -527,8 +527,8 @@
     },
     "en-038" : {
       "activity" : "",
-      "intensity" : -1,
-      "onsetPhrase" : "since this morning",
+      "intensity" : 0,
+      "onsetPhrase" : "",
       "qualities" : [
 
       ],
@@ -540,7 +540,7 @@
     },
     "en-039" : {
       "activity" : "",
-      "intensity" : -1,
+      "intensity" : 1,
       "onsetPhrase" : "",
       "qualities" : [
 
@@ -553,14 +553,14 @@
     },
     "en-040" : {
       "activity" : "",
-      "intensity" : -1,
+      "intensity" : 1,
       "onsetPhrase" : "",
       "qualities" : [
 
       ],
       "region" : "neck",
-      "side" : "left",
-      "spokenLocation" : "neck",
+      "side" : "unspecified",
+      "spokenLocation" : "my neck is stiff",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -579,20 +579,20 @@
     },
     "en-042" : {
       "activity" : "",
-      "intensity" : -1,
-      "onsetPhrase" : "3 days ago",
+      "intensity" : 1,
+      "onsetPhrase" : "3 days ago, maybe a 6",
       "qualities" : [
 
       ],
       "region" : "right_knee",
       "side" : "right",
-      "spokenLocation" : "right knee",
+      "spokenLocation" : "in my right knee",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-043" : {
-      "activity" : "running",
-      "intensity" : -1,
+      "activity" : "ran",
+      "intensity" : 3,
       "onsetPhrase" : "",
       "qualities" : [
 
@@ -606,9 +606,9 @@
     "en-044" : {
       "activity" : "",
       "intensity" : 1,
-      "onsetPhrase" : "earlier this year",
+      "onsetPhrase" : "",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "lower_back",
       "side" : "unspecified",
@@ -619,9 +619,9 @@
     "en-045" : {
       "activity" : "",
       "intensity" : 1,
-      "onsetPhrase" : "a while ago",
+      "onsetPhrase" : "",
       "qualities" : [
-        "dull"
+
       ],
       "region" : "right_hip",
       "side" : "right",
@@ -631,10 +631,10 @@
     },
     "en-046" : {
       "activity" : "",
-      "intensity" : 7,
+      "intensity" : 1,
       "onsetPhrase" : "",
       "qualities" : [
-        "sharp"
+
       ],
       "region" : "left_knee",
       "side" : "left",
@@ -649,9 +649,9 @@
       "qualities" : [
 
       ],
-      "region" : "lower_back",
+      "region" : "left_hip",
       "side" : "both",
-      "spokenLocation" : "knee",
+      "spokenLocation" : "knee and hip",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -660,11 +660,11 @@
       "intensity" : 1,
       "onsetPhrase" : "",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "left_knee",
       "side" : "both",
-      "spokenLocation" : "left knee and right ankle",
+      "spokenLocation" : "Left knee and right ankle",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -673,7 +673,7 @@
       "intensity" : 5,
       "onsetPhrase" : "",
       "qualities" : [
-        "throbbing"
+
       ],
       "region" : "right_wrist",
       "side" : "right",
@@ -683,7 +683,7 @@
     },
     "en-050" : {
       "activity" : "",
-      "intensity" : -1,
+      "intensity" : 1,
       "onsetPhrase" : "since yesterday",
       "qualities" : [
 
@@ -709,12 +709,12 @@
     },
     "en-052" : {
       "activity" : "",
-      "intensity" : 5,
+      "intensity" : 1,
       "onsetPhrase" : "since yesterday",
       "qualities" : [
-        "aching"
+
       ],
-      "region" : "left_knee",
+      "region" : "lower_back",
       "side" : "left",
       "spokenLocation" : "knee",
       "surface" : "",
@@ -725,11 +725,11 @@
       "intensity" : 4,
       "onsetPhrase" : "since yesterday",
       "qualities" : [
-        "aching"
+
       ],
-      "region" : "neck",
-      "side" : "left",
-      "spokenLocation" : "neck",
+      "region" : "chest",
+      "side" : "unspecified",
+      "spokenLocation" : "chest",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -751,7 +751,7 @@
       "intensity" : 5,
       "onsetPhrase" : "since this morning",
       "qualities" : [
-        "throbbing"
+
       ],
       "region" : "neck",
       "side" : "unspecified",
@@ -762,9 +762,9 @@
     "en-056" : {
       "activity" : "",
       "intensity" : 4,
-      "onsetPhrase" : "yesterday",
+      "onsetPhrase" : "about a 4, since yesterday",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "lower_back",
       "side" : "left",
@@ -773,16 +773,16 @@
       "today" : "2026-10-22"
     },
     "en-057" : {
-      "activity" : "",
-      "intensity" : 1,
-      "onsetPhrase" : "",
+      "activity" : "unknown",
+      "intensity" : 8,
+      "onsetPhrase" : "right now",
       "qualities" : [
         "sharp"
       ],
       "region" : "left_knee",
       "side" : "left",
       "spokenLocation" : "knee",
-      "surface" : "",
+      "surface" : "unknown",
       "today" : "2026-10-22"
     },
     "en-058" : {
@@ -790,11 +790,11 @@
       "intensity" : 3,
       "onsetPhrase" : "since yesterday",
       "qualities" : [
-        "aching"
+
       ],
       "region" : "lower_back",
       "side" : "both",
-      "spokenLocation" : "knees",
+      "spokenLocation" : "both knees",
       "surface" : "",
       "today" : "2026-10-22"
     },
@@ -807,12 +807,12 @@
       ],
       "region" : "neck",
       "side" : "unspecified",
-      "spokenLocation" : "neck",
+      "spokenLocation" : "my neck is stiff",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "en-060" : {
-      "activity" : "walking",
+      "activity" : "walked",
       "intensity" : 2,
       "onsetPhrase" : "3 days ago",
       "qualities" : [
@@ -824,21 +824,99 @@
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
-    "es-001" : {
-      "activity" : "unknown",
-      "intensity" : 5,
-      "onsetPhrase" : "desde ayer",
+    "en-061" : {
+      "activity" : "chasing",
+      "intensity" : 1,
+      "onsetPhrase" : "",
       "qualities" : [
-        "duele"
+
       ],
-      "region" : "left_thigh",
-      "side" : "left",
-      "spokenLocation" : "rodilla izquierda",
+      "region" : "right_ankle",
+      "side" : "right",
+      "spokenLocation" : "right ankle",
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
-    "es-002" : {
+    "en-062" : {
       "activity" : "",
+      "intensity" : 5,
+      "onsetPhrase" : "since yesterday",
+      "qualities" : [
+
+      ],
+      "region" : "neck",
+      "side" : "unspecified",
+      "spokenLocation" : "neck",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-063" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "lower_back",
+      "side" : "both",
+      "spokenLocation" : "lower back",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-064" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "left knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-065" : {
+      "activity" : "",
+      "intensity" : 0,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "right_ankle",
+      "side" : "right",
+      "spokenLocation" : "right ankle",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "en-066" : {
+      "activity" : "",
+      "intensity" : 1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "lower_back",
+      "side" : "right",
+      "spokenLocation" : "knee",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-001" : {
+      "activity" : "none",
+      "intensity" : 5,
+      "onsetPhrase" : "ayer",
+      "qualities" : [
+        "cinco"
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "rodilla izquierda",
+      "surface" : "none",
+      "today" : "2026-10-22"
+    },
+    "es-002" : {
+      "activity" : "ninguna",
       "intensity" : 1,
       "onsetPhrase" : "anoche",
       "qualities" : [
@@ -846,120 +924,107 @@
       ],
       "region" : "right_foot",
       "side" : "right",
-      "spokenLocation" : "tobillo",
-      "surface" : "",
+      "spokenLocation" : "tobillo a la derecha",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-003" : {
-      "activity" : "",
+      "activity" : "ninguna",
       "intensity" : 4,
-      "onsetPhrase" : "",
+      "onsetPhrase" : "hace 3 días",
       "qualities" : [
-
+        "sordo"
       ],
       "region" : "lower_back",
-      "side" : "left",
+      "side" : "unspecified",
       "spokenLocation" : "zona lumbar",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-004" : {
-      "activity" : "",
-      "intensity" : 1,
-      "onsetPhrase" : "desde esta mañana",
+      "activity" : "ninguna",
+      "intensity" : 5,
+      "onsetPhrase" : "esta mañana",
       "qualities" : [
         "ardor"
       ],
       "region" : "left_shoulder",
       "side" : "left",
       "spokenLocation" : "hombro izquierdo",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-005" : {
-      "activity" : "",
+      "activity" : "ninguna",
       "intensity" : 3,
-      "onsetPhrase" : "desde hace tres días",
+      "onsetPhrase" : "hace tres días",
       "qualities" : [
-
+        "dolor"
       ],
-      "region" : "right_wrist",
+      "region" : "wrist",
       "side" : "right",
       "spokenLocation" : "muñeca derecha",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-006" : {
       "activity" : "",
-      "intensity" : 1,
-      "onsetPhrase" : "desde ayer",
+      "intensity" : -1,
+      "onsetPhrase" : "ayer",
       "qualities" : [
-
+        "tenso"
       ],
       "region" : "neck",
       "side" : "unspecified",
-      "spokenLocation" : "el cuello",
+      "spokenLocation" : "cuello",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "es-007" : {
-      "activity" : "",
-      "intensity" : 1,
-      "onsetPhrase" : "desde anoche",
+      "activity" : "padel",
+      "intensity" : -1,
+      "onsetPhrase" : "anoche",
       "qualities" : [
-
+        "dos"
       ],
       "region" : "chest",
-      "side" : "both",
+      "side" : "unspecified",
       "spokenLocation" : "pecho",
-      "surface" : "",
+      "surface" : "concrete",
       "today" : "2026-10-22"
     },
     "es-008" : {
-      "activity" : "",
-      "intensity" : -1,
+      "activity" : "none",
+      "intensity" : 7,
       "onsetPhrase" : "desde anteayer",
       "qualities" : [
-
+        "calambre"
       ],
       "region" : "right_hip",
       "side" : "right",
-      "spokenLocation" : "la cadera derecha",
-      "surface" : "",
+      "spokenLocation" : "cadera derecha",
+      "surface" : "none",
       "today" : "2026-10-22"
     },
     "es-009" : {
-      "activity" : "",
-      "intensity" : -1,
+      "activity" : "ninguna",
+      "intensity" : 1,
       "onsetPhrase" : "desde esta mañana",
       "qualities" : [
-
+        "hormigueo"
       ],
       "region" : "left_wrist",
       "side" : "left",
       "spokenLocation" : "dedos de la mano izquierda",
-      "surface" : "",
-      "today" : "2026-10-22"
-    },
-    "es-010" : {
-      "activity" : "",
-      "intensity" : 6,
-      "onsetPhrase" : "",
-      "qualities" : [
-        "punzante"
-      ],
-      "region" : "right_foot",
-      "side" : "right",
-      "spokenLocation" : "dedo gordo del pie derecho",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-011" : {
       "activity" : "correr",
-      "intensity" : -1,
+      "intensity" : 1,
       "onsetPhrase" : "desde ayer",
       "qualities" : [
-
+        "rigidez"
       ],
       "region" : "left_shoulder",
       "side" : "left",
@@ -968,194 +1033,194 @@
       "today" : "2026-10-22"
     },
     "es-012" : {
-      "activity" : "",
+      "activity" : "none",
       "intensity" : 4,
-      "onsetPhrase" : "desde anoche",
+      "onsetPhrase" : "anoche",
       "qualities" : [
         "quemazón"
       ],
-      "region" : "left_foot",
+      "region" : "foot",
       "side" : "left",
-      "spokenLocation" : "planta del pie izquierdo",
-      "surface" : "",
+      "spokenLocation" : "plantilla del pie izquierdo",
+      "surface" : "none",
       "today" : "2026-10-22"
     },
     "es-013" : {
-      "activity" : "",
-      "intensity" : 5,
+      "activity" : "ninguna",
+      "intensity" : 7,
       "onsetPhrase" : "desde el lunes pasado",
       "qualities" : [
-
+        "sordo"
       ],
       "region" : "abdomen",
       "side" : "unspecified",
-      "spokenLocation" : "el estómago",
-      "surface" : "",
+      "spokenLocation" : "estómago",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-014" : {
-      "activity" : "",
+      "activity" : "none",
       "intensity" : 5,
-      "onsetPhrase" : "desde hace una semana",
+      "onsetPhrase" : "hace una semana",
       "qualities" : [
-
+        "tenso"
       ],
-      "region" : "right_shoulder",
+      "region" : "right_thigh",
       "side" : "right",
       "spokenLocation" : "muslo derecho",
-      "surface" : "",
+      "surface" : "none",
       "today" : "2026-10-22"
     },
     "es-015" : {
-      "activity" : "unknown",
-      "intensity" : 5,
-      "onsetPhrase" : "desde ayer",
+      "activity" : "none",
+      "intensity" : 2,
+      "onsetPhrase" : "ayer",
       "qualities" : [
         "calambre"
       ],
       "region" : "left_elbow",
       "side" : "left",
       "spokenLocation" : "codo izquierdo",
-      "surface" : "unknown",
+      "surface" : "none",
       "today" : "2026-10-22"
     },
     "es-016" : {
-      "activity" : "unknown",
-      "intensity" : 7,
+      "activity" : "ninguna",
+      "intensity" : -1,
       "onsetPhrase" : "desde esta tarde",
       "qualities" : [
         "tensa"
       ],
       "region" : "upper_back",
-      "side" : "both",
-      "spokenLocation" : "la espalda alta",
-      "surface" : "unknown",
+      "side" : "unspecified",
+      "spokenLocation" : "espalda alta",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-017" : {
       "activity" : "caminar",
       "intensity" : 4,
-      "onsetPhrase" : "desde ayer",
+      "onsetPhrase" : "ayer",
       "qualities" : [
-
+        "dolor"
       ],
-      "region" : "right_foot",
+      "region" : "foot",
       "side" : "right",
       "spokenLocation" : "talón derecho",
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
     "es-018" : {
-      "activity" : "",
-      "intensity" : -1,
-      "onsetPhrase" : "desde anoche",
+      "activity" : "ninguna",
+      "intensity" : 7,
+      "onsetPhrase" : "anoche",
       "qualities" : [
-
+        "rigidez"
       ],
       "region" : "neck",
       "side" : "unspecified",
-      "spokenLocation" : "rigidez",
-      "surface" : "",
+      "spokenLocation" : "cuello",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-019" : {
-      "activity" : "unknown",
+      "activity" : "ninguna",
       "intensity" : 7,
       "onsetPhrase" : "desde esta mañana",
       "qualities" : [
         "late",
         "pulsátil"
       ],
-      "region" : "right_hip",
+      "region" : "right_knee",
       "side" : "right",
       "spokenLocation" : "rodilla derecha",
-      "surface" : "unknown",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-020" : {
-      "activity" : "",
-      "intensity" : -1,
-      "onsetPhrase" : "desde hace dos días",
+      "activity" : "ninguna",
+      "intensity" : 5,
+      "onsetPhrase" : "hace dos días",
       "qualities" : [
-
+        "entumecido"
       ],
-      "region" : "left_foot",
+      "region" : "foot",
       "side" : "left",
       "spokenLocation" : "pie izquierdo",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-021" : {
       "activity" : "",
-      "intensity" : 3,
-      "onsetPhrase" : "desde ayer",
+      "intensity" : -1,
+      "onsetPhrase" : "ayer",
       "qualities" : [
         "molestia"
       ],
       "region" : "abdomen",
-      "side" : "both",
-      "spokenLocation" : "la barriga",
+      "side" : "unspecified",
+      "spokenLocation" : "barriga",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "es-022" : {
-      "activity" : "",
+      "activity" : "ninguna",
       "intensity" : 5,
-      "onsetPhrase" : "desde ayer",
+      "onsetPhrase" : "ayer",
       "qualities" : [
         "quemazón"
       ],
-      "region" : "right_wrist",
+      "region" : "wrist",
       "side" : "right",
       "spokenLocation" : "palma de la mano derecha",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-023" : {
-      "activity" : "",
-      "intensity" : 0,
-      "onsetPhrase" : "",
+      "activity" : "walking",
+      "intensity" : 3,
+      "onsetPhrase" : "hace 2 días",
       "qualities" : [
-
+        "ardor"
       ],
       "region" : "left_ankle",
       "side" : "left",
-      "spokenLocation" : "tobillo izquierdo",
-      "surface" : "",
+      "spokenLocation" : "left ankle",
+      "surface" : "ground",
       "today" : "2026-10-22"
     },
     "es-024" : {
       "activity" : "",
-      "intensity" : -1,
+      "intensity" : 1,
       "onsetPhrase" : "",
       "qualities" : [
-
+        "tenso"
       ],
       "region" : "neck",
       "side" : "unspecified",
-      "spokenLocation" : "el cuello",
+      "spokenLocation" : "cuello",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "es-025" : {
-      "activity" : "",
-      "intensity" : -1,
-      "onsetPhrase" : "Hace 2 días",
+      "activity" : "ninguna",
+      "intensity" : 7,
+      "onsetPhrase" : "hace 2 días",
       "qualities" : [
-
+        "ardor"
       ],
-      "region" : "right_hip",
+      "region" : "right_knee",
       "side" : "right",
       "spokenLocation" : "rodilla derecha",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-026" : {
       "activity" : "correr",
-      "intensity" : -1,
-      "onsetPhrase" : "",
+      "intensity" : 3,
+      "onsetPhrase" : "ayer",
       "qualities" : [
-
+        "ardor"
       ],
       "region" : "left_thigh",
       "side" : "left",
@@ -1165,90 +1230,90 @@
     },
     "es-027" : {
       "activity" : "",
-      "intensity" : 10,
-      "onsetPhrase" : "desde ayer",
+      "intensity" : 7,
+      "onsetPhrase" : "ayer",
       "qualities" : [
         "punzante"
       ],
-      "region" : "abdomen",
+      "region" : "left_hip",
       "side" : "left",
       "spokenLocation" : "cadera izquierda",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "es-028" : {
-      "activity" : "unknown",
-      "intensity" : 7,
+      "activity" : "ninguna",
+      "intensity" : 5,
       "onsetPhrase" : "desde el verano",
       "qualities" : [
         "sordo"
       ],
       "region" : "lower_back",
-      "side" : "both",
-      "spokenLocation" : "la espalda baja",
-      "surface" : "unknown",
+      "side" : "unspecified",
+      "spokenLocation" : "esquina de la espalda baja",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-029" : {
-      "activity" : "",
+      "activity" : "ninguna",
       "intensity" : 1,
-      "onsetPhrase" : "",
+      "onsetPhrase" : "hace 3 días",
       "qualities" : [
         "punzante"
       ],
       "region" : "right_elbow",
       "side" : "right",
       "spokenLocation" : "codo derecho",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-030" : {
-      "activity" : "",
-      "intensity" : 0,
-      "onsetPhrase" : "",
+      "activity" : "no especificado",
+      "intensity" : 1,
+      "onsetPhrase" : "hace unos días",
       "qualities" : [
-
+        "dolor"
       ],
       "region" : "left_knee",
-      "side" : "both",
+      "side" : "left",
       "spokenLocation" : "rodilla y tobillo",
-      "surface" : "",
+      "surface" : "no especificado",
       "today" : "2026-10-22"
     },
     "es-031" : {
-      "activity" : "",
+      "activity" : "none",
       "intensity" : 1,
       "onsetPhrase" : "anoche",
       "qualities" : [
         "hormigueo"
       ],
-      "region" : "right_wrist",
+      "region" : "wrist",
       "side" : "right",
       "spokenLocation" : "muñeca derecha",
-      "surface" : "",
+      "surface" : "none",
       "today" : "2026-10-22"
     },
     "es-032" : {
-      "activity" : "",
+      "activity" : "ninguna",
       "intensity" : 4,
-      "onsetPhrase" : "desde ayer",
+      "onsetPhrase" : "ayer",
       "qualities" : [
-
+        "dolor"
       ],
       "region" : "left_knee",
       "side" : "left",
-      "spokenLocation" : "la rodilla izquierda",
-      "surface" : "",
+      "spokenLocation" : "rodilla izquierda",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-033" : {
-      "activity" : "padel",
+      "activity" : "pádel",
       "intensity" : 4,
       "onsetPhrase" : "ayer",
       "qualities" : [
         "punzante"
       ],
-      "region" : "right_foot",
+      "region" : "foot",
       "side" : "right",
       "spokenLocation" : "talón derecho",
       "surface" : "unknown",
@@ -1256,80 +1321,80 @@
     },
     "es-034" : {
       "activity" : "caminar",
-      "intensity" : 7,
-      "onsetPhrase" : "desde hace 3 días",
+      "intensity" : 5,
+      "onsetPhrase" : "hace 3 días",
       "qualities" : [
         "punzante"
       ],
-      "region" : "left_ankle",
+      "region" : "left_knee",
       "side" : "left",
       "spokenLocation" : "tobillo izquierdo",
       "surface" : "unknown",
       "today" : "2026-10-22"
     },
     "es-035" : {
-      "activity" : "",
+      "activity" : "padel",
       "intensity" : 5,
-      "onsetPhrase" : "desde ayer",
+      "onsetPhrase" : "ayer",
       "qualities" : [
         "punzante"
       ],
       "region" : "unknown",
-      "side" : "both",
-      "spokenLocation" : "duele",
-      "surface" : "",
+      "side" : "unspecified",
+      "spokenLocation" : "como un cinco",
+      "surface" : "unknown",
       "today" : "2026-10-22"
     },
     "es-036" : {
-      "activity" : "running",
+      "activity" : "correr",
       "intensity" : -1,
       "onsetPhrase" : "",
       "qualities" : [
 
       ],
       "region" : "unknown",
-      "side" : "both",
-      "spokenLocation" : "me empezó a doler",
+      "side" : "unspecified",
+      "spokenLocation" : "dolor",
       "surface" : "",
       "today" : "2026-10-22"
     },
     "es-037" : {
-      "activity" : "",
+      "activity" : "ninguna",
       "intensity" : 4,
-      "onsetPhrase" : "desde ayer",
+      "onsetPhrase" : "ayer",
       "qualities" : [
-        "duele"
+        "dolor"
       ],
       "region" : "right_shoulder",
       "side" : "right",
       "spokenLocation" : "espinilla derecha",
-      "surface" : "",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-038" : {
-      "activity" : "unknown",
-      "intensity" : 7,
-      "onsetPhrase" : "desde ayer",
+      "activity" : "ninguna",
+      "intensity" : -1,
+      "onsetPhrase" : "ayer",
       "qualities" : [
         "sordo"
       ],
       "region" : "left_knee",
       "side" : "both",
-      "spokenLocation" : "las dos rodillas",
-      "surface" : "unknown",
+      "spokenLocation" : "rodillas",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-039" : {
-      "activity" : "unknown",
+      "activity" : "ninguna",
       "intensity" : 7,
       "onsetPhrase" : "ahora mismo",
       "qualities" : [
         "calambre"
       ],
       "region" : "left_knee",
-      "side" : "left",
-      "spokenLocation" : "la rodilla",
-      "surface" : "unknown",
+      "side" : "right",
+      "spokenLocation" : "rodilla",
+      "surface" : "ninguna",
       "today" : "2026-10-22"
     },
     "es-040" : {
@@ -1343,6 +1408,123 @@
       "side" : "unspecified",
       "spokenLocation" : "cuello",
       "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-041" : {
+      "activity" : "no especificado",
+      "intensity" : 7,
+      "onsetPhrase" : "hace 2 días",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "rodilla",
+      "surface" : "no especificado",
+      "today" : "2026-10-22"
+    },
+    "es-042" : {
+      "activity" : "ninguna",
+      "intensity" : 7,
+      "onsetPhrase" : "hace 3 días",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "lower_back",
+      "side" : "unspecified",
+      "spokenLocation" : "espalda baja",
+      "surface" : "ninguna",
+      "today" : "2026-10-22"
+    },
+    "es-043" : {
+      "activity" : "ninguna",
+      "intensity" : 7,
+      "onsetPhrase" : "hace 2 días",
+      "qualities" : [
+        "ardor"
+      ],
+      "region" : "right_knee",
+      "side" : "right",
+      "spokenLocation" : "rodilla derecha",
+      "surface" : "ninguna",
+      "today" : "2026-10-22"
+    },
+    "es-044" : {
+      "activity" : "no especificado",
+      "intensity" : 1,
+      "onsetPhrase" : "hace 2 días",
+      "qualities" : [
+        "ardor"
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "rodilla",
+      "surface" : "no especificado",
+      "today" : "2026-10-22"
+    },
+    "es-045" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+        "no mucho"
+      ],
+      "region" : "foot",
+      "side" : "left",
+      "spokenLocation" : "pie izquierdo",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-046" : {
+      "activity" : "",
+      "intensity" : -1,
+      "onsetPhrase" : "",
+      "qualities" : [
+
+      ],
+      "region" : "foot",
+      "side" : "right",
+      "spokenLocation" : "dedo gordo del pie derecho",
+      "surface" : "",
+      "today" : "2026-10-22"
+    },
+    "es-047" : {
+      "activity" : "ninguna",
+      "intensity" : 5,
+      "onsetPhrase" : "hace 2 días",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "foot",
+      "side" : "right",
+      "spokenLocation" : "dedo gordo del pie",
+      "surface" : "ninguna",
+      "today" : "2026-10-22"
+    },
+    "es-048" : {
+      "activity" : "pasear al perro",
+      "intensity" : 5,
+      "onsetPhrase" : "ayer",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "left_knee",
+      "side" : "left",
+      "spokenLocation" : "tobillo izquierdo",
+      "surface" : "unknown",
+      "today" : "2026-10-22"
+    },
+    "es-049" : {
+      "activity" : "cita",
+      "intensity" : 3,
+      "onsetPhrase" : "hace 3 días",
+      "qualities" : [
+        "dolor"
+      ],
+      "region" : "neck",
+      "side" : "unspecified",
+      "spokenLocation" : "cuello",
+      "surface" : "unknown",
       "today" : "2026-10-22"
     }
   }

@@ -237,20 +237,33 @@ export function loadCases(path = "tests/fixtures/extraction-eval/cases.json") {
 function validateCases(cases: EvalCase[]) {
   const problems: string[] = [];
   const ids = new Set<string>();
-  const expectId = (prefix: string, count: number) =>
-    Array.from(
-      { length: count },
-      (_, i) => `${prefix}-${String(i + 1).padStart(3, "0")}`,
-    );
-  const wanted = new Set([...expectId("en", 60), ...expectId("es", 40)]);
-  if (cases.length !== 100)
-    problems.push(`expected 100 cases, found ${cases.length}`);
+  // The original set stays en-001..en-060 and es-001..es-040. Later cases
+  // continue those sequences with no gaps.
+  const checkSequence = (prefix: "en" | "es", minimum: number) => {
+    const numbers = cases
+      .filter((item) => item.lang === prefix)
+      .map((item) => {
+        const match = new RegExp(`^${prefix}-(\\d{3})$`).exec(item.id);
+        return match ? Number(match[1]) : NaN;
+      });
+    if (numbers.some((n) => Number.isNaN(n)))
+      problems.push(`${prefix} ids must look like ${prefix}-001`);
+    const max = numbers.length ? Math.max(...numbers) : 0;
+    if (max < minimum)
+      problems.push(
+        `expected ${prefix} cases through ${prefix}-${String(minimum).padStart(3, "0")}`,
+      );
+    const seen = new Set(numbers);
+    for (let n = 1; n <= max; n += 1)
+      if (!seen.has(n))
+        problems.push(`missing ${prefix}-${String(n).padStart(3, "0")}`);
+  };
+  checkSequence("en", 60);
+  checkSequence("es", 40);
   let both = 0;
   for (const item of cases) {
     if (ids.has(item.id)) problems.push(`${item.id} is duplicated`);
     ids.add(item.id);
-    if (!wanted.has(item.id))
-      problems.push(`${item.id} is outside en-001..en-060 and es-001..es-040`);
     if (!item.id.startsWith(item.lang))
       problems.push(`${item.id} lang is ${item.lang}`);
     if (!item.note?.trim()) problems.push(`${item.id} has an empty note`);
@@ -322,7 +335,6 @@ function validateCases(cases: EvalCase[]) {
     if (expect.onset && "phrase" in expect.onset && !expect.onset.phrase.trim())
       problems.push(`${item.id} onset phrase is empty`);
   }
-  for (const id of wanted) if (!ids.has(id)) problems.push(`missing ${id}`);
   if (both < 2 || both > 3)
     problems.push(`expected 2 or 3 both-sides cases, found ${both}`);
   return problems;
@@ -524,7 +536,7 @@ function summarize(
 function proposalActual(raw: unknown, note: string, lang: Lang): Actual {
   try {
     const parsed = parseRawExtraction(raw);
-    const proposal = buildProposal(parsed, note, TODAY, { language: lang });
+    const proposal = buildProposal(parsed, note, TODAY, lang);
     return fromProposal(proposal);
   } catch (error) {
     return emptyActual(error instanceof Error ? error.message : String(error));

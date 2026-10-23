@@ -238,11 +238,14 @@ export function loadCases(path = "tests/fixtures/extraction-eval/cases.json") {
 function validateCases(cases: EvalCase[]) {
   const problems: string[] = [];
   const ids = new Set<string>();
-  // The original set stays en-001..en-060 and es-001..es-040. Later cases
-  // continue those sequences with no gaps.
-  const checkSequence = (prefix: "en" | "es", minimum: number) => {
+  // The tuning set stays en-001..en-060 and es-001..es-040. Later cases
+  // continue those sequences with no gaps. The held-out set uses ho-en-001
+  // and ho-es-001.
+  const heldOut = cases.length > 0 && cases.every((item) => item.id.startsWith("ho-"));
+  const checkSequence = (lang: "en" | "es", minimum: number) => {
+    const prefix = heldOut ? `ho-${lang}` : lang;
     const numbers = cases
-      .filter((item) => item.lang === prefix)
+      .filter((item) => item.lang === lang)
       .map((item) => {
         const match = new RegExp(`^${prefix}-(\\d{3})$`).exec(item.id);
         return match ? Number(match[1]) : NaN;
@@ -259,13 +262,13 @@ function validateCases(cases: EvalCase[]) {
       if (!seen.has(n))
         problems.push(`missing ${prefix}-${String(n).padStart(3, "0")}`);
   };
-  checkSequence("en", 60);
-  checkSequence("es", 40);
+  checkSequence("en", heldOut ? 1 : 60);
+  checkSequence("es", heldOut ? 1 : 40);
   let both = 0;
   for (const item of cases) {
     if (ids.has(item.id)) problems.push(`${item.id} is duplicated`);
     ids.add(item.id);
-    if (!item.id.startsWith(item.lang))
+    if (!item.id.replace(/^ho-/, "").startsWith(item.lang))
       problems.push(`${item.id} lang is ${item.lang}`);
     if (!item.note?.trim()) problems.push(`${item.id} has an empty note`);
     if (!item.tags?.length) problems.push(`${item.id} has no tags`);

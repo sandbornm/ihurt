@@ -1,0 +1,1771 @@
+{
+  "errors" : {
+    "ho-en-030" : "May contain sensitive content"
+  },
+  "metadata" : {
+    "cases" : 60,
+    "errorCount" : 1,
+    "model" : "SystemLanguageModel.default",
+    "modelVariant" : "AFM 3 Core Advanced",
+    "name" : "v2-heldout",
+    "osBuild" : "26A434",
+    "osProduct" : "27.0.1",
+    "osVersionString" : "Version 27.0.1 (Build 26A434)",
+    "recordedAt" : "2026-10-23T02:49:45Z",
+    "schema" : "v2",
+    "supportedLanguages" : [
+      "da",
+      "de",
+      "en",
+      "en-AU",
+      "en-GB",
+      "en-IN",
+      "es",
+      "es-419",
+      "es-US",
+      "fr",
+      "fr-CA",
+      "it",
+      "ja",
+      "ko",
+      "nb",
+      "nl",
+      "pt",
+      "pt-PT",
+      "sv",
+      "tr",
+      "vi",
+      "zh",
+      "zh-HK",
+      "zh-TW"
+    ],
+    "supportsEnglish" : true,
+    "supportsSpanish" : true,
+    "temperature" : 0
+  },
+  "outputs" : {
+    "ho-en-001" : {
+      "activity" : "sitting at my desk",
+      "intensity" : {
+        "evidence" : "like a 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "lower back",
+          "negated" : false,
+          "sideEvidence" : "both"
+        },
+        {
+          "evidence" : "lower back",
+          "negated" : false,
+          "sideEvidence" : "both"
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-002" : {
+      "activity" : "walk",
+      "intensity" : {
+        "evidence" : "about a 4 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "rite knee",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "knee",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sharp",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-003" : {
+      "activity" : "running",
+      "intensity" : {
+        "evidence" : "like a 7",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 7
+      },
+      "locations" : [
+        {
+          "evidence" : "left ankle",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "last night",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "throbbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-004" : {
+      "activity" : "no idea why",
+      "intensity" : {
+        "evidence" : "",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "neck",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "3 days ago",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "stiff",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-005" : {
+      "activity" : "been like that",
+      "intensity" : {
+        "evidence" : "maybe an 8",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 8
+      },
+      "locations" : [
+        {
+          "evidence" : "sholder blade",
+          "negated" : false,
+          "sideEvidence" : "both"
+        }
+      ],
+      "onset" : {
+        "evidence" : "last Monday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "burning",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-006" : {
+      "activity" : "started this morning",
+      "intensity" : {
+        "evidence" : "about a 5 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "stomach",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-007" : {
+      "activity" : "swimming",
+      "intensity" : {
+        "evidence" : "like a 2",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 2
+      },
+      "locations" : [
+        {
+          "evidence" : "left shoulder",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sore",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-008" : {
+      "activity" : "lifting",
+      "intensity" : {
+        "evidence" : "kind of stabbing",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "right elbow",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "two days ago",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "stabbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-009" : {
+      "activity" : "typing",
+      "intensity" : {
+        "evidence" : "like a 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "lef hand",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "fingers",
+          "negated" : false,
+          "sideEvidence" : "both"
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-010" : {
+      "activity" : "hike",
+      "intensity" : {
+        "evidence" : "a 5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "right hip",
+          "negated" : false,
+          "sideEvidence" : "right"
+        },
+        {
+          "evidence" : "last night",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "last night",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "throbbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-011" : {
+      "activity" : "sprinting",
+      "intensity" : {
+        "evidence" : "about a 4",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "left hamstring",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "hamstring",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "tight",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-012" : {
+      "activity" : "gardening",
+      "intensity" : {
+        "evidence" : "a 7 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 7
+      },
+      "locations" : [
+        {
+          "evidence" : "left knee",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "kneelt on it",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-013" : {
+      "activity" : "running",
+      "intensity" : {
+        "evidence" : "a 9",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 9
+      },
+      "locations" : [
+        {
+          "evidence" : "right calf",
+          "negated" : false,
+          "sideEvidence" : "right"
+        },
+        {
+          "evidence" : "calf",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "while I was running",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "cramping",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-014" : {
+      "activity" : "playing soccer",
+      "intensity" : {
+        "evidence" : "a 3",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 3
+      },
+      "locations" : [
+        {
+          "evidence" : "right ankel",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "last Tuesday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-015" : {
+      "activity" : "tennis",
+      "intensity" : {
+        "evidence" : "1 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 1
+      },
+      "locations" : [
+        {
+          "evidence" : "left elbow",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "burning",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-016" : {
+      "activity" : "jammed it",
+      "intensity" : {
+        "evidence" : "maybe a 5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "right thumb",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "throbbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-017" : {
+      "activity" : "my right shoulder",
+      "intensity" : {
+        "evidence" : "about a 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "right shoulder",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "started Monday",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-018" : {
+      "activity" : "lifting boxes",
+      "intensity" : {
+        "evidence" : "a 4",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "upper bak",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "knotted",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-019" : {
+      "activity" : "bike ride",
+      "intensity" : {
+        "evidence" : "0 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 0
+      },
+      "locations" : [
+        {
+          "evidence" : "left calf",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "tight",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-020" : {
+      "activity" : "stubbed",
+      "intensity" : {
+        "evidence" : "10 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 10
+      },
+      "locations" : [
+        {
+          "evidence" : "rite toes",
+          "negated" : false,
+          "sideEvidence" : "both"
+        },
+        {
+          "evidence" : "rite toes",
+          "negated" : false,
+          "sideEvidence" : "both"
+        }
+      ],
+      "onset" : {
+        "evidence" : "last night",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "stinging",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-021" : {
+      "activity" : "been bothering me",
+      "intensity" : {
+        "evidence" : "about a 5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "left hip",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "since last Friday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-022" : {
+      "activity" : "squats",
+      "intensity" : {
+        "evidence" : "like a 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "right quad",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sore",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-023" : {
+      "activity" : "walk",
+      "intensity" : {
+        "evidence" : "about a 5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "heel",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "heel",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sharp",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-024" : {
+      "activity" : "this morning",
+      "intensity" : {
+        "evidence" : "like a 3",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 3
+      },
+      "locations" : [
+        {
+          "evidence" : "chest",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "tight",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-025" : {
+      "activity" : "since yesterday",
+      "intensity" : {
+        "evidence" : "like a 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "right ankle",
+          "negated" : false,
+          "sideEvidence" : "right"
+        },
+        {
+          "evidence" : "ankle",
+          "negated" : true,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "since yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sharp",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-026" : {
+      "activity" : "walked 4 miles",
+      "intensity" : {
+        "evidence" : "maybe moderate",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "left knee",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-027" : {
+      "activity" : "left work",
+      "intensity" : {
+        "evidence" : "a 4",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "neck",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "4",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "right after that",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "throbbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-028" : {
+      "activity" : "chopping",
+      "intensity" : {
+        "evidence" : "a 7",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 7
+      },
+      "locations" : [
+        {
+          "evidence" : "left wrist",
+          "negated" : false,
+          "sideEvidence" : "left"
+        },
+        {
+          "evidence" : "right wrist",
+          "negated" : false,
+          "sideEvidence" : "right"
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "stabbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-029" : {
+      "activity" : "ran",
+      "intensity" : {
+        "evidence" : "a 5 out of 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "both knees",
+          "negated" : false,
+          "sideEvidence" : ""
+        },
+        {
+          "evidence" : "a 5 out of 10",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-031" : {
+      "activity" : "nothing",
+      "intensity" : {
+        "evidence" : "a 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-032" : {
+      "activity" : "hiking",
+      "intensity" : {
+        "evidence" : "maybe a 4",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "right calf",
+          "negated" : false,
+          "sideEvidence" : "right"
+        },
+        {
+          "evidence" : "throbbing",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "a few weeks ago",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "throbbing",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-033" : {
+      "activity" : "running",
+      "intensity" : {
+        "evidence" : "like a 5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "left shin",
+          "negated" : false,
+          "sideEvidence" : "left"
+        }
+      ],
+      "onset" : {
+        "evidence" : "yesterday",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "burning",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-034" : {
+      "activity" : "squatting",
+      "intensity" : {
+        "evidence" : "about an 8",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 8
+      },
+      "locations" : [
+        {
+          "evidence" : "shoulder",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "this morning",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-en-035" : {
+      "activity" : "rock climbing",
+      "intensity" : {
+        "evidence" : "not like a score or anything",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "forearm",
+          "negated" : false,
+          "sideEvidence" : "both"
+        }
+      ],
+      "onset" : {
+        "evidence" : "earlier this week",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "aching",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-001" : {
+      "activity" : "meduele",
+      "intensity" : {
+        "evidence" : "un monton",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "cuello",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "desde esta mañana",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sordo",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-002" : {
+      "activity" : "cargar cajas",
+      "intensity" : {
+        "evidence" : "como un 6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "dolor en la espalda baja",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "ayer",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-003" : {
+      "activity" : "",
+      "intensity" : {
+        "evidence" : "8 de 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 8
+      },
+      "locations" : [
+        {
+          "evidence" : "rodilla derecha",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "punzante",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-004" : {
+      "activity" : "no hay",
+      "intensity" : {
+        "evidence" : "matando",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "el tobillo izquierdo",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        }
+      ],
+      "onset" : {
+        "evidence" : "desde ayer",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "ardor",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-005" : {
+      "activity" : "comí a las 11",
+      "intensity" : {
+        "evidence" : "un dolorcito",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "la panza",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "desde anoche",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "punzadas",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-006" : {
+      "activity" : "cargar la mochila",
+      "intensity" : {
+        "evidence" : "un cinco",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "el hombro izquierdo",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        },
+        {
+          "evidence" : "hoy",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "al cargar la mochila hoy",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-007" : {
+      "activity" : "camino",
+      "intensity" : {
+        "evidence" : "agudo",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 7
+      },
+      "locations" : [
+        {
+          "evidence" : "talon derecho",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "desde hace dos días",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "agudo",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-008" : {
+      "activity" : "fastidiado",
+      "intensity" : {
+        "evidence" : "sordo",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "omoplato",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        },
+        {
+          "evidence" : "escapula",
+          "negated" : false,
+          "sideEvidence" : "izquierda"
+        }
+      ],
+      "onset" : {
+        "evidence" : "desde el lunes",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sordo",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-009" : {
+      "activity" : "jugar futbol",
+      "intensity" : {
+        "evidence" : "bien fuerte",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 10
+      },
+      "locations" : [
+        {
+          "evidence" : "chamorra derecha",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "despues de jugar futbol",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "calambre",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-010" : {
+      "activity" : "ninguna",
+      "intensity" : {
+        "evidence" : "un 4",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "cadera izquierda",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        }
+      ],
+      "onset" : {
+        "evidence" : "hace 3 días",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "punzante",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-011" : {
+      "activity" : "escribiendo",
+      "intensity" : {
+        "evidence" : "2 horas",
+        "kind" : "duration",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "dedos de la mano derecha",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "hace 2 horas",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "hormigueo",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-012" : {
+      "activity" : "no hay",
+      "intensity" : {
+        "evidence" : "desde ayer en la mañana",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "isquiotibial izquierdo",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        }
+      ],
+      "onset" : {
+        "evidence" : "ayer en la mañana",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "jalón",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-013" : {
+      "activity" : "no especificado",
+      "intensity" : {
+        "evidence" : "3 de 10",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 3
+      },
+      "locations" : [
+        {
+          "evidence" : "pecho",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "hoy temprano",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "opresión",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-014" : {
+      "activity" : "cargar pesas",
+      "intensity" : {
+        "evidence" : "bien incomodo",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "codo izquierdo",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        }
+      ],
+      "onset" : {
+        "evidence" : "al cargar pesas",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "ardor",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-015" : {
+      "activity" : "salir a correr 5 kilometros",
+      "intensity" : {
+        "evidence" : "5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "la rodilla derecha",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        },
+        {
+          "evidence" : "hinchada",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "ayer",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-016" : {
+      "activity" : "cuando la giro",
+      "intensity" : {
+        "evidence" : "fastidiada",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "cervical",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "ayer",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "punzante",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-017" : {
+      "activity" : "de pie",
+      "intensity" : {
+        "evidence" : "7",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 7
+      },
+      "locations" : [
+        {
+          "evidence" : "dedos del pie izquierdo",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        }
+      ],
+      "onset" : {
+        "evidence" : "todo el turno",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-018" : {
+      "activity" : "bajar las escaleras",
+      "intensity" : {
+        "evidence" : "6",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 6
+      },
+      "locations" : [
+        {
+          "evidence" : "el tobillo derecho",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "al bajar las escaleras",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-019" : {
+      "activity" : "no especificado",
+      "intensity" : {
+        "evidence" : "dolor sordo",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "rodillas",
+          "negated" : false,
+          "sideEvidence" : ""
+        },
+        {
+          "evidence" : "rodillas",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "desde anteayer",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "sordo",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-020" : {
+      "activity" : "",
+      "intensity" : {
+        "evidence" : "como un 5",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "cuello",
+          "negated" : false,
+          "sideEvidence" : ""
+        },
+        {
+          "evidence" : "espalda baja",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-021" : {
+      "activity" : "no puedo",
+      "intensity" : {
+        "evidence" : "un 9",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 9
+      },
+      "locations" : [
+        {
+          "evidence" : "dolor horrible",
+          "negated" : false,
+          "sideEvidence" : ""
+        },
+        {
+          "evidence" : "anoche",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "anoche",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "horrible",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-022" : {
+      "activity" : "corriendo",
+      "intensity" : {
+        "evidence" : "como 4 kilometros",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 4
+      },
+      "locations" : [
+        {
+          "evidence" : "espinilla",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        }
+      ],
+      "onset" : {
+        "evidence" : "esta mañana",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "punzante",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-023" : {
+      "activity" : "no espera la derecha",
+      "intensity" : {
+        "evidence" : "agudo",
+        "kind" : "rating",
+        "negated" : false,
+        "value" : 5
+      },
+      "locations" : [
+        {
+          "evidence" : "muñeca izquierda",
+          "negated" : false,
+          "sideEvidence" : "izquierdo"
+        },
+        {
+          "evidence" : "no espera la derecha",
+          "negated" : true,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "ayer",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "agudo",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-024" : {
+      "activity" : "salí del trabajo",
+      "intensity" : {
+        "evidence" : "",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "rodilla",
+          "negated" : false,
+          "sideEvidence" : "derecha"
+        }
+      ],
+      "onset" : {
+        "evidence" : "ayer",
+        "negated" : false
+      },
+      "qualities" : [
+
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    },
+    "ho-es-025" : {
+      "activity" : "comer",
+      "intensity" : {
+        "evidence" : "",
+        "kind" : "other",
+        "negated" : false,
+        "value" : -1
+      },
+      "locations" : [
+        {
+          "evidence" : "barriga",
+          "negated" : false,
+          "sideEvidence" : ""
+        }
+      ],
+      "onset" : {
+        "evidence" : "hace unas semanas",
+        "negated" : false
+      },
+      "qualities" : [
+        {
+          "evidence" : "ardor",
+          "negated" : false
+        }
+      ],
+      "schema" : "v2",
+      "today" : "2026-10-22"
+    }
+  }
+}

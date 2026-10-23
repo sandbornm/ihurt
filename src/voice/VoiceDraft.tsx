@@ -25,6 +25,7 @@ import {
 } from "./extraction";
 import { createAvailabilityGate } from "./ai-gate";
 import { startRecording, toWav, type Recording } from "./recording";
+import { createSuggestOnce } from "./suggest-once";
 import "./voice.css";
 
 export interface VoiceDraftProps {
@@ -115,17 +116,14 @@ function VoiceEditor({
   const extraction = useRef(0);
   const extractAbort = useRef<AbortController | null>(null);
   const gate = useRef(createAvailabilityGate()).current;
-  const textRef = useRef(text);
-  textRef.current = text;
   const recording = useRef<Recording | null>(null);
   const upload = useRef<AbortController | null>(null);
   const generation = useRef(0);
+  const suggestOnce = useRef(createSuggestOnce()).current;
   const stopLatest = useRef(() => {});
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const previousText = useRef("");
-  // The recording generation whose final transcript was already suggested.
-  const suggested = useRef(-1);
   const native = isNativeApp();
   const maxSeconds = Math.min(
     60,
@@ -343,9 +341,8 @@ function VoiceEditor({
   // Suggest once per recording, from the recognizer's final transcript rather
   // than the text box, which may not have rendered the last words yet.
   function suggestFinal(current: number, final: string) {
-    if (suggested.current === current) return;
-    suggested.current = current;
-    propose(final.slice(0, 3000));
+    const value = suggestOnce.deliver(current, generation.current, final);
+    if (value) propose(value);
   }
 
   function propose(transcript: string) {

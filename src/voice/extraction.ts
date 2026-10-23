@@ -179,12 +179,7 @@ const hedges = new Set([
   "badly",
   "a",
 ]);
-function deniesAfter(
-  words: string[],
-  end: number,
-  part: boolean,
-  corrected: boolean,
-) {
+function deniesAfter(words: string[], end: number, corrected: boolean) {
   const next = words.slice(end + 1, end + 6);
   const at = next.findIndex(isNegator);
   if (at < 0 || at >= 3) return false;
@@ -222,7 +217,7 @@ function covers(
     last = Math.max(last, at);
     return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
-  if (!found || deniesAfter(words, last, part, corrected)) return false;
+  if (!found || deniesAfter(words, last, corrected)) return false;
   // "I can't tell if my left knee is the problem" still denies it.
   const exempt = words.slice(0, last).some((word) => ability.has(word));
   return !(exempt && words.slice(last + 1).some((w) => deniedAfter.has(w)));

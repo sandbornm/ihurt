@@ -60,9 +60,14 @@ const fold = (value: string) =>
 // surface coordinates.
 export function suggestVoiceDraft(text: string) {
   const fields: DraftFields = {};
+  // Commas end a clause too, so "me duele el pie izquierdo, no mucho" keeps
+  // the foot. "nada mas", "no mas" (only) and "sin duda" (certainly) are not
+  // denials.
   const clauses = text
     .toLowerCase()
-    .split(/[.!?;\n]+/)
+    .replace(/\b(?<!ya )(?:nada|no) m[aá]s\b/g, "solo")
+    .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
+    .split(/[.!?;,\n]+/)
     .filter(
       (part) =>
         !/\b(no|not|without|never|denies|doesn't|don't|isn't|wasn't)\b/.test(

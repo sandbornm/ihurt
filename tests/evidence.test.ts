@@ -381,6 +381,12 @@ test("English regressions keep the affected side and drop the denied one", () =>
   assert.equal(bend.location.status, "mapped");
   if (bend.location.status === "mapped")
     assert.equal(bend.location.region, "left_knee");
+  const split = propose("I can't bend my left knee.", {
+    locations: [loc("knee", "left", true)],
+  });
+  assert.equal(split.location.status, "mapped");
+  if (split.location.status === "mapped")
+    assert.equal(split.location.region, "left_knee");
 
   const problem = propose(
     "My left knee is not the problem but it is my right ankle.",
@@ -408,8 +414,7 @@ test("English regressions keep the affected side and drop the denied one", () =>
 });
 
 test("a body part, a time, a hedge or a pain verb is not a filled field", () => {
-  const sentence =
-    "My left knee's been aching since yesterday, about a 4.";
+  const sentence = "My left knee's been aching since yesterday, about a 4.";
   assert.equal(
     propose(sentence, { activity: sentence }).fields.activity,
     undefined,

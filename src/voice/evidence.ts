@@ -147,8 +147,10 @@ function attachedSide(item: Candidate, transcript: string) {
   if (!item.sideEvidence) return null;
   const side = sideIn(item.sideEvidence);
   const at = findSpan(item.sideEvidence, transcript);
-  // "not the left" says the word, but the denial means it is not the side.
-  if (!side || !at || !grounded(item.sideEvidence, transcript)) return null;
+  // "not the left" is a denial. "can't bend my left knee" is not, so the
+  // side is checked with the body-part rule.
+  if (!side || !at || !grounded(item.sideEvidence, transcript, true))
+    return null;
   const said = phraseTokens(transcript);
   const gap =
     at.end <= item.at.start

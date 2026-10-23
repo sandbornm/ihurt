@@ -74,9 +74,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
       }>("map", {
         request_id: crypto.randomUUID(),
         activity_id: activityId,
-        note:
-          entry.note.trim() ||
-          "Please review the locations and comments recorded in this journal entry.",
+        note: entry.note.trim() || t("ai.emptyNote"),
         selected_region: entry.map.regions[0] ?? null,
         answers: nextAnswers,
         consent,

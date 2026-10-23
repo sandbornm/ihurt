@@ -116,8 +116,6 @@ function VoiceEditor({
   const extraction = useRef(0);
   const extractAbort = useRef<AbortController | null>(null);
   const gate = useRef(createAvailabilityGate()).current;
-  const textRef = useRef(text);
-  textRef.current = text;
   const recording = useRef<Recording | null>(null);
   const upload = useRef<AbortController | null>(null);
   const generation = useRef(0);

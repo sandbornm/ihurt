@@ -166,20 +166,32 @@ const deniedAfter = new Set([
   "affected",
   "involved",
 ]);
-// "doesn't hurt" denies the part only when it ends the clause or says "at
-// all"; "doesn't hurt much" still says it hurts.
-function deniesAfter(words: string[], end: number, part: boolean) {
+// "doesn't hurt" or "isn't sore" denies the part, unless hedged ("doesn't
+// hurt much") or corrected by the next clause ("isn't sore, it's aching").
+const hurtWords = new Set(["hurt", "hurts", "hurting", "sore", "painful"]);
+const hedges = new Set([
+  "much",
+  "that",
+  "as",
+  "so",
+  "too",
+  "really",
+  "badly",
+  "a",
+]);
+function deniesAfter(
+  words: string[],
+  end: number,
+  part: boolean,
+  corrected: boolean,
+) {
   const next = words.slice(end + 1, end + 6);
-  const at = next.findIndex((word) => denies(word, part));
+  const at = next.findIndex(isNegator);
   if (at < 0 || at >= 3) return false;
   const rest = next.slice(at + 1);
   if (rest.some((word) => deniedAfter.has(word))) return true;
-  const hurt = rest.findIndex((word) => /^hurts?$/.test(word));
-  return (
-    hurt >= 0 &&
-    (hurt === rest.length - 1 ||
-      /^at all\b/.test(rest.slice(hurt + 1).join(" ")))
-  );
+  const hurt = rest.findIndex((word) => hurtWords.has(word));
+  return hurt >= 0 && !corrected && !hedges.has(rest[hurt + 1] ?? "");
 }
 
 // Reduces a word to a rough singular so "knee" matches "both knees" and
@@ -198,14 +210,22 @@ const sameWord = (said: string, want: string) =>
 // True when every wanted word occurs, no negator stands before it, and the
 // words after it do not deny it. "my left knee isn't burning" keeps the knee
 // and drops "burning"; "my left knee is not the problem" drops the knee.
-function covers(words: string[], needed: string[], part = false) {
+function covers(
+  words: string[],
+  needed: string[],
+  part = false,
+  corrected = false,
+) {
   let last = -1;
   const found = needed.every((want) => {
     const at = words.findIndex((said) => sameWord(said, want));
     last = Math.max(last, at);
     return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
-  return found && !deniesAfter(words, last, part);
+  if (!found || deniesAfter(words, last, part, corrected)) return false;
+  // "I can't tell if my left knee is the problem" still denies it.
+  const exempt = words.slice(0, last).some((word) => ability.has(word));
+  return !(exempt && words.slice(last + 1).some((w) => deniedAfter.has(w)));
 }
 
 function tokens(clause: string) {
@@ -217,35 +237,86 @@ function tokens(clause: string) {
 // conjunctions still count as together ("left knee and ankle").
 // With `together`, the words must share one conjunction-free clause, so "my
 // left knee and right foot" does not ground "left foot". `together` is the
-// body-part check, so ability negators ("can't bend") do not deny it.
-function clauseGrounds(clause: string, needed: string[], together: boolean) {
+// `part` marks the body-part check, where ability negators ("can't bend") do
+// not deny it.
+function clauseGrounds(
+  clause: string,
+  needed: string[],
+  together: boolean,
+  part: boolean,
+  corrected: boolean,
+) {
   const soft = clause
     .split(/\b(?:and|but|or|though)\b/i)
     .map(tokens)
     .filter((words) => words.length);
-  if (soft.some((words) => covers(words, needed, together))) return true;
+  if (soft.some((words) => covers(words, needed, part, corrected))) return true;
   if (together) return false;
   const affirmative = soft.filter((words) => !words.some(isNegator));
-  return covers(affirmative.flat(), needed);
+  return covers(affirmative.flat(), needed, false, corrected);
 }
 
 export function grounded(
   value: string,
   transcript: string,
   together = false,
+  part = false,
 ): boolean {
   // "knee and ankle" names two parts; each must be said together on its own.
   if (together && /\b(?:and|but|or|though)\b/i.test(value))
     return value
       .split(/\b(?:and|but|or|though)\b/i)
-      .every((part) => !part.trim() || grounded(part, transcript, true));
+      .every(
+        (piece) => !piece.trim() || grounded(piece, transcript, true, part),
+      );
   const needed = normalize(value)
     .split(" ")
     .filter((word) => word && !stop.has(word));
   if (!needed.length) return false;
-  return transcript
-    .split(/[.!?;:,\n]+/)
-    .some((clause) => clause.trim() && clauseGrounds(clause, needed, together));
+  const clauses = transcript.split(/[.!?;:,\n]+/);
+  return clauses.some(
+    (clause, i) =>
+      clause.trim() &&
+      clauseGrounds(
+        clause,
+        needed,
+        together,
+        part,
+        /^(?:it's|its|it is)\b/.test(normalize(clauses[i + 1] ?? "")),
+      ),
+  );
+}
+
+// "left knee" or "left big toe", not the verb in "I left work because my knee
+// hurts" or "I left my knee brace", nor "it hurts right at my knee".
+const notModifiers = new Set([
+  "my",
+  "the",
+  "a",
+  "an",
+  "his",
+  "her",
+  "their",
+  "our",
+  "your",
+  "this",
+  "that",
+  "it",
+  "at",
+  "in",
+  "on",
+]);
+function sideNextTo(side: string, transcript: string) {
+  const words = normalize(transcript).split(" ");
+  return words.some((word, i) => {
+    if (word !== side) return false;
+    const next = words[i + 1] ?? "";
+    return (
+      partsIn(next).length > 0 ||
+      (!notModifiers.has(next) &&
+        partsIn(`${next} ${words[i + 2] ?? ""}`).length > 0)
+    );
+  });
 }
 
 export type LocationResult =
@@ -264,7 +335,10 @@ export function mapLocation(
   const words = spoken.trim();
   if (!words) return { status: "missing" };
   // A side and a body part count only when said together.
-  if (!grounded(words, transcript, true))
+  if (!grounded(words, transcript, true, true))
+    return { status: "unmapped", spoken: words };
+  const said = sideIn(words);
+  if ((said === "left" || said === "right") && !sideNextTo(said, transcript))
     return { status: "unmapped", spoken: words };
   const parts = partsIn(words);
   if (parts.length === 0) return { status: "unmapped", spoken: words };
@@ -280,12 +354,9 @@ export function mapLocation(
       ((side === "left" || side === "right") &&
       sideIn(transcript) === side &&
       grounded(side, transcript) &&
-      // "my right knee", "the left one" or "on the right side", not the verb
-      // in "I left work".
-      (grounded(`${side} ${words}`, transcript, true) ||
-        new RegExp(`\\b(?:${side} (?:one|side)|on the ${side})\\b`).test(
-          normalize(transcript),
-        )) &&
+      // "my right knee" or "the left one", not the verb in "I left work".
+      (sideNextTo(side, transcript) ||
+        new RegExp(`\\bthe ${side} one\\b`).test(normalize(transcript))) &&
       partsIn(transcript).length === 1
         ? side
         : null);

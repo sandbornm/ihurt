@@ -25,6 +25,8 @@ jobs:
       - run: npm ci
       - run: uv sync --frozen --extra dev
       - run: npm run check
+      - name: Check extraction eval against thresholds
+        run: npm run eval:extraction -- --check
       - run: npx playwright install --with-deps chromium
       - name: Check Python-served camera assets and demo API over HTTP
         run: npm run test:api-browser

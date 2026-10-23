@@ -147,20 +147,11 @@ const negators = new Set([
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
 
-// "I can't bend my left knee" says the knee is affected, not that it is fine.
-// Ability negators still count for ratings ("I wouldn't call it a 7").
-const ability = new Set([
-  "can't",
-  "cant",
-  "cannot",
-  "couldn't",
-  "couldnt",
-  "won't",
-  "wont",
-  "wouldn't",
-  "wouldnt",
-]);
-const denies = (word: string) => isNegator(word) && !ability.has(word);
+// For a body part, "I can't bend my left knee" says the knee is affected, not
+// that it is fine. Other fields keep every negator ("I couldn't run").
+const ability = new Set(["can't", "cant", "cannot", "couldn't", "couldnt"]);
+const denies = (word: string, part = false) =>
+  isNegator(word) && !(part && ability.has(word));
 
 // After the value, "is not the problem" or "doesn't hurt" denies it, while
 // "isn't burning, it's aching" only describes it.
@@ -171,20 +162,23 @@ const deniedAfter = new Set([
   "where",
   "what",
   "it",
-  "hurt",
-  "hurts",
-  "hurting",
-  "sore",
-  "painful",
   "bothering",
   "affected",
   "involved",
 ]);
-function deniesAfter(words: string[], end: number) {
+// "doesn't hurt" denies the part only when it ends the clause or says "at
+// all"; "doesn't hurt much" still says it hurts.
+function deniesAfter(words: string[], end: number, part: boolean) {
   const next = words.slice(end + 1, end + 6);
-  const at = next.findIndex(denies);
+  const at = next.findIndex((word) => denies(word, part));
+  if (at < 0 || at >= 3) return false;
+  const rest = next.slice(at + 1);
+  if (rest.some((word) => deniedAfter.has(word))) return true;
+  const hurt = rest.findIndex((word) => /^hurts?$/.test(word));
   return (
-    at >= 0 && at < 3 && next.slice(at + 1).some((w) => deniedAfter.has(w))
+    hurt >= 0 &&
+    (hurt === rest.length - 1 ||
+      /^at all\b/.test(rest.slice(hurt + 1).join(" ")))
   );
 }
 
@@ -204,14 +198,14 @@ const sameWord = (said: string, want: string) =>
 // True when every wanted word occurs, no negator stands before it, and the
 // words after it do not deny it. "my left knee isn't burning" keeps the knee
 // and drops "burning"; "my left knee is not the problem" drops the knee.
-function covers(words: string[], needed: string[]) {
+function covers(words: string[], needed: string[], part = false) {
   let last = -1;
   const found = needed.every((want) => {
     const at = words.findIndex((said) => sameWord(said, want));
     last = Math.max(last, at);
-    return at >= 0 && !words.slice(0, at).some(denies);
+    return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
-  return found && !deniesAfter(words, last);
+  return found && !deniesAfter(words, last, part);
 }
 
 function tokens(clause: string) {
@@ -222,15 +216,16 @@ function tokens(clause: string) {
 // a denial on one side does not cancel the other. Words joined only by those
 // conjunctions still count as together ("left knee and ankle").
 // With `together`, the words must share one conjunction-free clause, so "my
-// left knee and right foot" does not ground "left foot".
+// left knee and right foot" does not ground "left foot". `together` is the
+// body-part check, so ability negators ("can't bend") do not deny it.
 function clauseGrounds(clause: string, needed: string[], together: boolean) {
   const soft = clause
     .split(/\b(?:and|but|or|though)\b/i)
     .map(tokens)
     .filter((words) => words.length);
-  if (soft.some((words) => covers(words, needed))) return true;
+  if (soft.some((words) => covers(words, needed, together))) return true;
   if (together) return false;
-  const affirmative = soft.filter((words) => !words.some(denies));
+  const affirmative = soft.filter((words) => !words.some(isNegator));
   return covers(affirmative.flat(), needed);
 }
 
@@ -285,6 +280,12 @@ export function mapLocation(
       ((side === "left" || side === "right") &&
       sideIn(transcript) === side &&
       grounded(side, transcript) &&
+      // "my right knee", "the left one" or "on the right side", not the verb
+      // in "I left work".
+      (grounded(`${side} ${words}`, transcript, true) ||
+        new RegExp(`\\b(?:${side} (?:one|side)|on the ${side})\\b`).test(
+          normalize(transcript),
+        )) &&
       partsIn(transcript).length === 1
         ? side
         : null);
@@ -351,6 +352,8 @@ function statesRating(transcript: string, value: number) {
 
 export function parseIntensityAnswer(answer: string): number | null {
   const text = normalize(answer);
+  // "not seven" is not a rating; the field stays blank.
+  if (text.split(" ").some(isNegator)) return null;
   const found = [
     ...text.matchAll(
       /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/g,
@@ -519,9 +522,13 @@ export function answerFollowUp(
   proposal: PainProposal,
   answer: string,
 ): PainProposal {
-  const reply = answer.trim().slice(0, 300);
+  // A reply that would be cut from the saved transcript is not used, so every
+  // field keeps its source text.
+  const trimmed = answer.trim().slice(0, 300);
+  const reply =
+    proposal.transcript.length + 1 + trimmed.length <= 3000 ? trimmed : "";
   const transcript = reply
-    ? `${proposal.transcript}\n${reply}`.slice(0, 3000)
+    ? `${proposal.transcript}\n${reply}`
     : proposal.transcript;
   const next: PainProposal = {
     ...proposal,

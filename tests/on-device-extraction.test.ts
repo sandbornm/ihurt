@@ -746,6 +746,69 @@ test("the model's side needs a stated, undenied side for that one part", () => {
     mapLocation("knee", "left", "my knee hurts, the left one").status,
     "mapped",
   );
+  assert.equal(
+    mapLocation("knee", "left", "My knee hurts. I left work early.").status,
+    "need-side",
+  );
+});
+
+test("affected parts and hedged hurt keep the location; other fields keep negators", () => {
+  for (const said of [
+    "My left knee doesn't hurt much",
+    "My left knee doesn't hurt much. It's a 4.",
+    "my left knee isn't sore, it's aching",
+    "my left knee isn't hurting, it's aching",
+    "I couldn't run because my left knee hurts",
+  ])
+    assert.equal(mapLocation("left knee", "left", said).status, "mapped", said);
+  assert.notEqual(
+    mapLocation("left knee", "left", "my left knee doesn't hurt at all").status,
+    "mapped",
+  );
+  assert.notEqual(
+    mapLocation(
+      "left knee",
+      "left",
+      "I wouldn't say my left knee is the problem",
+    ).status,
+    "mapped",
+  );
+  assert.equal(
+    grounded("run", "I couldn't run because my left knee hurts"),
+    false,
+  );
+});
+
+test("a negated follow-up rating is not recorded", () => {
+  assert.equal(parseIntensityAnswer("not seven"), null);
+  assert.equal(parseIntensityAnswer("it isn't a 7"), null);
+  assert.equal(parseIntensityAnswer("seven"), 7);
+});
+
+test("a follow-up that would be cut from the transcript is not used", () => {
+  const proposal = buildProposal(
+    {
+      spokenLocation: "left knee",
+      side: "left",
+      qualities: [],
+      intensity: null,
+      activity: "",
+      surface: "",
+      onsetPhrase: "",
+    },
+    `my left knee hurts ${"x".repeat(2985)}`,
+    today,
+  );
+  assert.equal(proposal.followUp?.key, "intensity");
+  const next = answerFollowUp(proposal, "seven");
+  assert.equal(next.fields.intensity, undefined);
+  assert.equal(next.transcript, proposal.transcript);
+  const short = answerFollowUp(
+    { ...proposal, transcript: "my left knee hurts" },
+    "seven",
+  );
+  assert.equal(short.fields.intensity, 7);
+  assert.equal(short.transcript, "my left knee hurts\nseven");
 });
 
 test("an onset and an activity surface must be said together", () => {

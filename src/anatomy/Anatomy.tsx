@@ -4,6 +4,8 @@ import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createBody } from "./model";
 import { regions, type RegionId, type PainPoint } from "../types";
+import { t } from "../i18n";
+import { useI18n } from "../i18n/react";
 import { loadAtlas, regionAt } from "./atlas";
 import { PinGesture } from "./gesture";
 import { advanceCamera, applyHandDelta, nudgeCamera } from "./motion";
@@ -50,6 +52,8 @@ interface Props {
 type Candidate = { mesh: T.Object3D; point: PainPoint };
 
 export default function Anatomy(props: Props) {
+  // Re-render on a language change. Strings come from t().
+  useI18n();
   const mappedKey = props.mapped.join("|");
   const pointsKey = JSON.stringify(
     props.points?.map((point) => [
@@ -124,10 +128,7 @@ export default function Anatomy(props: Props) {
     renderer.outputColorSpace = T.SRGBColorSpace;
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
-    renderer.domElement.setAttribute(
-      "aria-label",
-      "Interactive anatomy. Tap to pin a spot, drag to turn, or use two fingers to zoom and move. Use Turn or Move and the arrow buttons to adjust the view. Layers lets you choose overlapping structures.",
-    );
+    renderer.domElement.setAttribute("aria-label", t("anatomy.canvasLabel"));
     renderer.domElement.setAttribute("role", "img");
     root.appendChild(renderer.domElement);
     const scene = new T.Scene();
@@ -723,7 +724,7 @@ export default function Anatomy(props: Props) {
             [...body.muscles, ...body.bones].filter(
               (mesh) => mesh.visible && mesh.material.opacity > 0.5,
             ),
-            `${wasSpread ? "3D view with layers returned to their anatomical positions" : "Current 3D view"} · ${latest.current.layer === "muscle" ? (latest.current.showSkeleton === false ? "Muscles, bones hidden" : "Muscles and skeleton") : "Skeleton"} · ${root.dataset.atlas === "z-anatomy" ? "Z-Anatomy / BodyParts3D" : "Schematic fallback"}`,
+            `${wasSpread ? t("anatomy.capture.spread") : t("anatomy.capture.current")} · ${latest.current.layer === "muscle" ? (latest.current.showSkeleton === false ? t("anatomy.capture.musclesOnly") : t("anatomy.capture.muscles")) : t("anatomy.capture.skeleton")} · ${root.dataset.atlas === "z-anatomy" ? "Z-Anatomy / BodyParts3D" : t("anatomy.capture.schematic")}`,
           );
         } finally {
           if (wasSpread) {
@@ -931,7 +932,9 @@ export default function Anatomy(props: Props) {
             stroke.length > 1
               ? {
                   ...first,
-                  structure: `Area starting at ${first.structure}`,
+                  structure: t("anatomy.areaStarting", {
+                    structure: first.structure,
+                  }),
                   area: {
                     path: stroke.map((item) => item.point.position),
                     radius: 0.12,
@@ -982,7 +985,7 @@ export default function Anatomy(props: Props) {
             hit.object.name
               .replace(/\.[lr]\.\d+$/, "")
               .replace(/\.\d+$/, "")
-              .replace(/_/g, " ") || "Selected surface",
+              .replace(/_/g, " ") || t("anatomy.selectedSurface"),
         },
       };
     }
@@ -1048,10 +1051,10 @@ export default function Anatomy(props: Props) {
           surface?.name
             .replace(/\.[lr]\.\d+$/, "")
             .replace(/\.\d+$/, "")
-            .replace(/_/g, " ") || "Selected surface";
+            .replace(/_/g, " ") || t("anatomy.selectedSurface");
         const hint = surface
-          ? `Pointing at ${name} · hold still to pin`
-          : "Point at a muscle and hold still";
+          ? t("anatomy.pointingAt", { name })
+          : t("anatomy.pointHold");
         if (aimMesh === surface && lastHandsHint === hint) return;
         lastHandsHint = hint;
         setPickHint(hint);
@@ -1081,9 +1084,7 @@ export default function Anatomy(props: Props) {
       } else if (forcePicker || intent === "pick") {
         setLayers(intent !== "pick");
         setPickHint(
-          intent === "pick"
-            ? "Point at a muscle and hold still"
-            : "Click the visible muscle to choose a pin location",
+          intent === "pick" ? t("anatomy.pointHold") : t("anatomy.clickMuscle"),
         );
       }
     }
@@ -1299,7 +1300,10 @@ export default function Anatomy(props: Props) {
     >
       {props.navigation && ready && !failure && (
         <>
-          <div className="anatomy-navigation" aria-label="Model controls">
+          <div
+            className="anatomy-navigation"
+            aria-label={t("anatomy.controls")}
+          >
             <div className="navigation-modes">
               {(["pin", "turn", "highlight", "move"] as const).map((mode) => (
                 <button
@@ -1308,13 +1312,7 @@ export default function Anatomy(props: Props) {
                   aria-pressed={dragMode === mode}
                   onClick={() => setDragMode(mode)}
                 >
-                  {mode === "pin"
-                    ? "Pin"
-                    : mode === "turn"
-                      ? "Turn"
-                      : mode === "move"
-                        ? "Move"
-                        : "Highlight"}
+                  {t(`anatomy.mode.${mode}`)}
                 </button>
               ))}
               <button
@@ -1322,7 +1320,7 @@ export default function Anatomy(props: Props) {
                 aria-pressed={layers}
                 onClick={() => setLayers(false)}
               >
-                <Layers3 size={14} /> Layers
+                <Layers3 size={14} /> {t("anatomy.layers")}
               </button>
             </div>
             <div
@@ -1339,7 +1337,9 @@ export default function Anatomy(props: Props) {
               ).map(([direction, Icon]) => (
                 <button
                   key={direction}
-                  aria-label={`${dragMode === "move" ? "Move" : "Turn"} ${direction}`}
+                  aria-label={t(
+                    `anatomy.nudge.${dragMode === "move" ? "move" : "turn"}.${direction}`,
+                  )}
                   onClick={() => engine.current?.command(`nudge:${direction}`)}
                 >
                   <Icon size={17} />
@@ -1349,14 +1349,16 @@ export default function Anatomy(props: Props) {
             <small>
               {pickHint ||
                 (hands
-                  ? "Fist to turn · Two fists pull to zoom · Point and hold to pin"
+                  ? t("anatomy.hint.hands")
                   : dragMode === "highlight"
-                    ? "Drag over the body to highlight an area"
+                    ? t("anatomy.hint.highlight")
                     : layers
-                      ? "Click the body to choose a layer"
+                      ? t("anatomy.hint.layers")
                       : dragMode === "pin"
-                        ? "Tap to pin · Drag to turn · Two fingers to zoom or move"
-                        : `${dragMode === "turn" ? "Drag to turn" : "Drag to move"} · Switch to Pin to mark a spot`)}
+                        ? t("anatomy.hint.pin")
+                        : dragMode === "turn"
+                          ? t("anatomy.hint.turn")
+                          : t("anatomy.hint.move"))}
             </small>
           </div>
           <HandCamera
@@ -1379,15 +1381,15 @@ export default function Anatomy(props: Props) {
             <div
               className="anatomy-layer-picker"
               role="dialog"
-              aria-label="Muscle browser"
+              aria-label={t("anatomy.muscleBrowser")}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setMuscleBrowser(false);
               }}
             >
               <div className="layer-picker-heading">
-                <strong>Choose a muscle</strong>
+                <strong>{t("anatomy.chooseMuscle")}</strong>
                 <button
-                  aria-label="Close muscle list"
+                  aria-label={t("anatomy.closeMuscles")}
                   onClick={() => setMuscleBrowser(false)}
                 >
                   <X size={16} />
@@ -1396,13 +1398,13 @@ export default function Anatomy(props: Props) {
               <input
                 ref={muscleSearch}
                 className="notebook-input"
-                aria-label="Find a muscle"
-                placeholder="Search muscle names…"
+                aria-label={t("anatomy.findMuscle")}
+                placeholder={t("anatomy.searchMuscles")}
                 value={muscleQuery}
                 onChange={(event) => setMuscleQuery(event.target.value)}
               />
               <label className="layer-context-control">
-                Surrounding anatomy
+                {t("anatomy.surrounding")}
                 <input
                   type="range"
                   min="0"
@@ -1445,13 +1447,13 @@ export default function Anatomy(props: Props) {
                     engine.current?.command("pin-center");
                   }}
                 >
-                  Add pin to muscle
+                  {t("anatomy.addPinMuscle")}
                 </button>
                 <button
                   className="text-button"
                   onClick={() => engine.current?.command("context")}
                 >
-                  Show whole body
+                  {t("anatomy.wholeBody")}
                 </button>
               </div>
             </div>
@@ -1460,21 +1462,24 @@ export default function Anatomy(props: Props) {
             <div
               className="anatomy-layer-picker"
               role="dialog"
-              aria-label="Choose anatomy layer"
+              aria-label={t("anatomy.chooseLayer")}
               ref={picker}
               onKeyDown={(event) => {
                 if (event.key === "Escape") closePicker();
               }}
             >
               <div className="layer-picker-heading">
-                <strong>At this spot</strong>
-                <button aria-label="Close layers" onClick={closePicker}>
+                <strong>{t("anatomy.atSpot")}</strong>
+                <button
+                  aria-label={t("anatomy.closeLayers")}
+                  onClick={closePicker}
+                >
                   <X size={16} />
                 </button>
               </div>
-              <p>Surfaces along this view. Choose one to see its shape.</p>
+              <p>{t("anatomy.surfaces")}</p>
               <label className="layer-context-control">
-                Surrounding anatomy
+                {t("anatomy.surrounding")}
                 <input
                   type="range"
                   min="0"
@@ -1510,8 +1515,8 @@ export default function Anatomy(props: Props) {
                       {candidate.point.structure}
                       <small>
                         {index === 0
-                          ? "Closest to you"
-                          : "Behind the first surface"}
+                          ? t("anatomy.closest")
+                          : t("anatomy.behind")}
                       </small>
                     </span>
                   </button>
@@ -1528,14 +1533,14 @@ export default function Anatomy(props: Props) {
                       engine.current?.spread(amount, candidates);
                     }}
                   >
-                    Spread layers
+                    {t("anatomy.spread")}
                   </button>
                   {spreadAmount > 0 && (
                     <label className="layer-context-control">
-                      Separation
+                      {t("anatomy.separation")}
                       <input
                         type="range"
-                        aria-label="Layer separation"
+                        aria-label={t("anatomy.layerSeparation")}
                         min="0.1"
                         max="1"
                         step="0.1"
@@ -1552,8 +1557,8 @@ export default function Anatomy(props: Props) {
               )}
               <p className="layer-picker-note">
                 {spreadAmount > 0
-                  ? "Spreading the view does not move your saved marks."
-                  : "Model depth helps locate a pin. It does not identify what hurts."}
+                  ? t("anatomy.spreadNote")
+                  : t("anatomy.depthNote")}
               </p>
               <button
                 className="primary"
@@ -1564,7 +1569,7 @@ export default function Anatomy(props: Props) {
                   closePicker();
                 }}
               >
-                Pin this structure
+                {t("anatomy.pinStructure")}
               </button>
             </div>
           )}
@@ -1572,16 +1577,13 @@ export default function Anatomy(props: Props) {
       )}
       {failure ? (
         <div className="canvas-fallback">
-          <strong>Use the region picker to make your map.</strong>
-          <p>
-            3D graphics aren’t available in this browser. Your notes and hurt
-            maps still work.
-          </p>
+          <strong>{t("anatomy.fallbackTitle")}</strong>
+          <p>{t("anatomy.fallbackBody")}</p>
         </div>
       ) : (
         !ready && (
           <div className="canvas-loading">
-            Loading the body…
+            {t("anatomy.loading")}
             <span />
           </div>
         )

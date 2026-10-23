@@ -44,68 +44,109 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         synthesizer.stopSpeaking(at: .immediate)
     }
 
-    static let unavailableMessage =
-        "Apple Intelligence needs iOS 26 or later on a supported device. Your transcript still goes into the note."
+    // Each failure is sent as a stable code. The web layer shows it in the
+    // app's language; these English messages are the fallback.
+    static let messages: [String: String] = [
+        "ai-unavailable": "Apple Intelligence needs iOS 26 or later on a supported device. Your transcript still goes into the note.",
+        "ai-device-not-eligible": "This device does not support Apple Intelligence. Your transcript still goes into the note.",
+        "ai-not-enabled": "Turn on Apple Intelligence in Settings to fill fields from your voice. Your transcript still goes into the note.",
+        "ai-model-not-ready": "Apple Intelligence is still getting ready. Try again later; your transcript still goes into the note.",
+        "ai-locale-unsupported": "Apple Intelligence does not support this language on this device yet. Dictation still works; review and fill the fields yourself.",
+        "transcript-too-long": "Use a transcript of 3,000 characters or fewer.",
+        "invalid-anatomy": "Invalid anatomy list.",
+        "ai-failed": "Apple Intelligence could not read this note. Review the transcript and fields yourself.",
+        "ai-timeout": "Apple Intelligence took too long. Review the transcript and fields yourself.",
+        "ai-cancelled": "Apple Intelligence stopped reading this note.",
+        "question-too-long": "Use a question of 300 characters or fewer."
+    ]
 
-    @objc func isAvailable(_ call: CAPPluginCall) {
+    static func failure(_ code: String) -> [String: Any] {
+        ["available": false, "code": code, "reason": messages[code] ?? code]
+    }
+
+    private func reject(_ call: CAPPluginCall, _ code: String) {
+        call.reject(Self.messages[code] ?? code, code)
+    }
+
+    // The app's language setting, sent as "en" or "es" with a BCP 47 locale.
+    static func requestLocale(_ call: CAPPluginCall) -> Locale {
+        guard let id = call.getString("locale"), !id.isEmpty, id.count <= 35 else { return Locale.current }
+        return Locale(identifier: id)
+    }
+
+    static func requestLanguage(_ call: CAPPluginCall) -> String {
+        call.getString("language") == "es" ? "es" : "en"
+    }
+
+    // nil when the model can read notes in this locale, else a failure code.
+    static func unavailableCode(_ locale: Locale) -> String? {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
-            switch SystemLanguageModel.default.availability {
+            let model = SystemLanguageModel.default
+            switch model.availability {
             case .available:
-                call.resolve(["available": true])
+                return model.supportsLocale(locale) ? nil : "ai-locale-unsupported"
             case .unavailable(let reason):
-                call.resolve(["available": false, "reason": PainExtractor.describe(reason)])
+                return PainExtractor.describe(reason)
             @unknown default:
-                call.resolve(["available": false, "reason": Self.unavailableMessage])
+                return "ai-unavailable"
             }
-            return
         }
         #endif
-        call.resolve(["available": false, "reason": Self.unavailableMessage])
+        return "ai-unavailable"
+    }
+
+    @objc func isAvailable(_ call: CAPPluginCall) {
+        if let code = Self.unavailableCode(Self.requestLocale(call)) {
+            call.resolve(Self.failure(code))
+        } else {
+            call.resolve(["available": true])
+        }
     }
 
     @objc func extractPainEntry(_ call: CAPPluginCall) {
         let transcript = (call.getString("transcript") ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty, transcript.count <= 3000 else {
-            call.reject("Use a transcript of 3,000 characters or fewer.")
+            reject(call, "transcript-too-long")
             return
         }
         let anatomy = (call.getArray("anatomyList") ?? []).compactMap { $0 as? String }
         guard !anatomy.isEmpty, anatomy.count <= 100,
               anatomy.allSatisfy({ $0.range(of: "^[a-z_]{1,40}$", options: .regularExpression) != nil }) else {
-            call.reject("Invalid anatomy list.")
+            reject(call, "invalid-anatomy")
             return
         }
         let today = call.getString("today") ?? ""
+        let language = Self.requestLanguage(call)
+        if let code = Self.unavailableCode(Self.requestLocale(call)) {
+            reject(call, code)
+            return
+        }
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
-            guard case .available = SystemLanguageModel.default.availability else {
-                call.reject(Self.unavailableMessage)
-                return
-            }
             DispatchQueue.main.async {
-                self.startExtraction(call, transcript: transcript, anatomy: anatomy, today: today)
+                self.startExtraction(call, transcript: transcript, anatomy: anatomy, today: today, language: language)
             }
             return
         }
         #endif
-        call.reject(Self.unavailableMessage)
+        reject(call, "ai-unavailable")
     }
 
     // Main thread only.
     @available(iOS 26.0, *)
-    private func startExtraction(_ call: CAPPluginCall, transcript: String, anatomy: [String], today: String) {
+    private func startExtraction(_ call: CAPPluginCall, transcript: String, anatomy: [String], today: String, language: String) {
         finishExtraction(cancelled: true)
         let pending = PendingExtraction(call: call)
         extraction = pending
         pending.task = Task { @MainActor [weak self] in
             do {
-                var result = try await PainExtractor.extract(transcript: transcript, anatomy: anatomy)
+                var result = try await PainExtractor.extract(transcript: transcript, anatomy: anatomy, language: language)
                 result["today"] = today
                 pending.resolve(result)
             } catch {
-                pending.reject("Apple Intelligence could not read this note. Review the transcript and fields yourself.")
+                pending.reject(code: "ai-failed")
             }
             if self?.extraction === pending { self?.extraction = nil }
         }
@@ -113,7 +154,7 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         // can never stay open if the model stops answering.
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.extractionTimeout) { [weak self] in
             guard let self, self.extraction === pending else { return }
-            pending.reject("Apple Intelligence took too long. Review the transcript and fields yourself.", code: "TIMEOUT")
+            pending.reject(code: "ai-timeout")
             pending.task?.cancel()
             self.extraction = nil
         }
@@ -131,15 +172,16 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         guard let pending = extraction else { return }
         extraction = nil
         pending.task?.cancel()
-        if cancelled { pending.reject("Apple Intelligence stopped reading this note.", code: "CANCELLED") }
+        if cancelled { pending.reject(code: "ai-cancelled") }
     }
 
     @objc func speak(_ call: CAPPluginCall) {
         let text = (call.getString("text") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= 300 else {
-            call.reject("Use a question of 300 characters or fewer.")
+            reject(call, "question-too-long")
             return
         }
+        let locale = Self.requestLocale(call)
         DispatchQueue.main.async {
             guard UIApplication.shared.applicationState != .background else {
                 call.resolve(["spoken": false])
@@ -157,10 +199,21 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
                 return
             }
             let utterance = AVSpeechUtterance(string: text)
-            utterance.voice = AVSpeechSynthesisVoice(language: AVSpeechSynthesisVoice.currentLanguageCode())
+            utterance.voice = Self.voice(for: locale)
             self.synthesizer.speak(utterance)
             call.resolve(["spoken": true])
         }
+    }
+
+    // A voice for the app's language: the exact locale, then any installed
+    // voice of that language, then the system default.
+    static func voice(for locale: Locale) -> AVSpeechSynthesisVoice? {
+        let id = locale.identifier.replacingOccurrences(of: "_", with: "-")
+        if let exact = AVSpeechSynthesisVoice(language: id) { return exact }
+        let language = locale.language.languageCode?.identifier ?? String(id.prefix(2))
+        return AVSpeechSynthesisVoice.speechVoices().first { $0.language.hasPrefix(language + "-") }
+            ?? AVSpeechSynthesisVoice(language: language)
+            ?? AVSpeechSynthesisVoice(language: AVSpeechSynthesisVoice.currentLanguageCode())
     }
 
     @objc func stopSpeaking(_ call: CAPPluginCall) {
@@ -204,10 +257,10 @@ final class PendingExtraction {
         call.resolve(data)
     }
 
-    func reject(_ message: String, code: String? = nil) {
+    func reject(code: String) {
         guard !settled else { return }
         settled = true
-        call.reject(message, code)
+        call.reject(AppleIntelligencePlugin.messages[code] ?? code, code)
     }
 }
 

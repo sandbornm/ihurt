@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { t } from "./i18n";
 export default class FeatureBoundary extends Component<
   { children: ReactNode; label: string },
   { failed: boolean }
@@ -13,13 +14,12 @@ export default class FeatureBoundary extends Component<
         role="status"
         style={{ padding: 24, color: "#a9bd99", fontSize: 13, lineHeight: 1.7 }}
       >
-        {this.props.label} couldn’t load. The rest of the page is still
-        available.{" "}
+        {t("boundary.failed", { label: this.props.label })}{" "}
         <button
           style={{ color: "#baf38b", textDecoration: "underline", padding: 0 }}
           onClick={() => window.location.reload()}
         >
-          Reload
+          {t("boundary.reload")}
         </button>
       </div>
     ) : (

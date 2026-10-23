@@ -1,3 +1,10 @@
+import {
+  language,
+  translate,
+  type Language,
+  type MessageKey,
+} from "./i18n/index.ts";
+
 export const regions = [
   { id: "neck", name: "Neck", group: "Head & torso", center: [0, 2.48, 0] },
   { id: "chest", name: "Chest", group: "Head & torso", center: [0, 1.96, 0.2] },
@@ -161,7 +168,27 @@ export interface SavedMap {
     context_url?: string;
   }[];
 }
-export const regionName = (id: string) =>
-  regions
-    .find((r) => r.id === id)
-    ?.name.replace(/^\w/, (c) => c.toUpperCase()) ?? id;
+// Display names come from the dictionaries, keyed by the stable region id.
+// Stored data always keeps the id, never the translated name.
+export const regionNameIn = (lang: Language, id: string) =>
+  isRegionId(id) ? translate(lang, `region.${id}` as MessageKey) : id;
+export const regionName = (id: string) => regionNameIn(language(), id);
+const groupKeys: Record<string, MessageKey> = {
+  "Head & torso": "regionGroup.torso",
+  "Arms & shoulders": "regionGroup.arms",
+  "Hips & legs": "regionGroup.legs",
+};
+export const regionGroupName = (group: string, lang: Language = language()) =>
+  groupKeys[group] ? translate(lang, groupKeys[group]) : group;
+export const isRegionId = (id: string): id is RegionId =>
+  regions.some((r) => r.id === id);
+
+const fold = (value: string) =>
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+// Region search matches the name in English and Spanish, without accents.
+export const regionMatches = (id: RegionId, query: string) => {
+  const q = fold(query);
+  return (["en", "es"] as const).some((lang) =>
+    fold(regionNameIn(lang, id)).includes(q),
+  );
+};

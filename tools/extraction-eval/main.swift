@@ -70,10 +70,11 @@ func record(casesURL: URL, anatomyURL: URL, outURL: URL, name: String, limit: In
     for (index, item) in chosen.enumerated() {
         let id = item["id"] as? String ?? "case-\(index)"
         let note = item["note"] as? String ?? ""
+        let language = (item["lang"] as? String) == "es" ? "es" : "en"
         fputs("[\(index + 1)/\(chosen.count)] \(id)\n", stderr)
         fflush(stderr)
         do {
-            let extracted = try await extractLimited(note: note, anatomy: anatomy)
+            let extracted = try await extractLimited(note: note, anatomy: anatomy, language: language)
             var row = extracted
             row["today"] = today
             outputs[id] = row
@@ -95,8 +96,8 @@ func record(casesURL: URL, anatomyURL: URL, outURL: URL, name: String, limit: In
 }
 
 @available(macOS 26.0, *)
-func extractLimited(note: String, anatomy: [String]) async throws -> [String: Any] {
-    let work = Task { try await PainExtractor.extract(transcript: note, anatomy: anatomy) }
+func extractLimited(note: String, anatomy: [String], language: String) async throws -> [String: Any] {
+    let work = Task { try await PainExtractor.extract(transcript: note, anatomy: anatomy, language: language) }
     let timer = Task {
         try await Task.sleep(nanoseconds: 45_000_000_000)
         work.cancel()

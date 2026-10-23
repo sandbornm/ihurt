@@ -3,12 +3,14 @@ import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+import { useI18n } from "../i18n/react";
 
 export default function BodyReference({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const { t } = useI18n();
   const host = useRef<HTMLDivElement>(null);
   const [body, setBody] = useState<"female" | "male">("female");
-  const [status, setStatus] = useState("Loading reference…");
+  const [status, setStatus] = useState(t("ref.loading"));
   const turn = useRef<(angle: number) => void>(() => {});
   useEffect(() => {
     dialog.current?.showModal();
@@ -19,16 +21,16 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
     try {
       renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
-      setStatus("3D graphics are unavailable.");
+      setStatus(t("ref.no3d"));
       return;
     }
-    setStatus("Loading reference…");
+    setStatus(t("ref.loading"));
     delete root.dataset.body;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setClearColor(0x14211b, 1);
     renderer.domElement.setAttribute(
       "aria-label",
-      `${body} outer-body reference`,
+      t(body === "female" ? "ref.canvas.female" : "ref.canvas.male"),
     );
     renderer.domElement.setAttribute("role", "img");
     root.appendChild(renderer.domElement);
@@ -98,10 +100,7 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
         dirty = true;
       })
       .catch(() => {
-        if (!disposed)
-          setStatus(
-            "This reference could not load. Your notebook is still available.",
-          );
+        if (!disposed) setStatus(t("ref.failed"));
       });
     const resize = () => {
       renderer.setSize(root.clientWidth, root.clientHeight);
@@ -150,18 +149,18 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
       className="body-reference"
       ref={dialog}
       onCancel={onClose}
-      aria-label="Body references"
+      aria-label={t("ref.title")}
     >
       <div className="body-reference-heading">
         <div>
-          <h2>Body references</h2>
-          <p>Two fixed outer-body references from the Human Reference Atlas.</p>
+          <h2>{t("ref.title")}</h2>
+          <p>{t("ref.subtitle")}</p>
         </div>
         <button className="secondary" onClick={onClose}>
-          Return to map
+          {t("ref.return")}
         </button>
       </div>
-      <div className="layer-toggle" aria-label="Reference model">
+      <div className="layer-toggle" aria-label={t("ref.model")}>
         {(["female", "male"] as const).map((value) => (
           <button
             key={value}
@@ -169,7 +168,7 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
             className={body === value ? "active" : ""}
             onClick={() => setBody(value)}
           >
-            {value === "female" ? "Female" : "Male"}
+            {value === "female" ? t("ref.female") : t("ref.male")}
           </button>
         ))}
       </div>
@@ -180,20 +179,17 @@ export default function BodyReference({ onClose }: { onClose: () => void }) {
           className="secondary"
           onClick={() => turn.current(-Math.PI / 6)}
         >
-          Turn left
+          {t("ref.turnLeft")}
         </button>
-        <span>Drag to turn · Scroll to zoom</span>
+        <span>{t("ref.dragHint")}</span>
         <button className="secondary" onClick={() => turn.current(Math.PI / 6)}>
-          Turn right
+          {t("ref.turnRight")}
         </button>
       </div>
       <p className="body-reference-note">
-        Choose either reference for orientation. These models are not adjusted
-        to your measurements and have no muscle layers. Their labels describe
-        the source models. Place pins in the muscle atlas; saved pins are not
-        transferred between models.{" "}
+        {t("ref.note")}{" "}
         <a href="/models/ATTRIBUTION.md" target="_blank" rel="noreferrer">
-          Model credits ↗
+          {t("ref.credits")}
         </a>
       </p>
     </dialog>

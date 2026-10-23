@@ -2,6 +2,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { configureNativeExports } from "./files";
+import { setDeviceLanguages, t } from "../i18n/index.ts";
 import { configureNativeSpeech } from "./speech";
 import { createAppleSpeech, type AppleSpeechBridge } from "./apple-speech";
 import {
@@ -14,9 +15,18 @@ import {
 // Notebook keep the browser adapter without depending on Capacitor.
 export function initializeNativeApp() {
   if (Capacitor.getPlatform() !== "ios") return;
-  configureNativeSpeech(
-    createAppleSpeech(registerPlugin<AppleSpeechBridge>("AppleSpeech")),
-  );
+  const speech = registerPlugin<AppleSpeechBridge>("AppleSpeech");
+  configureNativeSpeech(createAppleSpeech(speech));
+  // The Automatic language setting follows the phone's language list.
+  void speech
+    .languages?.()
+    .then(({ languages }) => {
+      if (Array.isArray(languages))
+        setDeviceLanguages(
+          languages.filter((tag): tag is string => typeof tag === "string"),
+        );
+    })
+    .catch(() => {});
   configureOnDeviceAI(
     createAppleIntelligence(
       registerPlugin<AppleIntelligenceBridge>("AppleIntelligence"),
@@ -34,7 +44,7 @@ export function initializeNativeApp() {
       return result.uri;
     },
     async share(uri) {
-      await Share.share({ title: "iHurt report", files: [uri] });
+      await Share.share({ title: t("native.shareTitle"), files: [uri] });
     },
   });
 }

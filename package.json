@@ -29,7 +29,9 @@
     "test:voice": "node scripts/voice-browser-check.mjs",
     "test:ios-speech": "node scripts/ios-speech-browser-check.mjs",
     "test:ios-native": "node scripts/ios-native-check.mjs",
-    "test:api-browser": "node scripts/api-browser-check.mjs"
+    "test:api-browser": "node scripts/api-browser-check.mjs",
+    "eval:extraction": "node --experimental-strip-types scripts/eval-extraction.ts",
+    "eval:record": "node --experimental-strip-types scripts/eval-record.ts"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

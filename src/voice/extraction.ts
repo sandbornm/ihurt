@@ -123,6 +123,13 @@ function sideIn(value: string): "left" | "right" | "both" | null {
   return left ? "left" : right ? "right" : null;
 }
 
+// A side said on its own about the one part: "the left one", "on the right",
+// "la izquierda", "el derecho", "del lado izquierdo".
+const sideReference = {
+  left: /\b(?:left (?:one|side)|on the left|(?:el|la|lado) izquierd[oa])\b/,
+  right: /\b(?:right (?:one|side)|on the right|(?:el|la|lado) derech[oa])\b/,
+};
+
 // The side word exactly as said, such as "left" or "izquierda", so a follow-up
 // answer can be added to the spoken location in the person's own words.
 function sideWordIn(value: string, side: "left" | "right") {
@@ -245,24 +252,21 @@ const negators = new Set([
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
 
-// "I can't bend my left knee" and "no puedo doblar la rodilla" say the part is
-// affected, not that it is fine. These still count for ratings ("I wouldn't
-// call it a 7").
+// For a body part, "I can't bend my left knee" and "no puedo doblar la
+// rodilla" say the part is affected, not that it is fine. Other fields keep
+// every negator ("I couldn't run").
 const ability = new Set([
   "can't",
   "cant",
   "cannot",
   "couldn't",
   "couldnt",
-  "won't",
-  "wont",
-  "wouldn't",
-  "wouldnt",
   "nopuedo",
   "nopude",
   "nopodia",
 ]);
-const denies = (word: string) => isNegator(word) && !ability.has(word);
+const denies = (word: string, part = false) =>
+  isNegator(word) && !(part && ability.has(word));
 
 // After the value, "is not the problem", "doesn't hurt" or "no me duele"
 // denies it, while "isn't burning, it's aching" only describes it.
@@ -273,29 +277,33 @@ const deniedAfter = new Set([
   "where",
   "what",
   "it",
-  "hurt",
-  "hurts",
-  "hurting",
-  "sore",
-  "painful",
   "bothering",
   "affected",
   "involved",
   "problema",
-  "duele",
-  "duelen",
-  "molesta",
-  "molestan",
   "afectado",
   "afectada",
   "lastimado",
   "lastimada",
 ]);
-function deniesAfter(words: string[], end: number) {
+// "doesn't hurt" and "no me duele" deny the part only when they end the
+// clause or say "at all" / "para nada"; "doesn't hurt much" and "no me duele
+// mucho" still say it hurts.
+function deniesAfter(words: string[], end: number, part: boolean) {
   const next = words.slice(end + 1, end + 6);
-  const at = next.findIndex(denies);
+  const at = next.findIndex((word) => denies(word, part));
+  if (at < 0 || at >= 3) return false;
+  const rest = next.slice(at + 1);
+  if (rest.some((word) => deniedAfter.has(word))) return true;
+  const hurt = rest.findIndex((word) =>
+    /^(?:hurts?|duelen?|molestan?)$/.test(word),
+  );
   return (
-    at >= 0 && at < 3 && next.slice(at + 1).some((w) => deniedAfter.has(w))
+    hurt >= 0 &&
+    (hurt === rest.length - 1 ||
+      /^(?:at all|para nada|nada|en absoluto)\b/.test(
+        rest.slice(hurt + 1).join(" "),
+      ))
   );
 }
 
@@ -345,25 +353,26 @@ const clauses = (transcript: string) =>
 // "my left knee isn't burning" keeps the knee and drops "burning";
 // "no me duele la rodilla" drops the knee.
 // The words after it must not deny it either: "my left knee doesn't hurt".
-function covers(words: string[], needed: string[]) {
+function covers(words: string[], needed: string[], part = false) {
   let last = -1;
   const found = needed.every((want) => {
     const at = words.findIndex((said) => matches(said, want));
     last = Math.max(last, at);
-    return at >= 0 && !words.slice(0, at).some(denies);
+    return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
-  return found && !deniesAfter(words, last);
+  return found && !deniesAfter(words, last, part);
 }
 
 // With `together`, the words must share one conjunction-free part, so "my
 // left knee and right foot" does not ground "left foot". Without it, words
 // joined only by conjunctions still count ("left knee and ankle"), as long as
-// none comes from a denied part.
+// none comes from a denied part. `together` is the body-part check, so ability
+// negators ("can't bend", "no puedo doblar") do not deny it.
 function clauseGrounds(clause: string, needed: string[], together: boolean) {
   const soft = softParts(clause);
-  if (soft.some((words) => covers(words, needed))) return true;
+  if (soft.some((words) => covers(words, needed, together))) return true;
   if (together) return false;
-  const affirmative = soft.filter((words) => !words.some(denies));
+  const affirmative = soft.filter((words) => !words.some(isNegator));
   return covers(affirmative.flat(), needed);
 }
 
@@ -431,7 +440,11 @@ export function mapLocation(
       ((side === "left" || side === "right") &&
       sideIn(transcript) === side &&
       partsIn(transcript).length === 1 &&
-      grounded(sideWordIn(transcript, side), transcript)
+      grounded(sideWordIn(transcript, side), transcript) &&
+      // "my right knee", "the left one", "la izquierda" or "del lado
+      // derecho", not the verb in "I left work".
+      (grounded(`${sideWordIn(transcript, side)} ${words}`, transcript, true) ||
+        sideReference[side].test(normalize(transcript)))
         ? side
         : null);
     if (stated !== "left" && stated !== "right")
@@ -532,6 +545,8 @@ export function ratedIn(transcript: string, value: number) {
 
 export function parseIntensityAnswer(answer: string): number | null {
   const text = normalize(answer);
+  // "not seven" or "no es un siete" is not a rating; the field stays blank.
+  if (text.split(" ").some(isNegator)) return null;
   const found = [...text.matchAll(new RegExp(`\\b(${numberPattern})\\b`, "g"))]
     .map((match) => numberValue(match[1]))
     .filter((value) => value >= 0);
@@ -762,9 +777,13 @@ export function answerFollowUp(
   proposal: PainProposal,
   answer: string,
 ): PainProposal {
-  const reply = answer.trim().slice(0, 300);
+  // A reply that would be cut from the saved transcript is not used, so every
+  // field keeps its source text.
+  const trimmed = answer.trim().slice(0, 300);
+  const reply =
+    proposal.transcript.length + 1 + trimmed.length <= 3000 ? trimmed : "";
   const transcript = reply
-    ? `${proposal.transcript}\n${reply}`.slice(0, 3000)
+    ? `${proposal.transcript}\n${reply}`
     : proposal.transcript;
   const next: PainProposal = {
     ...proposal,

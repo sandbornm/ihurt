@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mapLocation, ratedIn, resolveOnset } from "../src/voice/extraction.ts";
+import {
+  mapLocation,
+  parseIntensityAnswer,
+  ratedIn,
+  resolveOnset,
+} from "../src/voice/extraction.ts";
 import { suggestVoiceDraft } from "../src/voice/draft.ts";
 import { activityMatch } from "../src/activities.ts";
 import { exportNotebook, parseNotebook } from "../src/notebook-data.ts";
@@ -154,4 +159,32 @@ test("the JSON export and import messages follow the language", () => {
   setLanguagePreference("en");
   assert.match(exportNotebook([]).notice, /Not medical advice/);
   setLanguagePreference("auto");
+});
+
+test("Spanish hedged pain keeps the part; a full denial or negated rating does not", () => {
+  assert.equal(
+    mapLocation(
+      "rodilla izquierda",
+      "left",
+      "la rodilla izquierda no me duele mucho",
+    ).status,
+    "mapped",
+  );
+  for (const said of [
+    "la rodilla izquierda no me duele",
+    "la rodilla izquierda no me duele para nada",
+    "la rodilla izquierda no es el problema",
+  ])
+    assert.notEqual(
+      mapLocation("rodilla izquierda", "left", said).status,
+      "mapped",
+      said,
+    );
+  assert.equal(
+    mapLocation("rodilla", "left", "me duele la rodilla del lado izquierdo")
+      .status,
+    "mapped",
+  );
+  assert.equal(parseIntensityAnswer("no es un siete"), null);
+  assert.equal(parseIntensityAnswer("siete"), 7);
 });

@@ -27,3 +27,15 @@ test("a new recording generation can suggest again", () => {
   assert.equal(once.deliver(1, 1, "first note"), "first note");
   assert.equal(once.deliver(2, 2, "second note"), "second note");
 });
+
+test("a blank final does not block a later real one from the same recording", () => {
+  const once = createSuggestOnce();
+  assert.equal(once.deliver(1, 1, "  "), undefined);
+  assert.equal(once.deliver(1, 1, "my left knee hurts"), "my left knee hurts");
+  assert.equal(once.deliver(1, 1, "my left knee hurts"), undefined);
+});
+
+test("the suggested transcript is capped at 3000 characters", () => {
+  const once = createSuggestOnce();
+  assert.equal(once.deliver(1, 1, "a".repeat(3500))?.length, 3000);
+});

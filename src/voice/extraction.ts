@@ -55,7 +55,7 @@ const partWords: [Part, RegExp][] = [
   ],
   [
     "foot",
-    /\b(?:toes?|heels?|arch(?:es)?|foot|feet|soles?|instep|bunion)\b|\bdedos? (?:gordos? |pequenos? |chiquitos? )?del pie\b|\bdedo gordo\b|\b(?:juanetes?|talon(?:es)?|empeines?)\b|\bplantas? del pie\b|\barco del pie\b|(?<!\bde )\bpies?\b/,
+    /\b(?:toes?|heels?|arch(?:es)?|foot|feet|soles?|instep|bunion)\b|\bdedos? (?:gordos? |pequenos? |chiquitos? )?del pie\b|\bdedo gordo\b(?! de la mano)|\b(?:juanetes?|talon(?:es)?|empeines?)\b|\bplantas? del pie\b|\barco del pie\b|(?<!\bde )\bpies?\b/,
   ],
   ["ankle", /\bankles?\b|\btobillos?\b/],
   ["calf", /\bcalf\b|\bcalves\b|\b(?:pantorrillas?|gemelos?|chamorros?)\b/],
@@ -245,6 +245,69 @@ const negators = new Set([
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
 
+// "I can't bend my left knee" and "no puedo doblar la rodilla" say the part is
+// affected, not that it is fine. These still count for ratings ("I wouldn't
+// call it a 7").
+const ability = new Set([
+  "can't",
+  "cant",
+  "cannot",
+  "couldn't",
+  "couldnt",
+  "won't",
+  "wont",
+  "wouldn't",
+  "wouldnt",
+  "nopuedo",
+  "nopude",
+  "nopodia",
+]);
+const denies = (word: string) => isNegator(word) && !ability.has(word);
+
+// After the value, "is not the problem", "doesn't hurt" or "no me duele"
+// denies it, while "isn't burning, it's aching" only describes it.
+const deniedAfter = new Set([
+  "problem",
+  "issue",
+  "one",
+  "where",
+  "what",
+  "it",
+  "hurt",
+  "hurts",
+  "hurting",
+  "sore",
+  "painful",
+  "bothering",
+  "affected",
+  "involved",
+  "problema",
+  "duele",
+  "duelen",
+  "molesta",
+  "molestan",
+  "afectado",
+  "afectada",
+  "lastimado",
+  "lastimada",
+]);
+function deniesAfter(words: string[], end: number) {
+  const next = words.slice(end + 1, end + 6);
+  const at = next.findIndex(denies);
+  return (
+    at >= 0 && at < 3 && next.slice(at + 1).some((w) => deniedAfter.has(w))
+  );
+}
+
+// Spanish idioms that look like denials but are not: "nada mas" and "no mas"
+// mean "only" in Mexico ("me duele nada mas la rodilla"), "sin duda" means
+// "certainly". "ya no mas" (no longer) stays a denial. "no puedo" is ability.
+const idioms = (text: string) =>
+  text
+    .replace(/\b(?<!ya )(?:nada|no) mas\b/g, "solo")
+    .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
+    .replace(/\bno (pued[oe]|pude|podia)\b/g, "no$1");
+
 // Words that join two phrases. A denial on one side does not cancel the
 // other: "it isn't burning and my left knee hurts", "no es ardor pero duele".
 const conjunctions = new Set([
@@ -262,7 +325,8 @@ const conjunctions = new Set([
   "sino",
 ]);
 
-const tokens = (text: string) => normalize(text).split(" ").filter(Boolean);
+const tokens = (text: string) =>
+  idioms(normalize(text)).split(" ").filter(Boolean);
 
 // Punctuation separates clauses; conjunctions separate the soft parts inside
 // one clause.
@@ -280,11 +344,15 @@ const clauses = (transcript: string) =>
 // True when every wanted word occurs, and no negator stands before it.
 // "my left knee isn't burning" keeps the knee and drops "burning";
 // "no me duele la rodilla" drops the knee.
+// The words after it must not deny it either: "my left knee doesn't hurt".
 function covers(words: string[], needed: string[]) {
-  return needed.every((want) => {
+  let last = -1;
+  const found = needed.every((want) => {
     const at = words.findIndex((said) => matches(said, want));
-    return at >= 0 && !words.slice(0, at).some(isNegator);
+    last = Math.max(last, at);
+    return at >= 0 && !words.slice(0, at).some(denies);
   });
+  return found && !deniesAfter(words, last);
 }
 
 // With `together`, the words must share one conjunction-free part, so "my
@@ -295,7 +363,7 @@ function clauseGrounds(clause: string, needed: string[], together: boolean) {
   const soft = softParts(clause);
   if (soft.some((words) => covers(words, needed))) return true;
   if (together) return false;
-  const affirmative = soft.filter((words) => !words.some(isNegator));
+  const affirmative = soft.filter((words) => !words.some(denies));
   return covers(affirmative.flat(), needed);
 }
 
@@ -355,12 +423,16 @@ export function mapLocation(
   let region: string = part;
   if (sided.has(part)) {
     // A side counts only when the person said it.
+    // The model's side is used only when the note names this one part and
+    // says that side without denying it. "me duele la rodilla. La mano
+    // izquierda esta bien" asks which knee.
     const stated =
       sideIn(words) ??
-      (side === "left" || side === "right"
-        ? sideIn(transcript) === side
-          ? side
-          : null
+      ((side === "left" || side === "right") &&
+      sideIn(transcript) === side &&
+      partsIn(transcript).length === 1 &&
+      grounded(sideWordIn(transcript, side), transcript)
+        ? side
         : null);
     if (stated !== "left" && stated !== "right")
       return { status: "need-side", spoken: words, part };
@@ -409,15 +481,16 @@ const numberValue = (word: string) =>
 
 // A number counts as a rating only when it is said as one: "7 out of 10",
 // "7/10", "about a six", "pain is 4", "I rated it 7", "7 de 10", "un siete",
-// "dolor de 6", "intensidad 5". "3 days ago", "at 7 am" or "hace 3 dias" is
-// not a rating, and neither is a number after a denial ("no es un 8"). When
-// unsure, drop it so the follow-up question can ask.
+// "dolor de 6", "la intensidad es 5". "3 days ago", "at 7 am", "my son is 7",
+// "en 3 sitios" or "hace 3 dias" is not a rating, and neither is a number
+// after a denial ("no es un 8"). When unsure, drop it so the follow-up
+// question can ask.
 const ratingBefore =
-  /\b(?:about|around|maybe|like|roughly|a|an|is|was|rate|rated|rated it|rating|level|pain|intensity|un|una|como|es|era|esta|estaba|en|nivel|intensidad|calificacion|dolor|doy|daria|unos|unas)$/;
+  /\b(?:about|around|maybe|roughly|a|an|(?:pain|it|it's|its|that|rating|level|intensity) (?:is|was)|rate|rated|rated it|rating|level|pain|intensity|un|una|(?:dolor|intensidad|nivel|calificacion) (?:es|era|esta|estaba|de)|nivel|intensidad|calificacion|doy|daria|le doy|le daria)$/;
 const ratingAfter =
-  /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))\b/;
+  /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))(?: (.*))?$/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|de la (?:manana|tarde|noche))\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|de la (?:manana|tarde|noche))\b/;
 
 export function ratedIn(transcript: string, value: number) {
   if (!Number.isInteger(value) || value < 0 || value > 10) return false;
@@ -425,10 +498,19 @@ export function ratedIn(transcript: string, value: number) {
     `^(?:${value}|${numberWords[value]}|${spanishNumbers[value]})$`,
   );
   for (const clause of clauses(transcript)) {
-    // "7/10" is one rating; the slash would otherwise split it.
-    if (new RegExp(`(?:^|[^0-9])${value}\\s*/\\s*10\\b`).test(clause)) {
-      const before = tokens(clause.split("/")[0]);
-      if (!before.some(isNegator)) return true;
+    // "7/10" is one rating; the slash would otherwise split it. A date such
+    // as "on 7/10", "el 7/10" or "7/10/26" is not.
+    const slash = clause.match(
+      new RegExp(`(?:^|[^0-9/])${value}\\s*/\\s*10\\b(?!\\s*/)`),
+    );
+    if (slash) {
+      const before = tokens(clause.slice(0, slash.index! + 1));
+      const last = before[before.length - 1];
+      if (
+        !before.some(isNegator) &&
+        !["on", "since", "el", "desde", "del"].includes(last)
+      )
+        return true;
     }
     for (const words of softParts(clause))
       for (const [at, word] of words.entries()) {
@@ -436,8 +518,13 @@ export function ratedIn(transcript: string, value: number) {
         const before = words.slice(0, at);
         const after = words.slice(at + 1).join(" ");
         if (before.some(isNegator) || notRatingAfter.test(after)) continue;
-        if (ratingAfter.test(after) || ratingBefore.test(before.join(" ")))
-          return true;
+        const scale = after.match(ratingAfter);
+        // "3 out of 10 days" counts days, not pain.
+        if (scale) {
+          if (!notRatingAfter.test(scale[1] ?? "")) return true;
+          continue;
+        }
+        if (ratingBefore.test(before.join(" "))) return true;
       }
   }
   return false;
@@ -539,6 +626,13 @@ export function resolveOnset(
     text.match(
       /\b(?:el )?(domingo|lunes|martes|miercoles|jueves|viernes|sabado)\b/,
     );
+  // An onset is in the past. "el proximo lunes", "el lunes que viene" and
+  // "next monday" name a day ahead, so they keep the words without a date.
+  if (
+    weekday &&
+    /\b(?:next|coming|proxim[oa]|que viene|siguiente|entrante)\b/.test(text)
+  )
+    return { phrase };
   if (weekday) {
     const current = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
     const index = weekdays.includes(weekday[1])
@@ -625,13 +719,23 @@ export function buildProposal(
   if (raw.intensity !== null && ratedIn(transcript, raw.intensity))
     fields.intensity = raw.intensity;
   const activity = grounded(raw.activity, transcript) ? raw.activity : "";
-  const surface = grounded(raw.surface, transcript) ? raw.surface : "";
+  // A surface is kept only when said with this activity, so "ran on pavement
+  // and played tennis on clay" never becomes "ran on clay".
+  const surface =
+    activity && grounded(`${raw.activity} ${raw.surface}`, transcript, true)
+      ? raw.surface
+      : "";
   if (activity)
     fields.activity = surface
       ? translate(lang, "extraction.activityOn", { activity, surface })
       : activity;
   let onset: PainProposal["onset"];
-  if (grounded(raw.onsetPhrase, transcript)) {
+  // The onset must be said as one phrase: "three miles ... weeks ago" is not
+  // "three weeks ago".
+  if (
+    grounded(raw.onsetPhrase, transcript) &&
+    spanIn(raw.onsetPhrase, transcript)
+  ) {
     onset = resolveOnset(raw.onsetPhrase, today);
     fields.duration = onset.date
       ? translate(lang, "extraction.sinceDate", {

@@ -143,7 +143,7 @@ const spanishTerms: Record<string, string[]> = {
   "Strength training": ["pesas", "gimnasio", "gym"],
   Cycling: ["bici", "bicicleta", "ciclismo"],
   Swimming: ["nadar", "nade", "nadando", "natacion"],
-  Tennis: ["tenis", "raqueta", "saque"],
+  Tennis: ["raqueta"],
   Hiking: ["senderismo", "caminata"],
   Soccer: ["futbol"],
   Golf: ["golf"],
@@ -151,18 +151,33 @@ const spanishTerms: Record<string, string[]> = {
   Sleep: ["dormir", "dormi", "cama"],
   Padel: ["padel"],
 };
+// Whole words only, so "pasear" is not "pase" and "tenis de mesa" is not
+// Tennis. A longer name that contains the matched one wins.
+const hasPhrase = (text: string, name: string) =>
+  new RegExp(
+    `(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+    "u",
+  ).test(text);
 export function activityMatch(value: string): Activity | undefined {
   const text = fold(value);
   const words = text.split(/[^\p{L}\p{N}]+/u);
-  return (
-    activities.find((a) => names(a).includes(text)) ??
-    activities.find(
-      (a) =>
-        names(a).some((name) => text.includes(name)) ||
-        a.terms?.some((t) => words.includes(t)) ||
-        spanishTerms[a.name]?.some((t) => words.includes(t)),
-    )
-  );
+  const exact = activities.find((a) => names(a).includes(text));
+  if (exact) return exact;
+  // The longest name or term said wins: "tenis de mesa" is Table tennis and
+  // "ciclismo de montana" is Mountain biking. Ties keep list order.
+  let best: Activity | undefined;
+  let length = 0;
+  for (const a of activities) {
+    const said = [
+      ...names(a).filter((name) => hasPhrase(text, name)),
+      ...[...(a.terms ?? []), ...(spanishTerms[a.name] ?? [])].filter((t) =>
+        words.includes(t),
+      ),
+    ];
+    const longest = Math.max(0, ...said.map((name) => name.length));
+    if (longest > length) [best, length] = [a, longest];
+  }
+  return best;
 }
 export const activityRegions = (value: string) =>
   activityMatch(value)?.regions ?? [];

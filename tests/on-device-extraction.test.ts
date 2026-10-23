@@ -674,3 +674,113 @@ test("a side and a part from different phrases do not map", () => {
     spoken: "right foot",
   });
 });
+
+test("a negated rating or a rating-shaped count or date is not intensity", () => {
+  const raw = (intensity: number) => ({
+    spokenLocation: "left knee",
+    side: "left" as const,
+    qualities: [],
+    intensity,
+    activity: "",
+    surface: "",
+    onsetPhrase: "",
+  });
+  for (const [said, n] of [
+    ["My left knee is not a 7.", 7],
+    ["My left knee, it's not 7 out of 10.", 7],
+    ["My left knee, I wouldn't call it a 7.", 7],
+    ["My left knee flared 3 out of 10 days.", 3],
+    ["My left knee hurt 7 out of 10 times.", 7],
+    ["My left knee started on 7/10.", 7],
+    ["My left knee since 7/10/26.", 7],
+  ] as const)
+    assert.equal(
+      buildProposal(raw(n), said, today).fields.intensity,
+      undefined,
+      said,
+    );
+  for (const [said, n] of [
+    ["My left knee doesn't hurt much. It's a 4.", 4],
+    ["My left knee is 7 out of 10.", 7],
+    ["My left knee is about 6/10.", 6],
+  ] as const)
+    assert.equal(buildProposal(raw(n), said, today).fields.intensity, n, said);
+});
+
+test("a denial covers what it denies, not what is affected", () => {
+  assert.equal(
+    mapLocation("left knee", "left", "I can't bend my left knee").status,
+    "mapped",
+  );
+  assert.equal(
+    mapLocation("right foot", "right", "I cannot walk on my right foot").status,
+    "mapped",
+  );
+  const said = "my left knee is not the problem but it is my right ankle";
+  assert.notEqual(mapLocation("left knee", "left", said).status, "mapped");
+  assert.deepEqual(mapLocation("right ankle", "right", said), {
+    status: "mapped",
+    region: "right_ankle",
+    spoken: "right ankle",
+  });
+  assert.notEqual(
+    mapLocation("left knee", "left", "my left knee doesn't hurt").status,
+    "mapped",
+  );
+  assert.equal(
+    grounded("aching", "my left knee isn't burning, it's aching"),
+    true,
+  );
+});
+
+test("the model's side needs a stated, undenied side for that one part", () => {
+  assert.equal(
+    mapLocation("knee", "left", "my knee hurts but not the left").status,
+    "need-side",
+  );
+  assert.equal(
+    mapLocation("foot", "left", "my left knee and my foot hurt").status,
+    "need-side",
+  );
+  assert.equal(
+    mapLocation("knee", "left", "my knee hurts, the left one").status,
+    "mapped",
+  );
+});
+
+test("an onset and an activity surface must be said together", () => {
+  const raw = {
+    spokenLocation: "",
+    side: null,
+    qualities: [],
+    intensity: null,
+    activity: "",
+    surface: "",
+    onsetPhrase: "",
+  };
+  const onset = buildProposal(
+    { ...raw, onsetPhrase: "three weeks ago" },
+    "I ran three miles and my left knee started weeks ago",
+    today,
+  );
+  assert.equal(onset.fields.duration, undefined);
+  assert.equal(
+    buildProposal(
+      { ...raw, onsetPhrase: "three weeks ago" },
+      "My left knee started three weeks ago",
+      today,
+    ).fields.duration,
+    "Since three weeks ago (2026-10-01)",
+  );
+  const said = "I ran on pavement and played tennis on clay";
+  assert.equal(
+    buildProposal({ ...raw, activity: "ran", surface: "clay" }, said, today)
+      .fields.activity,
+    "ran",
+  );
+  assert.equal(
+    buildProposal({ ...raw, activity: "ran", surface: "pavement" }, said, today)
+      .fields.activity,
+    "ran on pavement",
+  );
+});

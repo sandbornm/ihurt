@@ -715,7 +715,9 @@ export const en = {
   "extraction.location.missing": "No body area named",
   "extraction.location.needSide": "You said “{spoken}” · left or right?",
   "extraction.location.ambiguous": "You said “{spoken}” · more than one area",
-  "extraction.location.unmapped": "“{spoken}” is not on the body map yet",
+  "extraction.location.unmapped":
+    "“{spoken}” is not on the quick map. Tap the spot.",
+  "extraction.location.both": "Both sides · tap each spot",
   "extraction.confirmFirst": "Confirm the proposed entry before adding it.",
   "fb.noMailApp": "If no email app opened, write to {address}.",
   "fb.sent": "Thanks, sent.",

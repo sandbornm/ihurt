@@ -1,7 +1,11 @@
 import { regionNameIn, regions, type RegionId } from "../types.ts";
 import { translate, type Language, type MessageKey } from "../i18n/index.ts";
-import type { RawPainExtraction } from "../platform/on-device-ai.ts";
+import type {
+  EvidenceExtraction,
+  RawPainExtraction,
+} from "../platform/on-device-ai.ts";
 import type { DraftFields, VoiceDraftValue } from "./draft.ts";
+import { verifyEvidence } from "./evidence.ts";
 
 // The on-device model only quotes the note. Everything here is deterministic:
 // a field survives only when its words appear in what the person said, and a
@@ -55,7 +59,7 @@ const partWords: [Part, RegExp][] = [
   ],
   [
     "foot",
-    /\b(?:toes?|heels?|arch(?:es)?|foot|feet|soles?|instep|bunion)\b|\bdedos? (?:gordos? |pequenos? |chiquitos? )?del pie\b|\bdedo gordo\b|\b(?:juanetes?|talon(?:es)?|empeines?)\b|\bplantas? del pie\b|\barco del pie\b|(?<!\bde )\bpies?\b/,
+    /\b(?:toes?|heels?|arch(?:es)?|foot|feet|soles?|instep|bunion)\b|\bdedos? (?:gordos? |pequenos? |chiquitos? )?del pie\b|\bdedo gordo\b(?! de la mano)|\b(?:juanetes?|talon(?:es)?|empeines?)\b|\bplantas? del pie\b|\barco del pie\b|(?<!\bde )\bpies?\b/,
   ],
   ["ankle", /\bankles?\b|\btobillos?\b/],
   ["calf", /\bcalf\b|\bcalves\b|\b(?:pantorrillas?|gemelos?|chamorros?)\b/],
@@ -67,7 +71,7 @@ const partWords: [Part, RegExp][] = [
   ["hip", /\bhips?\b|\bcaderas?\b/],
   [
     "wrist",
-    /\bwrists?\b|\bhands?\b|\bfingers?\b|\bthumbs?\b|\bpalms?\b|\b(?:munecas?|manos?|pulgar(?:es)?)\b|\bdedos? de la mano\b|\bpalmas? de la mano\b/,
+    /\bwrists?\b|\bhands?\b|\bfingers?\b|\bthumbs?\b|\bpalms?\b|\b(?:munecas?|manos?|pulgar(?:es)?)\b|\bdedos? de la mano\b|\bdedos? gordos? de la mano\b|\bpalmas? de la mano\b/,
   ],
   ["elbow", /\belbows?\b|\bcodos?\b/],
   ["shoulder", /\bshoulders?\b|\bhombros?\b/],
@@ -88,11 +92,13 @@ export const normalize = (value: string) =>
     .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[’']/g, "'")
+    // "knee's" and "it's" compare as "knee" and "it". "o'clock" is not "'s".
+    .replace(/'s\b/g, "")
     .replace(/[^\p{L}\p{N}' ]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-function partsIn(value: string): Part[] {
+export function partsIn(value: string): Part[] {
   let rest = ` ${normalize(value)} `;
   const found: Part[] = [];
   for (const [part, pattern] of partWords) {
@@ -112,7 +118,7 @@ const bothWords = /\b(?:both|ambos|ambas|los dos|las dos)\b/;
 
 // A side counts only when the person said it. "right now" and "todo derecho"
 // are not sides.
-function sideIn(value: string): "left" | "right" | "both" | null {
+export function sideIn(value: string): "left" | "right" | "both" | null {
   const text = normalize(value);
   const left = leftWords.test(text),
     right =
@@ -288,6 +294,8 @@ function deniesAt(words: string[], index: number) {
   const word = words[index];
   if (!isNegator(word) || ability.has(word)) return false;
   if (word === "no" && abilityVerbs.has(words[index + 1] ?? "")) return false;
+  // "nada más" means only, not a denial: "nada más la rodilla" keeps the knee.
+  if (word === "nada" && (words[index + 1] ?? "") === "mas") return false;
   return true;
 }
 
@@ -319,6 +327,17 @@ const deniedAfter = new Set([
   "afectada",
   "afectado",
 ]);
+// "is fine" / "está bien" clears the part. "is not fine" and "no está bien" do not.
+const fineWords = new Set(["fine", "okay", "ok", "alright", "bien"]);
+function fineAfter(words: string[], end: number) {
+  const next = words.slice(end + 1, end + 5);
+  const at = next.findIndex((word) => fineWords.has(word));
+  if (at < 0) return false;
+  const lead = next.slice(0, at);
+  if (lead.some((_, index) => deniesAt(lead, index))) return false;
+  return true;
+}
+
 function deniesAfter(words: string[], end: number) {
   const next = words.slice(end + 1, end + 6);
   const at = next.findIndex((_, index) => deniesAt(next, index));
@@ -346,7 +365,9 @@ const conjunctions = new Set([
   "sino",
 ]);
 
-const tokens = (text: string) => normalize(text).split(" ").filter(Boolean);
+export const phraseTokens = (text: string) =>
+  normalize(text).split(" ").filter(Boolean);
+const tokens = phraseTokens;
 
 // Punctuation separates clauses; conjunctions separate the soft parts inside
 // one clause.
@@ -373,7 +394,7 @@ function covers(words: string[], needed: string[]) {
     last = Math.max(last, at);
     return at >= 0 && !before.some((_, index) => deniesAt(before, index));
   });
-  return found && !deniesAfter(words, last);
+  return found && !deniesAfter(words, last) && !fineAfter(words, last);
 }
 
 // With `together`, the words must share one conjunction-free part, so "my
@@ -412,13 +433,19 @@ export function grounded(
 // The span must occur in the transcript as consecutive words, ignoring case,
 // accents and plural endings. A location stitched together from words said in
 // different places does not count.
-export function spanIn(value: string, transcript: string) {
+// Token range of an exact contiguous span, or null. Plural endings match.
+export function findSpan(value: string, transcript: string) {
   const span = tokens(value);
   const said = tokens(transcript);
-  if (!span.length) return false;
+  if (!span.length) return null;
   for (let start = 0; start + span.length <= said.length; start++)
-    if (span.every((word, i) => matches(word, said[start + i]))) return true;
-  return false;
+    if (span.every((word, i) => matches(word, said[start + i])))
+      return { start, end: start + span.length };
+  return null;
+}
+
+export function spanIn(value: string, transcript: string) {
+  return findSpan(value, transcript) !== null;
 }
 
 export type LocationResult =
@@ -426,7 +453,8 @@ export type LocationResult =
   | { status: "missing" }
   | { status: "unmapped"; spoken: string }
   | { status: "ambiguous"; spoken: string }
-  | { status: "need-side"; spoken: string; part: Part };
+  | { status: "need-side"; spoken: string; part: Part }
+  | { status: "both"; spoken: string; side: "both" };
 
 export function mapLocation(
   spoken: string,
@@ -445,6 +473,9 @@ export function mapLocation(
   const part = parts[0];
   let region: string = part;
   if (sided.has(part)) {
+    // "Both knees" and "las dos rodillas" have no single region.
+    if (sideIn(words) === "both")
+      return { status: "both", spoken: words, side: "both" };
     // A side counts only when the person said it.
     // The model's side is used only when the note names this one part and
     // says that side without denying it ("my knee, but not the left" asks).
@@ -456,6 +487,12 @@ export function mapLocation(
       partsIn(transcript).length === 1
         ? side
         : null);
+    if (
+      side === "both" &&
+      sideIn(transcript) === "both" &&
+      partsIn(transcript).length === 1
+    )
+      return { status: "both", spoken: words, side: "both" };
     if (stated !== "left" && stated !== "right")
       return { status: "need-side", spoken: words, part };
     region = `${stated}_${part}`;
@@ -506,12 +543,25 @@ const numberValue = (word: string) =>
 // "dolor de 6", "intensidad 5". "3 days ago", "at 7 am" or "hace 3 dias" is
 // not a rating, and neither is a number after a denial ("no es un 8"). When
 // unsure, drop it so the follow-up question can ask.
-const ratingBefore =
-  /\b(?:about|around|maybe|like|roughly|a|an|is|was|rate|rated|rated it|rating|level|pain|intensity|un|una|como|es|era|esta|estaba|en|nivel|intensidad|calificacion|dolor|doy|daria|unos|unas)$/;
+// End of the words before the number. "is" and "es" count only when a pain
+// word is in that lead, so "my son is 7" and "en 3 sitios" are not ratings.
+const ratingCue =
+  /\b(?:about|around|maybe|like|roughly|pain|intensity|level|rating|rated(?: it)?|rate|como|nivel|intensidad|calificacion|dolor|doy|daria)$/;
+const articleBefore = /\b(?:a|an|un|una|unos|unas)$/;
+const copulaBefore = /\b(?:is|was|es|era)$/;
+const painInLead =
+  /\b(?:pain|it|intensity|hurt|hurting|dolor|intensidad|nivel)\b/;
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))\b/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|de la (?:manana|tarde|noche))\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|de la (?:manana|tarde|noche)|places?|spots?|areas?|sitios?|lugares?)\b/;
+const instructed =
+  /\b(?:ignore|instructions?|prompt|system|pon|coloca|establece|cambia|set)\b/;
+
+function ratingLead(before: string) {
+  if (ratingCue.test(before) || articleBefore.test(before)) return true;
+  return copulaBefore.test(before) && painInLead.test(before);
+}
 const scaleThenUnit =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))\s+(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|minutos?|horas?|dias?|semanas?|meses|anos?|veces|vez|kilometros?|partidos?|series|vueltas?)\b/;
 
@@ -527,7 +577,7 @@ function slashRating(clause: string, value: number) {
     const before = tokens(
       clause.slice(0, (match.index ?? 0) + match[1].length),
     );
-    if (before.some(isNegator)) continue;
+    if (before.some(isNegator) || instructed.test(before.join(" "))) continue;
     return true;
   }
   return false;
@@ -548,14 +598,15 @@ export function ratedIn(transcript: string, value: number) {
         if (!number.test(word)) continue;
         const before = words.slice(0, at);
         const after = words.slice(at + 1).join(" ");
+        const lead = before.join(" ");
         if (
           before.some(isNegator) ||
+          instructed.test(lead) ||
           notRatingAfter.test(after) ||
           scaleThenUnit.test(after)
         )
           continue;
-        if (ratingAfter.test(after) || ratingBefore.test(before.join(" ")))
-          return true;
+        if (ratingAfter.test(after) || ratingLead(lead)) return true;
       }
   }
   return false;
@@ -608,12 +659,21 @@ export function localToday(now = new Date()) {
 
 // Resolves common relative phrases in English and Spanish against the
 // device's local date. Anything else keeps the person's words without a date.
+const futureOnset =
+  /\b(?:next|upcoming|this coming|proximo|siguiente|que viene)\b/;
+
+// "Next Monday" and "el próximo lunes" are not a past start.
+export function isFutureOnset(phrase: string) {
+  return futureOnset.test(normalize(phrase));
+}
+
 export function resolveOnset(
   phrase: string,
   today: string,
 ): { phrase: string; date?: string } {
   const text = normalize(phrase);
   if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return { phrase };
+  if (isFutureOnset(phrase)) return { phrase };
   const [y, m, d] = today.split("-").map(Number);
   if (Number.isNaN(Date.UTC(y, m - 1, d))) return { phrase };
   if (/\b(?:day before yesterday|anteayer|antier|antes de ayer)\b/.test(text))
@@ -686,14 +746,24 @@ export interface PainProposal {
 
 function followUpFor(
   location: LocationResult,
-  fields: DraftFields,
+  transcript: string,
   lang: Language,
 ): FollowUp | null {
-  if (location.status === "missing" || location.status === "unmapped")
+  // At most one question, and only about where. Optional fields stay blank.
+  if (location.status === "both") return null;
+  if (location.status === "missing")
     return {
       key: "location",
       question: translate(lang, "extraction.ask.location"),
     };
+  // A named part that is not on the map already answered where.
+  if (location.status === "unmapped") {
+    if (spanIn(location.spoken, transcript)) return null;
+    return {
+      key: "location",
+      question: translate(lang, "extraction.ask.location"),
+    };
+  }
   if (location.status === "ambiguous")
     return {
       key: "location",
@@ -707,21 +777,47 @@ function followUpFor(
         `extraction.ask.side.${location.part}` as MessageKey,
       ),
     };
-  if (fields.intensity === undefined)
-    return {
-      key: "intensity",
-      question: translate(lang, "extraction.ask.intensity"),
-    };
   return null;
 }
 
 // Keeps the person's word, accents included, for display.
-const display = (value: string) =>
+export const displayPhrase = (value: string) =>
   value
     .toLowerCase()
     .replace(/[^\p{L}\p{N}' -]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+function proposalFromEvidence(
+  evidence: EvidenceExtraction,
+  transcript: string,
+  today: string,
+  lang: Language,
+): PainProposal {
+  const verified = verifyEvidence(evidence, transcript, today);
+  const fields: DraftFields = {};
+  if (verified.qualities.length) fields.quality = verified.qualities.join(", ");
+  if (verified.intensity !== null) fields.intensity = verified.intensity;
+  if (verified.activity) fields.activity = verified.activity;
+  const onset = verified.onset ?? undefined;
+  if (onset) {
+    fields.duration = onset.date
+      ? translate(lang, "extraction.sinceDate", {
+          phrase: onset.phrase,
+          date: onset.date,
+        })
+      : translate(lang, "extraction.since", { phrase: onset.phrase });
+  }
+  return {
+    transcript,
+    location: verified.location,
+    fields,
+    onset,
+    followUp: followUpFor(verified.location, transcript, lang),
+    asked: false,
+    language: lang,
+  };
+}
 
 export function buildProposal(
   raw: RawPainExtraction,
@@ -729,11 +825,13 @@ export function buildProposal(
   today: string,
   lang: Language = "en",
 ): PainProposal {
+  if (raw.evidence)
+    return proposalFromEvidence(raw.evidence, transcript, today, lang);
   const fields: DraftFields = {};
   const seen = new Set<string>();
   const qualities: string[] = [];
   for (const quality of raw.qualities) {
-    const word = display(quality);
+    const word = displayPhrase(quality);
     const key = normalize(word);
     if (!key || seen.has(key) || !grounded(word, transcript)) continue;
     seen.add(key);
@@ -758,7 +856,8 @@ export function buildProposal(
   // "three weeks ago". Spanish phrases use the same contiguous-span check.
   if (
     grounded(raw.onsetPhrase, transcript) &&
-    spanIn(raw.onsetPhrase, transcript)
+    spanIn(raw.onsetPhrase, transcript) &&
+    !isFutureOnset(raw.onsetPhrase)
   ) {
     onset = resolveOnset(raw.onsetPhrase, today);
     fields.duration = onset.date
@@ -774,7 +873,7 @@ export function buildProposal(
     location,
     fields,
     onset,
-    followUp: followUpFor(location, fields, lang),
+    followUp: followUpFor(location, transcript, lang),
     asked: false,
     language: lang,
   };
@@ -847,6 +946,8 @@ export function describeLocation(
       return translate(lang, "extraction.location.ambiguous", {
         spoken: location.spoken,
       });
+    case "both":
+      return translate(lang, "extraction.location.both");
     default:
       return translate(lang, "extraction.location.unmapped", {
         spoken: location.spoken,

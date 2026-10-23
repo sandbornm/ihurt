@@ -62,13 +62,10 @@ test("maps the padel example to a proposed left foot pin", () => {
     activity: "padel on turf",
     duration: "Since yesterday (2026-10-21)",
   });
-  assert.deepEqual(proposal.followUp, {
-    key: "intensity",
-    question: "How strong is it, from 0 to 10?",
-  });
+  assert.equal(proposal.followUp, null);
 });
 
-test("rejects locations outside the anatomy list and asks instead", () => {
+test("a named part that is not on the map is not asked again", () => {
   const transcript = "My spleen has a stabbing feeling";
   const proposal = buildProposal(
     raw({ spokenLocation: "spleen", region: "spleen" }),
@@ -76,7 +73,7 @@ test("rejects locations outside the anatomy list and asks instead", () => {
     today,
   );
   assert.equal(proposal.location.status, "unmapped");
-  assert.equal(proposal.followUp?.key, "location");
+  assert.equal(proposal.followUp, null);
   // A valid-looking region id from the model is not enough on its own.
   assert.equal(mapLocation("spleen", "left", transcript).status, "unmapped");
   // Ids missing from the provided list are rejected too.
@@ -108,10 +105,7 @@ test("needs a stated side for left and right regions", () => {
     mapLocation("knee", "right", "my knee aches").status,
     "need-side",
   );
-  assert.equal(
-    mapLocation("knee", "both", "both knees ache").status,
-    "need-side",
-  );
+  assert.equal(mapLocation("knee", "both", "both knees ache").status, "both");
   assert.deepEqual(mapLocation("knee", "right", "my right knee aches"), {
     status: "mapped",
     region: "right_knee",
@@ -181,7 +175,7 @@ test("drops invented intensity, qualities and activity", () => {
     today,
   );
   assert.deepEqual(proposal.fields, { quality: "stiff" });
-  assert.equal(proposal.followUp?.key, "intensity");
+  assert.equal(proposal.followUp, null);
 });
 
 test("resolves relative onset dates against the local day", () => {
@@ -559,7 +553,7 @@ test("intensity needs a rating, not any number", () => {
   );
   assert.equal(started.fields.intensity, undefined);
   assert.equal(started.location.status, "mapped");
-  assert.equal(started.followUp?.key, "intensity");
+  assert.equal(started.followUp, null);
 });
 
 test("a value in a denied clause is not grounded", () => {

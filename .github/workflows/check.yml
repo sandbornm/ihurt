@@ -27,6 +27,17 @@ jobs:
       - run: npm run check
       - name: Check extraction eval against thresholds
         run: npm run eval:extraction -- --check
+      # Report only. Held-out notes are never used to tune or gate.
+      - name: Report held-out extraction eval (not gated)
+        continue-on-error: true
+        run: |
+          H=tests/fixtures/extraction-eval
+          for pipeline in proposal trust; do
+            npm run -s eval:extraction -- --pipeline "$pipeline" --name "ci-heldout-$pipeline" \
+              --recorded "$H/recorded/v2-heldout.json" --cases "$H/heldout/cases.json" \
+              | sed -n '1,16p' | tee -a held-out.txt
+          done
+          { echo '### Held-out extraction eval (not gated)'; echo '```'; cat held-out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - run: npx playwright install --with-deps chromium
       - name: Check Python-served camera assets and demo API over HTTP
         run: npm run test:api-browser

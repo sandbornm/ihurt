@@ -6,7 +6,7 @@ Advanced, temperature 0) at 1845edc. The verifier was not changed after this run
 v2 = current evidence schema and verifier (`recorded/v2-heldout.json`).
 v1 legacy = 273f429 schema and buildProposal (`recorded/v1-heldout.json`).
 
-| held-out (54 no-follow-up cases) | one-shot | false-fill | follow-up rate |
+| held-out (60 notes; one-shot is over the 54 with no follow-up expected) | one-shot | false-fill | follow-up rate |
 |---|---|---|---|
 | v2 all | 42.6% (23/54) | 18.3% | 30.0% |
 | v2 en | 43.8% (14/32) | 14.3% | 31.4% |
@@ -46,3 +46,55 @@ follow-up 17.4%. The gap is overfitting to the tuning notes.
 10. Model guardrail error "May contain sensitive content" (1): ho-en-030.
 
 Also seen: ho-en-025 duration reads "Since since yesterday".
+
+## Cause attribution (from the recorded model output)
+
+Each failure was checked against the raw v2 output: was the model's answer right with an
+honest quote, and did the verifier keep it? Causes: (a) model wrong, (b) verifier or
+lexicon broke a right answer or let a wrong one through, (c) schema or prompt gap,
+(d) label error.
+
+| cause | en (20 failing) | es (16 failing) | all (36) |
+|---|---|---|---|
+| (a) model only | 12 | 9 | 21 |
+| (b) verifier/lexicon only | 1 | 5 | 6 |
+| (d) label only | 1 | 1 | 2 |
+| mixed (a)+(b), one also (d) | 6 | 1 | 7 |
+| (a) contributes | 18 | 10 | 28 |
+| (b) contributes | 7 | 6 | 13 |
+| (d) contributes | 2 | 1 | 3 |
+
+(a) only: en-002 (invented side "left" for "rite knee"), 004, 006, 008, 011, 021, 031
+(quality dropped or paraphrased), 010, 027, 029 (junk span as a location), 028 (missed
+"no wait"), 030 (guardrail); es-001, 005, 008, 024 (junk activity, invented side), 004
+(rewrote "antier"), 006, 015, 021 (junk location), 023 (negated the wrong side).
+(b) only: en-025 and es-018 (verifier dropped a right part on denial scope), es-014
+("lo noté" read as a denial), es-009 chamorra and es-012 isquiotibial (lexicon), es-020
+(rating cleared when a location follow-up is asked).
+(d) only: en-016 "jammed it" and es-017 "estar de pie" vs "de pie" (labels too strict).
+Mixed: en-005, 009, 014, 018, 020 (dictation typo not in the lexicon, plus a model error),
+en-032 (junk location, plus the verifier rejected "a few weeks ago"), es-016 (cervical
+missing, plus junk activity).
+No failure is only (c). The activity field and junk location spans may be partly a prompt
+gap, but they are counted as (a) here.
+
+False fills: 12 events (10 activity, 1 quality, 1 location). 10 are (a), where the model put
+a non-activity span in activity and the verifier only checked that the span exists. 2 are
+(d) (en-016, en-020).
+
+## Trust-the-model bound (`--pipeline trust`)
+
+The model's raw fields and negated flags, keeping a field only if its evidence quote is
+a real span. The part lexicon still maps the quote to a region, because the schema has
+no region id. There are no side, denial, rating or activity rules.
+
+| | one-shot | false-fill | follow-up rate |
+|---|---|---|---|
+| held-out trust all | 29.6% (16/54) | 41.7% | 28.3% |
+| held-out trust en | 34.4% (11/32) | 31.4% | 25.7% |
+| held-out trust es | 22.7% (5/22) | 56.0% | 32.0% |
+| tuning trust all | 38.1% (43/113) | 34.8% | 27.5% |
+
+Trusting the model scores below the verified v2 (42.6% and 18.3%), so the rules help on
+balance. If every (b)-only and (d)-only case on held-out were fixed, one-shot would rise to at
+most 30/54 (55.6%). The remaining failures need a better model answer.

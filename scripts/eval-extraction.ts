@@ -7,7 +7,13 @@ import { pathToFileURL } from "node:url";
 import { regions } from "../src/types.ts";
 import { suggestVoiceDraft } from "../src/voice/draft.ts";
 import { buildProposal as buildLegacyProposal } from "../src/voice/legacy-extraction.ts";
-import { buildProposal } from "../src/voice/extraction.ts";
+import {
+  buildProposal,
+  findSpan,
+  normalize,
+  partsIn,
+  resolveOnset,
+} from "../src/voice/extraction.ts";
 import { parseRawExtraction } from "../src/platform/on-device-ai.ts";
 
 const TODAY = "2026-10-22";
@@ -80,7 +86,7 @@ export interface MetricBlock {
 
 export interface EvalReport {
   name: string;
-  pipeline: "proposal" | "legacy" | "rules";
+  pipeline: "proposal" | "legacy" | "rules" | "trust";
   recorded: string | null;
   metadata: unknown;
   cases: number;
@@ -105,7 +111,7 @@ export interface ThresholdBlock {
 
 export interface Thresholds {
   recorded: string;
-  pipeline: "proposal" | "legacy" | "rules";
+  pipeline: "proposal" | "legacy" | "rules" | "trust";
   overall?: ThresholdBlock;
   byLang?: Partial<Record<Lang, ThresholdBlock>>;
 }
@@ -557,6 +563,82 @@ function proposalActual(
   }
 }
 
+const sidedParts = new Set([
+  "foot", "ankle", "calf", "knee", "thigh", "hip", "wrist", "elbow", "shoulder",
+]);
+
+function trustSide(said: string) {
+  const text = normalize(said);
+  if (/\b(?:both|ambos|ambas|las dos|los dos)\b/.test(text)) return "both";
+  if (/\b(?:left|izquierd[oa]s?)\b/.test(text)) return "left";
+  if (/\b(?:right|derech[oa]s?)\b/.test(text)) return "right";
+  return null;
+}
+
+// Upper bound: trust the model's own fields and negated flags. The only check
+// is that each evidence quote is a real span of the note. The part lexicon
+// still maps the quote to a region, because the schema has no region id.
+// No side, denial, rating, or activity rules.
+function trustActual(raw: unknown, note: string): Actual {
+  const evidence = parseRawExtraction(raw).evidence;
+  if (!evidence) return emptyActual("no evidence");
+  const real = (value: string | undefined | null) =>
+    !!value?.trim() && !!findSpan(value, note);
+  const spots = evidence.locations
+    .filter((item) => !item.negated && real(item.evidence))
+    .map((item) => {
+      const part = partsIn(item.evidence)[0];
+      const side = real(item.sideEvidence) ? trustSide(item.sideEvidence) : null;
+      return { part, side };
+    });
+  let location: string | null = null;
+  let status: LocationStatus = "missing";
+  const keys = new Set(spots.map((spot) => spot.part ?? "?"));
+  if (spots.length && keys.size === 1) {
+    const { part } = spots[0];
+    const sides = new Set(spots.map((spot) => spot.side).filter(Boolean));
+    if (!part) status = "unmapped";
+    else if (!sidedParts.has(part)) [location, status] = [part, "mapped"];
+    else if (sides.has("both") || (sides.has("left") && sides.has("right")))
+      status = "both";
+    else if (sides.size === 1)
+      [location, status] = [`${[...sides][0]}_${part}`, "mapped"];
+    else status = "need-side";
+  } else if (spots.length) status = "ambiguous";
+  const intensity = evidence.intensity;
+  const onset =
+    evidence.onset && !evidence.onset.negated && real(evidence.onset.evidence)
+      ? resolveOnset(evidence.onset.evidence, TODAY)
+      : null;
+  return {
+    location,
+    locationStatus: status,
+    side: sideOf(location, status),
+    intensity:
+      intensity &&
+      intensity.kind === "rating" &&
+      !intensity.negated &&
+      intensity.value >= 0 &&
+      intensity.value <= 10 &&
+      real(intensity.evidence)
+        ? intensity.value
+        : null,
+    quality: qualitySet(
+      evidence.qualities
+        .filter((item) => !item.negated && real(item.evidence))
+        .map((item) => item.evidence),
+    ),
+    onset,
+    activity: real(evidence.activity) ? evidence.activity.trim() : null,
+    followUp:
+      status === "missing" || status === "ambiguous"
+        ? "location"
+        : status === "need-side"
+          ? "side"
+          : "none",
+  };
+}
+
 function rulesActual(note: string): Actual {
   const draft = suggestVoiceDraft(note);
   const location = draft.locations.length === 1 ? draft.locations[0] : null;
@@ -583,7 +665,7 @@ function rulesActual(note: string): Actual {
 
 export function scoreCases(
   cases: EvalCase[],
-  pipeline: "proposal" | "legacy" | "rules",
+  pipeline: "proposal" | "legacy" | "rules" | "trust",
   recorded?: {
     metadata?: unknown;
     outputs?: Record<string, unknown>;
@@ -598,8 +680,15 @@ export function scoreCases(
   const rows = cases.map((item) => {
     let actual: Actual;
     if (pipeline === "rules") actual = rulesActual(item.note);
+    else if (pipeline === "trust" && outputs[item.id])
+      actual = trustActual(outputs[item.id], item.note);
     else if (outputs[item.id])
-      actual = proposalActual(outputs[item.id], item.note, item.lang, pipeline);
+      actual = proposalActual(
+        outputs[item.id],
+        item.note,
+        item.lang,
+        pipeline as "proposal" | "legacy",
+      );
     else actual = emptyActual(errors[item.id] ?? "no model output");
     return { item, actual, reasons: reasonsFor(item, actual) };
   });
@@ -608,7 +697,7 @@ export function scoreCases(
 
 export function buildReport(
   name: string,
-  pipeline: "proposal" | "legacy" | "rules",
+  pipeline: "proposal" | "legacy" | "rules" | "trust",
   recordedName: string | null,
   cases: EvalCase[],
   recorded?: {
@@ -840,10 +929,11 @@ function main() {
   if (
     values.pipeline !== "proposal" &&
     values.pipeline !== "legacy" &&
-    values.pipeline !== "rules"
+    values.pipeline !== "rules" &&
+    values.pipeline !== "trust"
   ) {
     console.error(
-      "Usage: npm run eval:extraction -- --pipeline proposal|legacy|rules --name <name> [--recorded path] [--check]",
+      "Usage: npm run eval:extraction -- --pipeline proposal|legacy|rules|trust --name <name> [--recorded path] [--check]",
     );
     process.exit(1);
   }

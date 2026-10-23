@@ -47,26 +47,26 @@
   "overall": {
     "cases": 138,
     "oneShot": {
-      "hit": 50,
+      "hit": 51,
       "total": 113,
-      "rate": 0.4424778761061947
+      "rate": 0.45132743362831856
     },
-    "falseFillCases": 10,
-    "falseFillRate": 0.07246376811594203,
+    "falseFillCases": 8,
+    "falseFillRate": 0.057971014492753624,
     "wrongValueFills": 2,
-    "followUpAsked": 24,
-    "followUpRate": 0.17391304347826086,
-    "followUpCorrect": 122,
-    "followUpAccuracy": 0.8840579710144928,
+    "followUpAsked": 23,
+    "followUpRate": 0.16666666666666666,
+    "followUpCorrect": 123,
+    "followUpAccuracy": 0.8913043478260869,
     "fields": {
       "location": {
-        "correct": 99,
-        "fills": 102,
+        "correct": 100,
+        "fills": 101,
         "expected": 108,
-        "falseFill": 3,
+        "falseFill": 1,
         "wrongValue": 0,
-        "precision": 0.9705882352941176,
-        "recall": 0.9166666666666666
+        "precision": 0.9900990099009901,
+        "recall": 0.9259259259259259
       },
       "intensity": {
         "correct": 48,
@@ -110,26 +110,26 @@
     "en": {
       "cases": 80,
       "oneShot": {
-        "hit": 19,
+        "hit": 20,
         "total": 65,
-        "rate": 0.2923076923076923
+        "rate": 0.3076923076923077
       },
-      "falseFillCases": 4,
-      "falseFillRate": 0.05,
+      "falseFillCases": 2,
+      "falseFillRate": 0.025,
       "wrongValueFills": 1,
       "followUpAsked": 11,
       "followUpRate": 0.1375,
-      "followUpCorrect": 73,
-      "followUpAccuracy": 0.9125,
+      "followUpCorrect": 74,
+      "followUpAccuracy": 0.925,
       "fields": {
         "location": {
-          "correct": 59,
-          "fills": 62,
+          "correct": 60,
+          "fills": 61,
           "expected": 62,
-          "falseFill": 3,
+          "falseFill": 1,
           "wrongValue": 0,
-          "precision": 0.9516129032258065,
-          "recall": 0.9516129032258065
+          "precision": 0.9836065573770492,
+          "recall": 0.967741935483871
         },
         "intensity": {
           "correct": 32,
@@ -179,8 +179,8 @@
       "falseFillCases": 6,
       "falseFillRate": 0.10344827586206896,
       "wrongValueFills": 1,
-      "followUpAsked": 13,
-      "followUpRate": 0.22413793103448276,
+      "followUpAsked": 12,
+      "followUpRate": 0.20689655172413793,
       "followUpCorrect": 49,
       "followUpAccuracy": 0.8448275862068966,
       "fields": {
@@ -693,15 +693,8 @@
     {
       "id": "en-068",
       "reasons": [
-        "location got neck/mapped/null, expected null/missing/null",
-        "follow-up got none, expected location",
-        "false fill location"
-      ]
-    },
-    {
-      "id": "en-069",
-      "reasons": [
-        "location got null/unmapped/null, expected left_knee/mapped/left"
+        "location got null/unmapped/null, expected null/missing/null",
+        "follow-up got none, expected location"
       ]
     },
     {
@@ -728,16 +721,8 @@
     {
       "id": "en-077",
       "reasons": [
-        "location got null/need-side/null, expected null/missing/null",
-        "follow-up got side, expected location"
-      ]
-    },
-    {
-      "id": "en-078",
-      "reasons": [
-        "location got left_knee/mapped/left, expected null/need-side/null",
-        "follow-up got none, expected side",
-        "false fill location"
+        "location got null/unmapped/null, expected null/missing/null",
+        "follow-up got none, expected location"
       ]
     },
     {
@@ -773,8 +758,8 @@
     {
       "id": "es-056",
       "reasons": [
-        "location got null/need-side/null, expected null/missing/null",
-        "follow-up got side, expected location"
+        "location got null/unmapped/null, expected null/missing/null",
+        "follow-up got none, expected location"
       ]
     }
   ]

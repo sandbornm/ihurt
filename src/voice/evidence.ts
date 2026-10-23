@@ -139,27 +139,215 @@ function candidates(
   return applyCorrection(found, transcript);
 }
 
-// A side word counts when it is inside the location span, or a real span near
-// it with no other body part between them. "right now" is not a side.
-function attachedSide(item: Candidate, transcript: string) {
-  const inside = sideIn(item.evidence);
-  if (inside) return inside;
-  if (!item.sideEvidence) return null;
-  const side = sideIn(item.sideEvidence);
-  const at = findSpan(item.sideEvidence, transcript);
-  // "not the left" is a denial. "can't bend my left knee" is not, so the
-  // side is checked with the body-part rule.
-  if (!side || !at || !grounded(item.sideEvidence, transcript, true))
-    return null;
+interface TokenSpan {
+  start: number;
+  end: number;
+}
+
+function clauseBounds(transcript: string) {
+  const bounds: { start: number; end: number; text: string }[] = [];
+  let cursor = 0;
+  for (const clause of transcript.split(/[.!?;:,\n¿¡]+/)) {
+    const count = phraseTokens(clause).length;
+    const start = cursor;
+    cursor += count;
+    if (count) bounds.push({ start, end: cursor, text: clause });
+  }
+  return bounds;
+}
+
+function clauseAt(transcript: string, at: TokenSpan) {
+  return (
+    clauseBounds(transcript).find(
+      (bound) => at.start >= bound.start && at.end <= bound.end,
+    ) ?? null
+  );
+}
+
+// "izquierda" was said as "izquierdo". Only the side adjective flips gender.
+function sideToken(want: string, said: string) {
+  if (want === said) return true;
+  const stem = (word: string) => word.replace(/[oa]s?$/, "");
+  return (
+    /^(?:izquierd|derech)/.test(want) &&
+    /^(?:izquierd|derech)/.test(said) &&
+    stem(want) === stem(said)
+  );
+}
+
+function sideSpans(value: string, transcript: string): TokenSpan[] {
+  const span = phraseTokens(value);
+  const said = phraseTokens(transcript);
+  const found: TokenSpan[] = [];
+  if (!span.length) return found;
+  for (let start = 0; start + span.length <= said.length; start++)
+    if (
+      span.every(
+        (word, index) =>
+          word === said[start + index] || sideToken(word, said[start + index]),
+      )
+    )
+      found.push({ start, end: start + span.length });
+  return found;
+}
+
+// The matched word has to be a side in this spot. "right" inside "right now"
+// or "all right", and "left" as a verb, do not count.
+function realSideAt(
+  transcript: string,
+  at: TokenSpan,
+  side: "left" | "right" | "both",
+) {
+  if (side === "both") return true;
+  const said = phraseTokens(transcript);
+  for (let index = at.start; index < at.end; index++) {
+    const word = said[index];
+    const prev = said[index - 1] ?? "";
+    const next = said[index + 1] ?? "";
+    if (side === "right" && (word === "right" || /^derech/.test(word))) {
+      if (next === "now" || next === "away" || next === "after") return false;
+      if (prev === "all" || prev === "todo" || prev === "siga" || prev === "sigue")
+        return false;
+    }
+    if (side === "left" && word === "left") {
+      if (["pain", "i", "we", "he", "she", "they", "it"].includes(prev))
+        return false;
+      if (["my", "the", "a", "an", "his", "her", "our", "their"].includes(next))
+        return false;
+    }
+  }
+  return true;
+}
+
+const sideOnlyWord =
+  /^(?:left|right|side|one|on|of|the|my|a|an|el|la|los|las|lado|del|de|al|izquierd[oa]s?|derech[oa]s?|both|ambos|ambas|dos)$/;
+const sleptWord =
+  /\b(?:slept|sleeping|sleep|lay|lying|laid|dormi|dormia|durmiendo|dormido)\b/;
+
+// "the left one" and "I mean the left one" can give a side to the part.
+// "I slept on the left side" cannot.
+function sideOnlyClause(text: string) {
+  if (sleptWord.test(normalize(text)) || partsIn(text).length > 0) return false;
+  const words = phraseTokens(text).filter((word) => !correctionWords.has(word));
+  return (
+    words.length > 0 &&
+    sideIn(words.join(" ")) !== null &&
+    words.every((word) => sideOnlyWord.test(word))
+  );
+}
+
+function sideReachable(part: TokenSpan, at: TokenSpan, transcript: string) {
+  const partClause = clauseAt(transcript, part);
+  const sideClause = clauseAt(transcript, at);
+  if (!partClause || !sideClause) return false;
+  const same =
+    partClause.start === sideClause.start && partClause.end === sideClause.end;
+  if (!same && !sideOnlyClause(sideClause.text)) return false;
   const said = phraseTokens(transcript);
   const gap =
-    at.end <= item.at.start
-      ? said.slice(at.end, item.at.start)
-      : item.at.end <= at.start
-        ? said.slice(item.at.end, at.start)
+    at.end <= part.start
+      ? said.slice(at.end, part.start)
+      : part.end <= at.start
+        ? said.slice(part.end, at.start)
         : [];
-  if (gap.length > 8 || partsIn(gap.join(" ")).length > 0) return null;
-  return side;
+  return gap.length <= 8 && partsIn(gap.join(" ")).length === 0;
+}
+
+function sideInside(item: Candidate, transcript: string) {
+  const side = sideIn(item.evidence);
+  if (!side) return null;
+  if (side === "both") return side;
+  const said = phraseTokens(transcript);
+  for (let index = item.at.start; index < item.at.end; index++) {
+    const word = said[index];
+    const at = { start: index, end: index + 1 };
+    if (
+      side === "left" &&
+      (word === "left" || /^izquierd/.test(word)) &&
+      realSideAt(transcript, at, "left")
+    )
+      return "left" as const;
+    if (
+      side === "right" &&
+      (word === "right" || /^derech/.test(word)) &&
+      realSideAt(transcript, at, "right")
+    )
+      return "right" as const;
+  }
+  return null;
+}
+
+// A side in the same clause, or in a clause that only names a side.
+// "not the left" stays denied. Gender on the adjective still matches.
+function sideFromPhrase(phrase: string, item: Candidate, transcript: string) {
+  const side = sideIn(phrase);
+  if (side !== "left" && side !== "right" && side !== "both") return null;
+  const said = phraseTokens(transcript);
+  for (const at of sideSpans(phrase, transcript)) {
+    if (!realSideAt(transcript, at, side)) continue;
+    if (!sideReachable(item.at, at, transcript)) continue;
+    const actual = said.slice(at.start, at.end).join(" ");
+    if (!grounded(actual, transcript, true)) continue;
+    return side;
+  }
+  return null;
+}
+
+function sidesInRange(
+  transcript: string,
+  from: number,
+  to: number,
+  part: TokenSpan,
+) {
+  const said = phraseTokens(transcript);
+  const sides = new Set<"left" | "right">();
+  for (let index = from; index < to; index++) {
+    const word = said[index];
+    const side =
+      word === "left" || /^izquierd/.test(word)
+        ? "left"
+        : word === "right" || /^derech/.test(word)
+          ? "right"
+          : null;
+    if (!side) continue;
+    const at = { start: index, end: index + 1 };
+    if (!realSideAt(transcript, at, side) || !sideReachable(part, at, transcript))
+      continue;
+    if (!grounded(word, transcript, true)) continue;
+    sides.add(side);
+  }
+  return sides;
+}
+
+// The model omitted sideEvidence, but this clause has one part and one real
+// side: "pain on the left side of my knee", "my knee hurts on the left".
+// "the left one" in the next clause counts. "I slept on the left side" does not.
+function clauseSide(item: Candidate, transcript: string) {
+  const clause = clauseAt(transcript, item.at);
+  if (!clause || partsIn(clause.text).length !== 1) return null;
+  const here = sidesInRange(transcript, clause.start, clause.end, item.at);
+  const sides = new Set(here);
+  if (!sides.size) {
+    for (const other of clauseBounds(transcript)) {
+      if (other.start === clause.start || !sideOnlyClause(other.text)) continue;
+      for (const side of sidesInRange(transcript, other.start, other.end, item.at))
+        sides.add(side);
+    }
+  }
+  if (sides.size !== 1) return null;
+  return [...sides][0];
+}
+
+// A side word counts when it is inside the location span, or a real span in
+// the same clause. "right now" is not a side.
+function attachedSide(item: Candidate, transcript: string) {
+  return (
+    sideInside(item, transcript) ??
+    (item.sideEvidence
+      ? sideFromPhrase(item.sideEvidence, item, transcript)
+      : null) ??
+    clauseSide(item, transcript)
+  );
 }
 
 function locateOne(item: Candidate, transcript: string): LocationResult {
@@ -227,13 +415,61 @@ function clauseAround(transcript: string, at: { start: number; end: number }) {
   return null;
 }
 
-// The evidence phrase must parse to this value. A bare number still has to
-// sit in a rating-shaped clause ("the pain is 7"), never "my son is 7".
+// "siete" and "7" are the same rating token. The rest of the span must match.
+const digitFor: Record<string, string> = {
+  zero: "0",
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+  seven: "7",
+  eight: "8",
+  nine: "9",
+  ten: "10",
+  cero: "0",
+  uno: "1",
+  dos: "2",
+  tres: "3",
+  cuatro: "4",
+  cinco: "5",
+  seis: "6",
+  siete: "7",
+  ocho: "8",
+  nueve: "9",
+  diez: "10",
+};
+
+function intensitySpan(evidence: string, transcript: string) {
+  const exact = findSpan(evidence, transcript);
+  if (exact) return exact;
+  const span = phraseTokens(evidence);
+  const said = phraseTokens(transcript);
+  if (!span.length) return null;
+  const options = span.map((word) => {
+    if (digitFor[word]) return [word, digitFor[word]];
+    const names = Object.entries(digitFor)
+      .filter(([, digit]) => digit === word)
+      .map(([name]) => name);
+    return names.length ? [word, ...names] : [word];
+  });
+  if (options.every((list) => list.length === 1)) return null;
+  for (let start = 0; start + span.length <= said.length; start++)
+    if (span.every((_, index) => options[index].includes(said[start + index])))
+      return { start, end: start + span.length };
+  return null;
+}
+
+// The evidence phrase must parse to this value, and the note must state that
+// rating. A bare number still has to sit in a rating-shaped clause ("the pain
+// is 7"), never "my son is 7" or "siete días".
 function ratingStands(evidence: string, transcript: string, value: number) {
   if (parseIntensityAnswer(evidence) !== value) return false;
+  if (!ratedIn(transcript, value)) return false;
   if (ratedIn(evidence, value)) return true;
   if (phraseTokens(evidence).length !== 1) return false;
-  const at = findSpan(evidence, transcript);
+  const at = intensitySpan(evidence, transcript);
   if (!at) return false;
   const clause = clauseAround(transcript, at);
   return clause !== null && ratedIn(clause, value);
@@ -241,13 +477,16 @@ function ratingStands(evidence: string, transcript: string, value: number) {
 
 function verifyIntensity(evidence: EvidenceExtraction, transcript: string) {
   const item = evidence.intensity;
-  if (!item || item.negated || item.kind !== "rating") return null;
-  if (!Number.isInteger(item.value) || item.value < 0 || item.value > 10)
-    return null;
-  if (!item.evidence || !findSpan(item.evidence, transcript)) return null;
-  return ratingStands(item.evidence, transcript, item.value)
-    ? item.value
-    : null;
+  if (!item?.evidence) return null;
+  const parsed = parseIntensityAnswer(item.evidence);
+  if (parsed === null) return null;
+  // "not a 7 but an 8" keeps 8 even when the model flags the span negated
+  // or still echoes the rejected number.
+  const correction = /\b(?:but|sino)\b/.test(normalize(item.evidence));
+  if (item.kind !== "rating" && !correction) return null;
+  if (!correction && item.value !== parsed) return null;
+  if (!intensitySpan(item.evidence, transcript)) return null;
+  return ratingStands(item.evidence, transcript, parsed) ? parsed : null;
 }
 
 // "Hurts" and "dolor" name the complaint. They are not how it feels.
@@ -261,6 +500,7 @@ const painWords = new Set([
   "duelen",
   "dolor",
   "dolores",
+  "aches",
 ]);
 
 function verifyQualities(evidence: EvidenceExtraction, transcript: string) {
@@ -268,7 +508,11 @@ function verifyQualities(evidence: EvidenceExtraction, transcript: string) {
   const qualities: string[] = [];
   for (const item of evidence.qualities) {
     if (item.negated || !findSpan(item.evidence, transcript)) continue;
-    if (!grounded(item.evidence, transcript) || painOnly(item.evidence))
+    if (
+      !grounded(item.evidence, transcript) ||
+      painOnly(item.evidence) ||
+      hedgePhrase(item.evidence)
+    )
       continue;
     const word = displayPhrase(item.evidence);
     const key = normalize(word);
@@ -288,6 +532,7 @@ function verifyOnset(
   if (!item || item.negated || !item.evidence) return null;
   if (!findSpan(item.evidence, transcript)) return null;
   if (!grounded(item.evidence, transcript)) return null;
+  if (onsetBlocked(item.evidence, transcript)) return null;
   if (isFutureOnset(item.evidence)) return null;
   const resolved = resolveOnset(item.evidence, today);
   // A date is enough. A span with no date stays only when it is a time
@@ -427,6 +672,7 @@ const hedges = new Set([
   "so",
   "kind",
   "of",
+  "como",
 ]);
 
 const sideWord =
@@ -467,6 +713,95 @@ function momentPhrase(phrase: string) {
   return /^(?:right now|right away|ahora mismo)$/.test(normalize(phrase));
 }
 
+// "can't walk" and "no pude ayer" did not happen. "I ran but I couldn't play
+// tennis" still keeps "ran", because a verb follows the inability.
+const blockedActivity =
+  /\b(?:can't|cannot|couldn't|cant|couldnt|no puedo|no pude|no podia|no podria)\b/;
+
+function unanswered(after: string[]) {
+  const match = after.join(" ").match(
+    /^(?:but |pero )?(?:i )?(?:can't|cannot|couldn't|cant|couldnt|no puedo|no pude|no podia|no podria)\b(.*)$/,
+  );
+  if (!match) return false;
+  return phraseTokens(match[1]).every(
+    (word) => timeWords.has(word) || skipWords.has(word),
+  );
+}
+
+function activityBlocked(activity: string, transcript: string) {
+  if (blockedActivity.test(normalize(activity))) return true;
+  const at = findSpan(activity, transcript);
+  if (!at) return false;
+  const said = phraseTokens(transcript);
+  const before = said.slice(Math.max(0, at.start - 4), at.start).join(" ");
+  if (blockedActivity.test(before)) return true;
+  return unanswered(said.slice(at.end, at.end + 6));
+}
+
+// "ayer" after "no pude" is when they failed to go, not when the pain started.
+// "desde ayer" still has a start cue.
+const failedPlan =
+  /\b(?:can't|cannot|couldn't|cant|couldnt|didn't|didnt|no puedo|no pude|no podia|no podria|no fui|no fue)\b/;
+const startCue = /\b(?:desde|since|empezo|started|start|hace|ago|from)\b/;
+
+function onsetBlocked(evidence: string, transcript: string) {
+  const at = findSpan(evidence, transcript);
+  if (!at) return false;
+  const clause = clauseAround(transcript, at);
+  if (!clause) return false;
+  const text = normalize(clause);
+  if (!failedPlan.test(text)) return false;
+  return !startCue.test(normalize(evidence)) && !startCue.test(text);
+}
+
+const gearWord = new Set([
+  "raqueta",
+  "raquetas",
+  "racket",
+  "rackets",
+  "racquet",
+  "racquets",
+  "brace",
+  "braces",
+  "pelota",
+  "pelotas",
+  "ball",
+  "balls",
+  "balon",
+  "balones",
+  "vendaje",
+  "vendajes",
+]);
+
+function gearOnly(phrase: string) {
+  const words = contentWords(phrase);
+  return words.length > 0 && words.every((word) => gearWord.has(word));
+}
+
+function sideOnlyPhrase(phrase: string) {
+  const words = contentWords(phrase);
+  return (
+    words.length > 0 &&
+    sideIn(phrase) !== null &&
+    words.every((word) => sideOnlyWord.test(word))
+  );
+}
+
+// How it feels, or the complaint starting, is not something the person was doing.
+const feelingWord =
+  /^(?:aching|sharp|burning|tingling|numb|stiff|tight|dull|throbbing|sore|cramping|cramp|ardor|ardiente|quemazon|punzante|pinchazo|pinchazos|sordo|sorda|hormigueo|entumecido|entumecida|adormecido|adormecida|rigidez|rigido|rigida|tenso|tensa|tirante|palpitante|pulsatil|calambre|calambres|adolorido|adolorida|molestia|agudo|aguda)$/;
+
+function complaintPhrase(phrase: string) {
+  const words = contentWords(phrase);
+  return (
+    words.length > 0 &&
+    words.every(
+      (word) =>
+        timeWords.has(word) || painWords.has(word) || feelingWord.test(word),
+    )
+  );
+}
+
 function verifyActivity(evidence: EvidenceExtraction, transcript: string) {
   const activity = evidence.activity.trim();
   if (!activity || !findSpan(activity, transcript)) return null;
@@ -476,12 +811,26 @@ function verifyActivity(evidence: EvidenceExtraction, transcript: string) {
     timePhrase(activity) ||
     momentPhrase(activity) ||
     sidePhrase(activity) ||
-    hedgePhrase(activity)
+    sideOnlyPhrase(activity) ||
+    hedgePhrase(activity) ||
+    complaintPhrase(activity) ||
+    activityBlocked(activity, transcript) ||
+    gearOnly(activity)
   )
     return null;
   // A body part is where it hurts, not what the person was doing.
   if (partsIn(activity).length > 0) return null;
   return activity;
+}
+
+// A side phrase or a racket next to a real body part is not a second place.
+// A lone unmapped name ("shin") stays, so the person can place it.
+function dropExtras(kept: Candidate[]) {
+  if (!kept.some((item) => partsIn(item.evidence).length > 0)) return kept;
+  return kept.filter((item) => {
+    if (partsIn(item.evidence).length > 0) return true;
+    return !gearOnly(item.evidence) && !sideOnlyPhrase(item.evidence);
+  });
 }
 
 export function verifyEvidence(
@@ -492,8 +841,10 @@ export function verifyEvidence(
   // grounded() is the denial check (including "nada más", "can't", and
   // "está bien"). A model negated flag does not drop a span the lexicon
   // affirms, and it cannot keep a span the lexicon denies.
-  const kept = candidates(evidence, transcript).filter((item) =>
-    grounded(item.evidence, transcript, true),
+  const kept = dropExtras(
+    candidates(evidence, transcript).filter((item) =>
+      grounded(item.evidence, transcript, true),
+    ),
   );
   return {
     location: chooseLocation(kept, transcript),

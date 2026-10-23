@@ -6,6 +6,7 @@ import {
   buildProposal,
   describeLocation,
   mapLocation,
+  parseIntensityAnswer,
   ratedIn,
   resolveOnset,
 } from "../src/voice/extraction.ts";
@@ -549,4 +550,295 @@ test("parseRawExtraction accepts evidence and still accepts the old shape", () =
   assert.equal(old.intensity, 4);
   const verified = verifyEvidence(parsed.evidence!, "my left knee", today);
   assert.equal(verified.location.status, "mapped");
+});
+
+function regionOf(proposal: ReturnType<typeof propose>) {
+  return proposal.location.status === "mapped"
+    ? proposal.location.region
+    : proposal.location.status;
+}
+
+test("a full denial drops the only part, and a mild one keeps it", () => {
+  for (const [note, evidence] of [
+    ["My left knee doesn't hurt, it's fine.", "left knee"],
+    ["My neck doesn't hurt a bit.", "neck"],
+    ["The pain left my knee.", "knee"],
+    ["My knee doesn't hurt anymore.", "knee"],
+    ["Ya no me duele la rodilla.", "rodilla"],
+    ["La rodilla no me duele ya.", "la rodilla"],
+  ] as const) {
+    const proposal = propose(note, {
+      locations: [loc(evidence, evidence.includes("left") ? "left" : "")],
+    });
+    assert.equal(proposal.location.status, "missing", note);
+    assert.equal(proposal.followUp?.key, "location", note);
+  }
+  assert.equal(
+    regionOf(
+      propose("My left knee doesn't hurt much.", {
+        locations: [loc("left knee", "left")],
+      }),
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    propose("Ya me duele la rodilla.", { locations: [loc("rodilla")] }, "es")
+      .location.status,
+    "need-side",
+  );
+  const poco = propose(
+    "Me duele la rodilla, pero no mucho.",
+    { locations: [loc("rodilla")] },
+    "es",
+  );
+  assert.equal(poco.location.status, "need-side");
+  assert.equal(poco.followUp?.key, "side");
+});
+
+test("except keeps the named part and drops every other part", () => {
+  assert.equal(
+    regionOf(
+      propose("Nothing hurts except my left knee.", {
+        locations: [loc("left knee", "left")],
+      }),
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    propose("Everything hurts except my left knee.", {
+      locations: [loc("left knee", "left")],
+    }).location.status,
+    "missing",
+  );
+});
+
+test("a corrected rating keeps the later number, including a spelled digit", () => {
+  const eight = propose("Left knee, not a 7 but an 8.", {
+    locations: [loc("Left knee", "left")],
+    intensity: rating("not a 7 but an 8", 7),
+  });
+  assert.equal(regionOf(eight), "left_knee");
+  assert.equal(eight.fields.intensity, 8);
+  const seven = propose(
+    "Me duele la rodilla derecha, sin duda un 7.",
+    {
+      locations: [loc("rodilla derecha", "derecha")],
+      intensity: rating("un siete", 7),
+    },
+    "es",
+  );
+  assert.equal(regionOf(seven), "right_knee");
+  assert.equal(seven.fields.intensity, 7);
+  assert.equal(parseIntensityAnswer("not seven"), null);
+  assert.equal(parseIntensityAnswer("sin duda un 7"), 7);
+  assert.equal(parseIntensityAnswer("7 but not 8"), 7);
+  assert.equal(
+    propose("My son is 7.", { intensity: rating("siete", 7) }).fields
+      .intensity,
+    undefined,
+  );
+  assert.equal(
+    propose("Hace siete días.", { intensity: rating("siete días", 7) }).fields
+      .intensity,
+    undefined,
+  );
+});
+
+test("a side attaches in its own clause and ignores now, all right, and left as a verb", () => {
+  assert.equal(
+    regionOf(
+      propose("Pain on the left side of my knee.", {
+        locations: [loc("knee")],
+      }),
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    regionOf(
+      propose("My knee hurts on the left.", { locations: [loc("knee")] }),
+    ),
+    "left_knee",
+  );
+  const now = propose("My right knee hurts right now.", {
+    locations: [loc("right knee", "right")],
+    activity: "right now",
+  });
+  assert.equal(regionOf(now), "right_knee");
+  assert.equal(now.fields.activity, undefined);
+  assert.equal(
+    propose("My knee hurts right now, sharp.", {
+      locations: [loc("knee", "right")],
+    }).location.status,
+    "need-side",
+  );
+  const slept = propose("I slept on the left side. My knee hurts.", {
+    locations: [loc("knee", "left")],
+    activity: "slept",
+  });
+  assert.equal(slept.location.status, "need-side");
+  assert.equal(slept.followUp?.key, "side");
+  assert.equal(slept.fields.activity, "slept");
+  assert.equal(
+    propose("I left my knee brace at home and my knee hurts.", {
+      locations: [loc("knee", "left")],
+    }).location.status,
+    "need-side",
+  );
+  assert.equal(
+    propose("My knee hurts, all right?", {
+      locations: [loc("knee", "right")],
+    }).location.status,
+    "need-side",
+  );
+  assert.equal(
+    regionOf(
+      propose("My knee hurts, the left one.", { locations: [loc("knee")] }),
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    regionOf(
+      propose("My ankle, I mean the left one, has been sore since yesterday.", {
+        locations: [loc("ankle", "left")],
+      }),
+    ),
+    "left_ankle",
+  );
+});
+
+test("inability, a swapped surface, and gear are not filled in", () => {
+  const walk = propose("I can't walk because my left knee is the problem.", {
+    locations: [loc("left knee", "left")],
+    activity: "walk",
+  });
+  assert.equal(regionOf(walk), "left_knee");
+  assert.equal(walk.fields.activity, undefined);
+  const said =
+    "I ran on pavement and played tennis on clay, now my right ankle aches.";
+  const ankle = propose(said, {
+    locations: [loc("right ankle", "right")],
+    qualities: [{ evidence: "aches", negated: false }],
+  });
+  assert.equal(regionOf(ankle), "right_ankle");
+  assert.equal(ankle.fields.quality, undefined);
+  assert.equal(
+    propose(said, { activity: "ran on clay" }).fields.activity,
+    undefined,
+  );
+  assert.equal(
+    propose(said, { activity: "played tennis on clay" }).fields.activity,
+    "played tennis on clay",
+  );
+  assert.equal(
+    propose("I ran but I couldn't play tennis.", { activity: "ran" }).fields
+      .activity,
+    "ran",
+  );
+  assert.equal(
+    propose("I ran but I couldn't play tennis.", { activity: "play tennis" })
+      .fields.activity,
+    undefined,
+  );
+
+  const bend = propose(
+    "No puedo doblar la rodilla derecha.",
+    { locations: [loc("rodilla", "derecha")], activity: "doblar" },
+    "es",
+  );
+  assert.equal(regionOf(bend), "right_knee");
+  assert.equal(bend.fields.activity, undefined);
+  const swell = propose(
+    "Me duele el tobillo izquierdo, sin hinchazón.",
+    {
+      locations: [loc("tobillo", "izquierda")],
+      qualities: [{ evidence: "hinchazón", negated: false }],
+    },
+    "es",
+  );
+  assert.equal(regionOf(swell), "left_ankle");
+  assert.equal(swell.fields.quality, undefined);
+  const run = propose(
+    "No puedo correr por la rodilla izquierda.",
+    { locations: [loc("rodilla", "izquierda")], activity: "correr" },
+    "es",
+  );
+  assert.equal(regionOf(run), "left_knee");
+  assert.equal(run.fields.activity, undefined);
+  const gym = propose(
+    "Me duele el hombro derecho, quise ir al gimnasio pero no pude ayer.",
+    {
+      locations: [loc("hombro derecho", "derecha")],
+      onset: { evidence: "ayer", negated: false },
+      activity: "ir al gimnasio",
+    },
+    "es",
+  );
+  assert.equal(regionOf(gym), "right_shoulder");
+  assert.equal(gym.onset, undefined);
+  assert.equal(gym.fields.activity, undefined);
+  assert.equal(
+    propose("Me duele desde ayer.", {
+      onset: { evidence: "desde ayer", negated: false },
+    }).onset?.date,
+    "2026-10-21",
+  );
+  const padel = propose(
+    "Jugando al pádel, la raqueta... me duele el codo derecho.",
+    {
+      locations: [loc("raqueta"), loc("codo derecho", "derecha")],
+      activity: "pádel",
+    },
+    "es",
+  );
+  assert.equal(regionOf(padel), "right_elbow");
+  assert.equal(padel.fields.activity, "pádel");
+  assert.equal(
+    propose("Jugando al pádel, la raqueta... me duele el codo derecho.", {
+      activity: "tenis",
+    }).fields.activity,
+    undefined,
+  );
+  assert.equal(
+    propose("Jugando al pádel, la raqueta... me duele el codo derecho.", {
+      activity: "raqueta",
+    }).fields.activity,
+    undefined,
+  );
+  assert.equal(
+    propose("My knee hurts on the left.", { activity: "on the left" }).fields
+      .activity,
+    undefined,
+  );
+  assert.equal(
+    propose("Right hip started hurting a while ago, dull.", {
+      activity: "started hurting",
+    }).fields.activity,
+    undefined,
+  );
+  assert.equal(
+    propose("Abdomen is cramping since this afternoon, about a 6.", {
+      activity: "cramping",
+    }).fields.activity,
+    undefined,
+  );
+  assert.equal(
+    propose(
+      "El tobillo, digo, la rodilla izquierda, me duele desde ayer, como un 4.",
+      { qualities: [{ evidence: "como", negated: false }] },
+      "es",
+    ).fields.quality,
+    undefined,
+  );
+  const hand = propose(
+    "Me duele la rodilla. La mano izquierda está bien.",
+    {
+      locations: [
+        loc("la rodilla", "izquierdo"),
+        loc("la mano izquierda está bien", "izquierdo", true),
+      ],
+    },
+    "es",
+  );
+  assert.equal(hand.location.status, "need-side");
+  assert.equal(hand.followUp?.key, "side");
 });

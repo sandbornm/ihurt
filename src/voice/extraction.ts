@@ -116,15 +116,24 @@ const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
 const bothWords = /\b(?:both|ambos|ambas|los dos|las dos)\b/;
 
+// "right now", "all right", "todo derecho", and the verb "left" ("I left",
+// "the pain left", "left my brace") are not sides. Mask those before the
+// word test so a real side later in the same note still counts.
+function maskNonSides(text: string) {
+  return text
+    .replace(/\bright (?:now|away|after)\b/g, " ")
+    .replace(/\ball right\b/g, " ")
+    .replace(/\b(?:todo|siga|sigue) derecho\b/g, " ")
+    .replace(/\b(?:pain|i|we|he|she|they|it) left\b/g, " ")
+    .replace(/\bleft (?:my|the|a|an|his|her|our|their)\b/g, " ");
+}
+
 // A side counts only when the person said it. "right now" and "todo derecho"
 // are not sides.
 export function sideIn(value: string): "left" | "right" | "both" | null {
-  const text = normalize(value);
+  const text = maskNonSides(normalize(value));
   const left = leftWords.test(text),
-    right =
-      rightWords.test(text) &&
-      !/\bright (?:now|away|after)\b/.test(text) &&
-      !/\b(?:todo|siga|sigue) derecho\b/.test(text);
+    right = rightWords.test(text);
   if (bothWords.test(text) || (left && right)) return "both";
   return left ? "left" : right ? "right" : null;
 }
@@ -292,9 +301,9 @@ const deniedAfter = new Set([
   "lastimado",
   "lastimada",
 ]);
-// "doesn't hurt" and "no me duele" deny the part only when they end the
-// clause or say "at all" / "para nada"; "doesn't hurt much" and "no me duele
-// mucho" still say it hurts.
+// "doesn't hurt" and "no me duele" deny the part when they end the clause,
+// or when the tail is "at all", "a bit", "anymore", or "ya". "doesn't hurt
+// much", "doesn't hurt a lot", and "no me duele mucho" still say it hurts.
 function deniesAfter(words: string[], end: number, part: boolean) {
   const next = words.slice(end + 1, end + 6);
   const at = next.findIndex((word) => denies(word, part));
@@ -304,12 +313,11 @@ function deniesAfter(words: string[], end: number, part: boolean) {
   const hurt = rest.findIndex((word) =>
     /^(?:hurts?|duelen?|molestan?)$/.test(word),
   );
-  return (
-    hurt >= 0 &&
-    (hurt === rest.length - 1 ||
-      /^(?:at all|para nada|nada|en absoluto)\b/.test(
-        rest.slice(hurt + 1).join(" "),
-      ))
+  if (hurt < 0) return false;
+  const tail = rest.slice(hurt + 1).join(" ");
+  if (!tail) return true;
+  return /^(?:at all|para nada|en absoluto|a bit|anymore|any more|ya|nada)\b/.test(
+    tail,
   );
 }
 
@@ -381,10 +389,45 @@ function covers(words: string[], needed: string[], part = false) {
     last = Math.max(last, at);
     return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
+  // "está bien" can sit inside the quoted span. Clear from the part itself,
+  // not only from the last quoted word.
+  const cleared =
+    part &&
+    needed.some((want) => {
+      const at = words.findIndex((said) => matches(said, want));
+      return at >= 0 && fineAfter(words, at);
+    });
+  return found && !deniesAfter(words, last, part) && !cleared;
+}
+
+// "nothing hurts except the knee" affirms the knee. "everything hurts except
+// the knee" denies it. "nada más" is rewritten earlier and is not this split.
+const exceptWord = /^(?:except|excepto|salvo)$/;
+const noneWord = new Set(["nothing", "none", "nada"]);
+
+function exceptSides(
+  clause: string,
+): { affirmed: string[]; denied: string[] } | null {
+  const words = tokens(clause);
+  const at = words.findIndex((word) => exceptWord.test(word));
+  if (at < 0) return null;
+  const left = words.slice(0, at);
+  const right = words.slice(at + 1);
+  if (!right.length) return null;
+  if (left.some((word) => noneWord.has(word)))
+    return { affirmed: right, denied: left };
+  return { affirmed: left, denied: right };
+}
+
+// The pain went away, so no body part in that phrase is current. "I left my
+// brace and my knee hurts" is a different phrase and still counts.
+function painGone(words: string[]) {
+  const text = words.join(" ");
   return (
-    found &&
-    !deniesAfter(words, last, part) &&
-    !(part && fineAfter(words, last))
+    /\bpain left\b/.test(text) ||
+    /\bpain (?:is|was|has been|has|been) gone\b/.test(text) ||
+    /\bpain went away\b/.test(text) ||
+    /\bdolor (?:se fue|ya paso|paso)\b/.test(text)
   );
 }
 
@@ -394,7 +437,18 @@ function covers(words: string[], needed: string[], part = false) {
 // none comes from a denied part. `together` is the body-part check, so ability
 // negators ("can't bend", "no puedo doblar") do not deny it.
 function clauseGrounds(clause: string, needed: string[], together: boolean) {
-  const soft = softParts(clause);
+  const split = exceptSides(clause);
+  if (split) {
+    const onAffirmed = covers(split.affirmed, needed, together);
+    const onDenied = needed.every((want) =>
+      split.denied.some((said) => matches(said, want)),
+    );
+    // A word that sits on the except boundary stays on that side.
+    if (onAffirmed || onDenied) return onAffirmed && !onDenied;
+  }
+  const soft = softParts(clause).filter(
+    (words) => !(together && painGone(words)),
+  );
   if (soft.some((words) => covers(words, needed, together))) return true;
   if (together) return false;
   const affirmative = soft.filter((words) => !words.some(isNegator));
@@ -594,8 +648,12 @@ export function ratedIn(transcript: string, value: number) {
 }
 
 export function parseIntensityAnswer(answer: string): number | null {
-  const text = normalize(answer);
-  // "not seven" or "no es un siete" is not a rating; the field stays blank.
+  const normalized = idioms(normalize(answer));
+  // "not a 7 but an 8" keeps 8. "7 but not 8" keeps 7. "not seven" stays blank.
+  const but = normalized.match(/^(.*?)\b(?:but|sino)\b(.*)$/);
+  const text = but
+    ? (but[1].split(" ").some(isNegator) ? but[2] : but[1]).trim()
+    : normalized;
   if (text.split(" ").some(isNegator)) return null;
   const found = [...text.matchAll(new RegExp(`\\b(${numberPattern})\\b`, "g"))]
     .map((match) => numberValue(match[1]))

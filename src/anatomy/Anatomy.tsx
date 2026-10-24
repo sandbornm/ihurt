@@ -781,6 +781,8 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "schematic-fallback";
         setReady(true);
         update();
+        // A command given while the atlas loaded (like Confirm pin) still runs.
+        if (latest.current.command.id) command(latest.current.command.type);
       });
     fetch("/heat.wasm")
       .then((r) => {

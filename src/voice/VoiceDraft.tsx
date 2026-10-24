@@ -143,6 +143,9 @@ function VoiceEditor({
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
+    // Closing the panel stops the on-device read and any spoken question now,
+    // not only when the editor unmounts.
+    cancelCapture();
     close({
       text: busy ? previousText.current : text,
       fields,

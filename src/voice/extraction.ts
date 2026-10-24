@@ -86,6 +86,53 @@ function sideIn(value: string): "left" | "right" | "both" | null {
   return left ? "left" : right ? "right" : null;
 }
 
+const sideSubjects = new Set([
+  "i",
+  "we",
+  "he",
+  "she",
+  "they",
+  "it",
+  "that",
+  "who",
+]);
+const sideObjects = new Set([
+  "my",
+  "the",
+  "a",
+  "an",
+  "his",
+  "her",
+  "their",
+  "our",
+  "your",
+  "this",
+  "that",
+  "it",
+  "them",
+  "work",
+  "home",
+  "early",
+  "again",
+]);
+
+// The answer to "left or right?" must say one side, plainly. "not left" is a
+// denial, and "I left work" uses the verb, so neither supplies a side.
+function sideAnswer(reply: string): "left" | "right" | null {
+  const words = normalize(reply).split(" ").filter(Boolean);
+  if (words.length > 6 || words.some(isNegator)) return null;
+  const found = new Set<"left" | "right">();
+  words.forEach((word, i) => {
+    const prev = words[i - 1] ?? "";
+    const next = words[i + 1] ?? "";
+    if (word === "right" && !["now", "away", "after"].includes(next))
+      found.add("right");
+    if (word === "left" && !sideSubjects.has(prev) && !sideObjects.has(next))
+      found.add("left");
+  });
+  return found.size === 1 ? [...found][0] : null;
+}
+
 const stop = new Set([
   "the",
   "and",
@@ -251,6 +298,15 @@ function clauseGrounds(
   return covers(affirmative.flat(), needed, false, corrected);
 }
 
+// "isn't sore, it's aching": a next clause that starts "it's ..." describes the
+// pain instead. "it's fine", "it's gone" and "it's not" clear it further.
+const clearing =
+  /^(?:fine|ok|okay|alright|good|great|better|gone|healed|nothing|not|no)\b/;
+function corrects(next: string) {
+  const match = /^\s*(?:it['\u2019]s|its|it is)\s+(.*)$/i.exec(next);
+  return match !== null && !clearing.test(normalize(match[1]));
+}
+
 export function grounded(
   value: string,
   transcript: string,
@@ -277,7 +333,7 @@ export function grounded(
         needed,
         together,
         part,
-        /^(?:it's|its|it is)\b/.test(normalize(clauses[i + 1] ?? "")),
+        corrects(clauses[i + 1] ?? ""),
       ),
   );
 }
@@ -377,6 +433,9 @@ const numberWords = [
   "ten",
 ];
 
+const ratingUnits =
+  "day|days|week|weeks|month|months|year|years|hour|hours|minute|minutes|mile|miles|km|time|times|am|pm|o'clock";
+
 // Intensity counts only when the person stated that number as a rating.
 // "3 days ago", "5 miles", and "at 7 am" are not ratings. When unsure, drop it
 // so the follow-up question can ask.
@@ -389,8 +448,7 @@ function statesRating(transcript: string, value: number) {
     .replace(/\s+/g, " ")
     .trim();
   const number = `\\b(?:${value}|${numberWords[value]})\\b`;
-  const unit =
-    "day|days|week|weeks|month|months|year|years|hour|hours|minute|minutes|mile|miles|km|time|times|am|pm|o'clock";
+  const unit = ratingUnits;
   const notAUnit = `(?!\\s+(?:${unit})\\b)`;
   const pattern = new RegExp(
     [
@@ -420,16 +478,35 @@ export function parseIntensityAnswer(answer: string): number | null {
   const text = normalize(answer);
   // "not seven" is not a rating; the field stays blank.
   if (text.split(" ").some(isNegator)) return null;
-  const found = [
-    ...text.matchAll(
-      /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/g,
-    ),
-  ].map((match) =>
-    /^\d+$/.test(match[1]) ? Number(match[1]) : numberWords.indexOf(match[1]),
-  );
-  // "7 out of 10" names two numbers; the first is the rating.
-  if (found.length === 2 && found[1] === 10 && /\bout of\b/.test(text))
-    return found[0];
+  const digits =
+    "10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten";
+  const value = (word: string) =>
+    /^\d+$/.test(word) ? Number(word) : numberWords.indexOf(word);
+  // "7 out of 10" or "7/10": the first number is the rating, the scale is
+  // the 10. A date like "7/10/26" is not one.
+  const scale = answer
+    .toLowerCase()
+    .match(
+      new RegExp(
+        `\\b(${digits})\\s*(?:out of|of|/)\\s*(?:10|ten)\\b(?!\\s*/\\s*\\d)`,
+      ),
+    );
+  if (scale) {
+    // A second number that is not the scale ("6/10 and 4/10") is unclear.
+    const rest = answer.toLowerCase().replace(scale[0], " ");
+    return new RegExp(`\\b(?:${digits})\\b`).test(rest)
+      ? null
+      : value(scale[1]);
+  }
+  // "seven days ago", "7 miles" and "7 years old" are not ratings.
+  const unit = new RegExp(`^(?:${ratingUnits})\\b`);
+  const found = [...text.matchAll(new RegExp(`\\b(${digits})\\b`, "g"))]
+    .filter(
+      (match) =>
+        !unit.test(text.slice(match.index + match[0].length).trim()) &&
+        !/\b(?:i am|i'm|age|aged)$/.test(text.slice(0, match.index).trim()),
+    )
+    .map((match) => value(match[1]));
   return found.length === 1 ? found[0] : null;
 }
 
@@ -467,15 +544,6 @@ export function resolveOnset(
   if (Number.isNaN(Date.UTC(y, m - 1, d))) return { phrase };
   const count = (word: string) =>
     /^\d+$/.test(word) ? Number(word) : numberWords.indexOf(word);
-  if (/\bday before yesterday\b/.test(text))
-    return { phrase, date: shift(today, 2) };
-  if (/\b(?:yesterday|last night)\b/.test(text))
-    return { phrase, date: shift(today, 1) };
-  if (
-    text === "earlier" ||
-    /\b(?:today|this morning|this afternoon|this evening|tonight)\b/.test(text)
-  )
-    return { phrase, date: today };
   const ago = text.match(
     /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|a) (day|days|week|weeks) ago\b/,
   );
@@ -487,6 +555,16 @@ export function resolveOnset(
         date: shift(today, ago[2].startsWith("week") ? n * 7 : n),
       };
   }
+  // Counted offsets come first: "a week ago today" is a week ago.
+  if (/\bday before yesterday\b/.test(text))
+    return { phrase, date: shift(today, 2) };
+  if (/\b(?:yesterday|last night)\b/.test(text))
+    return { phrase, date: shift(today, 1) };
+  if (
+    text === "earlier" ||
+    /\b(?:today|this morning|this afternoon|this evening|tonight)\b/.test(text)
+  )
+    return { phrase, date: today };
   const weekday = text.match(
     /\b(?:last |on |this past )?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/,
   );
@@ -534,6 +612,10 @@ function followUpFor(
   return null;
 }
 
+function saidAsPhrase(value: string, transcript: string) {
+  return ` ${normalize(transcript)} `.includes(` ${normalize(value)} `);
+}
+
 export function buildProposal(
   raw: RawPainExtraction,
   transcript: string,
@@ -550,7 +632,12 @@ export function buildProposal(
   if (qualities.length) fields.quality = qualities.join(", ");
   if (raw.intensity !== null && statesRating(transcript, raw.intensity))
     fields.intensity = raw.intensity;
-  const activity = grounded(raw.activity, transcript) ? raw.activity : "";
+  // The activity must be said as one phrase: "running tennis" is not "went
+  // running and played tennis".
+  const activity =
+    grounded(raw.activity, transcript) && saidAsPhrase(raw.activity, transcript)
+      ? raw.activity
+      : "";
   // A surface is kept only when said with this activity, so "ran on pavement
   // and played tennis on clay" never becomes "ran on clay".
   const surface =
@@ -564,7 +651,7 @@ export function buildProposal(
   // "three weeks ago".
   if (
     grounded(raw.onsetPhrase, transcript) &&
-    ` ${normalize(transcript)} `.includes(` ${normalize(raw.onsetPhrase)} `)
+    saidAsPhrase(raw.onsetPhrase, transcript)
   ) {
     onset = resolveOnset(raw.onsetPhrase, today);
     fields.duration = onset.date
@@ -609,8 +696,8 @@ export function answerFollowUp(
     const value = parseIntensityAnswer(reply);
     if (value !== null) next.fields.intensity = value;
   } else if (key === "side" && proposal.location.status === "need-side") {
-    const side = sideIn(reply);
-    if (side === "left" || side === "right")
+    const side = sideAnswer(reply);
+    if (side)
       next.location = mapLocation(
         `${side} ${proposal.location.spoken}`,
         side,

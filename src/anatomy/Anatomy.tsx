@@ -411,13 +411,11 @@ export default function Anatomy(props: Props) {
       if (spread.active) proposedPin.visible = false;
       kick();
     };
+    // Commands that need the atlas are skipped until it loads, then replayed.
+    const needsAtlas = /^(layers:|point:|muscle:|mesh:|pin-center)/;
     const command = (type: string) => {
       clearStroke();
-      if (
-        !root.dataset.atlas &&
-        /^(layers:|point:|muscle:|mesh:|pin-center)/.test(type)
-      )
-        return;
+      if (!root.dataset.atlas && needsAtlas.test(type)) return;
       if (spread.active) {
         spread.clear();
         setSpreadAmount(0);
@@ -769,7 +767,11 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "z-anatomy";
         setReady(true);
         update();
-        if (latest.current.command.id) command(latest.current.command.type);
+        if (
+          latest.current.command.id &&
+          needsAtlas.test(latest.current.command.type)
+        )
+          command(latest.current.command.type);
       })
       .catch(() => {
         if (disposed) return;
@@ -782,7 +784,11 @@ export default function Anatomy(props: Props) {
         setReady(true);
         update();
         // A command given while the atlas loaded (like Confirm pin) still runs.
-        if (latest.current.command.id) command(latest.current.command.type);
+        if (
+          latest.current.command.id &&
+          needsAtlas.test(latest.current.command.type)
+        )
+          command(latest.current.command.type);
       });
     fetch("/heat.wasm")
       .then((r) => {

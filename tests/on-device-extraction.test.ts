@@ -969,8 +969,10 @@ test("a counted offset wins over a day word inside it", () => {
   assert.equal(resolveOnset("a week ago today", today).date, "2026-10-15");
   assert.equal(
     resolveOnset("two weeks ago yesterday", today).date,
-    "2026-10-08",
+    "2026-10-07",
   );
+  assert.equal(resolveOnset("a week ago yesterday", today).date, "2026-10-14");
+  assert.equal(resolveOnset("a week ago tomorrow", today).date, "2026-10-16");
   assert.equal(resolveOnset("today", today).date, today);
 });
 
@@ -981,4 +983,72 @@ test("'it's fine' after a denial clears the part; 'it's aching' only corrects", 
   assert.equal(location("My left knee doesn't hurt, it's fine."), "unmapped");
   assert.equal(location("My left knee doesn't hurt, it's gone"), "unmapped");
   assert.equal(location("My left knee isn't sore, it's aching."), "mapped");
+});
+
+test("a date or a scale alone is not a rating; 'I'm 7' is", () => {
+  for (const reply of ["on 7/10", "since 7/10", "7/10 days ago", "7/10/26"])
+    assert.equal(parseIntensityAnswer(reply), null, reply);
+  for (const reply of ["out of 10", "/10", "of 10", "n/10"])
+    assert.equal(parseIntensityAnswer(reply), null, reply);
+  assert.equal(parseIntensityAnswer("I'm 7"), 7);
+  assert.equal(parseIntensityAnswer("I am seven"), 7);
+  assert.equal(parseIntensityAnswer("I\u2019m 7"), 7);
+  assert.equal(parseIntensityAnswer("I am 7 years old"), null);
+  assert.equal(parseIntensityAnswer("aged 7"), null);
+  assert.equal(parseIntensityAnswer("7/10"), 7);
+  assert.equal(parseIntensityAnswer("a 7 out of 10"), 7);
+});
+
+test("plain side answers are read, and non-side uses of left and right are not", () => {
+  const side = (reply: string) =>
+    answerFollowUp(
+      buildProposal(
+        raw({ spokenLocation: "ankle", side: "unspecified" }),
+        "My ankle hurts",
+        today,
+      ),
+      reply,
+    ).location;
+  for (const [reply, region] of [
+    ["no, the right one", "right_ankle"],
+    ["that left one", "left_ankle"],
+    ["I think it is the left one", "left_ankle"],
+    ["not the left, the right", "right_ankle"],
+  ])
+    assert.deepEqual(
+      (side(reply) as { region?: string }).region,
+      region,
+      reply,
+    );
+  for (const reply of [
+    "all right",
+    "left now",
+    "left right after",
+    "right now",
+    "right away",
+    "not the left",
+  ])
+    assert.equal(side(reply).status, "need-side", reply);
+});
+
+test("clearing phrases: finished clears, 'not gone' and 'better than yesterday' do not", () => {
+  const location = (said: string) =>
+    buildProposal(
+      raw({ spokenLocation: "left knee", side: "left" }),
+      said,
+      today,
+    ).location.status;
+  for (const said of [
+    "My left knee doesn't hurt, it's over",
+    "My left knee doesn't hurt, it's resolved",
+    "My left knee doesn't hurt, it's stopped",
+    "My left knee doesn't hurt, it's my ankle",
+  ])
+    assert.equal(location(said), "unmapped", said);
+  for (const said of [
+    "My left knee isn't sore, it's good pain",
+    "My left knee isn't sore, it's better than yesterday",
+    "My left knee doesn't hurt, it's not gone",
+  ])
+    assert.equal(location(said), "mapped", said);
 });

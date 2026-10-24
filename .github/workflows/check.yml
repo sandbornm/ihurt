@@ -28,8 +28,17 @@ jobs:
       - run: npm run check
       - name: Check extraction eval against thresholds
         run: npm run eval:extraction -- --check
-      # Report only. Held-out notes are never used to tune or gate.
-      - name: Report held-out extraction eval (not gated)
+      # Regression floor on the honest measure. These numbers are the first blind
+      # run of the verifier, not a target. Never tune the verifier against the
+      # held-out notes to move them; add tuning cases to cases.json instead.
+      - name: Check held-out extraction eval floor
+        run: |
+          H=tests/fixtures/extraction-eval
+          npm run -s eval:extraction -- --check --name ci-heldout-gate \
+            --cases "$H/heldout/cases.json" --thresholds "$H/heldout/thresholds.json" \
+            | sed -n '1,12p'
+          exit "${PIPESTATUS[0]}"
+      - name: Report held-out extraction eval (trust bound)
         continue-on-error: true
         run: |
           H=tests/fixtures/extraction-eval
@@ -38,7 +47,7 @@ jobs:
               --recorded "$H/recorded/v2-heldout.json" --cases "$H/heldout/cases.json" \
               | sed -n '1,16p' | tee -a held-out.txt
           done
-          { echo '### Held-out extraction eval (not gated)'; echo '```'; cat held-out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '### Held-out extraction eval'; echo '```'; cat held-out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - run: npx playwright install --with-deps chromium
       - name: Check Python-served camera assets and demo API over HTTP
         run: npm run test:api-browser

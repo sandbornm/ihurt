@@ -1,4 +1,4 @@
-# Held-out results, first run
+# Held-out results, first run (re-scored at fbaf2f3 below)
 
 Recorded on minima (macOS 27.0.1, build 26A434, SystemLanguageModel.default, AFM 3 Core
 Advanced, temperature 0) at 1845edc. The verifier was not changed after this run.
@@ -98,3 +98,32 @@ no region id. There are no side, denial, rating or activity rules.
 Trusting the model scores below the verified v2 (42.6% and 18.3%), so the rules help on
 balance. If every (b)-only and (d)-only case on held-out were fixed, one-shot would rise to at
 most 30/54 (55.6%). The remaining failures need a better model answer.
+
+Caveat on the trust bound: the schema has no region id, so the bound still runs the part
+lexicon (`partsIn`) and the onset resolver on the model's quotes. It is "model plus lexicon",
+not the model alone, and it does not run the side, denial, rating, or activity rules.
+
+## Re-score at fbaf2f3 (after the review-fix commits)
+
+The recorded model outputs (`recorded/v2-heldout.json`) were replayed through the verifier
+at fbaf2f3, once, with no model re-run. The verifier fixes since the first run came from
+code review of #35 to #37 and were tested on new synthetic cases, never on these notes. A
+review change that was derived from these notes (a part-lexicon filter for off-map parts) was
+dropped for that reason.
+
+| held-out (60 notes) | one-shot | false-fill | follow-up rate | wrong-value fills |
+|---|---|---|---|---|
+| v2 all | 42.6% (23/54) | 18.3% | 30.0% | 7 |
+| v2 en | 43.8% (14/32) | 14.3% | 31.4% | 5 |
+| v2 es | 40.9% (9/22) | 24.0% | 28.0% | 2 |
+| trust all | 29.6% (16/54) | 41.7% | 28.3% | 6 |
+
+The numbers are identical to the first run, so the fixes did not move held-out in either
+direction. This set is no longer blind: its failures and causes are written above, so a
+later gain here would not be evidence by itself.
+
+`heldout/thresholds.json` is a CI floor on these numbers (`--check --thresholds`). It guards
+against regressions and is not a target. Do not raise it by tuning the verifier on these
+notes.
+
+Tuning set at the same head: one-shot 86.7% (98/113), false-fill 0.0%, follow-up 17.4%.

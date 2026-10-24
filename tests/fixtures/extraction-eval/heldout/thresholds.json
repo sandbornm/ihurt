@@ -1,0 +1,13 @@
+{
+  "recorded": "v2-heldout",
+  "pipeline": "proposal",
+  "overall": {
+    "oneShot": 0.42,
+    "falseFillRate": 0.19,
+    "wrongValueFills": 7
+  },
+  "byLang": {
+    "en": { "oneShot": 0.43, "falseFillRate": 0.15 },
+    "es": { "oneShot": 0.4, "falseFillRate": 0.25 }
+  }
+}

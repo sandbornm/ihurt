@@ -215,6 +215,27 @@ const motionBefore = new Set([
   "looking",
   "swing",
   "swinging",
+  // Spanish: "me fui a la izquierda", "doblé a la derecha".
+  "fui",
+  "voy",
+  "vamos",
+  "va",
+  "doble",
+  "dobla",
+  "doblo",
+  "doblar",
+  "gire",
+  "gira",
+  "giro",
+  "girar",
+  "camine",
+  "camino",
+  "corri",
+  "corro",
+  "mire",
+  "mira",
+  "mirar",
+  "ir",
 ]);
 const sideDeterminers = new Set([
   "the",
@@ -266,8 +287,9 @@ function sideAnswer(reply: string): "left" | "right" | null {
       const prev = words[i - 1] ?? "";
       const next = words[i + 1] ?? "";
       let side: "left" | "right" | null = null;
-      const toward =
-        motionBefore.has(prev) || motionBefore.has(words[i - 2] ?? "");
+      const toward = [1, 2, 3].some((back) =>
+        motionBefore.has(words[i - back] ?? ""),
+      );
       if (
         rightWords.test(word) &&
         !toward &&
@@ -299,9 +321,20 @@ function sideAnswer(reply: string): "left" | "right" | null {
     });
   // "left, no wait, right" and "the left, sorry, the right" correct themselves,
   // and a trailing "no" retracts the answer: ask again.
+  // "left, no, right" and "derecha no, izquierda" name both sides around a
+  // "no", which could take back either one: ask again.
   const all = clauses.flat();
   if (
     isNegator(all[all.length - 1] ?? "") ||
+    (found.size + denied.size > 1 &&
+      clauses.some(
+        (clause, i) => i > 0 && clause.length === 1 && isNegator(clause[0]),
+      )) ||
+    (found.size + denied.size > 1 &&
+      clauses.some(
+        (clause, i) =>
+          i < clauses.length - 1 && isNegator(clause[clause.length - 1]),
+      )) ||
     (found.size + denied.size > 1 &&
       all.some((word) =>
         ["wait", "sorry", "actually", "mean", "scratch", "oops"].includes(word),
@@ -510,6 +543,7 @@ const idioms = (text: string) =>
   text
     .replace(/\b(?<!ya )(?:nada|no) mas\b/g, "solo")
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
+    .replace(/\bno (?:puede|pueden|podria|podrian) ser\b/g, "no es")
     .replace(/\bno (pued[oe]|pude|podia)\b/g, "no$1");
 
 // Words that join two phrases. A denial on one side does not cancel the
@@ -555,6 +589,10 @@ function covers(
   part = false,
   corrected = false,
 ) {
+  // "it can't be my left knee" says it is not the knee.
+  words = words.map((word, i) =>
+    ability.has(word) && words[i + 1] === "be" ? "isn't" : word,
+  );
   let last = -1;
   const found = needed.every((want) => {
     const at = words.findIndex((said) => matches(said, want));
@@ -589,14 +627,16 @@ function clauseGrounds(
 // "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
 // pain instead. "it's fine", "it's gone" and "it's not" clear it further.
 const clearing =
-  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))/;
-// "it's not gone" and "it's not better" say the pain is still there.
+  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no\b|paso|termino|se )|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|esta (?:mejor|bien)\b(?! que))/;
+// "it's not gone" and "it's not better" say the pain is still there, and so do
+// "no se ha ido", "no está mejor" and "todavía sigue".
 const stillThere =
-  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done)\b/;
+  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^(?:todavia|aun) (?:sigue|esta|me)\b|^sigue\b/;
 function corrects(next: string) {
   const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
   if (match === null) return false;
-  const rest = normalize(match[1]);
+  // "es que ya pasó": the "que" only introduces the clause.
+  const rest = normalize(match[1]).replace(/^que /, "");
   // "it's not gone from my knee" says the pain is still there.
   if (stillThere.test(rest)) return true;
   // "it's my ankle": the pain moved to a different part.
@@ -792,9 +832,23 @@ export function ratedIn(transcript: string, value: number) {
     if (slash) {
       const before = tokens(clause.slice(0, slash.index! + 1));
       const last = before[before.length - 1];
+      const tail = tokens(
+        clause.slice(slash.index! + slash[0].length).replace(/^\s*\/?/, ""),
+      ).join(" ");
+      // "le doy el 7/10" rates the pain; "el 7/10" alone is a date.
+      const rated =
+        last === "el"
+          ? /\b(?:doy|daria|pongo|pondria|es|era|seria|sera|dolor|nivel)$/.test(
+              before.slice(0, -1).join(" "),
+            )
+          : !["on", "since", "desde", "del"].includes(last);
       if (
         !before.some(isNegator) &&
-        !["on", "since", "el", "desde", "del"].includes(last)
+        rated &&
+        !notRatingAfter.test(tail) &&
+        !/^(?:(?:last|past|previous)\s+(?:day|week|month|year)s?|(?:days?|weeks?|months?|years?)\s+ago)\b/.test(
+          tail,
+        )
       )
         return true;
     }
@@ -869,7 +923,10 @@ export function parseIntensityAnswer(answer: string): number | null {
       (match) =>
         !notRatingAfter.test(
           bare.slice(match.index + match[0].length).trim(),
-        ) && !/\b(?:age|aged|edad)$/.test(bare.slice(0, match.index).trim()),
+        ) &&
+        !/\b(?:age|aged|edad|tengo|tiene|tienes|tuve|las|los|dia|day|at)$/.test(
+          bare.slice(0, match.index).trim(),
+        ),
     )
     .map((match) => numberValue(match[1]))
     .filter((value) => value >= 0);
@@ -925,7 +982,7 @@ export function resolveOnset(
     ) ??
     text.match(
       new RegExp(
-        `\\bhace (\\d{1,2}|un|una|${spanishNumbers.slice(1).join("|")}) (dia|dias|semana|semanas)\\b`,
+        `\\b(?:hace|hizo) (\\d{1,2}|un|una|${spanishNumbers.slice(1).join("|")}) (dia|dias|semana|semanas)\\b`,
       ),
     );
   if (ago) {
@@ -938,17 +995,23 @@ export function resolveOnset(
       /\b(?:day|days|week|weeks|month|months|year|years|hour|hours|dia|dias|semana|semanas|mes|meses|ano|anos|hora|horas)$/.test(
         lead,
       );
-    if (compound) return { phrase };
+    const tail = text.slice((ago.index ?? 0) + ago[0].length).trim();
+    const more = new RegExp(
+      `^(?:and|plus|y) (?:\\d{1,2}|a|an|un|una|half|media|medio|${numberWords.slice(1).join("|")}|${spanishNumbers.slice(1).join("|")})\\b`,
+    );
+    if (compound || more.test(tail)) return { phrase };
     if (n >= 0) {
-      // "a week ago yesterday" is a day before the week-ago date.
-      const tail = text.slice((ago.index ?? 0) + ago[0].length).trim();
+      // "a week ago yesterday" and "ayer hizo una semana" are a day before
+      // the week-ago date.
       const day =
         "(?: (?:morning|afternoon|evening|night|manana|tarde|noche))?$";
-      const nudge = new RegExp(`^(?:yesterday|ayer)${day}`).test(tail)
-        ? 1
-        : new RegExp(`^(?:tomorrow|manana)${day}`).test(tail)
-          ? -1
-          : 0;
+      const nudge =
+        new RegExp(`^(?:yesterday|ayer)${day}`).test(tail) ||
+        /^(?:ayer|yesterday)$/.test(lead)
+          ? 1
+          : new RegExp(`^(?:tomorrow|manana)${day}`).test(tail)
+            ? -1
+            : 0;
       return {
         phrase,
         date: shift(

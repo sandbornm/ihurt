@@ -45,6 +45,8 @@ try {
   });
   for (const width of [1440, 390]) {
     const context = await browser.newContext({
+      // English UI regardless of the machine language.
+      locale: "en-US",
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
     });

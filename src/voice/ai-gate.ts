@@ -25,6 +25,13 @@ export function createAvailabilityGate() {
       pending = undefined;
       return available ? queued : undefined;
     },
+    // The person may turn Apple Intelligence on or off in Settings and come
+    // back. A later check replaces the answer without touching a queued note.
+    recheck(available: boolean): string | undefined {
+      if (state === "checking") return this.settle(available);
+      state = available ? "ready" : "off";
+      return undefined;
+    },
     clear() {
       pending = undefined;
     },

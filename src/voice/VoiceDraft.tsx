@@ -148,6 +148,9 @@ function VoiceEditor({
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
+    // Closing the panel stops the on-device read and any spoken question now,
+    // not only when the editor unmounts.
+    cancelCapture();
     close({
       text: busy ? previousText.current : text,
       fields,
@@ -189,25 +192,28 @@ function VoiceEditor({
           : (state.reason ?? t("voice.error.speechUnavailable")),
       );
     };
-    const settle = (ready: boolean) => {
-      if (!active) return;
-      setAiReady(ready);
-      // A recording that finished during the check is read now. Recording
-      // again or cancelling clears the queue, so the value is still current.
-      const queued = gate.settle(ready);
-      if (queued) void runExtraction(queued);
-    };
-    if (ai && native)
-      void ai
+    const checkAi = () =>
+      ai!
         .isAvailable(lang)
         .then((state) => {
-          settle(state.available);
+          if (!active) return;
+          const queued = gate.recheck(state.available);
+          setAiReady(state.available);
+          if (queued) void runExtraction(queued);
           // Dictation still works when the model does not support the
           // language. Say so instead of hiding the suggestions silently.
-          if (!state.available && state.code === "ai-locale-unsupported")
-            setAiNotice(state.reason ?? "");
+          setAiNotice(
+            !state.available && state.code === "ai-locale-unsupported"
+              ? (state.reason ?? "")
+              : "",
+          );
         })
-        .catch(() => settle(false));
+        .catch(() => {
+          if (!active) return;
+          gate.recheck(false);
+          setAiReady(false);
+        });
+    if (ai && native) void checkAi();
     else gate.settle(false);
     void (async () => {
       try {
@@ -235,10 +241,13 @@ function VoiceEditor({
         cancelCapture();
         setMode("idle");
         setError(t("voice.error.leftScreen"));
-      } else if (document.visibilityState === "visible" && speech) {
-        void checkNative().catch(() => {
-          if (active) setAvailable(false);
-        });
+      } else if (document.visibilityState === "visible") {
+        // Settings may have changed while the app was away.
+        if (speech)
+          void checkNative().catch(() => {
+            if (active) setAvailable(false);
+          });
+        if (ai && native) void checkAi();
       }
     };
     document.addEventListener("visibilitychange", hide);

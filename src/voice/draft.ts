@@ -67,6 +67,12 @@ export function suggestVoiceDraft(text: string) {
     .toLowerCase()
     .replace(/\b(?<!ya )(?:nada|no) m[aá]s\b/g, "solo")
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
+    // "rodilla izquierda no mucho" and "knee, not too bad" hedge the pain; they
+    // do not deny the part.
+    .replace(
+      /\b(?:no|not) (?:mucho|tanto|demasiado|muy|tan|much|too|that|very|so)\b/g,
+      "poco",
+    )
     .split(/[.!?;,\n]+/)
     .filter(
       (part) =>

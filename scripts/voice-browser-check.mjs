@@ -45,6 +45,8 @@ try {
     ],
   });
   const context = await browser.newContext({
+    // English UI regardless of the machine language.
+    locale: "en-US",
     permissions: ["microphone"],
     viewport: { width: 390, height: 844 },
   });

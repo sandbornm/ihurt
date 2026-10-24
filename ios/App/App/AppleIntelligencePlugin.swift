@@ -134,7 +134,9 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         reject(call, "ai-unavailable")
     }
 
-    // Main thread only.
+    // Main thread only. Compiled only where FoundationModels exists, so an SDK
+    // without it still builds and reports unavailable.
+    #if canImport(FoundationModels)
     @available(iOS 26.0, *)
     private func startExtraction(_ call: CAPPluginCall, transcript: String, anatomy: [String], today: String, language: String) {
         finishExtraction(cancelled: true)
@@ -159,6 +161,7 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
             self.extraction = nil
         }
     }
+    #endif
 
     @objc func cancelExtraction(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
@@ -316,7 +319,7 @@ enum PainExtractor {
             Nunca deduzcas una zona del cuerpo a partir de un deporte, una actividad o una superficie. Si no nombró una parte del cuerpo, deja spokenLocation vacío y usa la región "unknown".
             Los ids de anatomía permitidos (no los traduzcas): \(ids).
             En region, elige el único id permitido que contiene la parte del cuerpo que nombró. Un dedo del pie, el talón o el arco son parte del pie (foot). Un dedo de la mano, el pulgar o la palma son parte de la muñeca (wrist).
-            En side usa solo los valores en inglés: "left" si dijo izquierdo o izquierda, "right" si dijo derecho o derecha, "both" si dijo ambos o los dos, y si no, "unspecified".
+            En side usa solo los valores en inglés: "left" si dijo izquierdo o izquierda, "right" si dijo derecho o derecha (pero "derecho" en "camino derecho" o "voy derecho" significa recto, no un lado), "both" si dijo ambos o los dos, y si no, "unspecified".
             En qualities copia las palabras que usó para cómo se siente, como ardor, punzante, sordo u hormigueo. En onsetPhrase copia cuándo empezó, como "ayer" o "hace 3 días".
             """
         }

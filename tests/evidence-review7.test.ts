@@ -435,3 +435,70 @@ test("a partial improvement does not clear the part", () => {
     "left_knee",
   );
 });
+
+test("a guessed cause does not make the rating a guess", () => {
+  assert.equal(
+    rating(
+      "It might be from running but the pain in my left knee is 7 out of 10",
+      7,
+      knee,
+    ),
+    7,
+  );
+  assert.equal(
+    rating(
+      "Puede ser por correr pero el dolor en mi rodilla izquierda es 7 de 10",
+      7,
+      rodilla,
+    ),
+    7,
+  );
+  // A guess about the rating itself still asks.
+  assert.equal(
+    rating("My left knee hurts, it might be a 7 but I'm not sure", 7, knee),
+    undefined,
+  );
+  assert.equal(
+    rating(
+      "Puede ser un 7 pero no estoy seguro, me duele la rodilla izquierda",
+      7,
+      rodilla,
+    ),
+    undefined,
+  );
+});
+
+test("pain on the other side does not bring back a denied side", () => {
+  const note = "My left knee didn't hurt yesterday. My right knee hurts today";
+  assert.equal(where(note, left), "missing");
+  assert.equal(where(note, right), "right_knee");
+  assert.equal(
+    where(
+      "La rodilla izquierda no me dolía ayer. La rodilla derecha me duele hoy",
+      rodillaIzq,
+      "es",
+    ),
+    "missing",
+  );
+  assert.equal(
+    where(
+      "La rodilla izquierda no me dolía ayer. La rodilla derecha me duele hoy",
+      [["rodilla derecha", "derecha"]],
+      "es",
+    ),
+    "right_knee",
+  );
+  // Same side, so the denial is lifted.
+  assert.equal(
+    where("My left knee didn't hurt yesterday. My left knee hurts today", left),
+    "left_knee",
+  );
+  assert.equal(
+    where(
+      "La rodilla izquierda no me dolía ayer. La rodilla izquierda me duele hoy",
+      rodillaIzq,
+      "es",
+    ),
+    "left_knee",
+  );
+});

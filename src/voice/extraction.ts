@@ -1381,8 +1381,8 @@ function revives(words: string[], needed: string[]) {
   const now = words.some((word) => currentWords.has(word));
   const said = partsIn(words.join(" "));
   if (said.length) {
-    const wanted = partsIn(needed.join(" "));
-    return wanted.some((part) => said.includes(part)) && (hurt || now);
+    // "my right knee hurts today" does not bring back a denied left knee.
+    return namesWanted(words, needed) && (hurt || now);
   }
   // Only a pronoun or filler may stand before "hurts": "my back hurts" names
   // something else.

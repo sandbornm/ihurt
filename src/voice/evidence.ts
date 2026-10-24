@@ -860,11 +860,16 @@ const modalGuess =
   /\b(?:(?:may|might|could) be|puede ser|podria ser|podria estar)\b(.*)$/;
 const numberToken =
   /\b(?:\d{1,2}|zero|one|two|three|four|five|six|seven|eight|nine|ten|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/;
+const contrast = /\b(?:but|pero|though|although|however|aunque|sino|yet)\b/;
 function guessedRating(evidence: string, transcript: string) {
   const at = intensitySpan(evidence, transcript);
   const clause = at ? clauseAround(transcript, at) : null;
   const guess = clause ? modalGuess.exec(normalize(clause)) : null;
-  return guess !== null && numberToken.test(guess[1]);
+  if (guess === null) return false;
+  // "it might be from running but the pain is 7 out of 10" guesses the cause,
+  // not the rating: only the words before the contrast belong to the guess.
+  const governed = guess[1].split(contrast)[0];
+  return numberToken.test(governed);
 }
 function bareMonth(phrase: string, transcript: string) {
   const word = normalize(phrase);

@@ -975,7 +975,13 @@ export function parseIntensityAnswer(answer: string): number | null {
     ? (but[1].split(" ").some(isNegator) ? but[2] : but[1]).trim()
     : normalized;
   if (text.split(" ").some(isNegator)) return null;
-  const lower = answer.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const folded = answer.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  // The same "but" split, on the text that still has its slashes.
+  const foldedBut = folded.match(/^(.*?)\b(?:but|sino)\b(.*)$/);
+  const lower =
+    but && foldedBut
+      ? (but[1].split(" ").some(isNegator) ? foldedBut[2] : foldedBut[1]).trim()
+      : folded;
   // "7 out of 10", "7/10" and "7 de 10": the first number is the rating, the
   // scale is the 10. A date ("on 7/10", "since 7/10", "7/10/26") or a count of
   // days ("7/10 days ago") is not one.
@@ -1068,7 +1074,9 @@ export function resolveOnset(
 ): { phrase: string; date?: string } {
   const text = normalize(phrase);
   if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return { phrase };
-  if (isFutureOnset(phrase)) return { phrase };
+  // "A week ago tomorrow" is counted from the offset, not read as future.
+  if (isFutureOnset(phrase) && !/\b(?:ago|hace)\b/.test(text))
+    return { phrase };
   const [y, m, d] = today.split("-").map(Number);
   if (Number.isNaN(Date.UTC(y, m - 1, d))) return { phrase };
   // Counted offsets come first: "a week ago today" is a week ago.

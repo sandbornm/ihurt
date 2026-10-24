@@ -128,20 +128,15 @@ const sideDeterminer = new Set([
 const verbSubject = new Set(["pain", "i", "we", "he", "she", "they", "it"]);
 
 // "left" is a side when it modifies a part or a side word ("left knee",
-// "left big toe", "the left", "on the left"). "I left work", "the pain left"
-// and "left my brace" are the verb, even with a part later in the object.
+// "the left", "left of my knee"). "I left the gym" and "left my brace" are
+// the verb, and only then does the following determiner veto the side.
 function leftIsSide(words: string[], index: number) {
   const prev = words[index - 1] ?? "";
   const next = words[index + 1] ?? "";
   if (next === "side" || next === "one") return true;
   if (sideDeterminer.has(prev)) return true;
+  if (sideDeterminer.has(next) || next === "a" || next === "an") return false;
   const ahead = words.slice(index + 1, index + 4);
-  if (
-    ahead.some(
-      (word) => sideDeterminer.has(word) || word === "a" || word === "an",
-    )
-  )
-    return false;
   if (partsIn(ahead.join(" ")).length > 0) return true;
   return !next && !verbSubject.has(prev);
 }
@@ -383,9 +378,15 @@ const timeWords = new Set([
   "now",
   "tonight",
   "yesterday",
+  "tomorrow",
+  "earlier",
+  "still",
   "hoy",
   "ahora",
   "ayer",
+  "anoche",
+  "todavia",
+  "manana",
 ]);
 const denialTail =
   /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya)$/;
@@ -778,10 +779,18 @@ export function ratedIn(transcript: string, value: number) {
     const slash = clause.match(
       new RegExp(`(?:^|[^0-9/])${value}\\s*/\\s*10\\b(?!\\s*/)`),
     );
+    const slashed = new RegExp(`(?:^|[^0-9/])${value}\\s*/\\s*10\\b`).test(
+      clause,
+    );
     if (slash) {
+      const afterSlash = normalize(
+        clause.slice(slash.index! + slash[0].length),
+      );
       const before = tokens(clause.slice(0, slash.index! + 1));
       const last = before[before.length - 1];
+      // "7/10 days" counts days. "7/10" and "7/10 pain" are ratings.
       if (
+        !notRatingAfter.test(afterSlash) &&
         !before.some(isNegator) &&
         !instructed.test(before.join(" ")) &&
         !["on", "since", "el", "desde", "del"].includes(last)
@@ -793,6 +802,8 @@ export function ratedIn(transcript: string, value: number) {
         if (!number.test(word)) continue;
         const before = words.slice(0, at);
         const after = words.slice(at + 1).join(" ");
+        // The "7" of "7/10" was judged above, with the unit after it.
+        if (slashed && /^10\b/.test(after)) continue;
         if (
           before.some(isNegator) ||
           instructed.test(before.join(" ")) ||
@@ -1068,7 +1079,8 @@ export function buildProposal(
   // "three weeks ago". Spanish phrases use the same contiguous-span check.
   if (
     grounded(raw.onsetPhrase, transcript) &&
-    spanIn(raw.onsetPhrase, transcript)
+    spanIn(raw.onsetPhrase, transcript) &&
+    !isFutureOnset(raw.onsetPhrase)
   ) {
     onset = resolveOnset(raw.onsetPhrase, today);
     fields.duration = onset.date

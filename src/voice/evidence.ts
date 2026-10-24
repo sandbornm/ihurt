@@ -55,6 +55,12 @@ const correctionWords = new Set([
   "the",
   "a",
   "an",
+  "el",
+  "la",
+  "mi",
+  "my",
+  "um",
+  "eh",
 ]);
 
 function gapText(transcript: string, left: Candidate, right: Candidate) {
@@ -194,6 +200,45 @@ function sideSpans(value: string, transcript: string): TokenSpan[] {
 
 // The matched word has to be a side in this spot. "right now", "all right",
 // and the verb "left" do not count.
+const sideIntro = new Set([
+  "the",
+  "my",
+  "your",
+  "his",
+  "her",
+  "our",
+  "their",
+  "a",
+  "an",
+  "on",
+  "to",
+  "el",
+  "la",
+  "los",
+  "las",
+  "al",
+  "lado",
+  "del",
+  "this",
+  "that",
+  "either",
+  "side",
+  "un",
+  "una",
+  "mi",
+]);
+
+// "turn right" at the end of a clause is a direction. "on the right" is a side.
+function directionRight(transcript: string, index: number) {
+  const said = phraseTokens(transcript);
+  if (said[index] !== "right") return false;
+  const clause = clauseAt(transcript, { start: index, end: index + 1 });
+  if (!clause || index !== clause.end - 1) return false;
+  const prev = said[index - 1] ?? "";
+  if (!prev || index - 1 < clause.start) return false;
+  return !sideIntro.has(prev);
+}
+
 function realSideAt(
   transcript: string,
   at: TokenSpan,
@@ -201,8 +246,10 @@ function realSideAt(
 ) {
   if (side === "both") return true;
   const said = phraseTokens(transcript);
-  for (let index = at.start; index < at.end; index++)
+  for (let index = at.start; index < at.end; index++) {
+    if (side === "right" && directionRight(transcript, index)) continue;
     if (sideAt(said, index) === side) return true;
+  }
   return false;
 }
 
@@ -223,6 +270,96 @@ function sideOnlyClause(text: string) {
   );
 }
 
+// Same joiners as extraction.ts. A side does not cross one to reach a part.
+const spanConjunction = new Set([
+  "and",
+  "but",
+  "or",
+  "though",
+  "although",
+  "y",
+  "e",
+  "pero",
+  "o",
+  "u",
+  "aunque",
+  "sino",
+]);
+
+const sideBridge = new Set(["of", "de", "del"]);
+const sideDeterminer = new Set([
+  "the",
+  "my",
+  "your",
+  "his",
+  "her",
+  "our",
+  "their",
+  "a",
+  "an",
+  "el",
+  "la",
+  "los",
+  "las",
+  "mi",
+  "mis",
+  "tu",
+  "su",
+  "un",
+  "una",
+]);
+
+function sideNoun(said: string[], index: number) {
+  const word = said[index] ?? "";
+  const next = said[index + 1] ?? "";
+  const prev = said[index - 1] ?? "";
+  if ((word === "left" || word === "right") && next === "side") return true;
+  if (word === "side" && (prev === "left" || prev === "right")) return true;
+  if (prev === "lado" && (/^izquierd/.test(word) || /^derech/.test(word)))
+    return true;
+  if (word === "lado" && (/^izquierd/.test(next) || /^derech/.test(next)))
+    return true;
+  return false;
+}
+
+// "left side of my knee" holds the part. "left side" and "left side and my
+// knee" do not.
+function partInSideNoun(said: string[], index: number, part: TokenSpan) {
+  const word = said[index] ?? "";
+  const next = said[index + 1] ?? "";
+  const prev = said[index - 1] ?? "";
+  let bridgeAt = -1;
+  if ((word === "left" || word === "right") && next === "side")
+    bridgeAt = index + 2;
+  else if (word === "side" && (prev === "left" || prev === "right"))
+    bridgeAt = index + 1;
+  else if (prev === "lado") bridgeAt = index + 1;
+  else if (word === "lado") bridgeAt = index + 2;
+  if (bridgeAt < 0 || !sideBridge.has(said[bridgeAt] ?? "")) return false;
+  let cursor = bridgeAt + 1;
+  while (sideDeterminer.has(said[cursor] ?? "")) cursor += 1;
+  if (part.start < cursor || part.start - cursor > 3) return false;
+  return !said
+    .slice(cursor, part.start)
+    .some((token) => spanConjunction.has(token));
+}
+
+// In a sleep or lying clause, "left side" is not the part's side unless the
+// part sits in that noun phrase.
+function sleepSideMissesPart(
+  said: string[],
+  side: TokenSpan,
+  part: TokenSpan,
+  clauseText: string,
+) {
+  if (!sleptWord.test(normalize(clauseText))) return false;
+  for (let index = side.start; index < side.end; index++) {
+    if (!sideNoun(said, index)) continue;
+    return !partInSideNoun(said, index, part);
+  }
+  return false;
+}
+
 function sideReachable(part: TokenSpan, at: TokenSpan, transcript: string) {
   const partClause = clauseAt(transcript, part);
   const sideClause = clauseAt(transcript, at);
@@ -237,6 +374,9 @@ function sideReachable(part: TokenSpan, at: TokenSpan, transcript: string) {
       : part.end <= at.start
         ? said.slice(part.end, at.start)
         : [];
+  if (gap.some((word) => spanConjunction.has(word))) return false;
+  const clauseText = same ? partClause.text : sideClause.text;
+  if (sleepSideMissesPart(said, at, part, clauseText)) return false;
   return gap.length <= 8 && partsIn(gap.join(" ")).length === 0;
 }
 
@@ -275,6 +415,7 @@ function sideFromPhrase(phrase: string, item: Candidate, transcript: string) {
     if (!sideReachable(item.at, at, transcript)) continue;
     const actual = said.slice(at.start, at.end).join(" ");
     if (!grounded(actual, transcript, true, true)) continue;
+    if (side === "both" && clockDos(said, at)) continue;
     return side;
   }
   return null;
@@ -309,6 +450,19 @@ function sidesInRange(
   return sides;
 }
 
+const clockTail =
+  /^(?:y media|y cuarto|en punto|menos cuarto|de la (?:tarde|manana|noche|madrugada))\b/;
+
+// "a las dos" and "las dos de la tarde" are clock time, not both sides.
+function clockDos(said: string[], at: TokenSpan) {
+  if (at.end - at.start !== 2) return false;
+  const first = said[at.start] ?? "";
+  if (!((first === "los" || first === "las") && said[at.start + 1] === "dos"))
+    return false;
+  if ((said[at.start - 1] ?? "") === "a") return true;
+  return clockTail.test(said.slice(at.end, at.end + 4).join(" "));
+}
+
 function bothSpans(transcript: string): TokenSpan[] {
   const said = phraseTokens(transcript);
   const found: TokenSpan[] = [];
@@ -316,8 +470,10 @@ function bothSpans(transcript: string): TokenSpan[] {
     const word = said[index];
     if (word === "both" || word === "ambos" || word === "ambas")
       found.push({ start: index, end: index + 1 });
-    if ((word === "los" || word === "las") && said[index + 1] === "dos")
-      found.push({ start: index, end: index + 2 });
+    if ((word === "los" || word === "las") && said[index + 1] === "dos") {
+      const at = { start: index, end: index + 2 };
+      if (!clockDos(said, at)) found.push(at);
+    }
   }
   return found;
 }
@@ -471,12 +627,19 @@ const digitFor: Record<string, string> = {
   diez: "10",
 };
 
-function intensitySpan(evidence: string, transcript: string) {
-  const exact = findSpan(evidence, transcript);
-  if (exact) return exact;
+function countDos(said: string[], index: number) {
+  const word = said[index] ?? "";
+  return (
+    (word === "dos" || word === "2") &&
+    (said[index - 1] === "los" || said[index - 1] === "las")
+  );
+}
+
+function intensitySpans(evidence: string, transcript: string) {
   const span = phraseTokens(evidence);
   const said = phraseTokens(transcript);
-  if (!span.length) return null;
+  const found: { start: number; end: number }[] = [];
+  if (!span.length) return found;
   const options = span.map((word) => {
     if (digitFor[word]) return [word, digitFor[word]];
     const names = Object.entries(digitFor)
@@ -484,11 +647,34 @@ function intensitySpan(evidence: string, transcript: string) {
       .map(([name]) => name);
     return names.length ? [word, ...names] : [word];
   });
-  if (options.every((list) => list.length === 1)) return null;
-  for (let start = 0; start + span.length <= said.length; start++)
-    if (span.every((_, index) => options[index].includes(said[start + index])))
-      return { start, end: start + span.length };
-  return null;
+  const alias = options.some((list) => list.length > 1);
+  if (!alias) {
+    const exact = findSpan(evidence, transcript);
+    if (exact && !(span.length === 1 && countDos(said, exact.start)))
+      found.push(exact);
+    return found;
+  }
+  for (let start = 0; start + span.length <= said.length; start++) {
+    if (!span.every((_, index) => options[index].includes(said[start + index])))
+      continue;
+    if (span.length === 1 && countDos(said, start)) continue;
+    found.push({ start, end: start + span.length });
+  }
+  return found;
+}
+
+// The "dos" in "las dos" is not a rating. Keep looking for a rating-shaped span.
+function intensitySpan(evidence: string, transcript: string) {
+  const found = intensitySpans(evidence, transcript);
+  if (!found.length) return null;
+  const value = parseIntensityAnswer(evidence);
+  if (value === null) return found[0];
+  return (
+    found.find((at) => {
+      const clause = clauseAround(transcript, at);
+      return clause !== null && ratedIn(clause, value);
+    }) ?? found[0]
+  );
 }
 
 // The evidence phrase must parse to this value, and the note must state that
@@ -771,19 +957,48 @@ function activityBlocked(activity: string, transcript: string) {
 }
 
 // "ayer" after "no pude" is when they failed to go, not when the pain started.
-// "desde ayer" still has a start cue.
+// A start in the same clause ("it began this morning") still counts.
 const failedPlan =
   /\b(?:can't|cannot|couldn't|cant|couldnt|didn't|didnt|no puedo|no pude|no podia|no podria|no fui|no fue)\b/;
-const startCue = /\b(?:desde|since|empezo|started|start|hace|ago|from)\b/;
+const startCue =
+  /\b(?:desde|since|empezo|comenzo|started|start|began|hace|ago|from)\b/;
 
 function onsetBlocked(evidence: string, transcript: string) {
   const at = findSpan(evidence, transcript);
-  if (!at) return false;
-  const clause = clauseAround(transcript, at);
-  if (!clause) return false;
-  const text = normalize(clause);
-  if (!failedPlan.test(text)) return false;
-  return !startCue.test(normalize(evidence)) && !startCue.test(text);
+  if (!at || startCue.test(normalize(evidence))) return false;
+  let cursor = 0;
+  for (const clause of transcript.split(/[.!?;:,\n¿¡]+/)) {
+    const words = phraseTokens(clause);
+    const start = cursor;
+    cursor += words.length;
+    if (!words.length || at.start < start || at.end > cursor) continue;
+    const localStart = at.start - start;
+    const localEnd = at.end - start;
+    let partStart = 0;
+    let current: string[] = [];
+    const parts: { from: number; to: number; text: string }[] = [];
+    const push = (to: number) => {
+      if (current.length)
+        parts.push({ from: partStart, to, text: current.join(" ") });
+    };
+    words.forEach((word, index) => {
+      if (spanConjunction.has(word)) {
+        push(index);
+        current = [];
+        partStart = index + 1;
+      } else {
+        if (!current.length) partStart = index;
+        current.push(word);
+      }
+    });
+    push(words.length);
+    const part = parts.find(
+      (item) => localStart >= item.from && localEnd <= item.to,
+    );
+    if (!part) return false;
+    return failedPlan.test(part.text) && !startCue.test(part.text);
+  }
+  return false;
 }
 
 const gearWord = new Set([

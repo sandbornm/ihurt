@@ -1041,3 +1041,161 @@ test("a side quote matches gender and number, and both-words mean both", () => {
     "need-side",
   );
 });
+
+test("a side and its part share one conjunction-free span", () => {
+  for (const note of [
+    "I slept on the left side and my knee hurts",
+    "my knee hurts when I turn right",
+    "while lying on the left side my knee hurts",
+  ]) {
+    const proposal = propose(note, { locations: [loc("knee")] });
+    assert.equal(proposal.location.status, "need-side", note);
+    assert.equal(proposal.followUp?.key, "side", note);
+  }
+  assert.equal(
+    regionOf(
+      propose("I slept on the left side of my knee.", {
+        locations: [loc("knee")],
+      }),
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    regionOf(
+      propose("My knee hurts on the right.", { locations: [loc("knee")] }),
+    ),
+    "right_knee",
+  );
+});
+
+test("clock time is not both knees", () => {
+  for (const note of [
+    "me duele la rodilla a las dos",
+    "me duele la rodilla a las dos de la tarde",
+    "me duele la rodilla las dos y media",
+    "me duele la rodilla a las dos en punto",
+  ]) {
+    const proposal = propose(note, { locations: [loc("rodilla")] }, "es");
+    assert.equal(proposal.location.status, "need-side", note);
+    assert.notEqual(proposal.location.status, "both", note);
+  }
+  assert.equal(
+    propose(
+      "me duelen las dos rodillas",
+      { locations: [loc("rodillas")] },
+      "es",
+    ).location.status,
+    "both",
+  );
+});
+
+test("las dos is not a rating and a later rating still counts", () => {
+  const note = "las dos rodillas, la intensidad es tres";
+  assert.equal(
+    propose(note, { intensity: rating("dos", 2) }, "es").fields.intensity,
+    undefined,
+  );
+  assert.equal(
+    propose(note, { intensity: rating("2", 2) }, "es").fields.intensity,
+    undefined,
+  );
+  assert.equal(
+    propose(note, { intensity: rating("tres", 3) }, "es").fields.intensity,
+    3,
+  );
+  assert.equal(
+    propose(note, { intensity: rating("3", 3) }, "es").fields.intensity,
+    3,
+  );
+  const later = "las dos rodillas, el dolor es dos";
+  assert.equal(
+    propose(later, { intensity: rating("dos", 2) }, "es").fields.intensity,
+    2,
+  );
+  assert.equal(
+    propose(later, { intensity: rating("2", 2) }, "es").fields.intensity,
+    2,
+  );
+});
+
+test("a failed plan blocks only its own time", () => {
+  const began = propose(
+    "I couldn't sleep last night and it began this morning",
+    { onset: { evidence: "this morning", negated: false } },
+  );
+  assert.equal(began.onset?.phrase, "this morning");
+  assert.equal(
+    propose("I couldn't sleep last night and it began this morning", {
+      onset: { evidence: "last night", negated: false },
+    }).onset,
+    undefined,
+  );
+  const morning = propose(
+    "No pude correr ayer pero comenzó esta mañana",
+    { onset: { evidence: "esta mañana", negated: false } },
+    "es",
+  );
+  assert.equal(morning.onset?.phrase, "esta mañana");
+  assert.equal(
+    propose(
+      "No pude correr ayer pero comenzó esta mañana",
+      { onset: { evidence: "ayer", negated: false } },
+      "es",
+    ).onset,
+    undefined,
+  );
+  assert.equal(
+    propose("It began yesterday and I couldn't walk", {
+      onset: { evidence: "yesterday", negated: false },
+    }).onset?.date,
+    "2026-10-21",
+  );
+  assert.equal(
+    propose("No pude ayer y empezó hoy", {
+      onset: { evidence: "hoy", negated: false },
+    }).onset?.date,
+    today,
+  );
+  assert.equal(
+    propose(
+      "Me duele el hombro derecho, quise ir al gimnasio pero no pude ayer.",
+      { onset: { evidence: "ayer", negated: false } },
+      "es",
+    ).onset,
+    undefined,
+  );
+});
+
+test("a correction gap can hold an article or a filler", () => {
+  const wrist = propose(
+    "Izquierda, perdón, la muñeca derecha",
+    { locations: [loc("Izquierda"), loc("muñeca derecha")] },
+    "es",
+  );
+  assert.equal(wrist.location.status, "mapped");
+  if (wrist.location.status === "mapped")
+    assert.equal(wrist.location.region, "right_wrist");
+
+  const swapped = propose(
+    "La muñeca izquierda, perdón, la derecha",
+    { locations: [loc("muñeca izquierda"), loc("derecha")] },
+    "es",
+  );
+  assert.equal(swapped.location.status, "mapped");
+  if (swapped.location.status === "mapped")
+    assert.equal(swapped.location.region, "right_wrist");
+
+  const ankle = propose("Left knee, um, I mean my right ankle", {
+    locations: [loc("Left knee"), loc("right ankle")],
+  });
+  assert.equal(ankle.location.status, "mapped");
+  if (ankle.location.status === "mapped")
+    assert.equal(ankle.location.region, "right_ankle");
+
+  const eh = propose("The knee, eh, I mean the right wrist", {
+    locations: [loc("knee"), loc("right wrist")],
+  });
+  assert.equal(eh.location.status, "mapped");
+  if (eh.location.status === "mapped")
+    assert.equal(eh.location.region, "right_wrist");
+});

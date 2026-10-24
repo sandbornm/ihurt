@@ -7,10 +7,12 @@ import {
   describeLocation,
   grounded,
   mapLocation,
+  ratedIn,
   seedSuggestedFields,
   parseIntensityAnswer,
   proposedPinStep,
   resolveOnset,
+  sideIn,
 } from "../src/voice/extraction.ts";
 import { createAvailabilityGate } from "../src/voice/ai-gate.ts";
 import { voiceNotice } from "../src/voice/draft.ts";
@@ -891,5 +893,129 @@ test("an onset and an activity surface must be said together", () => {
     buildProposal({ ...raw, activity: "ran", surface: "pavement" }, said, today)
       .fields.activity,
     "ran on pavement",
+  );
+});
+
+test("a denial tail keeps the part unless only a time word follows", () => {
+  for (const said of [
+    "My left knee doesn't hurt a bit more",
+    "My left knee doesn't hurt anymore than yesterday",
+  ])
+    assert.equal(mapLocation("left knee", "left", said).status, "mapped", said);
+  assert.equal(
+    mapLocation("rodilla", "unspecified", "La rodilla no me duele ya tanto")
+      .status,
+    "need-side",
+  );
+  for (const said of [
+    "My left knee doesn't hurt anymore",
+    "My left knee doesn't hurt a bit",
+    "My left knee doesn't hurt anymore today",
+  ])
+    assert.equal(
+      mapLocation("left knee", "left", said).status,
+      "unmapped",
+      said,
+    );
+  assert.equal(
+    mapLocation("rodilla", "unspecified", "La rodilla no me duele ya").status,
+    "unmapped",
+  );
+});
+
+test("a slash rating stops when a unit follows", () => {
+  for (const said of ["7/10 days", "7/10 times", "7/10 veces", "7/10 días"])
+    assert.equal(ratedIn(said, 7), false, said);
+  for (const said of ["7/10", "7/10 pain", "pain is 7/10"])
+    assert.equal(ratedIn(said, 7), true, said);
+  const mixed = "about 7/10 days and the pain is 4";
+  assert.equal(ratedIn(mixed, 7), false);
+  assert.equal(ratedIn(mixed, 4), true);
+});
+
+test("hedged hurt and only-idioms keep the part", () => {
+  assert.equal(
+    mapLocation("left knee", "left", "My left knee doesn't hurt much").status,
+    "mapped",
+  );
+  assert.equal(
+    mapLocation("rodilla", "unspecified", "La rodilla no me duele mucho")
+      .status,
+    "need-side",
+  );
+  assert.equal(
+    mapLocation(
+      "rodilla izquierda",
+      "left",
+      "Sin duda me duele la rodilla izquierda",
+    ).status,
+    "mapped",
+  );
+  assert.equal(
+    mapLocation("rodilla", "unspecified", "Me duele no más la rodilla").status,
+    "need-side",
+  );
+});
+
+test("a future onset is not saved on the flat path", () => {
+  for (const phrase of ["starting next monday", "next week", "next monday"]) {
+    const proposal = buildProposal(
+      raw({ onsetPhrase: phrase, spokenLocation: "knee" }),
+      `My knee hurts ${phrase}`,
+      today,
+    );
+    assert.equal(proposal.fields.duration, undefined, phrase);
+    assert.equal(proposal.onset, undefined, phrase);
+  }
+  const past = buildProposal(
+    raw({ onsetPhrase: "yesterday", spokenLocation: "knee" }),
+    "My knee hurts since yesterday",
+    today,
+  );
+  assert.equal(past.onset?.date, "2026-10-21");
+});
+
+test("counts of body digits and people are not ratings", () => {
+  for (const [said, value] of [
+    ["about 2 fingers", 2],
+    ["about 2 toes", 2],
+    ["about 3 people", 3],
+    ["unos 2 dedos", 2],
+    ["como 3 personas", 3],
+  ] as const)
+    assert.equal(ratedIn(said, value), false, said);
+  assert.equal(ratedIn("about a 6", 6), true);
+  assert.equal(ratedIn("about 2", 2), true);
+});
+
+test("left of a part can be a side and left the gym cannot", () => {
+  assert.equal(sideIn("left of my knee"), "left");
+  assert.equal(sideIn("right of the kneecap"), "right");
+  assert.equal(sideIn("I left the gym"), null);
+  assert.equal(sideIn("I left my knee brace at home"), null);
+  assert.equal(
+    mapLocation("left of my knee", "unspecified", "left of my knee hurts")
+      .status,
+    "mapped",
+  );
+  assert.equal(
+    mapLocation(
+      "right of the kneecap",
+      "unspecified",
+      "right of the kneecap hurts",
+    ).status,
+    "mapped",
+  );
+  assert.equal(
+    mapLocation("knee", "left", "I left the gym and my knee hurts").status,
+    "need-side",
+  );
+  assert.equal(
+    mapLocation(
+      "knee",
+      "left",
+      "I left my knee brace at home and my knee hurts",
+    ).status,
+    "need-side",
   );
 });

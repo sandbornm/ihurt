@@ -53,7 +53,7 @@ type Candidate = { mesh: T.Object3D; point: PainPoint };
 
 export default function Anatomy(props: Props) {
   // Re-render on a language change. Strings come from t().
-  useI18n();
+  const { lang } = useI18n();
   const mappedKey = props.mapped.join("|");
   const pointsKey = JSON.stringify(
     props.points?.map((point) => [
@@ -103,6 +103,13 @@ export default function Anatomy(props: Props) {
   };
   const [failure, setFailure] = useState(false);
   const [ready, setReady] = useState(false);
+  // The canvas is created once; its label follows the language without
+  // rebuilding the renderer.
+  useEffect(() => {
+    host.current
+      ?.querySelector("canvas")
+      ?.setAttribute("aria-label", t("anatomy.canvasLabel"));
+  }, [lang]);
   useEffect(() => {
     if (!host.current) return;
     const root = host.current;

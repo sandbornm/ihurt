@@ -87,12 +87,10 @@ export function suggestVoiceDraft(text: string) {
         ) && !word("nunca|sin|tampoco|niega|niego|ningún|ninguna").test(part),
     );
   const clean = clauses.join(". ");
+  // One pattern for both languages, so "7/10" is matched once.
   const ratings = [
-    ...clean.matchAll(
-      /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:\/\s*10|out of (?:10|ten))\b/g,
-    ),
     ...fold(clean).matchAll(
-      /\b(10|[0-9]|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:\/\s*10|(?:de|sobre) (?:10|diez))\b/g,
+      /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:\/\s*10|out of (?:10|ten)|(?:de|sobre) (?:10|diez))\b/g,
     ),
   ].map((match) => rating(match[1]));
   if (ratings.length === 1) fields.intensity = ratings[0];
@@ -120,7 +118,11 @@ export function suggestVoiceDraft(text: string) {
       const label = id.replaceAll("_", " ");
       // The Spanish name as people say it: "muñeca izquierda", not "muñeca y
       // mano izquierda".
-      const nombre = fold(regionNameIn("es", id)).replace(" y mano", "");
+      const nombre = fold(regionNameIn("es", id));
+      const nombres = [
+        nombre.replace(" y mano", ""),
+        nombre.replace("muneca y mano", "mano"),
+      ];
       return clauses.some(
         (part) =>
           (/\b(?:hurts?|pain|aches?|aching|discomfort|sore|tight|stiff|burning|tingling|numb|throbbing|cramping)\b/.test(
@@ -130,7 +132,9 @@ export function suggestVoiceDraft(text: string) {
           (/\b(?:duele|duelen|dolor|dolores|molesta|molestia|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
             fold(part),
           ) &&
-            new RegExp(`\\b${nombre}\\b`).test(fold(part))),
+            nombres.some((name) =>
+              new RegExp(`\\b${name}\\b`).test(fold(part)),
+            )),
       );
     })
     .map(({ id }) => id);

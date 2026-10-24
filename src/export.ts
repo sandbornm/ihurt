@@ -7,6 +7,7 @@ import {
 import type { ViewportCapture } from "./anatomy/capture";
 import { intensityColor } from "./anatomy/intensity.ts";
 import { saveExport } from "./platform/files.ts";
+import { activityLabel } from "./activities.ts";
 import { formatDate, language, t } from "./i18n/index.ts";
 
 const escape = (s: string) =>
@@ -59,7 +60,8 @@ export function renderMapSvg(map: SavedMap) {
   const facts = wrap(
     [
       map.map.quality && t("export.svg.feeling", { value: map.map.quality }),
-      map.map.activity && t("export.svg.activity", { value: map.map.activity }),
+      map.map.activity &&
+        t("export.svg.activity", { value: activityLabel(map.map.activity) }),
       map.map.duration && t("export.svg.timing", { value: map.map.duration }),
       map.map.intensity !== null &&
         t("export.svg.intensity", { value: map.map.intensity }),
@@ -222,7 +224,8 @@ export function renderPrintHtml(
   const facts = [
     [
       t("export.html.activity"),
-      entry.map.activity || t("export.html.notRecorded"),
+      (entry.map.activity && activityLabel(entry.map.activity)) ||
+        t("export.html.notRecorded"),
     ],
     [t("export.html.feeling"), entry.map.quality || t("export.html.seeNote")],
     [
@@ -233,7 +236,7 @@ export function renderPrintHtml(
       t("export.html.intensity"),
       entry.map.intensity === null
         ? t("export.html.notRated")
-        : `${entry.map.intensity} / 10`,
+        : t("export.html.intensityValue", { value: entry.map.intensity }),
     ],
   ];
   const videos = (entry.references ?? []).filter((r) => r.kind === "video");

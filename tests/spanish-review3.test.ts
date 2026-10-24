@@ -130,9 +130,8 @@ test("Spanish corrections: 'no está bien' keeps the pain, 'ya está bien' clear
     );
 });
 
-test("'can't be on/walking' is ability, 'can't be my knee' is a denial", () => {
+test("'can't be walking' is ability, 'can't be in/on my knee' is a denial", () => {
   for (const said of [
-    "I can't be on my left knee",
     "I couldn't be walking on my left knee",
     "I can't be standing on my left knee",
   ])
@@ -140,8 +139,19 @@ test("'can't be on/walking' is ability, 'can't be my knee' is a denial", () => {
   for (const said of [
     "It can't be my left knee",
     "It couldn't be the left knee",
+    "It can't be in my left knee",
+    "can't be on my left knee",
   ])
     assert.notEqual(status(said, "left knee", "left", "en"), "mapped", said);
+  assert.notEqual(
+    status(
+      "No puede estar en la rodilla izquierda",
+      "rodilla izquierda",
+      "left",
+      "es",
+    ),
+    "mapped",
+  );
 });
 
 test("'ayer por la mañana' and a bare 'mañana' next to a counted offset", () => {

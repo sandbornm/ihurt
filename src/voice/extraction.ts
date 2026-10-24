@@ -683,6 +683,10 @@ const hurtWords = new Set([
   "dolio",
   "molestaba",
   "molestaban",
+  "dolor",
+  "dolores",
+  "molestia",
+  "molestias",
 ]);
 // "no dolía ayer": the Spanish imperfect says how it was.
 const pastHurt = new Set([
@@ -691,6 +695,18 @@ const pastHurt = new Set([
   "dolio",
   "molestaba",
   "molestaban",
+]);
+const painNouns = new Set(["dolor", "dolores", "molestia", "molestias"]);
+// "no tiene mucho dolor" hedges before the noun.
+const nounHedges = new Set([
+  "mucho",
+  "tanto",
+  "tan",
+  "demasiado",
+  "much",
+  "so",
+  "too",
+  "really",
 ]);
 const timeWords = new Set([
   "today",
@@ -725,6 +741,8 @@ function deniesAfter(
   if (rest.some((word) => deniedAfter.has(word))) return true;
   const hurt = rest.findIndex((word) => hurtWords.has(word));
   if (hurt < 0 || corrected) return false;
+  if (painNouns.has(rest[hurt]) && nounHedges.has(rest[hurt - 1] ?? ""))
+    return false;
   const tail = rest.slice(hurt + 1);
   const popped: string[] = [];
   while (tail.length && timeWords.has(tail[tail.length - 1]))
@@ -749,6 +767,7 @@ const idioms = (text: string) =>
     .replace(/\b(?<!ya )(?:nada|no) mas\b/g, "solo")
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
     .replace(/\bno (?:puede|pueden|podria|podrian) ser\b/g, "no es")
+    .replace(/\bno (?:puede|pueden|podria|podrian) estar\b/g, "no esta")
     .replace(/\bno (pued[oe]|pude|podia)\b/g, "no$1");
 
 // "is fine" and "esta bien" clear a part. "is not fine" and "no esta bien" do not.
@@ -811,12 +830,12 @@ function covers(
   current = false,
 ) {
   // "it can't be my left knee" says it is not the knee.
-  // "I can't be on my left knee" and "can't be walking" are ability.
+  // "it can't be in my left knee" and "can't be on my left knee" deny it too;
+  // "can't be walking" is ability.
   words = words.map((word, i) =>
     ability.has(word) &&
     words[i + 1] === "be" &&
-    !/ing$/.test(words[i + 2] ?? "") &&
-    !["on", "upon", "in", "at", "there", "here"].includes(words[i + 2] ?? "")
+    !/ing$/.test(words[i + 2] ?? "")
       ? "isn't"
       : word,
   );
@@ -1100,8 +1119,14 @@ export function mapLocation(
     // The model's side is used only when the note names this one part and
     // says that side without denying it. "me duele la rodilla. La mano
     // izquierda esta bien" asks which knee.
+    // "right at my knee" and "left work" are not sides.
+    const loose = tokens(words).some(
+      (word, i, all) =>
+        (word === "left" || word === "right") &&
+        notModifiers.has(all[i + 1] ?? ""),
+    );
     const stated =
-      sideIn(words) ??
+      (loose ? null : sideIn(words)) ??
       ((side === "left" || side === "right") &&
       sideIn(transcript) === side &&
       partsIn(transcript).length === 1 &&
@@ -1179,7 +1204,15 @@ const ratingBefore =
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))(?: (.*))?$/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche)|en punto|(?:of )?(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche)|en punto|blocks?|steps?|flights?|yards?|met(?:er|re)s?|pills?|doses?|tablets?|cups?|glasses|in the (?:morning|afternoon|evening)|of may|may(?= \d|$)|(?:of )?(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))\b/;
+// "October 7", "May 7" and "mayo 7" name a date, not a rating.
+const monthBefore =
+  /\b(?:january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)$/;
+// A bare "about 7" or "around seven" is a rating only when nothing follows
+// it but a hedge: "around seven in the morning" is a time.
+const genericBefore = /\b(?:about|around|maybe|roughly)$/;
+const genericAfter =
+  /^(?:|or so|ish|i guess|i think|now|today|right now|at (?:most|worst|best)|aproximadamente|mas o menos|creo)$/;
 // A prompt telling the model to set a number is not a rating the person gave.
 const instructed =
   /\b(?:ignore|instructions?|prompt|system|pon|coloca|establece|cambia|set)\b/;
@@ -1250,7 +1283,10 @@ export function ratedIn(transcript: string, value: number) {
           if (!notRatingAfter.test(scale[1] ?? "")) return true;
           continue;
         }
-        if (ratingBefore.test(before.join(" "))) return true;
+        const lead = before.join(" ");
+        if (monthBefore.test(lead)) continue;
+        if (genericBefore.test(lead) && !genericAfter.test(after)) continue;
+        if (ratingBefore.test(lead)) return true;
       }
   }
   return false;
@@ -1320,6 +1356,7 @@ export function parseIntensityAnswer(answer: string): number | null {
         !/\b(?:age|aged|edad|tengo|tiene|tienes|tuve|las|los|dia|day|at)$/.test(
           bare.slice(0, match.index).trim(),
         ) &&
+        !monthBefore.test(bare.slice(0, match.index).trim()) &&
         !/\b(?:del|desde|hasta|since|from|until|till)(?: (?:el|the))?$/.test(
           bare.slice(0, match.index).trim(),
         ),

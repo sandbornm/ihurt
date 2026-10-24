@@ -1236,6 +1236,16 @@ function complaintPhrase(phrase: string) {
   );
 }
 
+function locationOnly(phrase: string) {
+  const mentions = partMentions(phrase);
+  if (!mentions.length) return false;
+  let rest = ` ${normalize(phrase)} `;
+  for (const mention of mentions) rest = rest.replace(mention.text, " ");
+  return !contentWords(rest).some(
+    (word) => !sideWord.test(word) && !painWords.has(word),
+  );
+}
+
 function verifyActivity(evidence: EvidenceExtraction, transcript: string) {
   const activity = evidence.activity.trim();
   if (!activity || !findSpan(activity, transcript)) return null;
@@ -1252,8 +1262,9 @@ function verifyActivity(evidence: EvidenceExtraction, transcript: string) {
     gearOnly(activity)
   )
     return null;
-  // A body part is where it hurts, not what the person was doing.
-  if (partsIn(activity).length > 0) return null;
+  // A body part alone is where it hurts, not what the person was doing.
+  // "washing my hands" and "bending my wrist" are still movements.
+  if (locationOnly(activity)) return null;
   return activity;
 }
 

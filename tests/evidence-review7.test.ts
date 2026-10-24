@@ -201,3 +201,42 @@ test("a bare 'may' or 'march' is not a month, and 'may be a 7' is a guess", () =
   );
   assert.equal(rating("My left knee hurts, it is a 7", 7, knee), 7);
 });
+
+test("an activity that names a body part stays when it is a movement", () => {
+  const activityOf = (
+    note: string,
+    activity: string,
+    evidence: [string, string],
+  ) =>
+    propose(note, {
+      locations: [
+        { evidence: evidence[0], sideEvidence: evidence[1], negated: false },
+      ],
+      activity,
+    }).fields.activity;
+  assert.equal(
+    activityOf(
+      "My left shoulder started hurting while washing my hands",
+      "washing my hands",
+      ["left shoulder", "left"],
+    ),
+    "washing my hands",
+  );
+  assert.equal(
+    activityOf(
+      "My right elbow hurts when bending my wrist",
+      "bending my wrist",
+      ["right elbow", "right"],
+    ),
+    "bending my wrist",
+  );
+  // A place alone is not an activity.
+  assert.equal(
+    activityOf("My left knee hurts", "my left knee", ["left knee", "left"]),
+    undefined,
+  );
+  assert.equal(
+    activityOf("My left knee hurts", "knee pain", ["left knee", "left"]),
+    undefined,
+  );
+});

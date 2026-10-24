@@ -295,3 +295,49 @@ test("a part the note says hurts is not dropped when the model lists only one", 
   ])
     assert.equal(where(note, knee), "left_knee", note);
 });
+
+test("'doesn't hurt at rest' or 'when I walk' stays a denial; hedges and 'unless' do not", () => {
+  for (const note of [
+    "My left knee doesn't hurt at rest",
+    "My left knee doesn't hurt when I walk",
+    "My left knee doesn't hurt when I walk up stairs today",
+    "My left knee doesn't hurt during the day",
+  ])
+    assert.equal(where(note, knee), "missing", note);
+  assert.equal(
+    where("Mi rodilla izquierda no me duele en reposo", rodilla, "es"),
+    "missing",
+  );
+  assert.equal(
+    where("Mi rodilla izquierda no me duele cuando camino", rodilla, "es"),
+    "missing",
+  );
+  for (const note of [
+    "My left knee doesn't hurt much",
+    "My left knee doesn't hurt unless I kneel",
+  ])
+    assert.equal(where(note, knee), "left_knee", note);
+});
+
+test("a part named only in the condition of the pain is not another hurting part", () => {
+  for (const note of [
+    "My left knee hurts when I put my right foot down",
+    "My left knee hurts when I lift my right shoulder",
+    "My left knee hurts if I turn my head",
+    "My left knee hurts every time I move my shoulder",
+  ])
+    assert.equal(where(note, knee), "left_knee", note);
+  assert.equal(
+    where(
+      "Me duele la rodilla izquierda cuando levanto el hombro derecho",
+      rodilla,
+      "es",
+    ),
+    "left_knee",
+  );
+  // The condition ends at the comma, so a later clause is still read.
+  assert.equal(
+    where("My left knee hurts when I walk, and my right shoulder hurts", knee),
+    "ambiguous",
+  );
+});

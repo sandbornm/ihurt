@@ -781,6 +781,8 @@ const pastNegators =
 const pastMarkers = new Set(["earlier", "yesterday", "ayer", "anoche"]);
 const denialTail =
   /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya|all (?:day|week|month|morning|night|year)|lately|recently|so far)$/;
+const contextTail =
+  /^(?:at |when |while |during |if |on |en |cuando |mientras |al |durante |si )/;
 function deniesAfter(
   words: string[],
   end: number,
@@ -811,7 +813,13 @@ function deniesAfter(
   // It only grounds the part when something later says it hurts now.
   if (pastNegation && popped.some((word) => pastMarkers.has(word)))
     return !current;
-  return !tail.length || denialTail.test(tail.join(" "));
+  if (!tail.length || denialTail.test(tail.join(" "))) return true;
+  // "doesn't hurt at rest" or "when I walk" says when it does not hurt. That
+  // is still no pain reported, unless the same phrase goes on to say it hurts.
+  return (
+    contextTail.test(tail.join(" ")) &&
+    !tail.some((word) => hurtWords.has(word) || isNegator(word))
+  );
 }
 
 // Spanish idioms that look like denials but are not: "nada mas" and "no mas"

@@ -1214,6 +1214,13 @@ function dropExtras(kept: Candidate[]) {
 // "My left knee and right shoulder hurt" with only the knee in the model's
 // list: a part the note says hurts, and the model left out, means one proposal
 // would silently drop it. Ask instead.
+// "Hurts when I lift my right shoulder" names the shoulder as an action, not
+// as a place that hurts, so only what comes before the condition counts.
+const condition =
+  /\b(?:when|whenever|while|if|as|because|since|after|before|until|during|every time|each time|cuando|mientras|si|porque|cada vez|despues|despu[eé]s|antes|durante|al)\b/i;
+const beforeCondition = (clause: string) =>
+  clause.replace(new RegExp(`${condition.source}[^,]*`, "gi"), "");
+
 function withDroppedParts(
   location: LocationResult,
   kept: Candidate[],
@@ -1228,6 +1235,7 @@ function withDroppedParts(
   const have = new Set(kept.flatMap((item) => partsIn(item.evidence)));
   const extra = transcript
     .split(/[.!?;:\n¿¡]+/)
+    .map(beforeCondition)
     .filter(saysHurt)
     .flatMap((clause) => partMentions(clause))
     .filter(

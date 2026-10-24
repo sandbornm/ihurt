@@ -10,6 +10,7 @@ import {
   seedSuggestedFields,
   parseIntensityAnswer,
   proposedPinStep,
+  pinAfterAnswer,
   resolveOnset,
 } from "../src/voice/extraction.ts";
 import { createAvailabilityGate } from "../src/voice/ai-gate.ts";
@@ -1059,6 +1060,10 @@ test("plain side answers are read, and non-side uses of left and right are not",
     ["that left one", "left_ankle"],
     ["I think it is the left one", "left_ankle"],
     ["not the left, the right", "right_ankle"],
+    ["not left, the right", "right_ankle"],
+    ["left, not right", "left_ankle"],
+    ["Left, my ankle", "left_ankle"],
+    ["left, no right", "left_ankle"],
   ])
     assert.deepEqual(
       (side(reply) as { region?: string }).region,
@@ -1072,8 +1077,90 @@ test("plain side answers are read, and non-side uses of left and right are not",
     "right now",
     "right away",
     "not the left",
+    "left, right",
+    "left right",
+    "I left one",
+    "he left one",
+    "she left side",
+    "no, left",
+    "no, right",
+    "turn left",
+    "turning right",
+    "go left",
+    "left no wait right",
+    "the left, sorry, the right",
+    "the left, no",
+    "I have left",
+    "just left",
+    "I left",
+    "left and right",
+    "right, left",
   ])
     assert.equal(side(reply).status, "need-side", reply);
+});
+
+test("a date with an article, a time span or a length is not a rating", () => {
+  for (const reply of [
+    "on the 7/10",
+    "since the 7/10",
+    "from the 7/10",
+    "as of 7/10",
+    "after the 7/10",
+    "started 7/10",
+    "dated 7/10",
+    "7/10 last year",
+    "around the 7/10",
+    "I am 7 feet",
+  ])
+    assert.equal(parseIntensityAnswer(reply), null, reply);
+  for (const reply of [
+    "7 out of 10 times",
+    "7/10 days",
+    "7 out of 10 days",
+    "7 out of ten times",
+  ])
+    assert.equal(parseIntensityAnswer(reply), null, reply);
+  assert.equal(parseIntensityAnswer("around 7/10"), 7);
+  assert.equal(parseIntensityAnswer("7 out of 10 for the last few days"), 7);
+  assert.equal(
+    resolveOnset("a week ago. Yesterday it got worse", today).date,
+    "2026-10-15",
+  );
+});
+
+test("'better now' clears, 'not better' and 'not gone from my knee' do not, 'stopped me' does not", () => {
+  const status = (said: string) =>
+    buildProposal(
+      raw({ spokenLocation: "left knee", side: "left" }),
+      said,
+      today,
+    ).location.status;
+  for (const clause of [
+    "it's better now",
+    "it's good again",
+    "it's great today",
+    "it's better already",
+    "it's over",
+    "it's stopped now",
+  ])
+    assert.equal(
+      status(`My left knee doesn't hurt, ${clause}`),
+      "unmapped",
+      clause,
+    );
+  for (const clause of [
+    "it's no better",
+    "it's not good",
+    "it's not gone from my knee",
+    "it's stopped me from walking",
+    "it's done a number on me",
+    "it's better than yesterday",
+  ])
+    assert.equal(
+      status(`My left knee isn't sore, ${clause}`),
+      "mapped",
+      clause,
+    );
 });
 
 test("clearing phrases: finished clears, 'not gone' and 'better than yesterday' do not", () => {
@@ -1096,4 +1183,38 @@ test("clearing phrases: finished clears, 'not gone' and 'better than yesterday' 
     "My left knee doesn't hurt, it's not gone",
   ])
     assert.equal(location(said), "mapped", said);
+});
+
+test("compound offsets are left as the person's words, not half resolved", () => {
+  for (const phrase of [
+    "a week and two days ago",
+    "2 weeks and 3 days ago",
+    "a month and a week ago",
+    "a week plus 2 days ago",
+  ])
+    assert.equal(resolveOnset(phrase, today).date, undefined, phrase);
+  assert.equal(resolveOnset("two days ago", today).date, "2026-10-20");
+  assert.equal(resolveOnset("about a week ago", today).date, "2026-10-15");
+});
+
+test("answering a follow-up keeps an unchecked pin option unchecked", () => {
+  const mapped = buildProposal(
+    raw({ spokenLocation: "left knee", side: "left" }),
+    "My left knee hurts",
+    today,
+  ).location;
+  const needSide = buildProposal(
+    raw({ spokenLocation: "knee", side: "unspecified" }),
+    "My knee hurts",
+    today,
+  ).location;
+  const unmapped = buildProposal(raw({}), "It hurts", today).location;
+  // the person unchecked the pin, then answered or skipped the intensity question
+  assert.equal(pinAfterAnswer(false, mapped, mapped), false);
+  assert.equal(pinAfterAnswer(true, mapped, mapped), true);
+  // a side or location answer that first maps a region turns the pin on
+  assert.equal(pinAfterAnswer(false, needSide, mapped), true);
+  assert.equal(pinAfterAnswer(false, unmapped, mapped), true);
+  // nothing mapped, nothing to pin
+  assert.equal(pinAfterAnswer(true, needSide, needSide), false);
 });

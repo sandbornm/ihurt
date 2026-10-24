@@ -175,42 +175,139 @@ const sideObjects = new Set([
   "again",
 ]);
 
-// The answer to "left or right?" must say one side, plainly. "not left" or
-// "no es la izquierda" is a denial, "I left work" uses the verb, and "derecho"
-// in "voy derecho" means straight, so none of them supplies a side.
+// Words that make "left" a verb: "I left", "just left", "I have left".
+const leftVerbBefore = new Set([
+  ...sideSubjects,
+  "just",
+  "have",
+  "has",
+  "had",
+  "ive",
+  "weve",
+  "already",
+  "then",
+  "also",
+  "finally",
+  "we",
+  "who",
+]);
+// "turn left", "head right": a direction, not the side of the body.
+const motionBefore = new Set([
+  "turn",
+  "turns",
+  "turned",
+  "turning",
+  "go",
+  "goes",
+  "going",
+  "went",
+  "head",
+  "heading",
+  "veer",
+  "bear",
+  "steer",
+  "lean",
+  "leaning",
+  "step",
+  "walk",
+  "walking",
+  "look",
+  "looking",
+  "swing",
+  "swinging",
+]);
+const sideDeterminers = new Set([
+  "the",
+  "my",
+  "that",
+  "this",
+  "its",
+  "la",
+  "el",
+  "lo",
+  "mi",
+  "esa",
+  "ese",
+]);
+
+// The answer to "left or right?" must say one side, plainly. "not left" and
+// "no es la izquierda" are denials, "derecho" in "voy derecho" means straight, "I left work" and "just left" use the verb, and "left and right" or
+// "left, right" name both, so none of them supplies a side. A negator denies
+// only the next side word: "not the left, the right" is the right.
 function sideAnswer(reply: string): "left" | "right" | null {
-  const words = normalize(reply).split(" ").filter(Boolean);
-  // "no, the right one" answers the question; a leading "no" is not a denial.
-  if (words[0] === "no") words.shift();
-  if (words.length > 8) return null;
+  // "sin duda, la derecha" (without a doubt) and "no más la izquierda" (only
+  // the left) are not denials.
+  const clauses = reply
+    .split(/[,.;:!?\n]+/)
+    .map((clause) =>
+      normalize(clause)
+        .replace(/\bsin duda\b/g, " ")
+        .replace(/\bno mas\b/g, " ")
+        .split(" ")
+        .filter(Boolean),
+    )
+    .filter((clause) => clause.length > 0);
+  // "no, the right one" answers the question; a bare "no" before a clause that
+  // starts with an article is not a denial. "no, left" stays unclear.
+  if (
+    clauses.length > 1 &&
+    clauses[0].length === 1 &&
+    clauses[0][0] === "no" &&
+    sideDeterminers.has(clauses[1][0])
+  )
+    clauses.shift();
+  if (clauses.reduce((n, clause) => n + clause.length, 0) > 8) return null;
   const found = new Set<"left" | "right">();
   const denied = new Set<"left" | "right">();
   const notNow = ["now", "away", "after", "right"];
-  words.forEach((word, i) => {
-    const prev = words[i - 1] ?? "";
-    const next = words[i + 1] ?? "";
-    let side: "left" | "right" | null = null;
-    if (
-      rightWords.test(word) &&
-      !notNow.includes(next) &&
-      !["all", "right"].includes(prev) &&
-      !straightBefore.test(prev)
-    )
-      side = "right";
-    if (
-      leftWords.test(word) &&
-      (next === "one" ||
-        next === "side" ||
-        (!sideSubjects.has(prev) &&
-          !sideObjects.has(next) &&
-          !notNow.includes(next)))
-    )
-      side = "left";
-    if (!side) return;
-    // "not the left" within a few words denies that side.
-    const negated = words.slice(Math.max(0, i - 3), i).some(isNegator);
-    (negated ? denied : found).add(side);
-  });
+  let pending = 0;
+  for (const words of clauses)
+    words.forEach((word, i) => {
+      const prev = words[i - 1] ?? "";
+      const next = words[i + 1] ?? "";
+      let side: "left" | "right" | null = null;
+      const toward =
+        motionBefore.has(prev) || motionBefore.has(words[i - 2] ?? "");
+      if (
+        rightWords.test(word) &&
+        !toward &&
+        !notNow.includes(next) &&
+        !["all", "right"].includes(prev) &&
+        !straightBefore.test(prev)
+      )
+        side = "right";
+      if (
+        leftWords.test(word) &&
+        !toward &&
+        (word !== "left" || prev === "that" || !leftVerbBefore.has(prev)) &&
+        (next === "one" ||
+          next === "side" ||
+          (!sideObjects.has(next) &&
+            next !== "now" &&
+            next !== "away" &&
+            next !== "after" &&
+            !(next === "right" && notNow.includes(words[i + 2] ?? ""))))
+      )
+        side = "left";
+      if (!side) {
+        if (isNegator(word)) pending = 4;
+        else if (pending > 0) pending -= 1;
+        return;
+      }
+      (pending > 0 ? denied : found).add(side);
+      pending = 0;
+    });
+  // "left, no wait, right" and "the left, sorry, the right" correct themselves,
+  // and a trailing "no" retracts the answer: ask again.
+  const all = clauses.flat();
+  if (
+    isNegator(all[all.length - 1] ?? "") ||
+    (found.size + denied.size > 1 &&
+      all.some((word) =>
+        ["wait", "sorry", "actually", "mean", "scratch", "oops"].includes(word),
+      ))
+  )
+    return null;
   for (const side of denied) found.delete(side);
   return found.size === 1 ? [...found][0] : null;
 }
@@ -492,17 +589,19 @@ function clauseGrounds(
 // "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
 // pain instead. "it's fine", "it's gone" and "it's not" clear it further.
 const clearing =
-  /^(?:fine|ok|okay|alright|gone|over|resolved|stopped|finished|done|healed|nothing|not|no|bien|nada)\b|^(?:good|better|great|mejor)$/;
+  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))/;
 // "it's not gone" and "it's not better" say the pain is still there.
 const stillThere =
-  /^not (?:gone|over|better|fine|ok|okay|resolved|healed|finished|done)\b/;
+  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done)\b/;
 function corrects(next: string) {
   const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
   if (match === null) return false;
   const rest = normalize(match[1]);
+  // "it's not gone from my knee" says the pain is still there.
+  if (stillThere.test(rest)) return true;
   // "it's my ankle": the pain moved to a different part.
   if (partsIn(rest).length > 0) return false;
-  return stillThere.test(rest) || !clearing.test(rest);
+  return !clearing.test(rest);
 }
 
 // Every meaningful word must appear in the transcript, in a clause that is
@@ -677,7 +776,7 @@ const ratingBefore =
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))(?: (.*))?$/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|de la (?:manana|tarde|noche))\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche))\b/;
 
 export function ratedIn(transcript: string, value: number) {
   if (!Number.isInteger(value) || value < 0 || value > 10) return false;
@@ -735,10 +834,18 @@ export function parseIntensityAnswer(answer: string): number | null {
     const before = lower.slice(0, scale.index).trim();
     const after = lower.slice((scale.index ?? 0) + scale[0].length).trim();
     if (
-      /\b(?:on|since|from|until|till|by|before|after|around|el|desde|del|hasta|para)$/.test(
+      /\b(?:on|since|from|until|till|by|before|after|started|dated|as of|desde|del|hasta|para)(?:\s+(?:the|a|an))?$/.test(
         before,
       ) ||
-      notRatingAfter.test(after)
+      (/\bel$/.test(before) &&
+        !/\b(?:doy|daria|pongo|pondria|es|era|seria|sera|dolor|nivel)\s+el$/.test(
+          before,
+        )) ||
+      /\baround\s+the$/.test(before) ||
+      notRatingAfter.test(after) ||
+      /^(?:(?:last|past|previous)\s+(?:day|week|month|year)s?|(?:days?|weeks?|months?|years?)\s+ago)\b/.test(
+        after,
+      )
     )
       return null;
     // A second number that is not the scale ("6/10 and 4/10") is unclear.
@@ -823,16 +930,25 @@ export function resolveOnset(
     );
   if (ago) {
     const n = ["a", "un", "una"].includes(ago[1]) ? 1 : numberValue(ago[1]);
+    // "a week and two days ago" has more than the matched part: leave it as
+    // the person's words instead of resolving only "two days ago".
+    const lead = text.slice(0, ago.index ?? 0).trim();
+    const compound =
+      /\b(?:and|plus|y|mas)$/.test(lead) ||
+      /\b(?:day|days|week|weeks|month|months|year|years|hour|hours|dia|dias|semana|semanas|mes|meses|ano|anos|hora|horas)$/.test(
+        lead,
+      );
+    if (compound) return { phrase };
     if (n >= 0) {
       // "a week ago yesterday" is a day before the week-ago date.
       const tail = text.slice((ago.index ?? 0) + ago[0].length).trim();
-      const nudge = !ago[0].endsWith("ago")
-        ? 0
-        : /^yesterday\b/.test(tail)
-          ? 1
-          : /^tomorrow\b/.test(tail)
-            ? -1
-            : 0;
+      const day =
+        "(?: (?:morning|afternoon|evening|night|manana|tarde|noche))?$";
+      const nudge = new RegExp(`^(?:yesterday|ayer)${day}`).test(tail)
+        ? 1
+        : new RegExp(`^(?:tomorrow|manana)${day}`).test(tail)
+          ? -1
+          : 0;
       return {
         phrase,
         date: shift(
@@ -881,6 +997,18 @@ export function resolveOnset(
     return { phrase, date: shift(today, back) };
   }
   return { phrase };
+}
+
+// Whether the pin option stays on after a follow-up answer. A person who
+// unchecked "Propose a pin" keeps that choice; the option turns on only when
+// the answer first supplies a mapped location.
+export function pinAfterAnswer(
+  current: boolean,
+  before: LocationResult,
+  after: LocationResult,
+) {
+  if (after.status !== "mapped") return false;
+  return before.status === "mapped" ? current : true;
 }
 
 export type FollowUp =
@@ -1029,13 +1157,18 @@ export function answerFollowUp(
     const side = sideAnswer(reply);
     if (side) {
       // The side is added in the person's own word: "left ankle" in English,
-      // "tobillo izquierdo" in Spanish, where the side follows the noun.
+      // "tobillo izquierdo" in Spanish, where the side follows the noun. The
+      // reply itself is not part of the text that grounds the location.
       const word = sideWordIn(reply, side);
       const spoken =
         proposal.language === "es"
           ? `${proposal.location.spoken} ${word}`
           : `${word} ${proposal.location.spoken}`;
-      next.location = mapLocation(spoken, side, `${transcript} ${spoken}`);
+      next.location = mapLocation(
+        spoken,
+        side,
+        `${proposal.transcript} ${spoken}`,
+      );
     }
   } else if (key === "location") {
     const location = mapLocation(reply, "unspecified", reply);

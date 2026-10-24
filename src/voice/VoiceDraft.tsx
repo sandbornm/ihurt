@@ -19,6 +19,7 @@ import {
   confirmProposal,
   describeLocation,
   localToday,
+  pinAfterAnswer,
   proposedRegion,
   seedSuggestedFields,
   type PainProposal,
@@ -414,7 +415,7 @@ function VoiceEditor({
     );
     setText(next.transcript);
     setAnswer("");
-    setPin(next.location.status === "mapped");
+    setPin((current) => pinAfterAnswer(current, live.location, next.location));
   }
   stopLatest.current = () => {
     void stop();

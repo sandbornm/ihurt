@@ -695,7 +695,10 @@ function VoiceEditor({
         type="button"
         className="text-button voice-discard"
         disabled={busy || !text.trim()}
-        onClick={() => close()}
+        onClick={() => {
+          cancelCapture();
+          close();
+        }}
       >
         {t("voice.discardDraft")}
       </button>

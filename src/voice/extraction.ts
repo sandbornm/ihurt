@@ -281,24 +281,38 @@ const sideObjects = new Set([
 // in "voy derecho" means straight, so none of them supplies a side.
 function sideAnswer(reply: string): "left" | "right" | null {
   const words = normalize(reply).split(" ").filter(Boolean);
-  if (words.length > 6 || words.some(isNegator)) return null;
+  // "no, the right one" answers the question; a leading "no" is not a denial.
+  if (words[0] === "no") words.shift();
+  if (words.length > 8) return null;
   const found = new Set<"left" | "right">();
+  const denied = new Set<"left" | "right">();
+  const notNow = ["now", "away", "after", "right"];
   words.forEach((word, i) => {
     const prev = words[i - 1] ?? "";
     const next = words[i + 1] ?? "";
+    let side: "left" | "right" | null = null;
     if (
       rightWords.test(word) &&
-      !["now", "away", "after"].includes(next) &&
+      !notNow.includes(next) &&
+      !["all", "right"].includes(prev) &&
       !straightBefore.test(prev)
     )
-      found.add("right");
+      side = "right";
     if (
       leftWords.test(word) &&
-      !sideSubjects.has(prev) &&
-      !sideObjects.has(next)
+      (next === "one" ||
+        next === "side" ||
+        (!sideSubjects.has(prev) &&
+          !sideObjects.has(next) &&
+          !notNow.includes(next)))
     )
-      found.add("left");
+      side = "left";
+    if (!side) return;
+    // "not the left" within a few words denies that side.
+    const negated = words.slice(Math.max(0, i - 3), i).some(isNegator);
+    (negated ? denied : found).add(side);
   });
+  for (const side of denied) found.delete(side);
   return found.size === 1 ? [...found][0] : null;
 }
 
@@ -686,10 +700,17 @@ function clauseGrounds(
 // "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
 // pain instead. "it's fine", "it's gone" and "it's not" clear it further.
 const clearing =
-  /^(?:fine|ok|okay|alright|good|great|better|gone|healed|nothing|not|no|bien|mejor|nada)\b/;
+  /^(?:fine|ok|okay|alright|gone|over|resolved|stopped|finished|done|healed|nothing|not|no|bien|nada)\b|^(?:good|better|great|mejor)$/;
+// "it's not gone" and "it's not better" say the pain is still there.
+const stillThere =
+  /^not (?:gone|over|better|fine|ok|okay|resolved|healed|finished|done)\b/;
 function corrects(next: string) {
   const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
-  return match !== null && !clearing.test(normalize(match[1]));
+  if (match === null) return false;
+  const rest = normalize(match[1]);
+  // "it's my ankle": the pain moved to a different part.
+  if (partsIn(rest).length > 0) return false;
+  return stillThere.test(rest) || !clearing.test(rest);
 }
 
 // Every meaningful word must appear in the transcript, in a clause that is
@@ -956,29 +977,45 @@ export function parseIntensityAnswer(answer: string): number | null {
   if (text.split(" ").some(isNegator)) return null;
   const lower = answer.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   // "7 out of 10", "7/10" and "7 de 10": the first number is the rating, the
-  // scale is the 10. A date like "7/10/26" is not one.
+  // scale is the 10. A date ("on 7/10", "since 7/10", "7/10/26") or a count of
+  // days ("7/10 days ago") is not one.
   const scale = lower.match(
     new RegExp(
       `\\b(${numberPattern})\\s*(?:out of|of|de|sobre|/)\\s*(?:10|ten|diez)\\b(?!\\s*/\\s*\\d)`,
     ),
   );
   if (scale) {
+    const before = lower.slice(0, scale.index).trim();
+    const after = lower.slice((scale.index ?? 0) + scale[0].length).trim();
+    if (
+      /\b(?:on|since|from|until|till|by|before|after|around|el|desde|del|hasta|para)$/.test(
+        before,
+      ) ||
+      notRatingAfter.test(after)
+    )
+      return null;
     // A second number that is not the scale ("6/10 and 4/10") is unclear.
     const rest = lower.replace(scale[0], " ");
     return new RegExp(`\\b(?:${numberPattern})\\b`).test(rest)
       ? null
       : numberValue(scale[1]);
   }
+  if (/\d\s*\/\s*\d+\s*\/\s*\d/.test(lower)) return null;
+  // "out of 10" or "/10" alone names the top of the scale, not a rating.
+  const bare = idioms(
+    normalize(
+      lower
+        .replace(/(?:out of|of|de|sobre|\/)\s*(?:10|ten|diez)\b/g, " ")
+        .replace(/[^a-z0-9' ]+/g, " "),
+    ),
+  );
   // "seven days ago", "7 miles" and "7 years old" are not ratings.
-  const found = [...text.matchAll(new RegExp(`\\b(${numberPattern})\\b`, "g"))]
+  const found = [...bare.matchAll(new RegExp(`\\b(${numberPattern})\\b`, "g"))]
     .filter(
       (match) =>
         !notRatingAfter.test(
-          text.slice(match.index + match[0].length).trim(),
-        ) &&
-        !/\b(?:i am|i'm|age|aged|tengo)$/.test(
-          text.slice(0, match.index).trim(),
-        ),
+          bare.slice(match.index + match[0].length).trim(),
+        ) && !/\b(?:age|aged|edad)$/.test(bare.slice(0, match.index).trim()),
     )
     .map((match) => numberValue(match[1]))
     .filter((value) => value >= 0);
@@ -1048,11 +1085,24 @@ export function resolveOnset(
     );
   if (ago) {
     const n = ["a", "un", "una"].includes(ago[1]) ? 1 : numberValue(ago[1]);
-    if (n >= 0)
+    if (n >= 0) {
+      // "a week ago yesterday" is a day before the week-ago date.
+      const tail = text.slice((ago.index ?? 0) + ago[0].length).trim();
+      const nudge = !ago[0].endsWith("ago")
+        ? 0
+        : /^yesterday\b/.test(tail)
+          ? 1
+          : /^tomorrow\b/.test(tail)
+            ? -1
+            : 0;
       return {
         phrase,
-        date: shift(today, /^(?:week|semana)/.test(ago[2]) ? n * 7 : n),
+        date: shift(
+          today,
+          (/^(?:week|semana)/.test(ago[2]) ? n * 7 : n) + nudge,
+        ),
       };
+    }
   }
   if (/\b(?:day before yesterday|anteayer|antier|antes de ayer)\b/.test(text))
     return { phrase, date: shift(today, 2) };

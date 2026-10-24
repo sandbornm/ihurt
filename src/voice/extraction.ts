@@ -765,8 +765,10 @@ export function mapLocation(
     // says that side without denying it. "me duele la rodilla. La mano
     // izquierda esta bien" asks which knee.
     // "right at my knee" and "left work" are not sides.
-    const loose = ["left", "right"].some(
-      (word) => tokens(words).includes(word) && !sideNextTo(word, words),
+    const loose = tokens(words).some(
+      (word, i, all) =>
+        (word === "left" || word === "right") &&
+        notModifiers.has(all[i + 1] ?? ""),
     );
     const stated =
       (loose ? null : sideIn(words)) ??

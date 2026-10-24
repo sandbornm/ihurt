@@ -130,6 +130,7 @@ const sideDeterminer = new Set([
   "our",
   "their",
 ]);
+const leftVerbSubject = new Set(["i", "we", "he", "she", "they", "you", "who"]);
 const verbSubject = new Set(["pain", "i", "we", "he", "she", "they", "it"]);
 
 // "left" is a side when it modifies a part or a side word ("left knee",
@@ -137,6 +138,8 @@ const verbSubject = new Set(["pain", "i", "we", "he", "she", "they", "it"]);
 // the verb, and only then does the following determiner veto the side.
 function leftIsSide(words: string[], index: number) {
   const prev = words[index - 1] ?? "";
+  // "I left because my knee hurts": a pronoun before "left" makes it the verb.
+  if (leftVerbSubject.has(prev)) return false;
   const next = words[index + 1] ?? "";
   if (next === "side" || next === "one") return true;
   if (sideDeterminer.has(prev)) return true;
@@ -144,6 +147,41 @@ function leftIsSide(words: string[], index: number) {
   const ahead = words.slice(index + 1, index + 4);
   if (partsIn(ahead.join(" ")).length > 0) return true;
   return !next && !verbSubject.has(prev);
+}
+
+// "turn left", "turn to the right", "step to the left", "giro a la derecha":
+// a direction of movement, not a side of the body. A side word followed by a
+// body part ("turn my right knee") is still a side.
+const motionVerb =
+  /^(?:turn\w*|twist\w*|pivot\w*|swerv\w*|veer\w*|steer\w*|lean\w*|step\w*|go|goes|going|went|walk\w*|run|runs|running|ran|head\w*|look\w*|cut|cuts|cutting|curv\w*|swing\w*|rotat\w*|shift\w*|gir[aeo]\w*|dobl[aeo]\w*|vir[aeo]\w*|volte[aeo]\w*|tuerz\w*|tuerc\w*|inclin\w*|voy|vas|va|vamos|camin\w*|corr\w*|and[ao]\w*)$/;
+const motionGap = new Set([
+  "to",
+  "the",
+  "a",
+  "la",
+  "el",
+  "al",
+  "hacia",
+  "toward",
+  "towards",
+  "and",
+  "then",
+  "y",
+  "back",
+  "over",
+]);
+function isDirection(words: string[], index: number) {
+  const next = words[index + 1] ?? "";
+  const after = words[index + 2] ?? "";
+  if (partsIn(next).length > 0) return false;
+  if (!sideDeterminer.has(next) && partsIn(`${next} ${after}`).length > 0)
+    return false;
+  if (next === "one") return false;
+  if (next === "side" && /^(?:of|de|del)$/.test(after)) return false;
+  let cursor = index - 1;
+  while (cursor >= 0 && cursor > index - 5 && motionGap.has(words[cursor]))
+    cursor -= 1;
+  return cursor >= 0 && cursor > index - 6 && motionVerb.test(words[cursor]);
 }
 
 // One token's side, or null when this spot is an idiom or the verb "left".
@@ -155,6 +193,14 @@ export function sideAt(
   const word = words[index] ?? "";
   const prev = words[index - 1] ?? "";
   const next = words[index + 1] ?? "";
+  if (
+    (word === "left" ||
+      word === "right" ||
+      /^izquierd/.test(word) ||
+      /^derech/.test(word)) &&
+    isDirection(words, index)
+  )
+    return null;
   if (word === "left") return leftIsSide(words, index) ? "left" : null;
   if (/^izquierd/.test(word)) return "left";
   if (word === "right") {
@@ -454,6 +500,9 @@ const timeWords = new Set([
   "todavia",
   "manana",
 ]);
+const pastNegators =
+  /^(?:didn't|didnt|wasn't|wasnt|weren't|werent|hadn't|hadnt)$/;
+const pastMarkers = new Set(["earlier", "yesterday", "ayer", "anoche"]);
 const denialTail =
   /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya)$/;
 function deniesAfter(words: string[], end: number, corrected: boolean) {
@@ -465,7 +514,16 @@ function deniesAfter(words: string[], end: number, corrected: boolean) {
   const hurt = rest.findIndex((word) => hurtWords.has(word));
   if (hurt < 0 || corrected) return false;
   const tail = rest.slice(hurt + 1);
-  while (tail.length && timeWords.has(tail[tail.length - 1])) tail.pop();
+  const popped: string[] = [];
+  while (tail.length && timeWords.has(tail[tail.length - 1]))
+    popped.push(tail.pop() as string);
+  // "didn't hurt earlier" says how it was, not how it is now.
+  const negator = next[at];
+  const pastNegation =
+    pastNegators.test(negator) ||
+    (negator === "not" && /^(?:did|was|were|had)$/.test(next[at - 1] ?? ""));
+  if (pastNegation && popped.some((word) => pastMarkers.has(word)))
+    return false;
   return !tail.length || denialTail.test(tail.join(" "));
 }
 
@@ -960,7 +1018,7 @@ export function localToday(now = new Date()) {
 // Resolves common relative phrases in English and Spanish against the
 // device's local date. Anything else keeps the person's words without a date.
 const futureOnset =
-  /\b(?:next|upcoming|this coming|proximo|siguiente|que viene)\b/;
+  /\b(?:next|upcoming|this coming|tomorrow|proximo|siguiente|que viene)\b|(?<!\b(?:esta|la|una|de la|por la|en la|de) )\bmanana\b/;
 
 // "Next Monday" and "el próximo lunes" are not a past start.
 export function isFutureOnset(phrase: string) {

@@ -7,7 +7,15 @@
     "wrongValueFills": 7
   },
   "byLang": {
-    "en": { "oneShot": 0.43, "falseFillRate": 0.15 },
-    "es": { "oneShot": 0.4, "falseFillRate": 0.25 }
+    "en": {
+      "oneShot": 0.43,
+      "falseFillRate": 0.15,
+      "wrongValueFills": 5
+    },
+    "es": {
+      "oneShot": 0.4,
+      "falseFillRate": 0.25,
+      "wrongValueFills": 2
+    }
   }
 }

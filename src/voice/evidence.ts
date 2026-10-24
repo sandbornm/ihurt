@@ -256,7 +256,7 @@ function realSideAt(
 const sideOnlyWord =
   /^(?:left|right|side|one|on|of|the|my|a|an|el|la|los|las|lado|del|de|al|izquierd[oa]s?|derech[oa]s?|both|ambos|ambas|dos)$/;
 const sleptWord =
-  /\b(?:slept|sleeping|sleep|lay|lying|laid|dormi|dormia|durmiendo|dormido)\b/;
+  /\b(?:slept|sleeping|sleep|lay|lie|lies|lying|laying|laid|reclin\w*|dorm\w*|durm\w*|acost\w*|tumb\w*|echad\w*|recost\w*)\b/;
 
 // "the left one" and "I mean the left one" can give a side to the part.
 // "I slept on the left side" cannot.
@@ -322,19 +322,24 @@ function sideNoun(said: string[], index: number) {
   return false;
 }
 
-// "left side of my knee" holds the part. "left side" and "left side and my
-// knee" do not.
-function partInSideNoun(said: string[], index: number, part: TokenSpan) {
+// Where the "of" after "left side" / "lado izquierdo" would be, or -1.
+function sideNounBridge(said: string[], index: number) {
   const word = said[index] ?? "";
   const next = said[index + 1] ?? "";
   const prev = said[index - 1] ?? "";
-  let bridgeAt = -1;
   if ((word === "left" || word === "right") && next === "side")
-    bridgeAt = index + 2;
-  else if (word === "side" && (prev === "left" || prev === "right"))
-    bridgeAt = index + 1;
-  else if (prev === "lado") bridgeAt = index + 1;
-  else if (word === "lado") bridgeAt = index + 2;
+    return index + 2;
+  if (word === "side" && (prev === "left" || prev === "right"))
+    return index + 1;
+  if (prev === "lado") return index + 1;
+  if (word === "lado") return index + 2;
+  return -1;
+}
+
+// "left side of my knee" holds the part. "left side" and "left side and my
+// knee" do not.
+function partInSideNoun(said: string[], index: number, part: TokenSpan) {
+  const bridgeAt = sideNounBridge(said, index);
   if (bridgeAt < 0 || !sideBridge.has(said[bridgeAt] ?? "")) return false;
   let cursor = bridgeAt + 1;
   while (sideDeterminer.has(said[cursor] ?? "")) cursor += 1;
@@ -344,20 +349,31 @@ function partInSideNoun(said: string[], index: number, part: TokenSpan) {
     .some((token) => spanConjunction.has(token));
 }
 
-// In a sleep or lying clause, "left side" is not the part's side unless the
-// part sits in that noun phrase.
+// "the left side of the bed" belongs to the bed, and in a sleep or lying
+// clause "left side" is not the part's side unless the part sits in that noun
+// phrase. A bare "on the left" while lying down must touch the part.
 function sleepSideMissesPart(
   said: string[],
   side: TokenSpan,
   part: TokenSpan,
   clauseText: string,
 ) {
-  if (!sleptWord.test(normalize(clauseText))) return false;
+  const sleeping = sleptWord.test(normalize(clauseText));
   for (let index = side.start; index < side.end; index++) {
     if (!sideNoun(said, index)) continue;
-    return !partInSideNoun(said, index, part);
+    const bridge = sideNounBridge(said, index);
+    const owned = bridge >= 0 && sideBridge.has(said[bridge] ?? "");
+    if (sleeping || owned) return !partInSideNoun(said, index, part);
+    return false;
   }
-  return false;
+  if (!sleeping) return false;
+  const gap =
+    side.end <= part.start
+      ? part.start - side.end
+      : part.end <= side.start
+        ? side.start - part.end
+        : 0;
+  return gap > 0;
 }
 
 function sideReachable(part: TokenSpan, at: TokenSpan, transcript: string) {
@@ -451,16 +467,42 @@ function sidesInRange(
 }
 
 const clockTail =
-  /^(?:y media|y cuarto|en punto|menos cuarto|de la (?:tarde|manana|noche|madrugada))\b/;
+  /^(?:y (?:media|cuarto|diez|veinte|veinticinco|cinco|quince|treinta|\d+)|en punto|menos (?:cuarto|diez|veinte|veinticinco|cinco|quince|\d+)|de la (?:tarde|manana|noche|madrugada))\b/;
+const clockLead = new Set([
+  "a",
+  "desde",
+  "hasta",
+  "sobre",
+  "eran",
+  "son",
+  "pasadas",
+  "antes",
+  "como",
+  "tipo",
+]);
+const partLinks = new Set([
+  "de",
+  "mis",
+  "mi",
+  "tus",
+  "sus",
+  "los",
+  "las",
+  "del",
+]);
 
-// "a las dos" and "las dos de la tarde" are clock time, not both sides.
+// "a las dos" and "las dos de la tarde" are clock time, not both sides. "a las
+// dos rodillas" and "a las dos de mis rodillas" are both knees.
 function clockDos(said: string[], at: TokenSpan) {
   if (at.end - at.start !== 2) return false;
   const first = said[at.start] ?? "";
   if (!((first === "los" || first === "las") && said[at.start + 1] === "dos"))
     return false;
-  if ((said[at.start - 1] ?? "") === "a") return true;
-  return clockTail.test(said.slice(at.end, at.end + 4).join(" "));
+  if (clockTail.test(said.slice(at.end, at.end + 4).join(" "))) return true;
+  let cursor = at.end;
+  while (partLinks.has(said[cursor] ?? "") && cursor < at.end + 3) cursor += 1;
+  if (partsIn(said[cursor] ?? "").length > 0) return false;
+  return clockLead.has(said[at.start - 1] ?? "");
 }
 
 function bothSpans(transcript: string): TokenSpan[] {
@@ -521,9 +563,74 @@ function clauseSide(item: Candidate, transcript: string) {
   return [...sides][0];
 }
 
+const joinAnd = new Set(["and", "y", "e", "plus", "also"]);
+const joinOr = new Set(["or", "o", "u"]);
+const joinFiller = new Set([
+  ...joinAnd,
+  ...joinOr,
+  "the",
+  "my",
+  "your",
+  "el",
+  "la",
+  "mi",
+  "su",
+  "tu",
+  "del",
+  "lado",
+  "side",
+]);
+
+// "left and right knee", "rodilla izquierda y derecha": two sides joined by
+// "and" around the one part mean both, even when the model kept only one.
+function coordinatedSides(
+  item: Candidate,
+  transcript: string,
+  joiners: Set<string>,
+) {
+  const clause = clauseAt(transcript, item.at);
+  if (!clause || partsIn(clause.text).length !== 1) return false;
+  const said = phraseTokens(transcript);
+  const sides: { index: number; side: "left" | "right" }[] = [];
+  for (let index = clause.start; index < clause.end; index++) {
+    const word = said[index];
+    const side =
+      word === "left" || /^izquierd/.test(word)
+        ? "left"
+        : word === "right" || /^derech/.test(word)
+          ? "right"
+          : null;
+    if (!side) continue;
+    if (!realSideAt(transcript, { start: index, end: index + 1 }, side))
+      continue;
+    sides.push({ index, side });
+  }
+  for (let i = 0; i + 1 < sides.length; i++) {
+    const a = sides[i];
+    const b = sides[i + 1];
+    if (a.side === b.side) continue;
+    const between = said.slice(a.index + 1, b.index);
+    if (!between.some((word) => joiners.has(word))) continue;
+    if (!between.every((word) => joinFiller.has(word))) continue;
+    // The part touches the pair: "left and right knee" or "rodilla izquierda
+    // y derecha", with only filler words in between.
+    const filler = (words: string[]) =>
+      words.every((word) => sideOnlyWord.test(word) || word === "of");
+    const part = said.findIndex(
+      (word, index) =>
+        index >= clause.start && index < clause.end && partsIn(word).length > 0,
+    );
+    if (part < 0) continue;
+    if (part > b.index && filler(said.slice(b.index + 1, part))) return true;
+    if (part < a.index && filler(said.slice(part + 1, a.index))) return true;
+  }
+  return false;
+}
+
 // A side word counts when it is inside the location span, or a real span in
 // the same clause. "right now" is not a side.
 function attachedSide(item: Candidate, transcript: string) {
+  if (coordinatedSides(item, transcript, joinAnd)) return "both";
   return (
     sideInside(item, transcript) ??
     (item.sideEvidence
@@ -535,6 +642,14 @@ function attachedSide(item: Candidate, transcript: string) {
 }
 
 function locateOne(item: Candidate, transcript: string): LocationResult {
+  // "left or right knee" is one side, not known which: ask.
+  const alternatives = partsIn(item.evidence);
+  if (alternatives.length === 1 && coordinatedSides(item, transcript, joinOr))
+    return {
+      status: "need-side",
+      spoken: item.evidence,
+      part: alternatives[0],
+    };
   const side = attachedSide(item, transcript);
   const modelSide =
     side === "left" || side === "right" || side === "both"

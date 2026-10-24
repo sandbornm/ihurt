@@ -1199,3 +1199,225 @@ test("a correction gap can hold an article or a filler", () => {
   if (eh.location.status === "mapped")
     assert.equal(eh.location.region, "right_wrist");
 });
+
+// Review round 3: synthetic regression cases only. None of these notes come
+// from the held-out set.
+const sideOf = (
+  note: string,
+  evidence: string,
+  sideEvidence = "",
+  lang: "en" | "es" = "en",
+) => {
+  const proposal = propose(
+    note,
+    { locations: [loc(evidence, sideEvidence)] },
+    lang,
+  );
+  return proposal.location.status === "mapped"
+    ? proposal.location.region
+    : proposal.location.status;
+};
+const asks = (
+  note: string,
+  evidence: string,
+  sideEvidence = "",
+  lang: "en" | "es" = "en",
+) => {
+  assert.equal(
+    propose(note, { locations: [loc(evidence, sideEvidence)] }, lang).location
+      .status,
+    "need-side",
+    note,
+  );
+};
+
+test("two sides joined by and mean both, even when the model kept one", () => {
+  const cases: [string, string, string, "en" | "es"][] = [
+    ["I have pain in my left and right knee", "right knee", "right", "en"],
+    ["pain in the left and right ankle", "right ankle", "right", "en"],
+    [
+      "Me duele la rodilla izquierda y derecha",
+      "rodilla izquierda",
+      "izquierda",
+      "es",
+    ],
+    [
+      "Me duele la rodilla izquierda y la derecha",
+      "rodilla izquierda",
+      "izquierda",
+      "es",
+    ],
+  ];
+  for (const [note, evidence, side, lang] of cases)
+    assert.equal(
+      propose(note, { locations: [loc(evidence, side)] }, lang).location.status,
+      "both",
+      note,
+    );
+});
+
+test("or between two sides, or two parts, does not become both", () => {
+  asks("My left or right knee hurts", "right knee", "right");
+  assert.equal(
+    sideOf("My left knee hurts and my right ankle hurts", "left knee", "left"),
+    "left_knee",
+  );
+});
+
+test("the verb left is not a side", () => {
+  for (const note of [
+    "I left because my knee hurts",
+    "I left the gym early because my knee hurts",
+    "We left and my knee hurts",
+  ])
+    asks(note, "knee", "left");
+});
+
+test("a clock time is not both knees, but 'las dos rodillas' is", () => {
+  for (const note of [
+    "Me duele la rodilla desde las dos y diez",
+    "Me duele la rodilla a las dos menos diez",
+    "Me duele la rodilla, empezó sobre las dos",
+  ])
+    asks(note, "rodilla", "", "es");
+  for (const note of [
+    "Me duele a las dos rodillas",
+    "Me duele a las dos de mis rodillas",
+  ])
+    assert.equal(
+      propose(note, { locations: [loc("rodillas", "las dos")] }, "es").location
+        .status,
+      "both",
+      note,
+    );
+});
+
+test("a direction of movement is not the side", () => {
+  for (const note of [
+    "My knee hurts when I turn left",
+    "My knee hurts when I turn to the right",
+    "When I turn to the right my knee hurts",
+    "My knee hurts when I step to the right and then twist",
+  ])
+    asks(note, "knee", note.includes("right") ? "right" : "left");
+  asks(
+    "Me duele la rodilla cuando giro a la derecha",
+    "rodilla",
+    "derecha",
+    "es",
+  );
+  asks(
+    "Me duele la rodilla cuando doblo a la izquierda",
+    "rodilla",
+    "izquierda",
+    "es",
+  );
+  assert.equal(
+    sideOf(
+      "My right knee hurts when I turn to the right",
+      "right knee",
+      "right",
+    ),
+    "right_knee",
+  );
+});
+
+test("the side of the bed, or of a lying-down clause, is not the knee's side", () => {
+  asks("My knee hurts on the left side of the bed", "knee", "left");
+  asks("The left side of the bed and my knee hurts", "knee", "left");
+  asks("I was lying down on my left side and my knee hurts", "knee", "left");
+  asks("When I lie down on the right my knee hurts", "knee", "right");
+  asks(
+    "Estaba acostada sobre mi lado izquierdo y me duele la rodilla",
+    "rodilla",
+    "izquierdo",
+    "es",
+  );
+  asks(
+    "Me acosté del lado izquierdo y me duele la rodilla",
+    "rodilla",
+    "izquierdo",
+    "es",
+  );
+});
+
+test("a correct side survives a contrast clause", () => {
+  assert.equal(
+    sideOf(
+      "My knee hurts on the left but on the right it is fine",
+      "knee",
+      "left",
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    sideOf(
+      "My left knee hurts but on the right side it is fine",
+      "left knee",
+      "left",
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    sideOf(
+      "Me duele la rodilla derecha pero a la izquierda no",
+      "rodilla derecha",
+      "derecha",
+      "es",
+    ),
+    "right_knee",
+  );
+});
+
+test("didn't hurt earlier is not a denial of the knee", () => {
+  for (const note of [
+    "My left knee didn't hurt earlier but now it does",
+    "My left knee didn't hurt earlier today but it does tonight",
+  ])
+    assert.equal(sideOf(note, "left knee", "left"), "left_knee", note);
+  assert.equal(
+    propose("My left knee doesn't hurt anymore", {
+      locations: [loc("left knee", "left", true)],
+    }).location.status,
+    "missing",
+  );
+});
+
+test("tomorrow and mañana are not a past onset, esta mañana is", () => {
+  const onsetOf = (note: string, evidence: string, lang: "en" | "es") =>
+    propose(
+      note,
+      {
+        locations: [
+          loc(
+            lang === "en" ? "left knee" : "rodilla izquierda",
+            lang === "en" ? "left" : "izquierda",
+          ),
+        ],
+        onset: { evidence, negated: false },
+      },
+      lang,
+    ).fields.duration;
+  assert.equal(
+    onsetOf("My left knee will hurt since tomorrow", "tomorrow", "en"),
+    undefined,
+  );
+  assert.equal(
+    onsetOf("Mi rodilla izquierda duele desde mañana", "desde mañana", "es"),
+    undefined,
+  );
+  assert.ok(
+    onsetOf(
+      "Mi rodilla izquierda duele desde esta mañana",
+      "esta mañana",
+      "es",
+    ),
+  );
+  assert.ok(
+    onsetOf(
+      "Mi rodilla izquierda duele desde ayer por la mañana",
+      "ayer por la mañana",
+      "es",
+    ),
+  );
+});

@@ -127,3 +127,20 @@ against regressions and is not a target. Do not raise it by tuning the verifier 
 notes.
 
 Tuning set at the same head: one-shot 86.7% (98/113), false-fill 0.0%, follow-up 17.4%.
+
+## Re-score after review round 3
+
+Synthetic regression cases only (tests/evidence.test.ts); none came from these notes. The
+fixes: two sides joined by "and" are both and joined by "or" ask; the verb "left" and
+direction phrases ("turn to the right") are not sides; "las dos rodillas" is both knees and
+"y diez"/"menos diez" are clock times; "side of the bed" and lying-down words (acostada,
+lying, tumbada) block the side; "didn't hurt earlier" is not a denial now; "tomorrow" and
+"mañana" are not a past onset. The recorded outputs were replayed once, with no model run.
+
+Held-out is unchanged: all 42.6% (23/54), 18.3% false-fill, 30.0% follow-up, 7 wrong-value
+fills; en 43.8%/14.3% (5 wrong-value); es 40.9%/24.0% (2). Tuning is unchanged at 86.7%
+(98/113), 0.0% false-fill. These fixes address review findings that the held-out notes do not
+exercise, so no movement is expected and none is claimed.
+
+`heldout/thresholds.json` now also floors wrong-value fills per language (en 5, es 2), next
+to the per-language one-shot and false-fill floors.

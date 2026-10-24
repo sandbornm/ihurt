@@ -116,6 +116,19 @@ the body until you choose **Confirm pin** or **Dismiss**. Without Apple
 Intelligence, the transcript goes into the note as before. See
 [Apple Intelligence](IOS.md#apple-intelligence-suggestions).
 
+### How the suggestions are checked
+
+The model must quote the words it relies on. The app keeps a field only when the
+quote is in the transcript and passes checks for the side (a side counts only when
+it is attached to the part, so "turn left", "left side of the bed" and "I left"
+do not set one; "left and right knee" is both; "left or right knee" asks), denial,
+rating, and start date (a future date such as "tomorrow" is dropped). When a check
+fails, the app asks one short question or leaves the field empty. On a 60-note
+held-out set recorded on a Mac, the app filled the right fields in one shot for
+about 43% of notes and filled a wrong or unsupported field for about 18%. It is a
+suggestion you review, not a reading you can rely on. Details are in
+`tests/fixtures/extraction-eval/heldout/RESULTS.md`.
+
 ## Checks
 
 `npm run check` validates the provider and conservative draft parser.

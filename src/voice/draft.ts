@@ -67,6 +67,11 @@ export function suggestVoiceDraft(text: string) {
     .toLowerCase()
     .replace(/\b(?<!ya )(?:nada|no) m[aá]s\b/g, "solo")
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
+    // "no es un dolor fuerte" says how strong it is, not that nothing hurts.
+    .replace(
+      /\bno es (?:un |una )?(dolor|molestia) (?:fuerte|grave|intenso|intensa|serio|seria|terrible)\b/g,
+      "es poco $1",
+    )
     // "rodilla izquierda no mucho" and "knee, not too bad" hedge the pain; they
     // do not deny the part.
     .replace(

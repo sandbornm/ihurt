@@ -123,11 +123,11 @@ function sideIn(value: string): "left" | "right" | "both" | null {
   return left ? "left" : right ? "right" : null;
 }
 
-// A side said on its own about the one part: "the left one", "on the right",
+// A side said on its own about the one part: "the left one",
 // "la izquierda", "el derecho", "del lado izquierdo".
 const sideReference = {
-  left: /\b(?:left (?:one|side)|on the left|(?:el|la|lado) izquierd[oa])\b/,
-  right: /\b(?:right (?:one|side)|on the right|(?:el|la|lado) derech[oa])\b/,
+  left: /\b(?:the left one|(?:el|la|lado) izquierd[oa])\b/,
+  right: /\b(?:the right one|(?:el|la|lado) derech[oa])\b/,
 };
 
 // The side word exactly as said, such as "left" or "izquierda", so a follow-up
@@ -286,25 +286,42 @@ const deniedAfter = new Set([
   "lastimado",
   "lastimada",
 ]);
-// "doesn't hurt" and "no me duele" deny the part only when they end the
-// clause or say "at all" / "para nada"; "doesn't hurt much" and "no me duele
-// mucho" still say it hurts.
-function deniesAfter(words: string[], end: number, part: boolean) {
+// "doesn't hurt", "isn't sore" or "no me duele" denies the part, unless hedged
+// ("doesn't hurt much", "no me duele mucho") or corrected by the next clause
+// ("isn't sore, it's aching").
+const hurtWords = new Set([
+  "hurt",
+  "hurts",
+  "hurting",
+  "sore",
+  "painful",
+  "duele",
+  "duelen",
+  "molesta",
+  "molestan",
+]);
+const hedges = new Set([
+  "much",
+  "that",
+  "as",
+  "so",
+  "too",
+  "really",
+  "badly",
+  "a",
+  "mucho",
+  "tanto",
+  "tan",
+  "demasiado",
+]);
+function deniesAfter(words: string[], end: number, corrected: boolean) {
   const next = words.slice(end + 1, end + 6);
-  const at = next.findIndex((word) => denies(word, part));
+  const at = next.findIndex(isNegator);
   if (at < 0 || at >= 3) return false;
   const rest = next.slice(at + 1);
   if (rest.some((word) => deniedAfter.has(word))) return true;
-  const hurt = rest.findIndex((word) =>
-    /^(?:hurts?|duelen?|molestan?)$/.test(word),
-  );
-  return (
-    hurt >= 0 &&
-    (hurt === rest.length - 1 ||
-      /^(?:at all|para nada|nada|en absoluto)\b/.test(
-        rest.slice(hurt + 1).join(" "),
-      ))
-  );
+  const hurt = rest.findIndex((word) => hurtWords.has(word));
+  return hurt >= 0 && !corrected && !hedges.has(rest[hurt + 1] ?? "");
 }
 
 // Spanish idioms that look like denials but are not: "nada mas" and "no mas"
@@ -353,27 +370,41 @@ const clauses = (transcript: string) =>
 // "my left knee isn't burning" keeps the knee and drops "burning";
 // "no me duele la rodilla" drops the knee.
 // The words after it must not deny it either: "my left knee doesn't hurt".
-function covers(words: string[], needed: string[], part = false) {
+function covers(
+  words: string[],
+  needed: string[],
+  part = false,
+  corrected = false,
+) {
   let last = -1;
   const found = needed.every((want) => {
     const at = words.findIndex((said) => matches(said, want));
     last = Math.max(last, at);
     return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
-  return found && !deniesAfter(words, last, part);
+  if (!found || deniesAfter(words, last, corrected)) return false;
+  // "I can't tell if my left knee is the problem" still denies it.
+  const exempt = words.slice(0, last).some((word) => ability.has(word));
+  return !(exempt && words.slice(last + 1).some((w) => deniedAfter.has(w)));
 }
 
 // With `together`, the words must share one conjunction-free part, so "my
 // left knee and right foot" does not ground "left foot". Without it, words
 // joined only by conjunctions still count ("left knee and ankle"), as long as
-// none comes from a denied part. `together` is the body-part check, so ability
-// negators ("can't bend", "no puedo doblar") do not deny it.
-function clauseGrounds(clause: string, needed: string[], together: boolean) {
+// none comes from a denied part. `part` marks the body-part check, where
+// ability negators ("can't bend", "no puedo doblar") do not deny it.
+function clauseGrounds(
+  clause: string,
+  needed: string[],
+  together: boolean,
+  part: boolean,
+  corrected: boolean,
+) {
   const soft = softParts(clause);
-  if (soft.some((words) => covers(words, needed, together))) return true;
+  if (soft.some((words) => covers(words, needed, part, corrected))) return true;
   if (together) return false;
   const affirmative = soft.filter((words) => !words.some(isNegator));
-  return covers(affirmative.flat(), needed);
+  return covers(affirmative.flat(), needed, false, corrected);
 }
 
 // Every meaningful word must appear in the transcript, in a clause that is
@@ -383,15 +414,26 @@ export function grounded(
   value: string,
   transcript: string,
   together = false,
+  part = false,
 ): boolean {
   const parts = softParts(value);
   // "knee and ankle" names two parts; each must be said together on its own.
   if (together && parts.length > 1)
-    return parts.every((part) => grounded(part.join(" "), transcript, true));
+    return parts.every((piece) =>
+      grounded(piece.join(" "), transcript, true, part),
+    );
   const needed = tokens(value).filter((word) => !stop.has(word));
   if (!needed.length) return false;
-  return clauses(transcript).some((clause) =>
-    clauseGrounds(clause, needed, together),
+  const said = clauses(transcript);
+  return said.some((clause, i) =>
+    clauseGrounds(
+      clause,
+      needed,
+      together,
+      part,
+      // "isn't sore, it's aching": the next clause corrects the denial.
+      /^(?:it's|its|it is|es|son)\b/.test(normalize(said[i + 1] ?? "")),
+    ),
   );
 }
 
@@ -405,6 +447,42 @@ export function spanIn(value: string, transcript: string) {
   for (let start = 0; start + span.length <= said.length; start++)
     if (span.every((word, i) => matches(word, said[start + i]))) return true;
   return false;
+}
+
+// "left knee" or "left big toe", not the verb in "I left work because my knee
+// hurts" or "I left my knee brace", nor "it hurts right at my knee". Only the
+// English words are checked; Spanish sides may follow the part ("rodilla
+// izquierda").
+const notModifiers = new Set([
+  "my",
+  "the",
+  "a",
+  "an",
+  "his",
+  "her",
+  "their",
+  "our",
+  "your",
+  "this",
+  "that",
+  "it",
+  "at",
+  "in",
+  "on",
+]);
+function sideNextTo(side: string, transcript: string) {
+  const word = normalize(side);
+  if (word !== "left" && word !== "right") return true;
+  const words = tokens(transcript);
+  return words.some((said, i) => {
+    if (said !== word) return false;
+    const next = words[i + 1] ?? "";
+    return (
+      partsIn(next).length > 0 ||
+      (!notModifiers.has(next) &&
+        partsIn(`${next} ${words[i + 2] ?? ""}`).length > 0)
+    );
+  });
 }
 
 export type LocationResult =
@@ -423,7 +501,7 @@ export function mapLocation(
   const words = spoken.trim();
   if (!words) return { status: "missing" };
   // A side and a body part count only when said together, as one phrase.
-  if (!grounded(words, transcript, true) || !spanIn(words, transcript))
+  if (!grounded(words, transcript, true, true) || !spanIn(words, transcript))
     return { status: "unmapped", spoken: words };
   const parts = partsIn(words);
   if (parts.length === 0) return { status: "unmapped", spoken: words };
@@ -443,7 +521,12 @@ export function mapLocation(
       grounded(sideWordIn(transcript, side), transcript) &&
       // "my right knee", "the left one", "la izquierda" or "del lado
       // derecho", not the verb in "I left work".
-      (grounded(`${sideWordIn(transcript, side)} ${words}`, transcript, true) ||
+      ((grounded(
+        `${sideWordIn(transcript, side)} ${words}`,
+        transcript,
+        true,
+      ) &&
+        sideNextTo(sideWordIn(transcript, side), transcript)) ||
         sideReference[side].test(normalize(transcript)))
         ? side
         : null);

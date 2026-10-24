@@ -779,6 +779,51 @@ test("affected parts and hedged hurt keep the location; other fields keep negato
   );
 });
 
+test("denied, verb, and loose sides do not map a location", () => {
+  for (const said of [
+    "my left knee doesn't hurt anymore",
+    "my left knee doesn't hurt today",
+    "My left knee isn't hurting at all",
+    "my left knee isn't painful",
+    "I couldn't say my left knee is the problem",
+    "I can't tell if my left knee is the problem",
+    "I left work because my knee hurts",
+  ])
+    assert.notEqual(
+      mapLocation("left knee", "left", said).status,
+      "mapped",
+      said,
+    );
+  for (const said of [
+    "I left work early because my knee hurts",
+    "It hurts right at my knee",
+    "My knee hurts. The bag is on the left.",
+  ])
+    assert.equal(
+      mapLocation("knee", said.includes("right") ? "right" : "left", said)
+        .status,
+      "need-side",
+      said,
+    );
+  for (const said of [
+    "my left knee doesn't hurt, it's aching",
+    "I can't bend my left knee",
+  ])
+    assert.equal(
+      mapLocation("left knee", "unspecified", said).status,
+      "mapped",
+      said,
+    );
+  assert.equal(
+    grounded(
+      "run on pavement",
+      "I run daily but I couldn't run on pavement",
+      true,
+    ),
+    false,
+  );
+});
+
 test("a negated follow-up rating is not recorded", () => {
   assert.equal(parseIntensityAnswer("not seven"), null);
   assert.equal(parseIntensityAnswer("it isn't a 7"), null);

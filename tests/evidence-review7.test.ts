@@ -306,11 +306,116 @@ test("a recovery about another part does not clear the hurting one", () => {
     "left_knee",
   );
   // The recovery of the named part itself still clears it.
-  assert.notEqual(
+  assert.equal(
     where("My left knee pain is gone because I rested", [
       ["left knee", "left"],
     ]),
+    "missing",
+  );
+});
+
+const left: [string, string][] = [["left knee", "left"]];
+const right: [string, string][] = [["right knee", "right"]];
+const rodillaIzq: [string, string][] = [["rodilla izquierda", "izquierda"]];
+
+test("a recovery is scoped by side: the other side's pain does not keep this one", () => {
+  const note = "My left knee pain is gone because my right knee hurts";
+  assert.equal(where(note, left), "missing");
+  assert.equal(where(note, right), "right_knee");
+  // The same part named twice: a cause that does not hurt keeps nothing.
+  assert.equal(
+    where("My left knee pain is gone because my knee healed", left),
+    "missing",
+  );
+  assert.equal(
+    where("My left knee pain is gone because my left knee healed", left),
+    "missing",
+  );
+  // A cause that says the same knee hurts does keep it.
+  assert.equal(
+    where("My left knee pain is gone because my left knee hurts", left),
     "left_knee",
+  );
+});
+
+test("a recovery that starts with a cause clause keeps what hurts after it", () => {
+  assert.equal(
+    where("Because my right ankle pain is gone my left knee hurts", left),
+    "left_knee",
+  );
+  assert.equal(
+    where("Because my left knee pain is gone I walked more", left),
+    "missing",
+  );
+});
+
+test("'since' and 'porque' follow the same scoping", () => {
+  assert.equal(
+    where("My knee pain since yesterday is gone", [["knee", ""]]),
+    "missing",
+  );
+  assert.equal(
+    where("The pain subsided since my left knee healed", left),
+    "missing",
+  );
+  assert.equal(
+    where("My left knee hurts since my right ankle pain is gone", left),
+    "left_knee",
+  );
+  assert.equal(
+    where(
+      "Se me quitó el dolor de la rodilla izquierda porque descansé",
+      rodillaIzq,
+      "es",
+    ),
+    "missing",
+  );
+  assert.equal(
+    where(
+      "Me duele la rodilla izquierda porque se me quitó el dolor del tobillo",
+      rodillaIzq,
+      "es",
+    ),
+    "left_knee",
+  );
+});
+
+test("'went away' and 'un poco' follow the same partial rule as 'subsided'", () => {
+  for (const note of [
+    "My left knee pain went away a bit",
+    "The pain in my left knee has gone a little",
+    "My left knee pain went away somewhat",
+    "My left knee pain is mostly gone",
+    "My left knee pain subsided a bit",
+  ])
+    assert.equal(where(note, left), "left_knee", note);
+  for (const note of [
+    "My left knee pain went away",
+    "My left knee pain went away just now",
+    "My left knee pain subsided just now",
+    "My left knee pain subsided only yesterday",
+    "My left knee pain subsided overnight",
+  ])
+    assert.equal(where(note, left), "missing", note);
+  assert.equal(
+    where(
+      "Se me quitó el dolor de la rodilla izquierda un poco",
+      rodillaIzq,
+      "es",
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    where(
+      "Se me quitó un poco el dolor de la rodilla izquierda",
+      rodillaIzq,
+      "es",
+    ),
+    "left_knee",
+  );
+  assert.equal(
+    where("Se me quitó el dolor de la rodilla izquierda", rodillaIzq, "es"),
+    "missing",
   );
 });
 

@@ -1167,56 +1167,157 @@ const bodyWord =
 // place the pain. They do not end it.
 const placeAfter =
   "(?! (?:down|into|to|up|through|from|over|on|in|out|around|across|toward|towards|onto|under|there|here|by|near|where|along|up|at)\\b)";
-// "subsided slightly" is better, not over.
-const partialAfter =
-  "(?! (?:slightly|somewhat|partly|partially|mostly|a (?:bit|little)|some|only|just|but|though|except)\\b)";
+// "went away a bit" and "mostly gone" are better, not over. "subsided just
+// now" is only about when. The qualifier sits right before or right after the
+// recovery phrase, never later in the sentence ("went away because I rested a
+// bit").
+const partialWord =
+  /^(?:slightly|somewhat|partly|partially|mostly|largely|mainly|almost|nearly|poco|algo|casi|mayormente|parcialmente|ligeramente|medio)$/;
+const partialPair = /^(?:a (?:bit|little)|kind of|sort of|un poco|a medias)$/;
+const causal = new Set(["because", "since", "porque", "cuz"]);
+const partialStop = new Set([...causal, "after", "when", "while"]);
+function partialAround(before: string[], after: string[]) {
+  const tail: string[] = [];
+  for (const word of after) {
+    if (partialStop.has(word)) break;
+    tail.push(word);
+  }
+  const near = [...before.slice(-2), "|", ...tail.slice(0, 6)];
+  return near.some(
+    (word, i) =>
+      partialWord.test(word) ||
+      (word === "some" && i === near.length - 1) ||
+      partialPair.test(`${word} ${near[i + 1] ?? ""}`),
+  );
+}
 const notPainSubject =
   "(?: (?!(?:i|we|he|she|they|you|so|because|and|but)\\b)[a-z']+){0,5}";
-// "my left knee hurts because my right ankle pain is gone": the recovery is
-// about the ankle, so it does not clear a knee said in another clause.
-const causal = new Set(["because", "since", "porque", "cuz"]);
+// A cause clause only keeps a part when it says that part hurts: "my left
+// knee pain is gone because my right knee hurts" clears the left knee, and
+// "...because my knee healed" clears it too.
+const clauseStart = new Set([
+  "my",
+  "the",
+  "i",
+  "it",
+  "he",
+  "she",
+  "we",
+  "they",
+  "you",
+  "your",
+  "his",
+  "her",
+  "our",
+  "their",
+  "this",
+  "that",
+  "a",
+  "an",
+  "mi",
+  "la",
+  "el",
+  "su",
+  "tu",
+  "se",
+  "me",
+  "ya",
+]);
+function sideOf(words: string[], at: number) {
+  for (const word of [words[at - 1], words[at + 1]]) {
+    if (!word) continue;
+    if (/^(?:left|izquierd)/.test(word)) return "left";
+    if (/^(?:right|derech)/.test(word)) return "right";
+  }
+  return "";
+}
+function namesWanted(words: string[], needed: string[]) {
+  const wanted = partsIn(needed.join(" "));
+  const side =
+    needed
+      .map((word) =>
+        /^(?:left|izquierd)/.test(word)
+          ? "left"
+          : /^(?:right|derech)/.test(word)
+            ? "right"
+            : "",
+      )
+      .find(Boolean) ?? "";
+  return words.some((word, i) => {
+    const said = partsIn(word);
+    if (!said.some((part) => wanted.includes(part))) return false;
+    const mine = sideOf(words, i);
+    return !mine || !side || mine === side;
+  });
+}
 function goneClears(words: string[], needed: string[]) {
   if (!painGone(words)) return false;
-  const wanted = partsIn(needed.join(" "));
   const segments: string[][] = [[]];
-  for (const word of words)
-    if (causal.has(word)) segments.push([]);
+  words.forEach((word, i) => {
+    const split =
+      causal.has(word) && (word !== "since" || clauseStart.has(words[i + 1]));
+    if (split) segments.push([]);
     else segments[segments.length - 1].push(word);
-  if (segments.length < 2) return true;
-  return !segments.some(
+  });
+  // The words that can say the pain is still there: a segment that is not a
+  // recovery, and whatever follows the recovery phrase inside one that is.
+  const rest = segments
+    .filter((seg) => seg.length)
+    .map((seg) => goneEnd(seg) ?? seg);
+  return !rest.some(
     (seg) =>
-      !painGone(seg) &&
-      partsIn(seg.join(" ")).some((part) => wanted.includes(part)),
+      seg.some((word) => hurtWords.has(word) || painVerbs.has(word)) &&
+      !seg.some(isNegator) &&
+      namesWanted(seg, needed),
   );
 }
 
 function painGone(words: string[]) {
+  return goneEnd(words) !== null;
+}
+
+// The words after the first recovery phrase, or null when there is none.
+function goneEnd(words: string[]): string[] | null {
   // "hasn't stopped hurting" and "no se me quito el dolor" say it is still
   // there.
-  if (words.some(isNegator)) return false;
-  const text = words.join(" ");
-  return (
-    new RegExp(`\\bpain left\\b(?! ${bodyWord}\\b)`).test(text) ||
+  if (words.some(isNegator)) return null;
+  const text = ` ${words.join(" ")} `;
+  const patterns = [
+    new RegExp(`\\bpain left\\b(?! ${bodyWord}\\b)`, "g"),
     new RegExp(
       `\\bpain (?:is|was|has been|has|been) gone\\b${placeAfter}`,
-    ).test(text) ||
-    /\bpain went away\b/.test(text) ||
-    /\bdolor (?:se fue|ya paso|paso)\b/.test(text) ||
+      "g",
+    ),
+    /\bpain went away\b/g,
+    /\bdolor (?:se fue|ya paso|paso)\b/g,
     // "my knee stopped hurting", "the pain in my knee is gone",
     // "se me quito el dolor", "dejo de doler". A bare "se quito" can be a
     // jacket.
-    /\b(?:stopped|ceased|quit) (?:hurting|aching)\b/.test(text) ||
+    /\b(?:stopped|ceased|quit) (?:hurting|aching)\b/g,
     new RegExp(
       `\\b(?:pain|ache|soreness)\\b${notPainSubject} (?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\\b${placeAfter}`,
-    ).test(text) ||
+      "g",
+    ),
     new RegExp(
-      `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}${partialAfter}`,
-    ).test(text) ||
-    /\b(?:dejo de doler(?:me)?|se (?:me )?(?:quito|paso)(?: (?:el|la) (?:dolor|molestia)| por completo| del todo| por fin)|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|(?:dolor|molestia) (?:\w+ )?desaparecio)\b/.test(
-      text,
-    ) ||
-    /\bdesaparecio (?:el )?(?:dolor|molestia)\b/.test(text)
-  );
+      `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}`,
+      "g",
+    ),
+    /\b(?:dejo de doler(?:me)?|se (?:me )?(?:quito|paso)(?: (?:el|la) (?:dolor|molestia)| por completo| del todo| por fin)|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|(?:dolor|molestia) (?:\w+ )?desaparecio)\b/g,
+    /\bdesaparecio (?:el )?(?:dolor|molestia)\b/g,
+  ];
+  for (const pattern of patterns)
+    for (const match of text.matchAll(pattern)) {
+      const start = match.index ?? 0;
+      const end = start + match[0].length;
+      const before = text.slice(0, start).trim().split(" ").filter(Boolean);
+      const after = text.slice(end).trim().split(" ").filter(Boolean);
+      // "se me quito un poco el dolor": the qualifier can sit inside the
+      // phrase.
+      const inside = match[0].trim().split(" ");
+      if (!partialAround([...before, ...inside.slice(0, -1)], after))
+        return after;
+    }
+  return null;
 }
 
 // A phrase that says the pain is there now: "it hurts today", "but now it

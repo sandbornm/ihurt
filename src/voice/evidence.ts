@@ -8,11 +8,13 @@ import {
   mapLocation,
   normalize,
   parseIntensityAnswer,
+  partMentions,
   partsIn,
   phraseTokens,
   ratedIn,
   resolveOnset,
   sideAt,
+  saysHurt,
   sideIn,
   type LocationResult,
 } from "./extraction.ts";
@@ -1209,6 +1211,40 @@ function dropExtras(kept: Candidate[]) {
   });
 }
 
+// "My left knee and right shoulder hurt" with only the knee in the model's
+// list: a part the note says hurts, and the model left out, means one proposal
+// would silently drop it. Ask instead.
+function withDroppedParts(
+  location: LocationResult,
+  kept: Candidate[],
+  transcript: string,
+): LocationResult {
+  if (
+    location.status !== "mapped" &&
+    location.status !== "need-side" &&
+    location.status !== "both"
+  )
+    return location;
+  const have = new Set(kept.flatMap((item) => partsIn(item.evidence)));
+  const extra = transcript
+    .split(/[.!?;:\n¿¡]+/)
+    .filter(saysHurt)
+    .flatMap((clause) => partMentions(clause))
+    .filter(
+      (mention) =>
+        !have.has(mention.part) &&
+        grounded(mention.text, transcript, true, true),
+    );
+  if (!extra.length) return location;
+  return {
+    status: "ambiguous",
+    spoken: [
+      ...kept.map((item) => item.evidence),
+      ...new Set(extra.map((mention) => mention.text)),
+    ].join(", "),
+  };
+}
+
 export function verifyEvidence(
   evidence: EvidenceExtraction,
   transcript: string,
@@ -1223,7 +1259,11 @@ export function verifyEvidence(
     ),
   );
   return {
-    location: chooseLocation(kept, transcript),
+    location: withDroppedParts(
+      chooseLocation(kept, transcript),
+      kept,
+      transcript,
+    ),
     intensity: verifyIntensity(evidence, transcript),
     qualities: verifyQualities(evidence, transcript),
     onset: verifyOnset(evidence, transcript, today),

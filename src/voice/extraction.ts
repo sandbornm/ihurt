@@ -112,6 +112,19 @@ export function partsIn(value: string): Part[] {
   return found;
 }
 
+// Each body part named in the text, with the words that named it.
+export function partMentions(value: string): { part: Part; text: string }[] {
+  let rest = ` ${normalize(value)} `;
+  const found: { part: Part; text: string }[] = [];
+  for (const [part, pattern] of partWords) {
+    const match = pattern.exec(rest);
+    if (!match) continue;
+    found.push({ part, text: match[0].trim() });
+    rest = rest.replace(new RegExp(pattern.source, "g"), " ");
+  }
+  return found;
+}
+
 const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
 // "derecho" after these is "straight" ("camino derecho", "voy derecho"), or
@@ -182,7 +195,17 @@ function leftIsSide(words: string[], index: number) {
   if (sideDeterminer.has(prev)) return true;
   // "I just left because", "my boss left early": no pronoun before "left",
   // but what follows says it is the verb.
-  if (leftVerbPrev.has(prev) || leftVerbNext.has(next)) return false;
+  // "still left knee hurts" and "I have left knee pain": a part right after
+  // makes it a side.
+  const after = words[index + 2] ?? "";
+  const partNext =
+    partsIn(next).length > 0 ||
+    (!sideDeterminer.has(next) &&
+      next !== "a" &&
+      next !== "an" &&
+      partsIn(`${next} ${after}`).length > 0);
+  if ((leftVerbPrev.has(prev) && !partNext) || leftVerbNext.has(next))
+    return false;
   if (sideDeterminer.has(next) || next === "a" || next === "an") return false;
   const ahead = words.slice(index + 1, index + 4);
   if (partsIn(ahead.join(" ")).length > 0) return true;
@@ -217,9 +240,32 @@ const motionGap = new Set([
   "back",
   "over",
 ]);
+const sideWord = (word: string) =>
+  word === "left" || word === "right" || /^(?:izquierd|derech)/.test(word);
+const toWord = /^(?:to|a|hasta|toward|towards|hacia)$/;
+const dirDeterminer = new Set(["the", "la", "el", "al", "lado"]);
+// "from left to right" and "de izquierda a derecha" name a direction, not a side.
+function leftToRight(words: string[], index: number) {
+  const skip = (at: number, step: number) => {
+    while (dirDeterminer.has(words[at] ?? "")) at += step;
+    return at;
+  };
+  const forward = skip(index + 1, 1);
+  if (toWord.test(words[forward] ?? "")) {
+    const other = words[skip(forward + 1, 1)] ?? "";
+    if (sideWord(other) && other !== words[index]) return true;
+  }
+  const back = skip(index - 1, -1);
+  if (toWord.test(words[back] ?? "")) {
+    const other = words[skip(back - 1, -1)] ?? "";
+    if (sideWord(other) && other !== words[index]) return true;
+  }
+  return false;
+}
 function isDirection(words: string[], index: number) {
   const next = words[index + 1] ?? "";
   const after = words[index + 2] ?? "";
+  if (leftToRight(words, index)) return true;
   if (partsIn(next).length > 0) return false;
   if (!sideDeterminer.has(next) && partsIn(`${next} ${after}`).length > 0)
     return false;
@@ -413,6 +459,13 @@ function sideAnswer(reply: string): "left" | "right" | null {
       normalize(clause)
         .replace(/\bsin duda\b/g, " ")
         .replace(/\bno mas\b/g, " ")
+        // "not sure, the left" and "no sé, la derecha" hedge; they do not deny.
+        .replace(
+          /\b(?:(?:i ?m|i am) )?not (?:really |that |very |entirely )?(?:sure|certain)\b/g,
+          " ",
+        )
+        .replace(/\b(?:i )?(?:do not|don'?t|dont) know\b/g, " ")
+        .replace(/\bno (?:se|estoy (?:muy |del todo )?segur[oa])\b/g, " ")
         .split(" ")
         .filter(Boolean),
     )
@@ -737,13 +790,15 @@ function deniesAfter(
   const next = words.slice(end + 1, end + 6);
   const at = next.findIndex(isNegator);
   if (at < 0 || at >= 3) return false;
+  // The negator and hurt word are found nearby, but the tail is everything
+  // left in the phrase: "has not been hurting at all" ends in "at all".
   const rest = next.slice(at + 1);
   if (rest.some((word) => deniedAfter.has(word))) return true;
   const hurt = rest.findIndex((word) => hurtWords.has(word));
   if (hurt < 0 || corrected) return false;
   if (painNouns.has(rest[hurt]) && nounHedges.has(rest[hurt - 1] ?? ""))
     return false;
-  const tail = rest.slice(hurt + 1);
+  const tail = words.slice(end + 1 + at + 1 + hurt + 1);
   const popped: string[] = [];
   while (tail.length && timeWords.has(tail[tail.length - 1]))
     popped.push(tail.pop() as string);
@@ -915,9 +970,59 @@ const currentWords = new Set([
   "luego",
   "despues",
 ]);
-const saysCurrent = (words: string[]) =>
-  !words.some(isNegator) &&
-  words.some((word) => hurtWords.has(word) || currentWords.has(word));
+const reviveFiller = new Set([
+  "it",
+  "that",
+  "this",
+  "the",
+  "pain",
+  "again",
+  "really",
+  "very",
+  "so",
+  "just",
+  "also",
+  "too",
+  "already",
+  "me",
+  "lo",
+  "le",
+  "se",
+  "otra",
+  "vez",
+  "ya",
+  "tambien",
+  "dolor",
+]);
+const reaffirms = new Set(["does", "do", "is", "are", "si", "yes"]);
+// A later phrase brings back a denied part only when it is about that part
+// ("my left knee hurts now"), or about nothing in particular and says it
+// hurts ("it hurts today", "but now it does"). "Then I went home", "hoy
+// camine" and "my back hurts" do not.
+function revives(words: string[], needed: string[]) {
+  if (words.some(isNegator)) return false;
+  const hurt = words.some((word) => hurtWords.has(word));
+  const now = words.some((word) => currentWords.has(word));
+  const said = partsIn(words.join(" "));
+  if (said.length) {
+    const wanted = partsIn(needed.join(" "));
+    return wanted.some((part) => said.includes(part)) && (hurt || now);
+  }
+  // Only a pronoun or filler may stand before "hurts": "my back hurts" names
+  // something else.
+  const lead = words.findIndex((word) => hurtWords.has(word));
+  const plain = (lead < 0 ? words : words.slice(0, lead)).every(
+    (word) =>
+      reviveFiller.has(word) || currentWords.has(word) || reaffirms.has(word),
+  );
+  return plain && (hurt || (now && words.some((word) => reaffirms.has(word))));
+}
+
+// A phrase that says something hurts and does not deny it.
+export const saysHurt = (clause: string) => {
+  const words = tokens(clause);
+  return words.some((word) => hurtWords.has(word)) && !words.some(isNegator);
+};
 
 // With `together`, the words must share one conjunction-free part, so "my
 // left knee and right foot" does not ground "left foot". Without it, words
@@ -972,7 +1077,7 @@ function clauseGrounds(
         needed,
         part,
         corrected,
-        current || soft.slice(i + 1).some(saysCurrent),
+        current || soft.slice(i + 1).some((later) => revives(later, needed)),
       ),
     )
   )
@@ -985,11 +1090,11 @@ function clauseGrounds(
 // "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
 // pain instead. "it's fine", "it's gone" and "it's not" clear it further.
 const clearing =
-  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no\b|paso|termino|se )|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|(?:ya |todavia |aun )?esta (?:mejor|bien)\b(?! que)|(?:todavia |aun )?sigue (?:bien|mejor|sin)\b)/;
+  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?(?: hurting)?(?: now| already| for (?:today|now|the day))?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no(?: me| se me)? (?:duele|duelen|molesta|molestan|siento|hay|tengo|aparece|sale)\b|no$|paso|termino|se (?:me )?(?:quito|paso|fue|acabo|calmo|curo|alivio)\b)|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|(?:ya |todavia |aun )?esta (?:mejor|bien)\b(?! que)|(?:todavia |aun )?sigue (?:bien|mejor|sin)\b)/;
 // "it's not gone" and "it's not better" say the pain is still there, and so do
 // "no se ha ido", "no está mejor" and "todavía sigue".
 const stillThere =
-  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done|stopped|improved)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^no esta bien\b|^(?:todavia|aun) (?:sigue(?! (?:bien|mejor|sin)\b)|esta(?! (?:mejor|bien)\b)|me)\b|^sigue\b(?! (?:bien|mejor|sin)\b)/;
+  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done|stopped|improved)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^no esta bien\b|^ya no (?:se (?:me )?)?(?:quita|pasa|va|mejora|calma|baja|alivia)\b|^(?:todavia|aun) (?:sigue(?! (?:bien|mejor|sin)\b)|esta(?! (?:mejor|bien)\b)|me)\b|^sigue\b(?! (?:bien|mejor|sin)\b)/;
 function corrects(next: string) {
   const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
   if (match === null) return false;
@@ -1028,7 +1133,11 @@ export function grounded(
       part,
       // "isn't sore, it's aching": the next clause corrects the denial.
       corrects(said[i + 1] ?? ""),
-      said.slice(i + 1).some((later) => softParts(later).some(saysCurrent)),
+      said
+        .slice(i + 1)
+        .some((later) =>
+          softParts(later).some((words) => revives(words, needed)),
+        ),
     ),
   );
 }
@@ -1200,7 +1309,7 @@ const numberValue = (word: string) =>
 // after a denial ("no es un 8"). When unsure, drop it so the follow-up
 // question can ask.
 const ratingBefore =
-  /\b(?:about|around|maybe|roughly|a|an|(?:pain|it|it's|its|that|rating|level|intensity) (?:is|was)|rate|rated|rated it|rating|level|pain|intensity|un|una|(?:dolor|intensidad|nivel|calificacion) (?:es|era|esta|estaba|de)|nivel|intensidad|calificacion|doy|daria|le doy|le daria)$/;
+  /\b(?:about|around|maybe|roughly|a|an|(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?|(?:pain|it|it's|its|that|rating|level|intensity) (?:is|was)|rate|rated|rated it|rating|level|pain|intensity|un|una|(?:dolor|intensidad|nivel|calificacion) (?:es|era|esta|estaba|de)|nivel|intensidad|calificacion|doy|daria|le doy|le daria)$/;
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))(?: (.*))?$/;
 const notRatingAfter =
@@ -1210,9 +1319,10 @@ const monthBefore =
   /\b(?:january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)$/;
 // A bare "about 7" or "around seven" is a rating only when nothing follows
 // it but a hedge: "around seven in the morning" is a time.
-const genericBefore = /\b(?:about|around|maybe|roughly)$/;
+const genericBefore =
+  /\b(?:about|around|maybe|roughly|(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?)$/;
 const genericAfter =
-  /^(?:|or so|ish|i guess|i think|now|today|right now|at (?:most|worst|best)|aproximadamente|mas o menos|creo)$/;
+  /^(?:|or so|ish|i guess|i think|now|today|right now|at (?:most|worst|best)|at the moment|aproximadamente|mas o menos|creo|ahora|ahorita|hoy)$/;
 // A prompt telling the model to set a number is not a rating the person gave.
 const instructed =
   /\b(?:ignore|instructions?|prompt|system|pon|coloca|establece|cambia|set)\b/;
@@ -1353,9 +1463,10 @@ export function parseIntensityAnswer(answer: string): number | null {
         !notRatingAfter.test(
           bare.slice(match.index + match[0].length).trim(),
         ) &&
-        !/\b(?:age|aged|edad|tengo|tiene|tienes|tuve|las|los|dia|day|at)$/.test(
-          bare.slice(0, match.index).trim(),
-        ) &&
+        (/\b(?:i'?m|i am) at(?: a)?$/.test(bare.slice(0, match.index).trim()) ||
+          !/\b(?:age|aged|edad|tengo|tiene|tienes|tuve|las|los|dia|day|at)$/.test(
+            bare.slice(0, match.index).trim(),
+          )) &&
         !monthBefore.test(bare.slice(0, match.index).trim()) &&
         !/\b(?:del|desde|hasta|since|from|until|till)(?: (?:el|the))?$/.test(
           bare.slice(0, match.index).trim(),
@@ -1434,6 +1545,15 @@ export function resolveOnset(
     // "a week and two days ago" has more than the matched part: leave it as
     // the person's words instead of resolving only "two days ago".
     const lead = text.slice(0, ago.index ?? 0).trim();
+    // "hizo" counts days only after a day word: "ayer hizo una semana".
+    // "hizo ejercicio dos dias" and "hizo dos dias de reposo" are not dates.
+    if (
+      ago[0].startsWith("hizo") &&
+      !/\b(?:ayer|anteayer|antier|anoche|hoy)(?: (?:por|en|de) la (?:manana|tarde|noche))?$/.test(
+        lead,
+      )
+    )
+      return { phrase };
     const compound =
       /\b(?:and|plus|y|mas)$/.test(lead) ||
       /\b(?:day|days|week|weeks|month|months|year|years|hour|hours|dia|dias|semana|semanas|mes|meses|ano|anos|hora|horas)$/.test(

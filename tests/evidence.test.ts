@@ -1258,9 +1258,11 @@ test("two sides joined by and mean both, even when the model kept one", () => {
 
 test("or between two sides, or two parts, does not become both", () => {
   asks("My left or right knee hurts", "right knee", "right");
+  // The model kept only the knee. The ankle is said to hurt too, so ask
+  // instead of saving the knee and dropping it.
   assert.equal(
     sideOf("My left knee hurts and my right ankle hurts", "left knee", "left"),
-    "left_knee",
+    "ambiguous",
   );
 });
 

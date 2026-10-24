@@ -1239,11 +1239,14 @@ function complaintPhrase(phrase: string) {
 function locationOnly(phrase: string) {
   const mentions = partMentions(phrase);
   if (!mentions.length) return false;
+  // "left foot bunion is sore since yesterday" is the complaint again.
+  const words = contentWords(phrase);
+  if (words.some((word) => painWords.has(word) || feelingWord.test(word)))
+    return true;
   let rest = ` ${normalize(phrase)} `;
   for (const mention of mentions) rest = rest.replace(mention.text, " ");
   return !contentWords(rest).some(
-    (word) =>
-      !sideWord.test(word) && !painWords.has(word) && !feelingWord.test(word),
+    (word) => !sideWord.test(word) && !timeWords.has(word),
   );
 }
 

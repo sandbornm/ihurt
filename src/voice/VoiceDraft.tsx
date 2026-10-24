@@ -21,6 +21,7 @@ import {
   confirmProposal,
   describeLocation,
   localToday,
+  pinAfterAnswer,
   proposedRegion,
   seedSuggestedFields,
   type PainProposal,
@@ -192,12 +193,13 @@ function VoiceEditor({
           : (state.reason ?? t("voice.error.speechUnavailable")),
       );
     };
-    const checkAi = () =>
-      ai!
+    const checkAi = () => {
+      const check = gate.begin();
+      return ai!
         .isAvailable(lang)
         .then((state) => {
-          if (!active) return;
-          const queued = gate.recheck(state.available);
+          if (!active || check !== gate.latest) return;
+          const queued = gate.recheck(state.available, check);
           setAiReady(state.available);
           if (queued) void runExtraction(queued);
           // Dictation still works when the model does not support the
@@ -209,10 +211,11 @@ function VoiceEditor({
           );
         })
         .catch(() => {
-          if (!active) return;
-          gate.recheck(false);
+          if (!active || check !== gate.latest) return;
+          gate.recheck(false, check);
           setAiReady(false);
         });
+    };
     if (ai && native) void checkAi();
     else gate.settle(false);
     void (async () => {
@@ -420,7 +423,7 @@ function VoiceEditor({
     );
     setText(next.transcript);
     setAnswer("");
-    setPin(next.location.status === "mapped");
+    setPin((current) => pinAfterAnswer(current, live.location, next.location));
   }
   stopLatest.current = () => {
     void stop();

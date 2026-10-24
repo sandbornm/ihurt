@@ -290,7 +290,8 @@ const sideReference = {
 function sideWordIn(value: string, side: "left" | "right") {
   const pattern = side === "left" ? leftWords : rightWords;
   const words = value.trim().split(/\s+/);
-  return words.find((word) => pattern.test(normalize(word))) ?? side;
+  const found = words.find((word) => pattern.test(normalize(word)));
+  return found ? found.replace(/[^\p{L}\p{M}']/gu, "") : side;
 }
 
 const sideSubjects = new Set([
@@ -416,13 +417,15 @@ function sideAnswer(reply: string): "left" | "right" | null {
         .filter(Boolean),
     )
     .filter((clause) => clause.length > 0);
-  // "no, the right one" answers the question; a bare "no" before a clause that
-  // starts with an article is not a denial. "no, left" stays unclear.
+  // "no, the right one" and "no, es la derecha" answer the question; a bare
+  // "no" before a clause that states a side is not a denial. "no, left" stays
+  // unclear, and "no es la derecha" in one clause stays a denial.
   if (
     clauses.length > 1 &&
     clauses[0].length === 1 &&
     clauses[0][0] === "no" &&
-    sideDeterminers.has(clauses[1][0])
+    (sideDeterminers.has(clauses[1][0]) ||
+      ["es", "son", "it's", "its", "it", "is"].includes(clauses[1][0]))
   )
     clauses.shift();
   if (clauses.reduce((n, clause) => n + clause.length, 0) > 8) return null;
@@ -787,8 +790,14 @@ function covers(
   corrected = false,
 ) {
   // "it can't be my left knee" says it is not the knee.
+  // "I can't be on my left knee" and "can't be walking" are ability.
   words = words.map((word, i) =>
-    ability.has(word) && words[i + 1] === "be" ? "isn't" : word,
+    ability.has(word) &&
+    words[i + 1] === "be" &&
+    !/ing$/.test(words[i + 2] ?? "") &&
+    !["on", "upon", "in", "at", "there", "here"].includes(words[i + 2] ?? "")
+      ? "isn't"
+      : word,
   );
   let last = -1;
   const found = needed.every((want) => {
@@ -903,11 +912,11 @@ function clauseGrounds(
 // "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
 // pain instead. "it's fine", "it's gone" and "it's not" clear it further.
 const clearing =
-  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no\b|paso|termino|se )|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|esta (?:mejor|bien)\b(?! que))/;
+  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no\b|paso|termino|se )|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|(?:ya |todavia |aun )?esta (?:mejor|bien)\b(?! que)|(?:todavia |aun )?sigue (?:bien|mejor|sin)\b)/;
 // "it's not gone" and "it's not better" say the pain is still there, and so do
 // "no se ha ido", "no está mejor" and "todavía sigue".
 const stillThere =
-  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^(?:todavia|aun) (?:sigue|esta|me)\b|^sigue\b/;
+  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^no esta bien\b|^(?:todavia|aun) (?:sigue(?! (?:bien|mejor|sin)\b)|esta(?! (?:mejor|bien)\b)|me)\b|^sigue\b(?! (?:bien|mejor|sin)\b)/;
 function corrects(next: string) {
   const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
   if (match === null) return false;
@@ -1115,7 +1124,7 @@ const ratingBefore =
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))(?: (.*))?$/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche))\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche)|en punto|(?:of )?(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))\b/;
 // A prompt telling the model to set a number is not a rating the person gave.
 const instructed =
   /\b(?:ignore|instructions?|prompt|system|pon|coloca|establece|cambia|set)\b/;
@@ -1255,6 +1264,9 @@ export function parseIntensityAnswer(answer: string): number | null {
         ) &&
         !/\b(?:age|aged|edad|tengo|tiene|tienes|tuve|las|los|dia|day|at)$/.test(
           bare.slice(0, match.index).trim(),
+        ) &&
+        !/\b(?:del|desde|hasta|since|from|until|till)(?: (?:el|the))?$/.test(
+          bare.slice(0, match.index).trim(),
         ),
     )
     .map((match) => numberValue(match[1]))
@@ -1343,11 +1355,13 @@ export function resolveOnset(
     if (n >= 0) {
       // "a week ago yesterday" and "ayer hizo una semana" are a day before
       // the week-ago date.
+      // A bare "manana" is "tomorrow" or "morning": leave the words alone.
+      if (/^manana$/.test(tail) || /^manana$/.test(lead)) return { phrase };
       const day =
-        "(?: (?:morning|afternoon|evening|night|manana|tarde|noche))?$";
+        "(?: (?:(?:por|en|de) la |in the )?(?:morning|afternoon|evening|night|manana|tarde|noche))?$";
       const nudge =
         new RegExp(`^(?:yesterday|ayer)${day}`).test(tail) ||
-        /^(?:ayer|yesterday)$/.test(lead)
+        new RegExp(`^(?:yesterday|ayer)${day}`).test(lead)
           ? 1
           : new RegExp(`^(?:tomorrow|manana)${day}`).test(tail)
             ? -1
@@ -1606,11 +1620,14 @@ export function answerFollowUp(
         proposal.language === "es"
           ? `${proposal.location.spoken} ${word}`
           : `${word} ${proposal.location.spoken}`;
-      next.location = mapLocation(
+      // Its own clause: a "no mucho" or "not badly" ending the note must not
+      // deny it. If it still does not ground, the old location stays.
+      const location = mapLocation(
         spoken,
         side,
-        `${proposal.transcript} ${spoken}`,
+        `${proposal.transcript}\n${spoken}`,
       );
+      if (location.status === "mapped") next.location = location;
     }
   } else if (key === "location") {
     const location = mapLocation(reply, "unspecified", reply);

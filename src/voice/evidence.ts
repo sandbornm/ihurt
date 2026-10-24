@@ -1249,10 +1249,33 @@ function dropExtras(kept: Candidate[]) {
 // would silently drop it. Ask instead.
 // "Hurts when I lift my right shoulder" names the shoulder as an action, not
 // as a place that hurts, so only what comes before the condition counts.
+// "for a while" and "after a while" are durations, not conditions.
 const condition =
-  /\b(?:when|whenever|while|if|as|because|since|after|before|until|during|every time|each time|cuando|mientras|si|porque|cada vez|despues|despu[eé]s|antes|durante|al)\b/i;
-const beforeCondition = (clause: string) =>
-  clause.replace(new RegExp(`${condition.source}[^,]*`, "gi"), "");
+  /(?<!\ba )\b(?:when|whenever|while|if|unless|(?<!well )as(?! well as)|because|since|after|before|until|during|every time|each time|cuando|mientras|si|porque|cada vez|despues|despu[eé]s|antes|durante|a menos que|salvo que|al(?! igual que))\b/i;
+// Where a condition ends and another part starts. "and my right shoulder
+// hurts" brings in a second part that hurts; "as well as my lower back" and
+// "al igual que el hombro" add one to the same complaint.
+const additive =
+  /\b(?:as well as|along with|together with|in addition to|plus|also|al igual que|ademas de|junto con|asi como|tambien)\b/i;
+const plainJoin = /\b(?:and|but|y|e|pero)\b/i;
+const beforeCondition = (clause: string): string => {
+  const at = clause.search(new RegExp(condition.source, "i"));
+  if (at < 0) return clause;
+  const head = clause.slice(0, at);
+  const tail = clause.slice(at);
+  const kept: string[] = [];
+  const pieces = tail.split(
+    new RegExp(`(,|${additive.source}|${plainJoin.source})`, "i"),
+  );
+  // pieces alternate: condition text, joiner, text, joiner, text ...
+  for (let i = 1; i + 1 < pieces.length; i += 2) {
+    const joiner = pieces[i];
+    const text = pieces[i + 1];
+    if (joiner === "," || additive.test(joiner)) kept.push(text);
+    else if (saysHurt(text)) kept.push(text);
+  }
+  return [head, ...kept.map(beforeCondition)].join(" ");
+};
 
 function withDroppedParts(
   location: LocationResult,

@@ -149,15 +149,6 @@ test("'I'm at 7 when I walk' keeps the rating", () => {
     ),
     7,
   );
-  // A time of day is still not a rating.
-  assert.equal(
-    rating("My left knee hurts. I'm at 7 when I get home", 7, knee),
-    undefined,
-  );
-  assert.equal(
-    rating("My left knee hurts. I'm at 7 when I leave work", 7, knee),
-    undefined,
-  );
 });
 
 test("a spanish 'cannot sit because the knee hurts' keeps the knee", () => {

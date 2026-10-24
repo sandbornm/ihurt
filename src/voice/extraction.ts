@@ -131,7 +131,7 @@ export function partMentions(value: string): { part: Part; text: string }[] {
 // a region. "back at work", "my back to the wall" and "the back of my knee" do
 // not.
 const bareBack =
-  /\b(?:my|the|your|his|her|our|their|mi|la|su|tu)\s+(back|espalda)\b(?!\s+(?:of|to|at|home|then|from|up|in|on|off|door|seat|yard|porch|pocket|garden|side|de)\b)/;
+  /(?<!\b(?:sleep(?:s|ing)?|slept|lie|lies|lying|lay|laying|flat|duermo|dormir|duerme|acuesto|acostad[oa])\s+(?:on |in |en |sobre )?)\b(?:my|the|your|his|her|our|their|mi|la|su|tu)\s+(back|espalda)\b(?!\s+(?:of|to|at|home|then|from|up|in|on|off|door|seat|yard|porch|pocket|garden|side|de)\b)/;
 
 const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
@@ -286,6 +286,18 @@ function isDirection(words: string[], index: number) {
 }
 
 const rightPlace = new Set([
+  "into",
+  "onto",
+  "through",
+  "across",
+  "along",
+  "toward",
+  "towards",
+  "up",
+  "down",
+  "where",
+  "here",
+  "there",
   "at",
   "on",
   "in",
@@ -877,6 +889,20 @@ const denialTail =
   /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya|all (?:day|week|month|morning|night|year)|lately|recently|so far)$/;
 const contextTail =
   /^(?:at |when |while |during |if |on |en |cuando |mientras |al |durante |si )/;
+const unlessWords = new Set(["unless"]);
+const stopWords = new Set([
+  "stop",
+  "stopped",
+  "stops",
+  "cease",
+  "ceased",
+  "quit",
+  "deja",
+  "dejo",
+  "dejado",
+  "dejan",
+  "dejaron",
+]);
 function deniesAfter(
   words: string[],
   end: number,
@@ -892,6 +918,8 @@ function deniesAfter(
   if (rest.some((word) => deniedAfter.has(word))) return true;
   const hurt = rest.findIndex((word) => hurtWords.has(word));
   if (hurt < 0 || corrected) return false;
+  // "hasn't stopped hurting" and "no deja de doler" say it still hurts.
+  if (rest.slice(0, hurt).some((word) => stopWords.has(word))) return false;
   if (painNouns.has(rest[hurt]) && nounHedges.has(rest[hurt - 1] ?? ""))
     return false;
   if (painNouns.has(rest[hurt]) && painAdjectives.has(rest[hurt + 1] ?? ""))
@@ -912,8 +940,12 @@ function deniesAfter(
   if (!tail.length || denialTail.test(tail.join(" "))) return true;
   // "doesn't hurt at rest" or "when I walk" says when it does not hurt. That
   // is still no pain reported, unless the same phrase goes on to say it hurts.
+  // A later "but it hurts when I run" is that report.
   return (
+    !current &&
     contextTail.test(tail.join(" ")) &&
+    !tail.some((word) => unlessWords.has(word)) &&
+    !/\b(?:a menos que|salvo que)\b/.test(tail.join(" ")) &&
     !tail.some((word) => hurtWords.has(word) || isNegator(word))
   );
 }
@@ -1014,6 +1046,32 @@ const beFiller = new Set([
 ]);
 const beCause =
   /^(?:because of|because|from|due to|owing to|on account of)(?= |$)/;
+// "no me duele la rodilla cuando camino pero me duele cuando corro": a denial
+// that only says when it does not hurt is not one when a later phrase says it
+// hurts.
+const stillHurtsBefore =
+  /\bno se (?:me )?(?:ha |han )?(?:quito|quitado|paso|pasado|fue|ido|va|quita|pasa)\b|\bno (?:ha |han )?(?:dejado|deja|dejo|dejan) de\b/;
+function deniedBefore(
+  words: string[],
+  at: number,
+  part: boolean,
+  current: boolean,
+  needed: string[],
+) {
+  const before = words.slice(0, at);
+  if (!before.some((word) => denies(word, part))) return false;
+  // "no se me quito el dolor de la rodilla" says it is still there.
+  if (stillHurtsBefore.test(before.join(" "))) return false;
+  const after = words.slice(at + 1);
+  while (after.length && needed.some((want) => matches(after[0], want)))
+    after.shift();
+  return !(
+    current &&
+    before.some((word) => hurtWords.has(word)) &&
+    contextTail.test(after.join(" ")) &&
+    !after.some((word) => hurtWords.has(word) || isNegator(word))
+  );
+}
 function covers(
   words: string[],
   needed: string[],
@@ -1043,7 +1101,7 @@ function covers(
   const found = needed.every((want) => {
     const at = words.findIndex((said) => matches(said, want));
     last = Math.max(last, at);
-    return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
+    return at >= 0 && !deniedBefore(words, at, part, current, needed);
   });
   if (!found || deniesAfter(words, last, corrected, current)) return false;
   // "I can't tell if my left knee is the problem" still denies it, but "I
@@ -1088,22 +1146,33 @@ function exceptSides(
 
 // The pain went away, so no body part in that phrase is current. "I left my
 // brace and my knee hurts" is a different phrase and still counts.
+const bodyWord =
+  "(?:knee|leg|foot|feet|ankle|hip|shoulder|arm|hand|wrist|elbow|side|calf|thigh|heel|toe|back|neck|chest|head|hamstring|shin)";
+// "the pain has gone down into my knee" and "the pain is over here" move or
+// place the pain. They do not end it.
+const placeAfter =
+  "(?! (?:down|into|to|up|through|from|over|on|in|out|around|across|toward|towards|onto|under|there|here|by|near|where|along|up|at)\\b)";
 function painGone(words: string[]) {
+  // "hasn't stopped hurting" and "no se me quito el dolor" say it is still
+  // there.
+  if (words.some(isNegator)) return false;
   const text = words.join(" ");
   return (
-    /\bpain left\b/.test(text) ||
-    /\bpain (?:is|was|has been|has|been) gone\b/.test(text) ||
+    new RegExp(`\\bpain left\\b(?! ${bodyWord}\\b)`).test(text) ||
+    new RegExp(
+      `\\bpain (?:is|was|has been|has|been) gone\\b${placeAfter}`,
+    ).test(text) ||
     /\bpain went away\b/.test(text) ||
     /\bdolor (?:se fue|ya paso|paso)\b/.test(text) ||
     // "my knee stopped hurting", "the pain in my knee is gone",
     // "se me quito el dolor", "dejo de doler".
     /\b(?:stopped|ceased|quit) (?:hurting|aching)\b/.test(text) ||
-    /\b(?:pain|ache|soreness)\b.*\b(?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\b/.test(
-      text,
-    ) ||
-    /\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\b/.test(
-      text,
-    ) ||
+    new RegExp(
+      `\\b(?:pain|ache|soreness)\\b.*\\b(?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\\b${placeAfter}`,
+    ).test(text) ||
+    new RegExp(
+      `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}`,
+    ).test(text) ||
     /\b(?:dejo de doler(?:me)?|se me quito|se quito|se me paso|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|desaparecio)\b/.test(
       text,
     )
@@ -1526,11 +1595,9 @@ const dateRange = new RegExp(
 const withoutDates = (text: string) => text.replace(dateRange, " ");
 const genericBefore =
   /\b(?:about|around|maybe|roughly|(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?)$/;
-// "I'm at 7 when I walk" says how bad it gets, but "I'm at 7 when I get home"
-// is a time of day.
+// "I'm at 7 when I walk" and "I'm at 7 when I wake up" say how bad it gets.
 const imAt = /\b(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?$/;
-const whenTail =
-  /^(?:when|while|during|if|cuando|mientras|al|durante|si)\b(?!.*\b(?:get|got|arrive|arrived|leave|left|wake|woke|home|work|llego|llegue|salgo|casa|trabajo|despierto)\b)/;
+const whenTail = /^(?:when|while|during|if|cuando|mientras|al|durante|si)\b/;
 const genericAfter =
   /^(?:|or so|ish|i guess|i think|now|today|right now|at (?:most|worst|best)|at the moment|aproximadamente|mas o menos|creo|ahora|ahorita|hoy)$/;
 // A prompt telling the model to set a number is not a rating the person gave.

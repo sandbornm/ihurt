@@ -134,7 +134,7 @@ export function suggestVoiceDraft(text: string) {
             part,
           ) &&
             new RegExp(`\\b${label}\\b`).test(part)) ||
-          (/\b(?:duele|duelen|dolor|dolores|molesta|molestia|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
+          (/\b(?:duele|duelen|dolor|dolores|molesta|molestan|molestia|molestias|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
             fold(part),
           ) &&
             nombres.some((name) =>

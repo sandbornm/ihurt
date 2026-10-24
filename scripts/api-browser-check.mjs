@@ -117,6 +117,7 @@ try {
     };
   });
   const document = await page.goto(origin);
+  await page.waitForSelector('[data-notebook-hydrated="true"]');
   assert.match(document.headers()["permissions-policy"], /camera=\(self\)/);
   assert.equal(
     await page.evaluate(() => document.featurePolicy.allowsFeature("camera")),

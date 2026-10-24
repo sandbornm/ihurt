@@ -61,6 +61,7 @@ try {
         unexpected.push(r.url());
     });
     await page.goto(origin);
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     const atlas = page.locator(
       '[data-atlas="z-anatomy"][data-heat-engine="wasm"]',
     );
@@ -164,9 +165,8 @@ try {
     await waitForDraft(page, "Edited first entry.");
     assert.equal(await note.inputValue(), "Edited first entry.");
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await atlas.waitFor();
-    // The cached atlas can finish before IndexedDB restores the form.
-    await page.locator(".explorer-grid:not([inert])").waitFor();
     assert.equal(await note.inputValue(), "Edited first entry.");
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
@@ -198,12 +198,14 @@ try {
     await page.waitForFunction(() => !!navigator.serviceWorker.controller);
     await context.setOffline(true);
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await atlas.waitFor();
     await note.fill("An edit made offline.");
     await page
       .getByText("Draft saved on this device", { exact: true })
       .waitFor();
     await page.reload();
+    await page.waitForSelector('[data-notebook-hydrated="true"]');
     await atlas.waitFor();
     assert.equal(await note.inputValue(), "An edit made offline.");
     await page.screenshot({ path: join(output, `${width}.png`) });

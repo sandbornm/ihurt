@@ -753,7 +753,8 @@ export const es: Messages = {
   "extraction.location.needSide": "Dijiste “{spoken}” · ¿izquierda o derecha?",
   "extraction.location.ambiguous": "Dijiste “{spoken}” · más de una zona",
   "extraction.location.unmapped":
-    "“{spoken}” todavía no está en el mapa corporal",
+    "“{spoken}” no está en el mapa rápido. Toca la zona.",
+  "extraction.location.both": "Los dos lados · toca cada zona",
   "extraction.confirmFirst":
     "Confirma la entrada propuesta antes de agregarla.",
   "fb.noMailApp": "Si no se abrió ninguna app de correo, escribe a {address}.",

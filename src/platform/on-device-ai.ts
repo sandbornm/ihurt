@@ -14,6 +14,33 @@ export interface OnDeviceAIAvailability {
 
 // Raw fields copied from the dictated note. Treat as untrusted model output:
 // src/voice/extraction.ts validates every field before anything is proposed.
+// schema v2 carries evidence spans. The flat fields are the older shape.
+export interface EvidenceLocation {
+  evidence: string;
+  negated: boolean;
+  sideEvidence: string;
+}
+
+export interface EvidenceIntensity {
+  evidence: string;
+  value: number;
+  kind: "rating" | "duration" | "count" | "other";
+  negated: boolean;
+}
+
+export interface EvidenceMark {
+  evidence: string;
+  negated: boolean;
+}
+
+export interface EvidenceExtraction {
+  locations: EvidenceLocation[];
+  intensity: EvidenceIntensity | null;
+  qualities: EvidenceMark[];
+  onset: EvidenceMark | null;
+  activity: string;
+}
+
 export interface RawPainExtraction {
   spokenLocation: string;
   region: string;
@@ -23,6 +50,7 @@ export interface RawPainExtraction {
   onsetPhrase: string;
   activity: string;
   surface: string;
+  evidence?: EvidenceExtraction;
 }
 
 export const EXTRACTION_TIMEOUT_MS = 20000;
@@ -76,10 +104,95 @@ export interface AppleIntelligenceBridge {
 const text = (value: unknown, max: number) =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
 
+const kinds = new Set(["rating", "duration", "count", "other"]);
+
+const flag = (value: unknown) =>
+  value === true ? true : value === false ? false : null;
+
+function parseEvidence(raw: Record<string, unknown>): EvidenceExtraction {
+  const locations: EvidenceLocation[] = [];
+  if (Array.isArray(raw.locations)) {
+    for (const item of raw.locations) {
+      if (locations.length >= 2 || !item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      const evidence = text(row.evidence, 120);
+      const negated = flag(row.negated);
+      if (!evidence || negated === null) continue;
+      locations.push({
+        evidence,
+        negated,
+        sideEvidence: text(row.sideEvidence, 40),
+      });
+    }
+  }
+  let intensity: EvidenceIntensity | null = null;
+  if (raw.intensity && typeof raw.intensity === "object") {
+    const row = raw.intensity as Record<string, unknown>;
+    const evidence = text(row.evidence, 80);
+    const negated = flag(row.negated);
+    const kindName =
+      typeof row.kind === "string" ? row.kind.trim().toLowerCase() : "";
+    const value =
+      typeof row.value === "number" &&
+      Number.isInteger(row.value) &&
+      row.value >= -1 &&
+      row.value <= 10
+        ? row.value
+        : -1;
+    if (negated !== null && (evidence || value >= 0))
+      intensity = {
+        evidence,
+        value,
+        kind: kinds.has(kindName)
+          ? (kindName as EvidenceIntensity["kind"])
+          : "other",
+        negated,
+      };
+  }
+  const qualities: EvidenceMark[] = [];
+  if (Array.isArray(raw.qualities)) {
+    for (const item of raw.qualities) {
+      if (qualities.length >= 5 || !item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      const evidence = text(row.evidence, 40);
+      const negated = flag(row.negated);
+      if (!evidence || negated === null) continue;
+      qualities.push({ evidence, negated });
+    }
+  }
+  let onset: EvidenceMark | null = null;
+  if (raw.onset && typeof raw.onset === "object") {
+    const row = raw.onset as Record<string, unknown>;
+    const evidence = text(row.evidence, 80);
+    const negated = flag(row.negated);
+    if (evidence && negated !== null) onset = { evidence, negated };
+  }
+  return {
+    locations,
+    intensity,
+    qualities,
+    onset,
+    activity: text(raw.activity, 80),
+  };
+}
+
 export function parseRawExtraction(value: unknown): RawPainExtraction {
   if (!value || typeof value !== "object")
     throw new Error(t("native.ai-no-fields"));
   const raw = value as Record<string, unknown>;
+  if (raw.schema === "v2" || Array.isArray(raw.locations)) {
+    return {
+      spokenLocation: "",
+      region: "",
+      side: "unspecified",
+      qualities: [],
+      intensity: null,
+      onsetPhrase: "",
+      activity: "",
+      surface: "",
+      evidence: parseEvidence(raw),
+    };
+  }
   const side = ["left", "right", "both"].includes(raw.side as string)
     ? (raw.side as RawPainExtraction["side"])
     : "unspecified";

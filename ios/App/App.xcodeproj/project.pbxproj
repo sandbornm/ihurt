@@ -10,6 +10,7 @@
 		A12000000000000000000001 /* NotebookViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000002 /* NotebookViewController.swift */; };
 		A11000000000000000000001 /* AppleSpeechPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000002 /* AppleSpeechPlugin.swift */; };
 		A13000000000000000000001 /* AppleIntelligencePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13000000000000000000002 /* AppleIntelligencePlugin.swift */; };
+		A14000000000000000000001 /* PainExtractionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000002 /* PainExtractionModel.swift */; };
 		C61710000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C61710000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -28,6 +29,7 @@
 		A12000000000000000000002 /* NotebookViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookViewController.swift; sourceTree = "<group>"; };
 		A11000000000000000000002 /* AppleSpeechPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechPlugin.swift; sourceTree = "<group>"; };
 		A13000000000000000000002 /* AppleIntelligencePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleIntelligencePlugin.swift; sourceTree = "<group>"; };
+		A14000000000000000000002 /* PainExtractionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PainExtractionModel.swift; sourceTree = "<group>"; };
 		C61710000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				A12000000000000000000002 /* NotebookViewController.swift */,
 				A11000000000000000000002 /* AppleSpeechPlugin.swift */,
 				A13000000000000000000002 /* AppleIntelligencePlugin.swift */,
+				A14000000000000000000002 /* PainExtractionModel.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -199,6 +202,7 @@
 				A12000000000000000000001 /* NotebookViewController.swift in Sources */,
 				A11000000000000000000001 /* AppleSpeechPlugin.swift in Sources */,
 				A13000000000000000000001 /* AppleIntelligencePlugin.swift in Sources */,
+				A14000000000000000000001 /* PainExtractionModel.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

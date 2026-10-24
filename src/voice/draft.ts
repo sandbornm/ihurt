@@ -74,9 +74,15 @@ export function suggestVoiceDraft(text: string) {
     )
     // "rodilla izquierda no mucho" and "knee, not too bad" hedge the pain; they
     // do not deny the part.
+    // Only a real hedge: not "not that ankle" or "no tanto el tobillo", which
+    // deny a part.
     .replace(
-      /\b(?:no|not) (?:mucho|tanto|demasiado|muy|tan|much|too|that|very|so)\b/g,
+      /\b(?:no|not) (?:mucho|tanto|demasiado|muy|tan|much|too|very|so)\b(?!\s+(?:the|my|this|that|these|those|el|la|los|las|mi|mis|este|esta|esos|esas|ese|esa|su|sus)\b)/g,
       "poco",
+    )
+    .replace(
+      /\b(?:no|not) (?:that|tan|tanto) (?=(?:bad|badly|much|strong|painful|sore|serious|severe|intense|hard|terrible|fuerte|grave|doloroso|intenso|mal)\b|[.!?;,\n]|$)/g,
+      "poco ",
     )
     .split(/[.!?;,\n]+/)
     .filter(
@@ -128,7 +134,7 @@ export function suggestVoiceDraft(text: string) {
             part,
           ) &&
             new RegExp(`\\b${label}\\b`).test(part)) ||
-          (/\b(?:duele|duelen|dolor|dolores|molesta|molestia|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
+          (/\b(?:duele|duelen|dolor|dolores|molesta|molestan|molestia|molestias|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
             fold(part),
           ) &&
             nombres.some((name) =>

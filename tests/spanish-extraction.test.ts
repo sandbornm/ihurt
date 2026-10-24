@@ -57,9 +57,8 @@ test("the Spanish padel sentence proposes a left foot pin, never places one", ()
   assert.equal(proposal.fields.activity, "pádel");
   assert.deepEqual(proposal.onset, { phrase: "ayer", date: "2026-10-21" });
   assert.equal(proposal.fields.duration, "Desde ayer (2026-10-21)");
-  // No rating was said, so it asks in Spanish instead of guessing.
-  assert.equal(proposal.followUp?.key, "intensity");
-  assert.match(proposal.followUp?.question ?? "", /[¿?]/);
+  // No rating was said. Intensity is optional, so there is no question.
+  assert.equal(proposal.followUp, null);
   assert.match(describeLocation(proposal.location, "es"), /Pie izquierdo/);
   // Nothing is saved or pinned until the person confirms.
   assert.throws(() =>
@@ -149,7 +148,7 @@ test("Spanish sides, accents and the follow-up answer", () => {
   );
   assert.equal(
     mapLocation("hombros", "both", "me duelen ambos hombros").status,
-    "need-side",
+    "both",
   );
   assert.equal(
     mapLocation("muñeca derecha", "right", "hormigueo en la muneca derecha")
@@ -319,7 +318,7 @@ test("intensity needs rating context in Spanish and English", () => {
     "es",
   );
   assert.equal(proposal.fields.intensity, undefined);
-  assert.equal(proposal.followUp?.key, "intensity");
+  assert.equal(proposal.followUp, null);
 });
 
 test("only same-day phrases resolve to today", () => {

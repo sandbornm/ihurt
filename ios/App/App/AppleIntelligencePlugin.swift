@@ -134,7 +134,9 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         reject(call, "ai-unavailable")
     }
 
-    // Main thread only.
+    // Main thread only. Compiled only where FoundationModels exists, so an SDK
+    // without it still builds and reports unavailable.
+    #if canImport(FoundationModels)
     @available(iOS 26.0, *)
     private func startExtraction(_ call: CAPPluginCall, transcript: String, anatomy: [String], today: String, language: String) {
         finishExtraction(cancelled: true)
@@ -159,6 +161,7 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
             self.extraction = nil
         }
     }
+    #endif
 
     @objc func cancelExtraction(_ call: CAPPluginCall) {
         DispatchQueue.main.async {

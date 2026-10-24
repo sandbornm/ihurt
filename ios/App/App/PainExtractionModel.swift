@@ -111,7 +111,7 @@ enum PainExtractor {
             "ya no me duele" y "no me duele ya" significan que ya no duele. negated es true. "pero no mucho" y "sin duda" no niegan la parte.
             "nada duele excepto la rodilla" guarda la rodilla. negated es false.
             "sin hinchazón" niega esa sensación, no la parte.
-            sideEvidence es la palabra exacta del lado, con el mismo género que dijo (izquierdo, no izquierda, si eso dijo). Vacío si no dijo el lado. "ahora mismo" y "todo derecho" no son lados. Un lado en otra frase no es el lado de esta parte.
+            sideEvidence es la palabra exacta del lado, con el mismo género que dijo (izquierdo, no izquierda, si eso dijo). Vacío si no dijo el lado. "ahora mismo", "todo derecho", "camino derecho" y "voy derecho" no son lados. Un lado en otra frase no es el lado de esta parte.
             "dedo gordo de la mano" es la mano. Copia esas palabras. "dedo gordo" solo o "del pie" es el pie. Nunca añadas "del pie" si no lo dijo.
 
             intensity: si dio una intensidad del 0 al 10, kind es "rating", value es ese número y evidence es la frase exacta ("un cinco", "7 de 10", "la intensidad es 5").

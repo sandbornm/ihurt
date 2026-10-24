@@ -1019,3 +1019,138 @@ test("left of a part can be a side and left the gym cannot", () => {
     "need-side",
   );
 });
+
+test("intensity replies accept N/10 and reject numbers that are not ratings", () => {
+  assert.equal(parseIntensityAnswer("7/10"), 7);
+  assert.equal(parseIntensityAnswer("about 6/10"), 6);
+  assert.equal(parseIntensityAnswer("seven out of ten"), 7);
+  for (const reply of [
+    "seven days ago",
+    "7 miles",
+    "I am 7 years old",
+    "7/10/26",
+    "6/10 and 4/10",
+    "not 7/10",
+  ])
+    assert.equal(parseIntensityAnswer(reply), null, reply);
+});
+
+test("a side reply must name a side, not deny one or use the verb", () => {
+  const asked = buildProposal(
+    raw({ spokenLocation: "ankle" }),
+    "My ankle hurts",
+    today,
+  );
+  assert.equal(asked.location.status, "need-side");
+  for (const reply of ["not left.", "not left", "I left work", "I left it"])
+    assert.equal(
+      answerFollowUp(asked, reply).location.status,
+      "need-side",
+      reply,
+    );
+  for (const [reply, region] of [
+    ["left", "left_ankle"],
+    ["the left one", "left_ankle"],
+    ["it's the right", "right_ankle"],
+  ])
+    assert.deepEqual(
+      answerFollowUp(asked, reply).location.status === "mapped" &&
+        (answerFollowUp(asked, reply).location as { region: string }).region,
+      region,
+      reply,
+    );
+});
+
+test("the verb left is not a side in the model's own spoken location", () => {
+  assert.equal(
+    buildProposal(
+      raw({ spokenLocation: "left knee" }),
+      "I left work because my knee hurts",
+      today,
+    ).location.status,
+    "unmapped",
+  );
+});
+
+test("an activity must be one spoken phrase", () => {
+  const said = "I went running and played tennis and my knee hurts";
+  assert.equal(
+    buildProposal(
+      raw({ spokenLocation: "knee", activity: "running tennis" }),
+      said,
+      today,
+    ).fields.activity,
+    undefined,
+  );
+  assert.equal(
+    buildProposal(
+      raw({ spokenLocation: "knee", activity: "running" }),
+      said,
+      today,
+    ).fields.activity,
+    "running",
+  );
+});
+
+test("a counted offset wins over a day word inside it", () => {
+  assert.equal(resolveOnset("a week ago today", today).date, "2026-10-15");
+  assert.equal(
+    resolveOnset("two weeks ago yesterday", today).date,
+    "2026-10-08",
+  );
+  assert.equal(resolveOnset("today", today).date, today);
+});
+
+test("'it's fine' after a denial clears the part; 'it's aching' only corrects", () => {
+  const location = (said: string, spoken = "left knee") =>
+    buildProposal(raw({ spokenLocation: spoken, side: "left" }), said, today)
+      .location.status;
+  assert.equal(location("My left knee doesn't hurt, it's fine."), "unmapped");
+  assert.equal(location("My left knee doesn't hurt, it's gone"), "unmapped");
+  assert.equal(location("My left knee isn't sore, it's aching."), "mapped");
+});
+
+test("the availability gate follows a later check when Settings changes", () => {
+  const gate = createAvailabilityGate();
+  assert.equal(gate.settle(false), undefined);
+  assert.equal(gate.request("a note"), undefined);
+  assert.equal(gate.recheck(true), undefined);
+  assert.equal(gate.state, "ready");
+  assert.equal(gate.request("a note"), "a note");
+  gate.recheck(false);
+  assert.equal(gate.state, "off");
+  const waiting = createAvailabilityGate();
+  waiting.request("first");
+  assert.equal(waiting.recheck(true), "first");
+});
+
+test("derecho means straight, not the right side, in 'camino derecho'", () => {
+  const where = (said: string, spoken: string, side: "left" | "right") =>
+    buildProposal(raw({ spokenLocation: spoken, side }), said, today).location;
+  assert.equal(
+    where("Me duele la rodilla y camino derecho", "rodilla derecha", "right")
+      .status,
+    "unmapped",
+  );
+  assert.equal(
+    where("Voy derecho a casa. Me duele la rodilla", "rodilla", "right").status,
+    "need-side",
+  );
+  assert.equal(
+    where(
+      "Camino derecho y me duele la rodilla derecha",
+      "rodilla derecha",
+      "right",
+    ).status,
+    "mapped",
+  );
+  assert.equal(parseIntensityAnswer("sin duda un 7"), 7);
+  assert.equal(parseIntensityAnswer("7 de 10"), 7);
+  assert.equal(parseIntensityAnswer("siete dias"), null);
+  const noRun = buildProposal(
+    raw({ spokenLocation: "rodilla", activity: "correr" }),
+    "Me duele la rodilla, no puedo correr desde ayer",
+    today,
+  );
+  assert.equal(noRun.fields.activity, undefined);
+});

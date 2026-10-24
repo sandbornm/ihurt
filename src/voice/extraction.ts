@@ -114,6 +114,11 @@ export function partsIn(value: string): Part[] {
 
 const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
+// "derecho" after these is "straight" ("camino derecho", "voy derecho"), or
+// the noun "right" ("tengo derecho"), not a side.
+const straightWords =
+  "todo|sig[ao]|sigue|seguir|camino|camina|caminar|caminas|caminamos|voy|va|vamos|ir|ando|corro|corre|correr|tengo|tiene";
+const straightBefore = new RegExp(`^(?:${straightWords})$`);
 const bothWords = /\b(?:both|ambos|ambas|los dos|las dos)\b/;
 const sideDeterminer = new Set([
   "the",
@@ -158,7 +163,7 @@ export function sideAt(
     return "right";
   }
   if (/^derech/.test(word)) {
-    if (prev === "todo" || prev === "siga" || prev === "sigue") return null;
+    if (straightBefore.test(prev)) return null;
     return "right";
   }
   return null;
@@ -193,6 +198,62 @@ function sideWordIn(value: string, side: "left" | "right") {
   const pattern = side === "left" ? leftWords : rightWords;
   const words = value.trim().split(/\s+/);
   return words.find((word) => pattern.test(normalize(word))) ?? side;
+}
+
+const sideSubjects = new Set([
+  "i",
+  "we",
+  "he",
+  "she",
+  "they",
+  "it",
+  "that",
+  "who",
+]);
+const sideObjects = new Set([
+  "my",
+  "the",
+  "a",
+  "an",
+  "his",
+  "her",
+  "their",
+  "our",
+  "your",
+  "this",
+  "that",
+  "it",
+  "them",
+  "work",
+  "home",
+  "early",
+  "again",
+]);
+
+// The answer to "left or right?" must say one side, plainly. "not left" or
+// "no es la izquierda" is a denial, "I left work" uses the verb, and "derecho"
+// in "voy derecho" means straight, so none of them supplies a side.
+function sideAnswer(reply: string): "left" | "right" | null {
+  const words = normalize(reply).split(" ").filter(Boolean);
+  if (words.length > 6 || words.some(isNegator)) return null;
+  const found = new Set<"left" | "right">();
+  words.forEach((word, i) => {
+    const prev = words[i - 1] ?? "";
+    const next = words[i + 1] ?? "";
+    if (
+      rightWords.test(word) &&
+      !["now", "away", "after"].includes(next) &&
+      !straightBefore.test(prev)
+    )
+      found.add("right");
+    if (
+      leftWords.test(word) &&
+      !sideSubjects.has(prev) &&
+      !sideObjects.has(next)
+    )
+      found.add("left");
+  });
+  return found.size === 1 ? [...found][0] : null;
 }
 
 const stop = new Set([
@@ -305,6 +366,11 @@ const negators = new Set([
   "nadie",
   "niego",
   "niega",
+  // "no puedo" is joined by idioms(). It denies an activity ("no puedo
+  // correr") but not a body part ("no puedo doblar la rodilla").
+  "nopuedo",
+  "nopude",
+  "nopodia",
 ]);
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
@@ -559,6 +625,15 @@ function clauseGrounds(
   return covers(affirmative.flat(), needed, false, corrected);
 }
 
+// "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
+// pain instead. "it's fine", "it's gone" and "it's not" clear it further.
+const clearing =
+  /^(?:fine|ok|okay|alright|good|great|better|gone|healed|nothing|not|no|bien|mejor|nada)\b/;
+function corrects(next: string) {
+  const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
+  return match !== null && !clearing.test(normalize(match[1]));
+}
+
 // Every meaningful word must appear in the transcript, in a clause that is
 // not denying it. This keeps model paraphrases, guesses, invented details and
 // denied details out of the proposal, in English and Spanish.
@@ -587,15 +662,6 @@ export function grounded(
       corrects(said[i + 1] ?? ""),
     ),
   );
-}
-
-// "isn't sore, it's aching": a next clause that starts "it's ..." describes the
-// pain instead. "it's fine", "it's gone" and "it's not" clear it further.
-const clearing =
-  /^(?:fine|ok|okay|alright|good|great|better|gone|healed|nothing|not|bien|mejor|nada|no)\b/;
-function corrects(next: string) {
-  const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
-  return match !== null && !clearing.test(normalize(match[1]));
 }
 
 // The span must occur in the transcript as consecutive words, ignoring case,
@@ -830,16 +896,34 @@ export function parseIntensityAnswer(answer: string): number | null {
     ? (but[1].split(" ").some(isNegator) ? but[2] : but[1]).trim()
     : normalized;
   if (text.split(" ").some(isNegator)) return null;
+  const lower = answer.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  // "7 out of 10", "7/10" and "7 de 10": the first number is the rating, the
+  // scale is the 10. A date like "7/10/26" is not one.
+  const scale = lower.match(
+    new RegExp(
+      `\\b(${numberPattern})\\s*(?:out of|of|de|sobre|/)\\s*(?:10|ten|diez)\\b(?!\\s*/\\s*\\d)`,
+    ),
+  );
+  if (scale) {
+    // A second number that is not the scale ("6/10 and 4/10") is unclear.
+    const rest = lower.replace(scale[0], " ");
+    return new RegExp(`\\b(?:${numberPattern})\\b`).test(rest)
+      ? null
+      : numberValue(scale[1]);
+  }
+  // "seven days ago", "7 miles" and "7 years old" are not ratings.
   const found = [...text.matchAll(new RegExp(`\\b(${numberPattern})\\b`, "g"))]
+    .filter(
+      (match) =>
+        !notRatingAfter.test(
+          text.slice(match.index + match[0].length).trim(),
+        ) &&
+        !/\b(?:i am|i'm|age|aged|tengo)$/.test(
+          text.slice(0, match.index).trim(),
+        ),
+    )
     .map((match) => numberValue(match[1]))
     .filter((value) => value >= 0);
-  // "7 out of 10" and "7 de 10" name two numbers; the first is the rating.
-  if (
-    found.length === 2 &&
-    found[1] === 10 &&
-    /\b(?:out of|de|sobre)\b/.test(text)
-  )
-    return found[0];
   return found.length === 1 ? found[0] : null;
 }
 
@@ -892,21 +976,7 @@ export function resolveOnset(
   if (isFutureOnset(phrase)) return { phrase };
   const [y, m, d] = today.split("-").map(Number);
   if (Number.isNaN(Date.UTC(y, m - 1, d))) return { phrase };
-  if (/\b(?:day before yesterday|anteayer|antier|antes de ayer)\b/.test(text))
-    return { phrase, date: shift(today, 2) };
-  if (/\b(?:yesterday|last night|ayer|anoche)\b/.test(text))
-    return { phrase, date: shift(today, 1) };
-  if (
-    // "Earlier" and "mas temprano" are today only on their own or with this
-    // day ("earlier this morning", "mas temprano hoy"), not "earlier this
-    // week" or "mas temprano este ano".
-    text === "earlier" ||
-    text === "mas temprano" ||
-    /\b(?:today|this morning|this afternoon|this evening|tonight|earlier this (?:morning|afternoon|evening)|a little while ago|hoy|esta manana|esta tarde|esta noche|hace un rato|hace rato|hace unas horas|hace unos minutos|mas temprano hoy)\b/.test(
-      text,
-    )
-  )
-    return { phrase, date: today };
+  // Counted offsets come first: "a week ago today" is a week ago.
   const ago =
     text.match(
       new RegExp(
@@ -926,6 +996,21 @@ export function resolveOnset(
         date: shift(today, /^(?:week|semana)/.test(ago[2]) ? n * 7 : n),
       };
   }
+  if (/\b(?:day before yesterday|anteayer|antier|antes de ayer)\b/.test(text))
+    return { phrase, date: shift(today, 2) };
+  if (/\b(?:yesterday|last night|ayer|anoche)\b/.test(text))
+    return { phrase, date: shift(today, 1) };
+  if (
+    // "Earlier" and "mas temprano" are today only on their own or with this
+    // day ("earlier this morning", "mas temprano hoy"), not "earlier this
+    // week" or "mas temprano este ano".
+    text === "earlier" ||
+    text === "mas temprano" ||
+    /\b(?:today|this morning|this afternoon|this evening|tonight|earlier this (?:morning|afternoon|evening)|a little while ago|hoy|esta manana|esta tarde|esta noche|hace un rato|hace rato|hace unas horas|hace unos minutos|mas temprano hoy)\b/.test(
+      text,
+    )
+  )
+    return { phrase, date: today };
   const weekday =
     text.match(
       /\b(?:last |on |this past )?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/,
@@ -1063,7 +1148,12 @@ export function buildProposal(
   if (qualities.length) fields.quality = qualities.join(", ");
   if (raw.intensity !== null && ratedIn(transcript, raw.intensity))
     fields.intensity = raw.intensity;
-  const activity = grounded(raw.activity, transcript) ? raw.activity : "";
+  // The activity must be said as one phrase: "running tennis" is not "went
+  // running and played tennis".
+  const activity =
+    grounded(raw.activity, transcript) && spanIn(raw.activity, transcript)
+      ? raw.activity
+      : "";
   // A surface is kept only when said with this activity, so "ran on pavement
   // and played tennis on clay" never becomes "ran on clay".
   const surface =
@@ -1129,8 +1219,8 @@ export function answerFollowUp(
     const value = parseIntensityAnswer(reply);
     if (value !== null) next.fields.intensity = value;
   } else if (key === "side" && proposal.location.status === "need-side") {
-    const side = sideIn(reply);
-    if (side === "left" || side === "right") {
+    const side = sideAnswer(reply);
+    if (side) {
       // The side is added in the person's own word: "left ankle" in English,
       // "tobillo izquierdo" in Spanish, where the side follows the noun.
       const word = sideWordIn(reply, side);

@@ -68,6 +68,8 @@ try {
     args: ["--enable-unsafe-swiftshader"],
   });
   const context = await browser.newContext({
+    // English UI regardless of the machine language.
+    locale: "en-US",
     viewport: { width: 1920, height: 1080 },
     recordVideo: { dir: output, size: { width: 1920, height: 1080 } },
   });

@@ -69,7 +69,7 @@ export function suggestVoiceDraft(text: string) {
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
     // "no es un dolor fuerte" says how strong it is, not that nothing hurts.
     .replace(
-      /\bno es (?:un |una )?(dolor|molestia) (?:fuerte|grave|intenso|intensa|serio|seria|terrible)\b/g,
+      /\bno (?:es|era|fue|ser[ií]a|sea|ha sido) (?:un |una )?(dolor|molestia) (?:muy |tan |demasiado )?(?:fuerte|grave|intens[oa]|seri[oa]|terrible)s?\b/g,
       "es poco $1",
     )
     // "rodilla izquierda no mucho" and "knee, not too bad" hedge the pain; they

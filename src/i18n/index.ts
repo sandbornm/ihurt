@@ -89,8 +89,10 @@ export const t = (key: MessageKey, vars?: Vars) =>
 // A BCP 47 tag for speech recognition and synthesis in the chosen language.
 // It keeps the region from the device list when it matches, such as es-MX.
 export function speechLocale(lang: Language = current) {
+  // Compare the tag's own base language: "fr-FR" resolves to English for the
+  // UI, but it is not an English speech locale.
   const match = deviceLanguages.find(
-    (tag) => resolveLanguage([tag]) === lang && /[-_]/.test(tag),
+    (tag) => tag.split(/[-_]/)[0].toLowerCase() === lang && /[-_]/.test(tag),
   );
   return (match ?? (lang === "es" ? "es-MX" : "en-US")).replace("_", "-");
 }

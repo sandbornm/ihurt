@@ -514,7 +514,12 @@ const hurtWords = new Set([
   "duelen",
   "molesta",
   "molestan",
+  "dolor",
+  "dolores",
+  "molestia",
+  "molestias",
 ]);
+const painNouns = new Set(["dolor", "dolores", "molestia", "molestias"]);
 const hedges = new Set([
   "much",
   "that",
@@ -536,7 +541,13 @@ function deniesAfter(words: string[], end: number, corrected: boolean) {
   const rest = next.slice(at + 1);
   if (rest.some((word) => deniedAfter.has(word))) return true;
   const hurt = rest.findIndex((word) => hurtWords.has(word));
-  return hurt >= 0 && !corrected && !hedges.has(rest[hurt + 1] ?? "");
+  // "no tiene mucho dolor" hedges before a noun, "no duele mucho" after a verb.
+  return (
+    hurt >= 0 &&
+    !corrected &&
+    !hedges.has(rest[hurt + 1] ?? "") &&
+    !(painNouns.has(rest[hurt]) && hedges.has(rest[hurt - 1] ?? ""))
+  );
 }
 
 // Spanish idioms that look like denials but are not: "nada mas" and "no mas"
@@ -547,6 +558,7 @@ const idioms = (text: string) =>
     .replace(/\b(?<!ya )(?:nada|no) mas\b/g, "solo")
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
     .replace(/\bno (?:puede|pueden|podria|podrian) ser\b/g, "no es")
+    .replace(/\bno (?:puede|pueden|podria|podrian) estar\b/g, "no esta")
     .replace(/\bno (pued[oe]|pude|podia)\b/g, "no$1");
 
 // Words that join two phrases. A denial on one side does not cancel the
@@ -593,12 +605,12 @@ function covers(
   corrected = false,
 ) {
   // "it can't be my left knee" says it is not the knee.
-  // "I can't be on my left knee" and "can't be walking" are ability.
+  // "it can't be in my left knee" and "can't be on my left knee" deny it too;
+  // "can't be walking" is ability.
   words = words.map((word, i) =>
     ability.has(word) &&
     words[i + 1] === "be" &&
-    !/ing$/.test(words[i + 2] ?? "") &&
-    !["on", "upon", "in", "at", "there", "here"].includes(words[i + 2] ?? "")
+    !/ing$/.test(words[i + 2] ?? "")
       ? "isn't"
       : word,
   );
@@ -752,8 +764,12 @@ export function mapLocation(
     // The model's side is used only when the note names this one part and
     // says that side without denying it. "me duele la rodilla. La mano
     // izquierda esta bien" asks which knee.
+    // "right at my knee" and "left work" are not sides.
+    const loose = ["left", "right"].some(
+      (word) => tokens(words).includes(word) && !sideNextTo(word, words),
+    );
     const stated =
-      sideIn(words) ??
+      (loose ? null : sideIn(words)) ??
       ((side === "left" || side === "right") &&
       sideIn(transcript) === side &&
       partsIn(transcript).length === 1 &&
@@ -825,7 +841,15 @@ const ratingBefore =
 const ratingAfter =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))(?: (.*))?$/;
 const notRatingAfter =
-  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche)|en punto|(?:of )?(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))\b/;
+  /^(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|people|places?|spots?|fingers?|toes?|am|pm|a m|p m|o'clock|oclock|minutos?|horas?|dias?|semanas?|meses|mes|anos?|veces|vez|kilometros?|partidos?|series|vueltas?|sitios?|lugares|partes|dedos?|personas|feet|foot|ft|inch|inches|lbs?|pounds?|de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)|de la (?:manana|tarde|noche)|en punto|blocks?|steps?|flights?|yards?|met(?:er|re)s?|pills?|doses?|tablets?|cups?|glasses|in the (?:morning|afternoon|evening)|of may|may(?= \d|$)|(?:of )?(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))\b/;
+// "October 7", "May 7" and "mayo 7" name a date, not a rating.
+const monthBefore =
+  /\b(?:january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)$/;
+// A bare "about 7" or "around seven" is a rating only when nothing follows
+// it but a hedge: "around seven in the morning" is a time.
+const genericBefore = /\b(?:about|around|maybe|roughly)$/;
+const genericAfter =
+  /^(?:|or so|ish|i guess|i think|now|today|right now|at (?:most|worst|best)|aproximadamente|mas o menos|creo)$/;
 
 export function ratedIn(transcript: string, value: number) {
   if (!Number.isInteger(value) || value < 0 || value > 10) return false;
@@ -873,7 +897,10 @@ export function ratedIn(transcript: string, value: number) {
           if (!notRatingAfter.test(scale[1] ?? "")) return true;
           continue;
         }
-        if (ratingBefore.test(before.join(" "))) return true;
+        const lead = before.join(" ");
+        if (monthBefore.test(lead)) continue;
+        if (genericBefore.test(lead) && !genericAfter.test(after)) continue;
+        if (ratingBefore.test(lead)) return true;
       }
   }
   return false;
@@ -936,6 +963,7 @@ export function parseIntensityAnswer(answer: string): number | null {
         !/\b(?:age|aged|edad|tengo|tiene|tienes|tuve|las|los|dia|day|at)$/.test(
           bare.slice(0, match.index).trim(),
         ) &&
+        !monthBefore.test(bare.slice(0, match.index).trim()) &&
         !/\b(?:del|desde|hasta|since|from|until|till)(?: (?:el|the))?$/.test(
           bare.slice(0, match.index).trim(),
         ),

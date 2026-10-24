@@ -135,6 +135,15 @@ export const activityKey = (activity: Activity) =>
     .replace(/^_|_$/g, "")}` as MessageKey;
 export const activityName = (activity: Activity, lang: Language = language()) =>
   translate(lang, activityKey(activity));
+// A saved activity that is exactly a listed name is shown in the current
+// language; anything the person typed is kept as written.
+export function activityLabel(value: string, lang: Language = language()) {
+  const text = fold(value.trim());
+  const match = activities.find((activity) =>
+    [activity.name, activityName(activity, "es")].some((n) => fold(n) === text),
+  );
+  return match ? activityName(match, lang) : value;
+}
 const names = (activity: Activity) =>
   [activity.name, activityName(activity, "es")].map(fold);
 const spanishTerms: Record<string, string[]> = {

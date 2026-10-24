@@ -360,6 +360,7 @@ export const en = {
   "export.html.feeling": "Feeling",
   "export.html.duration": "Duration",
   "export.html.intensity": "Intensity",
+  "export.html.intensityValue": "{value} / 10",
   "export.html.notRecorded": "Not recorded",
   "export.html.seeNote": "See your note",
   "export.html.notRated": "Not rated",

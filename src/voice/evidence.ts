@@ -1242,7 +1242,8 @@ function locationOnly(phrase: string) {
   let rest = ` ${normalize(phrase)} `;
   for (const mention of mentions) rest = rest.replace(mention.text, " ");
   return !contentWords(rest).some(
-    (word) => !sideWord.test(word) && !painWords.has(word),
+    (word) =>
+      !sideWord.test(word) && !painWords.has(word) && !feelingWord.test(word),
   );
 }
 

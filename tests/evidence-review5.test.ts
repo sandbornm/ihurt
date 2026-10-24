@@ -213,3 +213,36 @@ test("a pain that is already over is not a sore spot", () => {
   ] as const)
     assert.equal(where(note, [...part], lang), "left_knee", note);
 });
+
+test("month, year and calendar-date onset phrases are kept", () => {
+  const onset = (note: string, phrase: string, lang: "en" | "es" = "en") =>
+    propose(
+      note,
+      {
+        locations: [
+          {
+            evidence: lang === "en" ? "knee" : "rodilla",
+            sideEvidence: "",
+            negated: false,
+          },
+        ],
+        onset: { evidence: phrase, negated: false },
+      },
+      lang,
+    ).fields.duration;
+  for (const [note, phrase, lang] of [
+    ["My knee has hurt for two months ago", "two months ago", "en"],
+    ["My knee started hurting two months ago", "two months ago", "en"],
+    ["My knee started hurting October 20", "October 20", "en"],
+    ["My knee has hurt since last year", "since last year", "en"],
+    ["Me duele la rodilla desde hace dos meses", "hace dos meses", "es"],
+    ["Me duele la rodilla desde el 20 de octubre", "20 de octubre", "es"],
+    ["Me duele la rodilla desde el año pasado", "año pasado", "es"],
+  ] as const)
+    assert.ok(onset(note, phrase, lang), `${note} / ${phrase}`);
+  // Still not a time phrase.
+  assert.equal(
+    onset("My knee hurts when I run 5 miles in October", "5 miles"),
+    undefined,
+  );
+});

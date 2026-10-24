@@ -662,8 +662,15 @@ const negators = new Set([
   // "no puedo" is joined by idioms(). It denies an activity ("no puedo
   // correr") but not a body part ("no puedo doblar la rodilla").
   "nopuedo",
+  "nopuede",
+  "nopuedes",
+  "nopueden",
+  "nopuedan",
   "nopude",
+  "nopudo",
   "nopodia",
+  "nopodian",
+  "nopodemos",
 ]);
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
@@ -678,8 +685,15 @@ const ability = new Set([
   "couldn't",
   "couldnt",
   "nopuedo",
+  "nopuede",
+  "nopuedes",
+  "nopueden",
+  "nopuedan",
   "nopude",
+  "nopudo",
   "nopodia",
+  "nopodian",
+  "nopodemos",
 ]);
 // "no puedo" is rewritten to one token. It denies a quality, an activity or a
 // rating, and it does not deny the body part ("no puedo doblar la rodilla").
@@ -761,6 +775,17 @@ const nounHedges = new Set([
   "too",
   "really",
 ]);
+// "no es un dolor fuerte" says how strong it is, not that nothing hurts.
+const painAdjectives = new Set([
+  "fuerte",
+  "fuertes",
+  "grave",
+  "graves",
+  "intenso",
+  "intensos",
+  "serio",
+  "terrible",
+]);
 const timeWords = new Set([
   "today",
   "now",
@@ -800,6 +825,8 @@ function deniesAfter(
   if (hurt < 0 || corrected) return false;
   if (painNouns.has(rest[hurt]) && nounHedges.has(rest[hurt - 1] ?? ""))
     return false;
+  if (painNouns.has(rest[hurt]) && painAdjectives.has(rest[hurt + 1] ?? ""))
+    return false;
   const tail = words.slice(end + 1 + at + 1 + hurt + 1);
   const popped: string[] = [];
   while (tail.length && timeWords.has(tail[tail.length - 1]))
@@ -829,9 +856,20 @@ const idioms = (text: string) =>
   text
     .replace(/\b(?<!ya )(?:nada|no) mas\b/g, "solo")
     .replace(/\bsin (?:duda|embargo)\b/g, "seguro")
-    .replace(/\bno (?:puede|pueden|podria|podrian) ser\b/g, "no es")
-    .replace(/\bno (?:puede|pueden|podria|podrian) estar\b/g, "no esta")
-    .replace(/\bno (pued[oe]|pude|podia)\b/g, "no$1");
+    // "no puede estar la rodilla" denies the part; "no puede estar de pie por
+    // la rodilla" is ability.
+    .replace(
+      /\bno (?:puede|pueden|podria|podrian) ser(?= (?:en )?(?:mi|mis|la|el|las|los|su|sus|tu|tus|un|una)\b)/g,
+      "no es",
+    )
+    .replace(
+      /\bno (?:puede|pueden|podria|podrian) estar(?= (?:en )?(?:mi|mis|la|el|las|los|su|sus|tu|tus|un|una)\b)/g,
+      "no esta",
+    )
+    .replace(
+      /\bno (pued[oe]s?|puedan|pude|pudo|podia|podian|podemos)\b/g,
+      "no$1",
+    );
 
 // "is fine" and "esta bien" clear a part. "is not fine" and "no esta bien" do not.
 const fineWords = new Set(["fine", "okay", "ok", "alright", "bien"]);
@@ -885,6 +923,26 @@ const clauses = (transcript: string) =>
 // "my left knee isn't burning" keeps the knee and drops "burning";
 // "no me duele la rodilla" drops the knee.
 // The words after it must not deny it either: "my left knee doesn't hurt".
+const beFiller = new Set([
+  "in",
+  "on",
+  "my",
+  "the",
+  "his",
+  "her",
+  "their",
+  "our",
+  "your",
+  "this",
+  "that",
+  "a",
+  "an",
+  "of",
+  "left",
+  "right",
+  "both",
+  "one",
+]);
 function covers(
   words: string[],
   needed: string[],
@@ -892,16 +950,21 @@ function covers(
   corrected = false,
   current = false,
 ) {
-  // "it can't be my left knee" says it is not the knee.
-  // "it can't be in my left knee" and "can't be on my left knee" deny it too;
-  // "can't be walking" is ability.
-  words = words.map((word, i) =>
-    ability.has(word) &&
-    words[i + 1] === "be" &&
-    !/ing$/.test(words[i + 2] ?? "")
+  // "it can't be my left knee", "can't be in my left knee" and "can't be on my
+  // left knee" deny the part. "can't be walking" and "can't be at work because
+  // of my left knee" are ability: only a bare run of articles, sides and "in"
+  // or "on" between "be" and the part makes it a denial.
+  words = words.map((word, i) => {
+    if (!ability.has(word) || words[i + 1] !== "be") return word;
+    let next = i + 2;
+    while (beFiller.has(words[next] ?? "")) next++;
+    const said = words[next];
+    return said !== undefined &&
+      !/ing$/.test(said) &&
+      needed.some((want) => matches(said, want))
       ? "isn't"
-      : word,
-  );
+      : word;
+  });
   let last = -1;
   const found = needed.every((want) => {
     const at = words.findIndex((said) => matches(said, want));
@@ -1327,6 +1390,16 @@ const monthBefore =
   /\b(?:january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)$/;
 // A bare "about 7" or "around seven" is a rating only when nothing follows
 // it but a hedge: "around seven in the morning" is a time.
+// "May 7 or 8", "7 or 8 of May" and "7 u 8 de mayo" are dates, not ratings.
+const monthName =
+  "january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre";
+const dayList = "\\d{1,2}(?:\\s+(?:or|and|to|through|y|o|u|al?)\\s+\\d{1,2})*";
+const scaleAfter = "(?!\\s*(?:/|out of|(?:of|de|sobre) (?:10|ten|diez)))";
+const dateRange = new RegExp(
+  `\\b(?:${monthName})\\s+${dayList}\\b${scaleAfter}|\\b${dayList}\\s+(?:(?:of |de )(?:${monthName})|(?:${monthName.replace("|may|", "|")}))\\b`,
+  "gi",
+);
+const withoutDates = (text: string) => text.replace(dateRange, " ");
 const genericBefore =
   /\b(?:about|around|maybe|roughly|(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?)$/;
 const genericAfter =
@@ -1344,7 +1417,7 @@ export function ratedIn(transcript: string, value: number) {
   const number = new RegExp(
     `^(?:${value}|${numberWords[value]}|${spanishNumbers[value]})$`,
   );
-  for (const clause of clauses(transcript)) {
+  for (const clause of clauses(withoutDates(transcript))) {
     // "7/10" is one rating; the slash would otherwise split it. A date such
     // as "on 7/10", "el 7/10" or "7/10/26" is not.
     const slash = clause.match(
@@ -1411,6 +1484,7 @@ export function ratedIn(transcript: string, value: number) {
 }
 
 export function parseIntensityAnswer(answer: string): number | null {
+  answer = withoutDates(answer);
   const normalized = idioms(normalize(answer));
   // "not a 7 but an 8" keeps 8. "7 but not 8" keeps 7. "not seven" stays blank.
   const but = normalized.match(/^(.*?)\b(?:but|sino)\b(.*)$/);

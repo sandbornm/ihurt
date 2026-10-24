@@ -822,6 +822,27 @@ function ratingStands(evidence: string, transcript: string, value: number) {
   return clause !== null && ratedIn(clause, value);
 }
 
+// "it may be a 7" is a guess at the rating, so the app asks. "may" is also a
+// month, and a bare "may" or "march" counts as one only with a month cue.
+const modalGuess =
+  /\b(?:(?:may|might|could) be|puede ser|podria ser|podria estar)\b(.*)$/;
+const numberToken =
+  /\b(?:\d{1,2}|zero|one|two|three|four|five|six|seven|eight|nine|ten|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/;
+function guessedRating(evidence: string, transcript: string) {
+  const at = intensitySpan(evidence, transcript);
+  const clause = at ? clauseAround(transcript, at) : null;
+  const guess = clause ? modalGuess.exec(normalize(clause)) : null;
+  return guess !== null && numberToken.test(guess[1]);
+}
+function bareMonth(phrase: string, transcript: string) {
+  const word = normalize(phrase);
+  if (word !== "may" && word !== "march") return false;
+  const cue = new RegExp(
+    `\\b(?:in|since|last|this|from|until|till|during|early|late|mid|by|before|after|started|began)\\s+${word}\\b|\\b${word}\\s+\\d`,
+  );
+  return !cue.test(normalize(transcript));
+}
+
 function verifyIntensity(evidence: EvidenceExtraction, transcript: string) {
   const item = evidence.intensity;
   if (!item?.evidence) return null;
@@ -833,6 +854,7 @@ function verifyIntensity(evidence: EvidenceExtraction, transcript: string) {
   if (item.kind !== "rating" && !correction) return null;
   if (!correction && item.value !== parsed) return null;
   if (!intensitySpan(item.evidence, transcript)) return null;
+  if (guessedRating(item.evidence, transcript)) return null;
   return ratingStands(item.evidence, transcript, parsed) ? parsed : null;
 }
 
@@ -880,6 +902,7 @@ function verifyOnset(
   if (!findSpan(item.evidence, transcript)) return null;
   if (!grounded(item.evidence, transcript)) return null;
   if (onsetBlocked(item.evidence, transcript)) return null;
+  if (bareMonth(item.evidence, transcript)) return null;
   if (isFutureOnset(item.evidence)) return null;
   const resolved = resolveOnset(item.evidence, today);
   // A date is enough. A span with no date stays only when it is a time
@@ -1264,6 +1287,12 @@ const beforeCondition = (clause: string): string => {
   const head = clause.slice(0, at);
   const tail = clause.slice(at);
   const kept: string[] = [];
+  // "hurts because my right shoulder hurts" names a second part that hurts.
+  const cause =
+    /^(?:because|since|porque)\b(.*?)(?=,|\b(?:and|but|y|pero)\b|$)/i.exec(
+      tail,
+    );
+  if (cause && saysHurt(cause[1])) kept.push(cause[1]);
   const pieces = tail.split(
     new RegExp(`(,|${additive.source}|${plainJoin.source})`, "i"),
   );

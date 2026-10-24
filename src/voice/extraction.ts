@@ -974,10 +974,25 @@ const idioms = (text: string) =>
 
 // "is fine" and "esta bien" clear a part. "is not fine" and "no esta bien" do not.
 const fineWords = new Set(["fine", "okay", "ok", "alright", "bien"]);
+// "bien" before an adjective means "very" ("esta bien fuerte"), so it only
+// clears at the end of the phrase or before "ya", "ahora" and the like.
+const bienEnds = new Set([
+  "ya",
+  "ahora",
+  "hoy",
+  "y",
+  "pero",
+  "gracias",
+  "desde",
+  "despues",
+  "otra",
+]);
 function fineAfter(words: string[], end: number) {
   const next = words.slice(end + 1, end + 5);
   const at = next.findIndex((word) => fineWords.has(word));
   if (at < 0) return false;
+  if (next[at] === "bien" && next[at + 1] && !bienEnds.has(next[at + 1]))
+    return false;
   const lead = next.slice(0, at);
   if (lead.some((word) => denies(word))) return false;
   return true;
@@ -1152,6 +1167,8 @@ const bodyWord =
 // place the pain. They do not end it.
 const placeAfter =
   "(?! (?:down|into|to|up|through|from|over|on|in|out|around|across|toward|towards|onto|under|there|here|by|near|where|along|up|at)\\b)";
+const notPainSubject =
+  "(?: (?!(?:i|we|he|she|they|you|so|because|and|but)\\b)[a-z']+){0,5}";
 function painGone(words: string[]) {
   // "hasn't stopped hurting" and "no se me quito el dolor" say it is still
   // there.
@@ -1165,17 +1182,19 @@ function painGone(words: string[]) {
     /\bpain went away\b/.test(text) ||
     /\bdolor (?:se fue|ya paso|paso)\b/.test(text) ||
     // "my knee stopped hurting", "the pain in my knee is gone",
-    // "se me quito el dolor", "dejo de doler".
+    // "se me quito el dolor", "dejo de doler". A bare "se quito" can be a
+    // jacket.
     /\b(?:stopped|ceased|quit) (?:hurting|aching)\b/.test(text) ||
     new RegExp(
-      `\\b(?:pain|ache|soreness)\\b.*\\b(?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\\b${placeAfter}`,
+      `\\b(?:pain|ache|soreness)\\b${notPainSubject} (?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\\b${placeAfter}`,
     ).test(text) ||
     new RegExp(
       `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}`,
     ).test(text) ||
-    /\b(?:dejo de doler(?:me)?|se me quito|se quito|se me paso|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|desaparecio)\b/.test(
+    /\b(?:dejo de doler(?:me)?|se (?:me )?(?:quito|paso)(?: (?:el|la) (?:dolor|molestia)| por completo| del todo| por fin)|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|(?:dolor|molestia) (?:\w+ )?desaparecio)\b/.test(
       text,
-    )
+    ) ||
+    /\bdesaparecio (?:el )?(?:dolor|molestia)\b/.test(text)
   );
 }
 
@@ -1225,9 +1244,18 @@ const reaffirms = new Set(["does", "do", "is", "are", "si", "yes"]);
 // ("my left knee hurts now"), or about nothing in particular and says it
 // hurts ("it hurts today", "but now it does"). "Then I went home", "hoy
 // camine" and "my back hurts" do not.
+const painVerbs = new Set([
+  "ache",
+  "aches",
+  "aching",
+  "throbs",
+  "throbbing",
+  "stings",
+  "burns",
+]);
 function revives(words: string[], needed: string[]) {
   if (words.some(isNegator)) return false;
-  const hurt = words.some((word) => hurtWords.has(word));
+  const hurt = words.some((word) => hurtWords.has(word) || painVerbs.has(word));
   const now = words.some((word) => currentWords.has(word));
   const said = partsIn(words.join(" "));
   if (said.length) {
@@ -1236,7 +1264,9 @@ function revives(words: string[], needed: string[]) {
   }
   // Only a pronoun or filler may stand before "hurts": "my back hurts" names
   // something else.
-  const lead = words.findIndex((word) => hurtWords.has(word));
+  const lead = words.findIndex(
+    (word) => hurtWords.has(word) || painVerbs.has(word),
+  );
   const plain = (lead < 0 ? words : words.slice(0, lead)).every(
     (word) =>
       reviveFiller.has(word) || currentWords.has(word) || reaffirms.has(word),
@@ -1256,7 +1286,7 @@ export const saysHurt = (clause: string) => {
 // none comes from a denied part. `part` marks the body-part check, where
 // ability negators ("can't bend", "no puedo doblar") do not deny it.
 const recoveredNow =
-  /^(?:but |pero )?(?:(?:it(?: is)?|its|ya esta|esta|ya) (?:fine|ok|okay|healed|gone|bien|curad[oa]|sano)\b|not (?:hurting )?(?:now|today|anymore)\b|no (?:me )?(?:duele|dolor) (?:hoy|ahora)\b)/;
+  /^(?:but |pero )?(?:ahora |now )?(?:(?:it(?: is)?|its|ya esta|esta|ya) (?:(?:fine|ok|okay|healed|gone|curad[oa]|sano)\b|bien(?=$| (?:ya|ahora|hoy|y|pero|gracias|desde|despues|otra)\b))|not (?:hurting )?(?:now|today|anymore)\b|no (?:me )?(?:duele|dolor) (?:hoy|ahora)\b)/;
 function clauseGrounds(
   clause: string,
   needed: string[],
@@ -1274,8 +1304,15 @@ function clauseGrounds(
     // A word that sits on the except boundary stays on that side.
     if (onAffirmed || onDenied) return onAffirmed && !onDenied;
   }
-  const soft = softParts(clause).filter(
-    (words) => !(together && painGone(words)),
+  // "my knee stopped hurting but it still hurts" brings the pain back.
+  const all = softParts(clause);
+  const soft = all.filter(
+    (words, i) =>
+      !(
+        together &&
+        painGone(words) &&
+        !all.slice(i + 1).some((later) => revives(later, needed))
+      ),
   );
   // "my left knee didn't hurt yesterday and it doesn't hurt today": the first
   // part only says how it was, and the second says it is not hurting now.
@@ -1336,7 +1373,7 @@ function clauseGrounds(
 // "isn't sore, it's aching" / "no duele, es un ardor": a next clause that starts "it's ..." describes the
 // pain instead. "it's fine", "it's gone" and "it's not" clear it further.
 const clearing =
-  /^(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|bien|nada)\b|^(?:over|stopped|finished|done)(?: now| already)?(?: hurting)?(?: now| already| for (?:today|now|the day))?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no(?: me| se me)? (?:duele|duelen|molesta|molestan|siento|hay|tengo|aparece|sale)\b|no$|paso|termino|se (?:me )?(?:quito|paso|fue|acabo|calmo|curo|alivio)\b)|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|(?:ya |todavia |aun )?esta (?:mejor|bien)\b(?! que)|(?:todavia |aun )?sigue (?:bien|mejor|sin)\b)/;
+  /^(?:(?:fine|ok|okay|alright|gone|resolved|healed|nothing|not|no|nada)\b|bien(?=$| (?:ya|ahora|hoy|y|pero|gracias|desde|despues|otra)\b))|^(?:over|stopped|finished|done)(?: now| already)?(?: hurting)?(?: now| already| for (?:today|now|the day))?$|^(?:good|better|great|mejor)\b(?! (?:pain|than|que))|^(?:ya (?:no(?: me| se me)? (?:duele|duelen|molesta|molestan|siento|hay|tengo|aparece|sale)\b|no$|paso|termino|se (?:me )?(?:quito|paso|fue|acabo|calmo|curo|alivio)\b)|se (?:me )?(?:quito|paso|fue|acabo)|paso$|termino$|(?:ya |todavia |aun )?esta (?:mejor\b(?! que)|bien(?=$| (?:ya|ahora|hoy|y|pero|gracias|desde|despues|otra)\b))|(?:todavia |aun )?sigue (?:bien(?=$| (?:ya|ahora|hoy|y|pero|gracias|desde|despues|otra)\b)|(?:mejor|sin)\b))/;
 // "it's not gone" and "it's not better" say the pain is still there, and so do
 // "no se ha ido", "no está mejor" and "todavía sigue".
 const stillThere =

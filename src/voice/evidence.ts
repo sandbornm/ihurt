@@ -3,6 +3,7 @@ import {
   anatomyList,
   displayPhrase,
   findSpan,
+  findSpans,
   grounded,
   isFutureOnset,
   mapLocation,
@@ -129,13 +130,44 @@ function applyCorrection(items: Candidate[], transcript: string) {
   return later;
 }
 
+// "I wear a brace on my left knee. My right knee hurts": "knee" with the side
+// "right" is the second mention, not the first.
+function spanWithSide(
+  evidence: string,
+  sideEvidence: string,
+  transcript: string,
+) {
+  const spans = findSpans(evidence, transcript);
+  if (spans.length < 2) return spans[0] ?? null;
+  // With no side, the mention in a clause that says it hurts is the one.
+  const hurting = spans.filter((at) => {
+    const clause = clauseAt(transcript, at);
+    return clause !== null && saysHurt(clause.text);
+  });
+  const want = sideIn(sideEvidence);
+  if (want === null) return hurting[0] ?? spans[0];
+  const said = phraseTokens(transcript);
+  const fits = (hurting.length ? hurting : spans).find((at) => {
+    const clause = clauseAt(transcript, at);
+    if (!clause) return false;
+    for (let index = clause.start; index < clause.end; index++)
+      if (
+        sideAt(said, index) === want &&
+        !(want === "right" && directionRight(transcript, index))
+      )
+        return true;
+    return false;
+  });
+  return fits ?? spans[0];
+}
+
 function candidates(
   evidence: EvidenceExtraction,
   transcript: string,
 ): Candidate[] {
   const found: Candidate[] = [];
   for (const item of evidence.locations) {
-    const at = findSpan(item.evidence, transcript);
+    const at = spanWithSide(item.evidence, item.sideEvidence, transcript);
     if (!at) continue;
     found.push({
       evidence: item.evidence.trim(),
@@ -1138,7 +1170,11 @@ function activityBlocked(activity: string, transcript: string) {
   const at = findSpan(activity, transcript);
   if (!at) return false;
   const said = phraseTokens(transcript);
-  const before = said.slice(Math.max(0, at.start - 4), at.start).join(" ");
+  // A denial in an earlier sentence ("I couldn't sleep. Running made...") is
+  // not about this activity.
+  const clause = clauseAt(transcript, at);
+  const from = Math.max(clause?.start ?? 0, at.start - 4);
+  const before = said.slice(from, at.start).join(" ");
   if (blockedActivity.test(before)) return true;
   return unanswered(said.slice(at.end, at.end + 6));
 }

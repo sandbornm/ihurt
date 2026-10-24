@@ -240,3 +240,60 @@ test("an activity that names a body part stays when it is a movement", () => {
     undefined,
   );
 });
+
+test("a part named twice resolves to the mention with its side", () => {
+  assert.equal(
+    where("I wear a brace on my left knee. My right knee hurts", [
+      ["knee", "right"],
+    ]),
+    "right_knee",
+  );
+  assert.equal(
+    where("I wear a brace on my left knee. My right knee hurts", [
+      ["knee", ""],
+    ]),
+    "right_knee",
+  );
+  assert.equal(
+    where(
+      "Llevo una rodillera en la rodilla izquierda. Me duele la rodilla derecha",
+      [["rodilla", "derecha"]],
+      "es",
+    ),
+    "right_knee",
+  );
+  assert.equal(
+    where("I wear a brace on my left knee. My left knee hurts", [
+      ["knee", "left"],
+    ]),
+    "left_knee",
+  );
+});
+
+test("a denial in an earlier sentence does not block a later activity", () => {
+  const activityOf = (note: string, activity: string, side: [string, string]) =>
+    propose(note, {
+      locations: [{ evidence: side[0], sideEvidence: side[1], negated: false }],
+      activity,
+    }).fields.activity;
+  assert.equal(
+    activityOf("I couldn't sleep. Running made my left knee hurt", "Running", [
+      "left knee",
+      "left",
+    ]),
+    "Running",
+  );
+  assert.equal(
+    activityOf(
+      "No pude dormir. Corrí y me duele la rodilla izquierda",
+      "Corrí",
+      ["rodilla izquierda", "izquierda"],
+    ),
+    "Corrí",
+  );
+  // The denial in the same clause still blocks it.
+  assert.equal(
+    activityOf("I can't run, my left knee hurts", "run", ["left knee", "left"]),
+    undefined,
+  );
+});

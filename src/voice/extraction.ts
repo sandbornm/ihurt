@@ -1439,6 +1439,18 @@ export function findSpan(value: string, transcript: string) {
   return null;
 }
 
+// Every place the phrase is said, for a part named more than once.
+export function findSpans(value: string, transcript: string) {
+  const span = phraseTokens(value);
+  const said = phraseTokens(transcript);
+  const found: { start: number; end: number }[] = [];
+  if (!span.length) return found;
+  for (let start = 0; start + span.length <= said.length; start++)
+    if (span.every((word, i) => matches(word, said[start + i])))
+      found.push({ start, end: start + span.length });
+  return found;
+}
+
 export function spanIn(value: string, transcript: string) {
   return findSpan(value, transcript) !== null;
 }

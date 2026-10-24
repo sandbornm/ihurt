@@ -95,7 +95,7 @@ export function suggestVoiceDraft(text: string) {
   // One pattern for both languages, so "7/10" is matched once.
   const ratings = [
     ...fold(clean).matchAll(
-      /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:\/\s*10|out of (?:10|ten)|(?:de|sobre) (?:10|diez))\b/g,
+      /\b(10|[0-9]|zero|one|two|three|four|five|six|seven|eight|nine|ten|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:\/\s*10|out of (?:10|ten)|(?:de|sobre) (?:10|diez))\b(?!\s+(?:veces|vez|times?|days?|dias?|hours?|horas?|weeks?|semanas?|months?|meses|years?|anos?|minutes?|minutos?|steps?|pasos|miles?|millas?|km))/g,
     ),
   ].map((match) => rating(match[1]));
   if (ratings.length === 1) fields.intensity = ratings[0];

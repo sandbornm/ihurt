@@ -117,3 +117,22 @@ test("month-name dates are dates, not ratings", () => {
   assert.equal(parseIntensityAnswer("7 may be"), 7);
   assert.equal(parseIntensityAnswer("May 7 out of 10"), 7);
 });
+
+test("a frequency or span after the scale is not a fallback rating", () => {
+  for (const text of [
+    "Me duele la rodilla izquierda siete de diez veces",
+    "Me duele la rodilla izquierda 7 de 10 días",
+    "My left knee hurts 7 out of 10 times",
+    "My left knee hurts 7/10 days",
+  ])
+    assert.equal(suggestVoiceDraft(text).fields.intensity, undefined, text);
+  assert.equal(
+    suggestVoiceDraft("Me duele la rodilla izquierda siete de diez").fields
+      .intensity,
+    7,
+  );
+  assert.equal(
+    suggestVoiceDraft("My left knee hurts 7 out of 10 today").fields.intensity,
+    7,
+  );
+});

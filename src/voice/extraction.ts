@@ -1175,20 +1175,110 @@ const partialWord =
   /^(?:slightly|somewhat|partly|partially|mostly|largely|mainly|almost|nearly|poco|algo|casi|mayormente|parcialmente|ligeramente|medio)$/;
 const partialPair = /^(?:a (?:bit|little)|kind of|sort of|un poco|a medias)$/;
 const causal = new Set(["because", "since", "porque", "cuz"]);
-const partialStop = new Set([...causal, "after", "when", "while"]);
+const contrastWords = new Set([
+  "but",
+  "pero",
+  "though",
+  "although",
+  "however",
+  "aunque",
+  "yet",
+  "sino",
+]);
+const partialStop = new Set([
+  ...causal,
+  ...contrastWords,
+  "after",
+  "when",
+  "while",
+]);
+// "went away almost immediately", "a little while ago" and "hace poco" say
+// when, not how much. "poco a poco" and "casi por completo" are still partial.
+const whenNext = new Set([
+  "immediately",
+  "instantly",
+  "instantaneously",
+  "right",
+  "at",
+  "once",
+  "quickly",
+  "suddenly",
+  "overnight",
+  "while",
+  "time",
+  "ago",
+  "earlier",
+  "later",
+  "after",
+  "before",
+  "when",
+  "during",
+  "because",
+  "since",
+  "inmediato",
+  "inmediatamente",
+  "despues",
+  "antes",
+  "rato",
+  "tiempo",
+  "durante",
+  "cuando",
+]);
+const timeAdverb = /^(?:almost|nearly|mainly|largely|casi|poco)$/;
+const whilePair = new Set(["while", "time", "ago", "earlier", "later", "back"]);
+function isWhen(near: string[], i: number) {
+  const word = near[i];
+  const next = near[i + 1] ?? "";
+  if (word === "poco" && (near[i - 1] === "hace" || near[i - 2] === "hace"))
+    return true;
+  if (next === "de" && /^inmediat/.test(near[i + 2] ?? "")) return true;
+  return whenNext.has(next);
+}
+// "subsided some" is partial. "some this morning" is too, but "some time ago"
+// and "some days ago" are not.
+const someThen = new Set([
+  "this",
+  "yesterday",
+  "today",
+  "tonight",
+  "last",
+  "overnight",
+  "earlier",
+  "later",
+  "in",
+  "on",
+  "at",
+  "by",
+  "over",
+  "during",
+  "with",
+]);
 function partialAround(before: string[], after: string[]) {
   const tail: string[] = [];
   for (const word of after) {
-    if (partialStop.has(word)) break;
     tail.push(word);
+    if (partialStop.has(word)) break;
   }
-  const near = [...before.slice(-2), "|", ...tail.slice(0, 6)];
-  return near.some(
-    (word, i) =>
-      partialWord.test(word) ||
-      (word === "some" && i === near.length - 1) ||
-      partialPair.test(`${word} ${near[i + 1] ?? ""}`),
-  );
+  // The word that ended the window stays as the last token, so "mainly after
+  // I rested" is still a time and "subsided some after" is still partial.
+  const near = [...before.slice(-2), "|", ...tail.slice(0, 11)];
+  return near.some((word, i) => {
+    const next = near[i + 1];
+    if (partialWord.test(word))
+      return !(timeAdverb.test(word) && isWhen(near, i));
+    if (
+      word === "some" &&
+      (next === undefined || partialStop.has(next) || someThen.has(next))
+    )
+      return true;
+    if (partialPair.test(`${word} ${next ?? ""}`))
+      return !(
+        /^(?:a|un)$/.test(word) &&
+        (whilePair.has(near[i + 2] ?? "") ||
+          (next === "poco" && isWhen(near, i + 1)))
+      );
+    return false;
+  });
 }
 const notPainSubject =
   "(?: (?!(?:i|we|he|she|they|you|so|because|and|but)\\b)[a-z']+){0,5}";
@@ -1223,35 +1313,122 @@ const clauseStart = new Set([
   "me",
   "ya",
 ]);
-function sideOf(words: string[], at: number) {
-  for (const word of [words[at - 1], words[at + 1]]) {
-    if (!word) continue;
-    if (/^(?:left|izquierd)/.test(word)) return "left";
-    if (/^(?:right|derech)/.test(word)) return "right";
+// Each body part the words name, with the words that name it. A part can take
+// several words ("lower back", "parte baja de la espalda"), and a word that
+// only adds an adjective ("left swollen knee") does not widen the mention.
+type Mention = { start: number; end: number; parts: Part[]; side: string };
+const sideOfWord = (word: string) =>
+  /^(?:left|izquierd)/.test(word)
+    ? "left"
+    : /^(?:right|derech)/.test(word)
+      ? "right"
+      : "";
+// "right now", "right away" and "all right" are not sides.
+const notSide = new Set([
+  "now",
+  "away",
+  "after",
+  "before",
+  "then",
+  "at",
+  "when",
+  "there",
+  "here",
+  "in",
+  "about",
+  "next",
+  "up",
+  "back",
+  "to",
+  "so",
+]);
+function mentionsIn(words: string[]): Mention[] {
+  const found: Mention[] = [];
+  for (let i = 0; i < words.length;) {
+    let take = 0;
+    for (let n = Math.min(5, words.length - i); n >= 1 && !take; n--) {
+      const parts = partsIn(words.slice(i, i + n).join(" "));
+      if (parts.length !== 1) continue;
+      const same = (slice: string[]) => {
+        const inner = partsIn(slice.join(" "));
+        return inner.length === 1 && inner[0] === parts[0];
+      };
+      if (
+        n > 1 &&
+        (same(words.slice(i + 1, i + n)) || same(words.slice(i, i + n - 1)))
+      )
+        continue;
+      found.push({ start: i, end: i + n, parts, side: "" });
+      take = n;
+    }
+    i += take || 1;
   }
-  return "";
+  // A side word belongs to the part after it in English ("my left swollen
+  // knee"), unless it follows "on the" ("the knee on the left"). In Spanish
+  // it follows the part ("la rodilla izquierda", "la rodilla de la derecha").
+  words.forEach((word, at) => {
+    const side = sideOfWord(word);
+    if (!side || notSide.has(words[at + 1] ?? "")) return;
+    const spanish = /^(?:izquierd|derech)/.test(word);
+    const before = [...found]
+      .reverse()
+      .find((m) => m.end <= at && at - m.end <= 3);
+    const after = found.find((m) => m.start > at && m.start - at <= 3);
+    const onThe =
+      /^(?:the|la|el|my|mi)$/.test(words[at - 1] ?? "") &&
+      /^(?:on|of|de|en|a)$/.test(words[at - 2] ?? "");
+    const target = spanish || onThe ? (before ?? after) : after;
+    if (target && !target.side) target.side = side;
+  });
+  return found;
+}
+function wantedMention(mention: Mention, needed: string[]) {
+  const wanted = partsIn(needed.join(" "));
+  const side = needed.map(sideOfWord).find(Boolean) ?? "";
+  return (
+    mention.parts.some((part) => wanted.includes(part)) &&
+    (!mention.side || !side || mention.side === side)
+  );
 }
 function namesWanted(words: string[], needed: string[]) {
-  const wanted = partsIn(needed.join(" "));
-  const side =
-    needed
-      .map((word) =>
-        /^(?:left|izquierd)/.test(word)
-          ? "left"
-          : /^(?:right|derech)/.test(word)
-            ? "right"
-            : "",
-      )
-      .find(Boolean) ?? "";
-  return words.some((word, i) => {
-    const said = partsIn(word);
-    if (!said.some((part) => wanted.includes(part))) return false;
-    const mine = sideOf(words, i);
-    return !mine || !side || mine === side;
+  return mentionsIn(words).some((mention) => wantedMention(mention, needed));
+}
+// A hurt word belongs to the part nearest to it, so "my left knee hurts my
+// right ankle" says the knee hurts, and "me duele la rodilla izquierda se me
+// quito el dolor del tobillo" says the knee does.
+function hurtsWanted(words: string[], needed: string[]) {
+  const mentions = mentionsIn(words);
+  return words.some((word, at) => {
+    if (!stillHurting(word)) return false;
+    const gap = (m: Mention) =>
+      m.end <= at ? at - (m.end - 1) : Math.max(m.start - at, 0);
+    const near = mentions.reduce<Mention | null>(
+      (best, m) => (!best || gap(m) < gap(best) ? m : best),
+      null,
+    );
+    return near !== null && wantedMention(near, needed);
   });
 }
+// Words that say a part still hurts when a cause clause uses them, beyond the
+// hurt words themselves: "because my knee bothers me", "is still tender".
+const stillWords = new Set([
+  "pain",
+  "pains",
+  "bother",
+  "bothers",
+  "bothering",
+  "burning",
+  "tender",
+  "throbbing",
+  "stiff",
+  "swollen",
+  "mal",
+  "adolorida",
+  "adolorido",
+]);
+const stillHurting = (word: string) =>
+  hurtWords.has(word) || painVerbs.has(word) || stillWords.has(word);
 function goneClears(words: string[], needed: string[]) {
-  if (!painGone(words)) return false;
   const segments: string[][] = [[]];
   words.forEach((word, i) => {
     const split =
@@ -1259,25 +1436,37 @@ function goneClears(words: string[], needed: string[]) {
     if (split) segments.push([]);
     else segments[segments.length - 1].push(word);
   });
+  // A negation in a cause clause ("because I have no swelling") does not
+  // undo the recovery. One inside the recovery itself still does.
+  if (!segments.some((seg) => goneParts(seg))) return false;
   // The words that can say the pain is still there: a segment that is not a
-  // recovery, and whatever follows the recovery phrase inside one that is.
-  const rest = segments
-    .filter((seg) => seg.length)
-    .map((seg) => goneEnd(seg) ?? seg);
-  return !rest.some(
-    (seg) =>
-      seg.some((word) => hurtWords.has(word) || painVerbs.has(word)) &&
-      !seg.some(isNegator) &&
-      namesWanted(seg, needed),
+  // recovery, and whatever follows the recovery phrase inside one that is. A
+  // recovery that opens a cause clause ("because my left knee hurts my right
+  // ankle pain is gone") also keeps the part that hurts before the phrase.
+  const rest: string[][] = [];
+  let headKeeps = false;
+  segments.forEach((seg, i) => {
+    if (!seg.length) return;
+    const gone = goneParts(seg);
+    rest.push(gone ? gone.after : seg);
+    if (gone && i > 0 && !gone.before.some(isNegator))
+      headKeeps ||= hurtsWanted(gone.before, needed);
+  });
+  return (
+    !headKeeps &&
+    !rest.some(
+      (seg) =>
+        seg.some(stillHurting) &&
+        !seg.some(isNegator) &&
+        namesWanted(seg, needed),
+    )
   );
 }
 
-function painGone(words: string[]) {
-  return goneEnd(words) !== null;
-}
-
-// The words after the first recovery phrase, or null when there is none.
-function goneEnd(words: string[]): string[] | null {
+// The words around the first recovery phrase, or null when there is none.
+function goneParts(
+  words: string[],
+): { before: string[]; after: string[] } | null {
   // "hasn't stopped hurting" and "no se me quito el dolor" say it is still
   // there.
   if (words.some(isNegator)) return null;
@@ -1302,7 +1491,7 @@ function goneEnd(words: string[]): string[] | null {
       `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}`,
       "g",
     ),
-    /\b(?:dejo de doler(?:me)?|se (?:me )?(?:quito|paso)(?: (?:el|la) (?:dolor|molestia)| por completo| del todo| por fin)|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|(?:dolor|molestia) (?:\w+ )?desaparecio)\b/g,
+    /\b(?:dejo de doler(?:me)?|se (?:me )?(?:quito|paso)(?: (?:el|la) (?:dolor|molestia)|(?: por completo| del todo| por fin)(?: (?:el|la) (?:dolor|molestia))?)|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|(?:dolor|molestia) (?:\w+ )?desaparecio)\b/g,
     /\bdesaparecio (?:el )?(?:dolor|molestia)\b/g,
   ];
   for (const pattern of patterns)
@@ -1315,7 +1504,7 @@ function goneEnd(words: string[]): string[] | null {
       // phrase.
       const inside = match[0].trim().split(" ");
       if (!partialAround([...before, ...inside.slice(0, -1)], after))
-        return after;
+        return { before, after };
     }
   return null;
 }

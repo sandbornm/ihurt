@@ -857,19 +857,24 @@ function ratingStands(evidence: string, transcript: string, value: number) {
 // "it may be a 7" is a guess at the rating, so the app asks. "may" is also a
 // month, and a bare "may" or "march" counts as one only with a month cue.
 const modalGuess =
-  /\b(?:(?:may|might|could) be|puede ser|podria ser|podria estar)\b(.*)$/;
+  /\b(?:(?:may|might|could) be|puede ser|podria ser|podria estar)\b/g;
 const numberToken =
   /\b(?:\d{1,2}|zero|one|two|three|four|five|six|seven|eight|nine|ten|cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/;
 const contrast = /\b(?:but|pero|though|although|however|aunque|sino|yet)\b/;
 function guessedRating(evidence: string, transcript: string) {
   const at = intensitySpan(evidence, transcript);
   const clause = at ? clauseAround(transcript, at) : null;
-  const guess = clause ? modalGuess.exec(normalize(clause)) : null;
-  if (guess === null) return false;
+  if (clause === null) return false;
+  const text = normalize(clause);
   // "it might be from running but the pain is 7 out of 10" guesses the cause,
-  // not the rating: only the words before the contrast belong to the guess.
-  const governed = guess[1].split(contrast)[0];
-  return numberToken.test(governed);
+  // not the rating: only the words up to the next contrast belong to each
+  // guess. Every guess counts, so "it might be from running but it could be a
+  // 7" still asks.
+  return [...text.matchAll(modalGuess)].some((guess) =>
+    numberToken.test(
+      text.slice((guess.index ?? 0) + guess[0].length).split(contrast)[0],
+    ),
+  );
 }
 function bareMonth(phrase: string, transcript: string) {
   const word = normalize(phrase);

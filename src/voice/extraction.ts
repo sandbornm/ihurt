@@ -1167,8 +1167,29 @@ const bodyWord =
 // place the pain. They do not end it.
 const placeAfter =
   "(?! (?:down|into|to|up|through|from|over|on|in|out|around|across|toward|towards|onto|under|there|here|by|near|where|along|up|at)\\b)";
+// "subsided slightly" is better, not over.
+const partialAfter =
+  "(?! (?:slightly|somewhat|partly|partially|mostly|a (?:bit|little)|some|only|just|but|though|except)\\b)";
 const notPainSubject =
   "(?: (?!(?:i|we|he|she|they|you|so|because|and|but)\\b)[a-z']+){0,5}";
+// "my left knee hurts because my right ankle pain is gone": the recovery is
+// about the ankle, so it does not clear a knee said in another clause.
+const causal = new Set(["because", "since", "porque", "cuz"]);
+function goneClears(words: string[], needed: string[]) {
+  if (!painGone(words)) return false;
+  const wanted = partsIn(needed.join(" "));
+  const segments: string[][] = [[]];
+  for (const word of words)
+    if (causal.has(word)) segments.push([]);
+    else segments[segments.length - 1].push(word);
+  if (segments.length < 2) return true;
+  return !segments.some(
+    (seg) =>
+      !painGone(seg) &&
+      partsIn(seg.join(" ")).some((part) => wanted.includes(part)),
+  );
+}
+
 function painGone(words: string[]) {
   // "hasn't stopped hurting" and "no se me quito el dolor" say it is still
   // there.
@@ -1189,7 +1210,7 @@ function painGone(words: string[]) {
       `\\b(?:pain|ache|soreness)\\b${notPainSubject} (?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\\b${placeAfter}`,
     ).test(text) ||
     new RegExp(
-      `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}`,
+      `\\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\\b${placeAfter}${partialAfter}`,
     ).test(text) ||
     /\b(?:dejo de doler(?:me)?|se (?:me )?(?:quito|paso)(?: (?:el|la) (?:dolor|molestia)| por completo| del todo| por fin)|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|(?:dolor|molestia) (?:\w+ )?desaparecio)\b/.test(
       text,
@@ -1310,7 +1331,7 @@ function clauseGrounds(
     (words, i) =>
       !(
         together &&
-        painGone(words) &&
+        goneClears(words, needed) &&
         !all.slice(i + 1).some((later) => revives(later, needed))
       ),
   );

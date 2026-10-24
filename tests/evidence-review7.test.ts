@@ -297,3 +297,36 @@ test("a denial in an earlier sentence does not block a later activity", () => {
     undefined,
   );
 });
+
+test("a recovery about another part does not clear the hurting one", () => {
+  assert.equal(
+    where("My left knee hurts because my right ankle pain is gone", [
+      ["left knee", "left"],
+    ]),
+    "left_knee",
+  );
+  // The recovery of the named part itself still clears it.
+  assert.notEqual(
+    where("My left knee pain is gone because I rested", [
+      ["left knee", "left"],
+    ]),
+    "left_knee",
+  );
+});
+
+test("a partial improvement does not clear the part", () => {
+  assert.equal(
+    where("My left knee pain subsided slightly overnight", [
+      ["left knee", "left"],
+    ]),
+    "left_knee",
+  );
+  assert.equal(
+    where("My left knee pain subsided a bit", [["left knee", "left"]]),
+    "left_knee",
+  );
+  assert.notEqual(
+    where("My left knee pain subsided overnight", [["left knee", "left"]]),
+    "left_knee",
+  );
+});

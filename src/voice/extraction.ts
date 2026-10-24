@@ -715,6 +715,15 @@ const negators = new Set([
   "nopodia",
   "nopodian",
   "nopodemos",
+  "nopodria",
+  "nopodrian",
+  "nopodrias",
+  "nopodias",
+  "nopodriamos",
+  "nopodiamos",
+  "nopudieron",
+  "nopudiste",
+  "nopudimos",
 ]);
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
@@ -738,6 +747,15 @@ const ability = new Set([
   "nopodia",
   "nopodian",
   "nopodemos",
+  "nopodria",
+  "nopodrian",
+  "nopodrias",
+  "nopodias",
+  "nopodriamos",
+  "nopodiamos",
+  "nopudieron",
+  "nopudiste",
+  "nopudimos",
 ]);
 // "no puedo" is rewritten to one token. It denies a quality, an activity or a
 // rating, and it does not deny the body part ("no puedo doblar la rodilla").
@@ -813,6 +831,7 @@ const nounHedges = new Set([
   "mucho",
   "tanto",
   "tan",
+  "muy",
   "demasiado",
   "much",
   "so",
@@ -826,9 +845,15 @@ const painAdjectives = new Set([
   "grave",
   "graves",
   "intenso",
+  "intensa",
   "intensos",
+  "intensas",
   "serio",
+  "seria",
+  "serios",
+  "serias",
   "terrible",
+  "terribles",
 ]);
 const timeWords = new Set([
   "today",
@@ -903,7 +928,7 @@ const idioms = (text: string) =>
     // "no puede estar la rodilla" denies the part; "no puede estar de pie por
     // la rodilla" is ability.
     .replace(
-      /\bno (?:puede|pueden|podria|podrian) ser(?= (?:en )?(?:mi|mis|la|el|las|los|su|sus|tu|tus|un|una)\b)/g,
+      /\bno (?:puede|pueden|podria|podrian) ser(?= (?:en |por |debido a |a causa de |por culpa de )?(?:mi|mis|la|el|las|los|su|sus|tu|tus|un|una)\b)/g,
       "no es",
     )
     .replace(
@@ -911,7 +936,7 @@ const idioms = (text: string) =>
       "no esta",
     )
     .replace(
-      /\bno (pued[oe]s?|puedan|pude|pudo|podia|podian|podemos)\b/g,
+      /\bno (pued[oe]s?|pueden|puedan|pude|pudo|pudiste|pudieron|pudimos|podias?|podian|podemos|podr(?:ia|ian|ias|iamos)|podiamos)\b/g,
       "no$1",
     );
 
@@ -987,6 +1012,8 @@ const beFiller = new Set([
   "both",
   "one",
 ]);
+const beCause =
+  /^(?:because of|because|from|due to|owing to|on account of)(?= |$)/;
 function covers(
   words: string[],
   needed: string[],
@@ -1001,6 +1028,9 @@ function covers(
   words = words.map((word, i) => {
     if (!ability.has(word) || words[i + 1] !== "be") return word;
     let next = i + 2;
+    // "it can't be because of my left knee" says the knee is not the cause.
+    const cause = beCause.exec(words.slice(next, next + 3).join(" "));
+    if (cause) next += cause[0].split(" ").length;
     while (beFiller.has(words[next] ?? "")) next++;
     const said = words[next];
     return said !== undefined &&
@@ -1479,10 +1509,18 @@ const monthBefore =
 // "May 7 or 8", "7 or 8 of May" and "7 u 8 de mayo" are dates, not ratings.
 const monthName =
   "january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre";
-const dayList = "\\d{1,2}(?:\\s+(?:or|and|to|through|y|o|u|al?)\\s+\\d{1,2})*";
+const dayJoin = "\\s+(?:or|and|to|through|y|o|u|al?)\\s+";
+const dayOne = "\\d{1,2}";
+const dayList = `${dayOne}(?:${dayJoin}${dayOne})*`;
+// Two or more days are always a date ("May 7 or 8 out of 10"). One day stays a
+// rating when a scale follows ("May 7 out of 10").
+const dayMany = `${dayOne}(?:${dayJoin}${dayOne})+`;
 const scaleAfter = "(?!\\s*(?:/|out of|(?:of|de|sobre) (?:10|ten|diez)))";
+// "7 or 8 May" is a date, but "may" also a verb: it counts only at the end of
+// the phrase.
+const mayEnds = "(?=\\s*(?:$|[,.;!?]|(?:and|but|or|then|so|y|pero)\\b))";
 const dateRange = new RegExp(
-  `\\b(?:${monthName})\\s+${dayList}\\b${scaleAfter}|\\b${dayList}\\s+(?:(?:of |de )(?:${monthName})|(?:${monthName.replace("|may|", "|")}))\\b`,
+  `\\b(?:${monthName})\\s+(?:${dayMany}\\b|${dayOne}\\b${scaleAfter})|\\b${dayList}\\s+(?:(?:of |de )(?:${monthName})|(?:${monthName.replace("|may|", "|")})|may${mayEnds})\\b`,
   "gi",
 );
 const withoutDates = (text: string) => text.replace(dateRange, " ");

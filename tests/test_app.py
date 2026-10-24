@@ -150,7 +150,7 @@ def test_grok_billing_error_is_actionable_without_exposing_account_data(settings
         async def map(self, request):
             body = {"error": "Team PRIVATE-ACCOUNT has used all available credits. PRIVATE-NOTE"}
             raise APIStatusError("private provider response", response=httpx.Response(403, request=httpx.Request("POST", "https://api.x.ai/v1/chat/completions")), body=body)
-    monkeypatch.setattr("backend.app.create_providers", lambda _: {"grok": UnfundedProvider()})
+    monkeypatch.setattr("backend.app.create_providers", lambda *args, **kwargs: {"grok": UnfundedProvider()})
     with TestClient(create_app(settings)) as client:
         client.headers.update(ORIGIN)
         client.get("/api/session")
@@ -177,7 +177,7 @@ def test_audio_is_validated_before_provider_call(settings, monkeypatch):
             self.calls += 1
             return "My shoulder feels tight."
     provider = AudioProvider()
-    monkeypatch.setattr("backend.app.create_providers", lambda _: {"demo": DemoProvider(), "openai": provider})
+    monkeypatch.setattr("backend.app.create_providers", lambda *args, **kwargs: {"demo": DemoProvider(), "openai": provider})
     with TestClient(create_app(settings)) as client:
         client.headers.update(ORIGIN)
         client.get("/api/session")

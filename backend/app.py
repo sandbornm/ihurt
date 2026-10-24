@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .config import Settings
 from .limits import Limits
 from .models import MapRequest
+from .spend_gate import SpendGate
 from .transcription import create_transcriber
 from .providers import create_providers, possible_emergency, provider_error_message, SAFETY_MESSAGE
 
@@ -68,17 +69,20 @@ class RequestBoundary:
 def create_app(settings: Settings | None = None, provider=None):
     settings = settings or Settings()
     limits = Limits(settings)
-    providers = {"demo": provider} if provider else create_providers(settings)
-    transcriber, transcription_name = create_transcriber(settings, providers)
+    spend = SpendGate(settings, limits)
+    providers = {"demo": provider} if provider else create_providers(settings, spend)
+    transcriber, transcription_name = create_transcriber(settings, providers, spend)
     signer = URLSafeTimedSerializer(settings.session_secret, salt="ihurt-visitor-v1")
-    gate = asyncio.Semaphore(4)
+    slots = asyncio.Semaphore(4)
 
     @asynccontextmanager
     async def lifespan(app):
         yield
+        await spend.aclose()
         for provider in providers.values():
-            if hasattr(provider, "client"):
-                await provider.client.close()
+            client = getattr(provider, "client", None)
+            if client is not None and hasattr(client, "close"):
+                await client.close()
 
     app = FastAPI(title="iHurt", docs_url="/api/docs" if settings.app_env == "development" else None, redoc_url=None, openapi_url="/api/openapi.json" if settings.app_env == "development" else None, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
@@ -133,24 +137,24 @@ def create_app(settings: Settings | None = None, provider=None):
             raise HTTPException(400, "Please agree to send this note to the selected AI provider before mapping.")
         if not body.activity_id:
             await challenge(body.challenge_token)
-        if gate.locked():
+        if slots.locked():
             raise HTTPException(503, "The mapper is busy. Please try again shortly.", headers={"Retry-After": "10"})
-        async with gate:
-            activity_id = limits.reserve(owner, ip, body.request_id, body.activity_id, paid=paid)
-            try:
-                result = await asyncio.wait_for(providers[body.provider].map(body), timeout=120 if body.provider == "local" else 40)
-                if possible_emergency(body.note + " " + " ".join(a.text for a in body.answers)):
-                    result.urgent, result.safety_message, result.question = True, SAFETY_MESSAGE, None
-                if limits.turns(activity_id) >= settings.turns_per_activity or len(body.answers) >= 2:
-                    result.question = None
-                return {"activity_id": activity_id, "map": result.model_dump(), "remaining": limits.remaining(owner, ip), "provider": body.provider}
-            except (Exception,) as exc:
-                # Do not include provider errors or user content in logs or responses.
-                if isinstance(exc, HTTPException):
-                    raise
-                return JSONResponse({"detail": provider_error_message(exc, body.provider), "activity_id": activity_id, "remaining": limits.remaining(owner, ip)}, status_code=502)
-            finally:
-                limits.release(activity_id)
+        async with slots:
+            with spend.guard(owner, ip, body.request_id, body.activity_id, kind="analysis", paid=paid) as activity_id:
+                try:
+                    result = await asyncio.wait_for(providers[body.provider].map(body), timeout=120 if body.provider == "local" else 40)
+                    if possible_emergency(body.note + " " + " ".join(a.text for a in body.answers)):
+                        result.urgent, result.safety_message, result.question = True, SAFETY_MESSAGE, None
+                    if limits.turns(activity_id) >= settings.turns_per_activity or len(body.answers) >= 2:
+                        result.question = None
+                    return {"activity_id": activity_id, "map": result.model_dump(), "remaining": limits.remaining(owner, ip), "provider": body.provider}
+                except (Exception,) as exc:
+                    # Do not include provider errors or user content in logs or responses.
+                    if isinstance(exc, HTTPException):
+                        raise
+                    return JSONResponse({"detail": provider_error_message(exc, body.provider), "activity_id": activity_id, "remaining": limits.remaining(owner, ip)}, status_code=502)
+                finally:
+                    limits.release(activity_id)
 
     @app.post("/api/transcribe")
     async def transcribe(request: Request, audio: UploadFile = File(...), consent: bool = Form(False), request_id: str = Form(..., pattern=r"^[a-f0-9-]{36}$"), challenge_token: str = Form("", max_length=2048)):
@@ -182,15 +186,17 @@ def create_app(settings: Settings | None = None, provider=None):
         except (wave.Error, EOFError, ValueError):
             raise HTTPException(422, "Record up to 60 seconds using the app's recorder.") from None
         await challenge(challenge_token)
-        if gate.locked():
+        if slots.locked():
             raise HTTPException(503, "Transcription is busy. Please try again shortly.")
-        async with gate:
-            limits.reserve(owner, ip, request_id, None, kind="audio", paid=True)
-            try:
-                text = await asyncio.wait_for(transcriber.transcribe(cleaned.getvalue()), timeout=40)
-                return {"text": text}
-            except Exception:
-                raise HTTPException(502, "The recording could not be transcribed. You can type your note instead.") from None
+        async with slots:
+            with spend.guard(owner, ip, request_id, None, kind="audio", paid=True):
+                try:
+                    text = await asyncio.wait_for(transcriber.transcribe(cleaned.getvalue()), timeout=40)
+                    return {"text": text}
+                except HTTPException:
+                    raise
+                except Exception:
+                    raise HTTPException(502, "The recording could not be transcribed. You can type your note instead.") from None
 
     dist = Path(__file__).resolve().parent.parent / "dist" / "app"
     if dist.exists():

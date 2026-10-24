@@ -131,6 +131,43 @@ const sideDeterminer = new Set([
   "their",
 ]);
 const leftVerbSubject = new Set(["i", "we", "he", "she", "they", "you", "who"]);
+const leftVerbPrev = new Set([
+  "just",
+  "have",
+  "has",
+  "had",
+  "ive",
+  "weve",
+  "already",
+  "then",
+  "also",
+  "finally",
+  "never",
+  "still",
+  "soon",
+  "boss",
+]);
+const leftVerbNext = new Set([
+  "because",
+  "since",
+  "early",
+  "work",
+  "home",
+  "so",
+  "after",
+  "when",
+  "while",
+  "yesterday",
+  "today",
+  "last",
+  "again",
+  "already",
+  "for",
+  "from",
+  "to",
+  "at",
+  "in",
+]);
 const verbSubject = new Set(["pain", "i", "we", "he", "she", "they", "it"]);
 
 // "left" is a side when it modifies a part or a side word ("left knee",
@@ -143,6 +180,9 @@ function leftIsSide(words: string[], index: number) {
   const next = words[index + 1] ?? "";
   if (next === "side" || next === "one") return true;
   if (sideDeterminer.has(prev)) return true;
+  // "I just left because", "my boss left early": no pronoun before "left",
+  // but what follows says it is the verb.
+  if (leftVerbPrev.has(prev) || leftVerbNext.has(next)) return false;
   if (sideDeterminer.has(next) || next === "a" || next === "an") return false;
   const ahead = words.slice(index + 1, index + 4);
   if (partsIn(ahead.join(" ")).length > 0) return true;
@@ -155,6 +195,13 @@ function leftIsSide(words: string[], index: number) {
 const motionVerb =
   /^(?:turn\w*|twist\w*|pivot\w*|swerv\w*|veer\w*|steer\w*|lean\w*|step\w*|go|goes|going|went|walk\w*|run|runs|running|ran|head\w*|look\w*|cut|cuts|cutting|curv\w*|swing\w*|rotat\w*|shift\w*|gir[aeo]\w*|dobl[aeo]\w*|vir[aeo]\w*|volte[aeo]\w*|tuerz\w*|tuerc\w*|inclin\w*|voy|vas|va|vamos|camin\w*|corr\w*|and[ao]\w*)$/;
 const motionGap = new Set([
+  // "turn left and right my knee hurts": both are directions.
+  "left",
+  "right",
+  "izquierda",
+  "derecha",
+  "or",
+  "o",
   "to",
   "the",
   "a",
@@ -179,9 +226,9 @@ function isDirection(words: string[], index: number) {
   if (next === "one") return false;
   if (next === "side" && /^(?:of|de|del)$/.test(after)) return false;
   let cursor = index - 1;
-  while (cursor >= 0 && cursor > index - 5 && motionGap.has(words[cursor]))
+  while (cursor >= 0 && cursor > index - 9 && motionGap.has(words[cursor]))
     cursor -= 1;
-  return cursor >= 0 && cursor > index - 6 && motionVerb.test(words[cursor]);
+  return cursor >= 0 && cursor > index - 10 && motionVerb.test(words[cursor]);
 }
 
 // One token's side, or null when this spot is an idiom or the verb "left".
@@ -648,7 +695,7 @@ const pastNegators =
   /^(?:didn't|didnt|wasn't|wasnt|weren't|werent|hadn't|hadnt)$/;
 const pastMarkers = new Set(["earlier", "yesterday", "ayer", "anoche"]);
 const denialTail =
-  /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya)$/;
+  /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya|all (?:day|week|month|morning|night|year)|lately|recently|so far)$/;
 function deniesAfter(words: string[], end: number, corrected: boolean) {
   const next = words.slice(end + 1, end + 6);
   const at = next.findIndex(isNegator);
@@ -826,6 +873,27 @@ function clauseGrounds(
   const soft = softParts(clause).filter(
     (words) => !(together && painGone(words)),
   );
+  // "my left knee didn't hurt yesterday and it doesn't hurt today": the first
+  // part only says how it was, and the second says it is not hurting now.
+  if (
+    !corrected &&
+    soft.some(
+      (words, i) =>
+        words.some((word) => pastMarkers.has(word)) &&
+        soft
+          .slice(i + 1)
+          .some(
+            (next) =>
+              partsIn(next.join(" ")).length === 0 &&
+              next.some(
+                (word) => isNegator(word) && !pastNegators.test(word),
+              ) &&
+              (next.includes("tampoco") ||
+                next.some((word) => hurtWords.has(word))),
+          ),
+    )
+  )
+    return false;
   if (soft.some((words) => covers(words, needed, part, corrected))) return true;
   if (together) return false;
   const affirmative = soft.filter((words) => !words.some(isNegator));
@@ -1052,6 +1120,10 @@ const notRatingAfter =
 const instructed =
   /\b(?:ignore|instructions?|prompt|system|pon|coloca|establece|cambia|set)\b/;
 
+// "on the 7/10", "since 7/10": the number is a date, not a rating.
+const dateLead =
+  /\b(?:on|since|from|until|till|by|before|after|started|dated|as of|desde|del|hasta|para)(?:\s+(?:the|a|an))?$/;
+
 export function ratedIn(transcript: string, value: number) {
   if (!Number.isInteger(value) || value < 0 || value > 10) return false;
   const number = new RegExp(
@@ -1077,11 +1149,12 @@ export function ratedIn(transcript: string, value: number) {
       ).join(" ");
       // "le doy el 7/10" rates the pain; "el 7/10" alone is a date.
       const rated =
-        last === "el"
+        !dateLead.test(before.join(" ")) &&
+        (last === "el"
           ? /\b(?:doy|daria|pongo|pondria|es|era|seria|sera|dolor|nivel)$/.test(
               before.slice(0, -1).join(" "),
             )
-          : !["on", "since", "desde", "del"].includes(last);
+          : !["on", "since", "desde", "del"].includes(last));
       if (
         !notRatingAfter.test(afterSlash) &&
         !before.some(isNegator) &&
@@ -1146,9 +1219,7 @@ export function parseIntensityAnswer(answer: string): number | null {
     const before = lower.slice(0, scale.index).trim();
     const after = lower.slice((scale.index ?? 0) + scale[0].length).trim();
     if (
-      /\b(?:on|since|from|until|till|by|before|after|started|dated|as of|desde|del|hasta|para)(?:\s+(?:the|a|an))?$/.test(
-        before,
-      ) ||
+      dateLead.test(before) ||
       (/\bel$/.test(before) &&
         !/\b(?:doy|daria|pongo|pondria|es|era|seria|sera|dolor|nivel)\s+el$/.test(
           before,

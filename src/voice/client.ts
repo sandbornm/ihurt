@@ -1,4 +1,5 @@
 import { api } from "../api";
+import { t } from "../i18n/index.ts";
 
 export interface VoiceSession {
   transcription_available: boolean;
@@ -28,9 +29,7 @@ export const localVoiceClient: VoiceClient = {
       response.text.length > 3000 ||
       !response.text.trim()
     )
-      throw new Error(
-        "No usable transcript was returned. Try again or type below.",
-      );
+      throw new Error(t("rec.noTranscript"));
     return response.text;
   },
 };

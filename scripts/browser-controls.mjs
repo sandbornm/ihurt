@@ -42,6 +42,8 @@ try {
   const widths = process.argv.includes("--camera-lifecycle") ? [] : [1440, 390];
   for (const width of widths) {
     const context = await browser.newContext({
+      // English UI regardless of the machine language.
+      locale: "en-US",
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
       hasTouch: true,
@@ -659,7 +661,7 @@ try {
   }
   // Fake streams exercise camera cleanup without a camera or model download.
   for (const phase of ["play failure", "pending play", "pending permission"]) {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addInitScript((phase) => {
       window.cameraStops = 0;
       window.cameraRequests = 0;

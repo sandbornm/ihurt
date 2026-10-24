@@ -1,4 +1,5 @@
 import type { SavedMap, RegionId } from "./types";
+import { t } from "./i18n/index.ts";
 export interface Draft {
   entry: SavedMap;
   selected: RegionId | null;
@@ -28,7 +29,7 @@ function open() {
     };
     request.onblocked = () => {
       database = undefined;
-      reject(new Error("Close other iHurt tabs and try again."));
+      reject(new Error(t("storage.blocked")));
     };
   });
   return database;

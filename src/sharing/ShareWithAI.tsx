@@ -4,6 +4,7 @@ import type { SavedMap } from "../types";
 import { download, stringifyIhm } from "../export";
 import { isNativeApp } from "../platform/files";
 import { aiPrompt } from "../notebook-data";
+import { useI18n } from "../i18n/react";
 import {
   defaultSharing,
   prepareSharedEntry,
@@ -18,12 +19,13 @@ export default function ShareWithAI({
   valid: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
   return (
     <details
       className="share-with-ai"
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary>Share with AI</summary>
+      <summary>{t("share.title")}</summary>
       {open && <ShareContents key={entry.id} entry={entry} valid={valid} />}
     </details>
   );
@@ -31,16 +33,17 @@ export default function ShareWithAI({
 
 function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
   const [options, setOptions] = useState(defaultSharing);
+  const { t, lang } = useI18n();
   const [status, setStatus] = useState("");
   const [preview, setPreview] = useState(false);
   const shared = useMemo(
     () => prepareSharedEntry(entry, options),
-    [entry, options],
+    [entry, options, lang],
   );
   const summary = useMemo(() => sharedSummary(shared), [shared]);
   const json = useMemo(
     () => (preview ? stringifyIhm(shared) : ""),
-    [shared, preview],
+    [shared, preview, lang],
   );
   const canShareAI = options.notes && options.comments && options.sources;
   async function copy(text: string, success: string) {
@@ -48,32 +51,27 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
       await navigator.clipboard.writeText(text);
       setStatus(success);
     } catch {
-      setStatus("Clipboard unavailable. Select and copy the text below.");
+      setStatus(t("share.noClipboard"));
     }
   }
   async function save(format: "json" | "ihm") {
     try {
       setStatus(await download(shared, format));
     } catch {
-      setStatus(
-        "The file could not be saved. Check available storage and try again.",
-      );
+      setStatus(t("share.saveFailed"));
     }
   }
   return (
     <>
-      <p>
-        Share this entry with your favorite AI. Choose what to include, review
-        it, then copy the summary or attach the JSON in your chat.
-      </p>
+      <p>{t("share.intro")}</p>
       <fieldset className="share-options">
-        <legend>Include in this copy</legend>
+        <legend>{t("share.include")}</legend>
         {(
           [
-            ["notes", "Entry notes and title"],
-            ["comments", "Pin comments"],
-            ["sources", "Saved sources"],
-            ["ai", "Previous AI interpretation"],
+            ["notes", t("share.opt.notes")],
+            ["comments", t("share.opt.comments")],
+            ["sources", t("share.opt.sources")],
+            ["ai", t("share.opt.ai")],
           ] as const
         ).map(([key, label]) => (
           <label key={key}>
@@ -90,13 +88,9 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
           </label>
         ))}
       </fieldset>
-      <p className="subtle">
-        Dates, activity, feeling, timing, intensity, and pin locations are
-        included. Previous AI text is available only when all fields are
-        included, because it can repeat them. Your saved entry stays unchanged.
-      </p>
+      <p className="subtle">{t("share.included")}</p>
       <textarea
-        aria-label="AI sharing summary"
+        aria-label={t("share.summaryLabel")}
         readOnly
         rows={7}
         value={summary}
@@ -105,12 +99,10 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
         <button
           className="secondary"
           disabled={!valid}
-          onClick={() =>
-            void copy(summary, "Summary copied. Paste it in your AI chat.")
-          }
+          onClick={() => void copy(summary, t("share.summaryCopied"))}
         >
           <Copy size={15} />
-          Copy summary
+          {t("share.copySummary")}
         </button>
         <button
           className="secondary"
@@ -118,14 +110,14 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
           onClick={() => void save("json")}
         >
           <ArrowDownToLine size={15} />
-          {isNativeApp() ? "Save / share JSON" : "Download sharing JSON"}
+          {isNativeApp() ? t("share.saveJson") : t("share.downloadJson")}
         </button>
       </div>
       <details onToggle={(event) => setPreview(event.currentTarget.open)}>
-        <summary>Preview shared JSON</summary>
+        <summary>{t("share.previewJson")}</summary>
         {preview && (
           <textarea
-            aria-label="Shared JSON preview"
+            aria-label={t("share.previewLabel")}
             readOnly
             rows={8}
             value={json}
@@ -133,25 +125,20 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
         )}
       </details>
       <details>
-        <summary>Suggested prompt and .ihm file</summary>
+        <summary>{t("share.promptTitle")}</summary>
         <textarea
-          aria-label="Suggested AI prompt"
+          aria-label={t("share.promptLabel")}
           readOnly
           rows={4}
-          value={aiPrompt}
+          value={aiPrompt()}
         />
         <div className="export-pair">
           <button
             className="secondary"
-            onClick={() =>
-              void copy(
-                aiPrompt,
-                "Prompt copied. Attach your JSON file in the AI chat.",
-              )
-            }
+            onClick={() => void copy(aiPrompt(), t("share.promptCopied"))}
           >
             <Copy size={15} />
-            Copy prompt
+            {t("share.copyPrompt")}
           </button>
           <button
             className="secondary"
@@ -159,16 +146,12 @@ function ShareContents({ entry, valid }: { entry: SavedMap; valid: boolean }) {
             onClick={() => void save("ihm")}
           >
             <ArrowDownToLine size={15} />
-            {isNativeApp() ? "Save / share .ihm" : "Download .ihm map"}
+            {isNativeApp() ? t("share.saveIhm") : t("share.downloadIhm")}
           </button>
         </div>
       </details>
       {status && <p role="status">{status}</p>}
-      <p className="subtle">
-        Nothing is sent automatically. The AI service you choose may retain what
-        you share. JSON and .ihm contain the same map, anatomy references,
-        heatmap, and review prompt.
-      </p>
+      <p className="subtle">{t("share.nothingSent")}</p>
     </>
   );
 }

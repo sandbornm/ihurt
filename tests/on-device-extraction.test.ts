@@ -986,6 +986,51 @@ test("'it's fine' after a denial clears the part; 'it's aching' only corrects", 
   assert.equal(location("My left knee isn't sore, it's aching."), "mapped");
 });
 
+test("the availability gate follows a later check when Settings changes", () => {
+  const gate = createAvailabilityGate();
+  assert.equal(gate.settle(false), undefined);
+  assert.equal(gate.request("a note"), undefined);
+  assert.equal(gate.recheck(true), undefined);
+  assert.equal(gate.state, "ready");
+  assert.equal(gate.request("a note"), "a note");
+  gate.recheck(false);
+  assert.equal(gate.state, "off");
+  const waiting = createAvailabilityGate();
+  waiting.request("first");
+  assert.equal(waiting.recheck(true), "first");
+});
+
+test("derecho means straight, not the right side, in 'camino derecho'", () => {
+  const where = (said: string, spoken: string, side: "left" | "right") =>
+    buildProposal(raw({ spokenLocation: spoken, side }), said, today).location;
+  assert.equal(
+    where("Me duele la rodilla y camino derecho", "rodilla derecha", "right")
+      .status,
+    "unmapped",
+  );
+  assert.equal(
+    where("Voy derecho a casa. Me duele la rodilla", "rodilla", "right").status,
+    "need-side",
+  );
+  assert.equal(
+    where(
+      "Camino derecho y me duele la rodilla derecha",
+      "rodilla derecha",
+      "right",
+    ).status,
+    "mapped",
+  );
+  assert.equal(parseIntensityAnswer("sin duda un 7"), 7);
+  assert.equal(parseIntensityAnswer("7 de 10"), 7);
+  assert.equal(parseIntensityAnswer("siete dias"), null);
+  const noRun = buildProposal(
+    raw({ spokenLocation: "rodilla", activity: "correr" }),
+    "Me duele la rodilla, no puedo correr desde ayer",
+    today,
+  );
+  assert.equal(noRun.fields.activity, undefined);
+});
+
 test("a date or a scale alone is not a rating; 'I'm 7' is", () => {
   for (const reply of ["on 7/10", "since 7/10", "7/10 days ago", "7/10/26"])
     assert.equal(parseIntensityAnswer(reply), null, reply);

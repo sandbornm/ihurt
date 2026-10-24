@@ -1,0 +1,4 @@
+/* Avisos de permisos en español. */
+"NSCameraUsageDescription" = "Usa la cámara frontal para controlar el mapa del cuerpo con las manos. Las imágenes de la cámara se quedan en tu dispositivo.";
+"NSMicrophoneUsageDescription" = "Dicta un borrador para tu cuaderno. El audio se procesa en tu dispositivo y iHurt no lo guarda.";
+"NSSpeechRecognitionUsageDescription" = "Convierte lo que dices en un borrador editable del cuaderno con el reconocimiento de voz de Apple en tu dispositivo.";

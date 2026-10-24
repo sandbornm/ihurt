@@ -4,6 +4,7 @@ import { api, ApiError } from "./api";
 import type { Answer, HurtMap, ProviderId, SavedMap, Session } from "./types";
 import { entryFingerprint } from "./notebook-data";
 import VisitorCheck from "./VisitorCheck";
+import { useI18n } from "./i18n/react";
 export interface AssistantProps {
   entry: SavedMap;
   onSave: (analysis: NonNullable<SavedMap["ai"]>) => void;
@@ -22,6 +23,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
   const [activityId, setActivityId] = useState<string | null>(null),
     [token, setToken] = useState(""),
     [nonce, setNonce] = useState(0);
+  const { t } = useI18n();
   const submitted = useRef(false),
     snapshot = useRef("");
   const tooManyPins = (entry.points?.length ?? 0) > 10;
@@ -39,9 +41,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
       setSession(data);
       setProvider(data.provider);
     } catch {
-      setError(
-        "The optional AI server is not running. Use npm run dev:ai, or export JSON to use in your own AI chat.",
-      );
+      setError(t("ai.noServer"));
     } finally {
       setBusy(false);
     }
@@ -49,9 +49,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
   async function submit(value = answer) {
     if (!session || submitted.current || tooManyPins) return;
     if (activityId && snapshot.current !== entryFingerprint(entry)) {
-      setError(
-        "Your entry changed. Start a new AI review to include the edits.",
-      );
+      setError(t("ai.changed"));
       return;
     }
     const seeded: Answer[] = (
@@ -76,9 +74,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
       }>("map", {
         request_id: crypto.randomUUID(),
         activity_id: activityId,
-        note:
-          entry.note.trim() ||
-          "Please review the locations and comments recorded in this journal entry.",
+        note: entry.note.trim() || t("ai.emptyNote"),
         selected_region: entry.map.regions[0] ?? null,
         answers: nextAnswers,
         consent,
@@ -110,9 +106,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
           answers: nextAnswers,
         });
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "The AI review could not finish.",
-      );
+      setError(e instanceof Error ? e.message : t("ai.failed"));
       if (e instanceof ApiError) {
         if (e.activityId) {
           setActivityId(e.activityId);
@@ -143,25 +137,22 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
         }
       >
         <Sparkles size={14} />
-        {open ? "Hide AI tools" : "Optional AI tools"}
+        {open ? t("ai.hide") : t("ai.show")}
       </button>
       {open && (
         <div className="ai-tools">
-          <p>
-            AI can help review your record. Its notes are saved separately from
-            yours.
-          </p>
+          <p>{t("ai.intro")}</p>
           <a
             href="https://github.com/sandbornm/ihurt/blob/main/docs/PROVIDERS.md"
             target="_blank"
             rel="noreferrer"
           >
-            Keys, local models, and costs ↗
+            {t("ai.keys")}
           </a>
           {session && (
             <>
               <div className="provider-row">
-                <label htmlFor="provider">Review with</label>
+                <label htmlFor="provider">{t("ai.reviewWith")}</label>
                 <select
                   id="provider"
                   value={provider}
@@ -176,28 +167,19 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                     .map((p) => (
                       <option key={p.id} value={p.id} disabled={!p.available}>
                         {p.name}
-                        {!p.available ? " · not configured" : ""}
+                        {!p.available ? ` · ${t("ai.notConfigured")}` : ""}
                       </option>
                     ))}
                   {provider === "demo" && (
-                    <option value="demo">Choose a configured model</option>
+                    <option value="demo">{t("ai.chooseModel")}</option>
                   )}
                 </select>
               </div>
               <p className="subtle">
-                {provider === "local"
-                  ? "Sends the entry to your configured model server."
-                  : "Cloud providers receive your note, pins, comments, and answers. Their retention and billing policies apply."}{" "}
-                {session.remaining} AI activities left today. Journaling is
-                unlimited.
+                {provider === "local" ? t("ai.local") : t("ai.cloud")}{" "}
+                {t("ai.remaining", { count: session.remaining })}
               </p>
-              {tooManyPins && (
-                <p role="status">
-                  This API accepts up to 10 pins per review. Export the entry to
-                  review all its pins in your own AI chat. Your notebook keeps
-                  every pin.
-                </p>
-              )}
+              {tooManyPins && <p role="status">{t("ai.tooManyPins")}</p>}
               {live && (
                 <label className="consent">
                   <input
@@ -205,9 +187,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                     checked={consent}
                     onChange={(e) => setConsent(e.target.checked)}
                   />
-                  <span>
-                    I agree to send this entry to the selected provider.
-                  </span>
+                  <span>{t("ai.consent")}</span>
                 </label>
               )}
               <VisitorCheck
@@ -261,7 +241,7 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                   ) : (
                     <Sparkles size={16} />
                   )}
-                  {result?.question ? "Continue review" : "Review with AI"}
+                  {result?.question ? t("ai.continue") : t("ai.review")}
                   <ArrowRight size={14} />
                 </button>
               ) : null}
@@ -276,14 +256,12 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                     setError("");
                   }}
                 >
-                  Start a new AI review
+                  {t("ai.new")}
                 </button>
               )}
             </>
           )}
-          {busy && !session && (
-            <p role="status">Connecting to your local AI server…</p>
-          )}
+          {busy && !session && <p role="status">{t("ai.connecting")}</p>}
           {error && (
             <p className="error-notice" role="alert">
               {error}

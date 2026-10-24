@@ -1,5 +1,11 @@
 import type { RegionId } from "./types.ts";
-type Activity = { name: string; regions: RegionId[]; terms?: string[] };
+import {
+  language,
+  translate,
+  type Language,
+  type MessageKey,
+} from "./i18n/index.ts";
+export type Activity = { name: string; regions: RegionId[]; terms?: string[] };
 const shoulders: RegionId[] = ["left_shoulder", "right_shoulder", "upper_back"];
 const legs: RegionId[] = [
   "left_hip",
@@ -118,16 +124,69 @@ export const activities: Activity[] = [
   ...commonActivities,
   ...more.map(([name, regions]) => ({ name, regions })),
 ];
-export function activityMatch(value: string): Activity | undefined {
-  const text = value.toLowerCase();
-  return (
-    activities.find((a) => text === a.name.toLowerCase()) ??
-    activities.find(
-      (a) =>
-        text.includes(a.name.toLowerCase()) ||
-        a.terms?.some((t) => text.split(/\W+/).includes(t)),
-    )
+// Activity names are stored as typed. Matching accepts the English name, the
+// Spanish name, and a few everyday words in either language.
+const fold = (value: string) =>
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+export const activityKey = (activity: Activity) =>
+  `activity.${activity.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")}` as MessageKey;
+export const activityName = (activity: Activity, lang: Language = language()) =>
+  translate(lang, activityKey(activity));
+// A saved activity that is exactly a listed name is shown in the current
+// language; anything the person typed is kept as written.
+export function activityLabel(value: string, lang: Language = language()) {
+  const text = fold(value.trim());
+  const match = activities.find((activity) =>
+    [activity.name, activityName(activity, "es")].some((n) => fold(n) === text),
   );
+  return match ? activityName(match, lang) : value;
+}
+const names = (activity: Activity) =>
+  [activity.name, activityName(activity, "es")].map(fold);
+const spanishTerms: Record<string, string[]> = {
+  Walking: ["caminar", "camine", "caminata", "caminando"],
+  Running: ["correr", "corri", "corriendo", "trotar", "trote"],
+  "Strength training": ["pesas", "gimnasio", "gym"],
+  Cycling: ["bici", "bicicleta", "ciclismo"],
+  Swimming: ["nadar", "nade", "nadando", "natacion"],
+  Tennis: ["raqueta"],
+  Hiking: ["senderismo", "caminata"],
+  Soccer: ["futbol"],
+  Golf: ["golf"],
+  "Desk work": ["escritorio", "computadora", "sentado", "sentada"],
+  Sleep: ["dormir", "dormi", "cama"],
+  Padel: ["padel"],
+};
+// Whole words only, so "pasear" is not "pase" and "tenis de mesa" is not
+// Tennis. A longer name that contains the matched one wins.
+const hasPhrase = (text: string, name: string) =>
+  new RegExp(
+    `(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+    "u",
+  ).test(text);
+export function activityMatch(value: string): Activity | undefined {
+  const text = fold(value);
+  const words = text.split(/[^\p{L}\p{N}]+/u);
+  const exact = activities.find((a) => names(a).includes(text));
+  if (exact) return exact;
+  // The longest name or term said wins: "tenis de mesa" is Table tennis and
+  // "ciclismo de montana" is Mountain biking. Ties keep list order.
+  let best: Activity | undefined;
+  let length = 0;
+  for (const a of activities) {
+    const said = [
+      ...names(a).filter((name) => hasPhrase(text, name)),
+      ...[...(a.terms ?? []), ...(spanishTerms[a.name] ?? [])].filter((t) =>
+        words.includes(t),
+      ),
+    ];
+    const longest = Math.max(0, ...said.map((name) => name.length));
+    if (longest > length) [best, length] = [a, longest];
+  }
+  return best;
 }
 export const activityRegions = (value: string) =>
   activityMatch(value)?.regions ?? [];

@@ -1,0 +1,4 @@
+/* Permission prompts in English. Keep in sync with Info.plist. */
+"NSCameraUsageDescription" = "Use your front camera to control the body map with your hands. Camera frames stay on your device.";
+"NSMicrophoneUsageDescription" = "Dictate a notebook draft. Audio is processed on your device and is not saved by iHurt.";
+"NSSpeechRecognitionUsageDescription" = "Turn your spoken words into an editable notebook draft using on-device Apple speech recognition.";

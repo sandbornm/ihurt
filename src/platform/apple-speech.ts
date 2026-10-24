@@ -1,18 +1,22 @@
 import type { NativeSpeech, SpeechAvailability } from "./speech.ts";
+import { nativeError, nativeMessage } from "./native-messages.ts";
+import { t } from "../i18n/index.ts";
 
 export interface SpeechEvent {
   session: string;
   text?: string;
   error?: string;
+  code?: string;
 }
 interface Listener {
   remove(): Promise<void>;
 }
 export interface AppleSpeechBridge {
-  availability(): Promise<SpeechAvailability>;
-  start(options: { session: string }): Promise<void>;
+  availability(options?: { locale?: string }): Promise<SpeechAvailability>;
+  start(options: { session: string; locale?: string }): Promise<void>;
   stop(options: { session: string }): Promise<{ text: string }>;
   cancel(options: { session: string }): Promise<void>;
+  languages?(): Promise<{ languages?: string[] }>;
   addListener(
     name: "transcript" | "ended",
     callback: (event: SpeechEvent) => void,
@@ -44,10 +48,17 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
     session.onText(text);
   };
   return {
-    availability: () => bridge.availability(),
-    async start(onText, onEnd) {
+    async availability(locale) {
+      const state = await bridge.availability(locale ? { locale } : undefined);
+      if (state.available) return state;
+      return {
+        ...state,
+        reason: nativeMessage(state.code, state.reason) ?? state.reason,
+      };
+    },
+    async start(onText, onEnd, locale) {
       if (current && !current.ended && !current.cancelled)
-        throw new Error("A recording is already in progress.");
+        throw new Error(t("native.already-recording"));
       const session: Session = {
         id: crypto.randomUUID(),
         listeners: [],
@@ -65,7 +76,7 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
         const listener = await bridge.addListener(name, callback);
         if (session.cancelled || current !== session) {
           await listener.remove();
-          throw new Error("Recording cancelled.");
+          throw new Error(t("native.cancelled"));
         }
         session.listeners.push(listener);
       };
@@ -87,17 +98,25 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
           )
             return;
           session.ended = true;
-          session.error = event.error;
+          session.error = event.error
+            ? nativeMessage(event.code, event.error)
+            : undefined;
           void removeListeners(session);
-          session.onEnd?.(event.error, event.error ? undefined : session.text);
+          session.onEnd?.(
+            session.error,
+            session.error ? undefined : session.text,
+          );
         });
         if (session.cancelled || current !== session)
-          throw new Error("Recording cancelled.");
-        await bridge.start({ session: session.id });
+          throw new Error(t("native.cancelled"));
+        await bridge.start({
+          session: session.id,
+          ...(locale ? { locale } : {}),
+        });
       } catch (error) {
         await removeListeners(session);
         if (current === session) current = undefined;
-        throw error;
+        throw nativeError(error, t("native.speech-stopped"));
       }
     },
     async stop() {
@@ -115,11 +134,9 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
         return session.text;
       } catch (error) {
         session.ended = true;
-        session.error =
-          error instanceof Error
-            ? error.message
-            : "Speech recognition stopped.";
-        throw error;
+        const failure = nativeError(error, t("native.speech-stopped"));
+        session.error = failure.message;
+        throw failure;
       } finally {
         await removeListeners(session);
       }

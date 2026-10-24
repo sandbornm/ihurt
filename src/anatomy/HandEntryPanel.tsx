@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { HandEntryState } from "./hand-entry";
 import { intensityColor } from "./intensity";
+import { t } from "../i18n";
 
 export default function HandEntryPanel({
   state,
@@ -21,9 +22,13 @@ export default function HandEntryPanel({
   return (
     <section
       className="hand-entry-controls"
-      aria-label="Gesture entry controls"
+      aria-label={t("hands.panel.controls")}
     >
-      <strong>{state.phase === "saved" ? "Entry saved" : "Pin placed"}</strong>
+      <strong>
+        {state.phase === "saved"
+          ? t("hands.panel.saved")
+          : t("hands.panel.placed")}
+      </strong>
       <span className="hand-pin-label">{state.pin?.label}</span>
       <div
         className="hand-entry-dial"
@@ -35,36 +40,38 @@ export default function HandEntryPanel({
           } as CSSProperties
         }
       >
-        <output aria-label="Gesture entry intensity">
+        <output aria-label={t("hands.panel.intensityLabel")}>
           {intensity ?? "—"}
-          <small>{intensity === null ? "Unrated" : "out of 10"}</small>
+          <small>
+            {intensity === null
+              ? t("hands.panel.unrated")
+              : t("hands.panel.outOf")}
+          </small>
         </output>
       </div>
       <span className="hand-entry-scope">
-        {state.turning
-          ? "Entry intensity · dial held"
-          : "Intensity for this entry"}
+        {state.turning ? t("hands.panel.dialHeld") : t("hands.panel.intensity")}
       </span>
       <p role="status">
         {state.phase === "rate" && trackingHint ? trackingHint : state.hint}
       </p>
       {state.phase === "rate" && (
         <>
-          <small>Clockwise increases. Release to regrip.</small>
+          <small>{t("hands.panel.clockwise")}</small>
           <div className="hand-save-progress" aria-hidden="true">
             <span />
           </div>
           <button className="secondary" onClick={onSave}>
-            Save this entry
+            {t("hands.panel.save")}
           </button>
           <button className="text-button" onClick={onUndo}>
-            Undo this pin
+            {t("hands.panel.undo")}
           </button>
         </>
       )}
       {state.phase !== "saving" && (
         <button className="text-button" onClick={onBack}>
-          Back to body
+          {t("hands.panel.back")}
         </button>
       )}
     </section>

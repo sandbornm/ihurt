@@ -68,6 +68,7 @@ test("'right at my knee' is not a side", () => {
     "need-side",
   );
   assert.equal(status("It hurts in my right knee", "right knee"), "mapped");
+  assert.equal(status("It hurts left of my knee", "left of my knee"), "mapped");
 });
 
 test("a rating needs rating context, not a time or a count", () => {

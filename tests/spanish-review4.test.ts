@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildProposal,
+  grounded,
   parseIntensityAnswer,
 } from "../src/voice/extraction.ts";
 import { suggestVoiceDraft } from "../src/voice/draft.ts";
@@ -176,5 +177,20 @@ test("the Spanish print report says 'N de 10' and translates the activity", asyn
     assert.ok(english.includes("Trail running"));
   } finally {
     setLanguagePreference("auto");
+  }
+});
+
+test("a Spanish ability negation keeps the activity out of the proposal", () => {
+  for (const said of [
+    "Me duele la rodilla izquierda. No puedo correr.",
+    "Me duele la rodilla izquierda. No pude correr.",
+    "Me duele la rodilla izquierda. No podía correr.",
+  ]) {
+    assert.equal(grounded("correr", said), false, said);
+    assert.equal(
+      propose(said, { activity: "correr" }, "es").fields.activity,
+      undefined,
+      said,
+    );
   }
 });

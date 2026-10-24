@@ -27,6 +27,9 @@ import {
   type PainProposal,
 } from "./extraction";
 import { createAvailabilityGate } from "./ai-gate";
+import { fieldsWithHeardRating } from "./natural-rating";
+import { recordCue, type RecordMode } from "./record-cue";
+import { speaksFollowUps } from "./spoken-follow-up";
 import { startRecording, toWav, type Recording } from "./recording";
 import { createSuggestOnce } from "./suggest-once";
 import "./voice.css";
@@ -95,9 +98,12 @@ function VoiceEditor({
   const dialog = useRef<HTMLDialogElement>(null);
   const { t, lang } = useI18n();
   const [text, setText] = useState(draft?.text ?? "");
-  const [mode, setMode] = useState<
-    "loading" | "idle" | "starting" | "recording" | "processing"
-  >("loading");
+  const [mode, setMode] = useState<RecordMode>("loading");
+  // A short, announced note for when recording starts and stops.
+  const [cue, setCue] = useState<"started" | "stopped" | null>(null);
+  const lastMode = useRef<RecordMode>("loading");
+  // A rating the person confirmed from "Heard ...". Never set by itself.
+  const [acceptedRating, setAcceptedRating] = useState<number | null>(null);
   const [available, setAvailable] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState<VoiceSession | null>(null);
@@ -144,7 +150,9 @@ function VoiceEditor({
   const suggestions = useMemo(() => suggestVoiceDraft(text), [text]);
   const live =
     proposal && proposal.transcript === text.trim() ? proposal : null;
-  const shownFields = live ? live.fields : suggestions.fields;
+  const fallbackFields = fieldsWithHeardRating(suggestions, acceptedRating);
+  const heard = suggestions.heard;
+  const shownFields = live ? live.fields : fallbackFields;
   const liveRegion = live ? proposedRegion(live) : null;
   const busy = ["starting", "recording", "processing"].includes(mode);
 
@@ -179,6 +187,14 @@ function VoiceEditor({
     gate.clear();
     setExtracting(false);
   }
+  useEffect(() => {
+    const next = recordCue(lastMode.current, mode);
+    lastMode.current = mode;
+    if (!next) return;
+    setCue(next);
+    const timer = setTimeout(() => setCue(null), 3000);
+    return () => clearTimeout(timer);
+  }, [mode]);
   useEffect(() => {
     dialog.current?.showModal();
     let active = true;
@@ -397,7 +413,8 @@ function VoiceEditor({
       setProposal(next);
       setFields((old) => seedSuggestedFields(old, {}, next.fields, entry.map));
       setPin(next.location.status === "mapped");
-      if (next.followUp)
+      // The question is on screen. Reading it aloud is opt-in.
+      if (next.followUp && speaksFollowUps())
         void ai.speak(next.followUp.question, lang).catch(() => {});
     } catch (caught) {
       if (caught instanceof ExtractionCancelled) return;
@@ -444,9 +461,8 @@ function VoiceEditor({
       return;
     }
     const chosen: DraftFields = {};
-    for (const key of Object.keys(suggestions.fields) as (keyof DraftFields)[])
-      if (fields[key])
-        Object.assign(chosen, { [key]: suggestions.fields[key] });
+    for (const key of Object.keys(fallbackFields) as (keyof DraftFields)[])
+      if (fields[key]) Object.assign(chosen, { [key]: fallbackFields[key] });
     try {
       onApply({
         text,
@@ -556,6 +572,9 @@ function VoiceEditor({
           onToken={setChallenge}
         />
       )}
+      <p className="subtle" role="status" aria-live="polite">
+        {cue ? t(`voice.cue.${cue}`) : ""}
+      </p>
       <label htmlFor="voice-transcript">{t("voice.reviewTranscript")}</label>
       <textarea
         id="voice-transcript"
@@ -635,6 +654,21 @@ function VoiceEditor({
           )}
           <p className="subtle">{t("voice.runsHere")}</p>
         </section>
+      )}
+      {!live && heard && acceptedRating !== heard.value && (
+        <p className="voice-heard">
+          <span>{t("voice.heardRating", { heard: heard.heard })}</span>{" "}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setAcceptedRating(heard.value);
+              setFields((old) => ({ ...old, intensity: true }));
+            }}
+          >
+            {t("voice.useHeardRating", { value: heard.value })}
+          </button>
+        </p>
       )}
       {Object.keys(shownFields).length > 0 && (
         <fieldset>

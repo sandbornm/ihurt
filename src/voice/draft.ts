@@ -5,6 +5,8 @@ import {
   type SavedMap,
 } from "../types.ts";
 import { t } from "../i18n/index.ts";
+import { aliasPatterns } from "./lexicon.ts";
+import { heardRating } from "./natural-rating.ts";
 
 export type DraftFields = Partial<
   Pick<SavedMap["map"], "intensity" | "quality" | "activity" | "duration">
@@ -128,22 +130,27 @@ export function suggestVoiceDraft(text: string) {
         nombre.replace(" y mano", ""),
         nombre.replace("muneca y mano", "mano"),
       ];
+      const aliases = aliasPatterns(id);
       return clauses.some(
         (part) =>
           (/\b(?:hurts?|pain|aches?|aching|discomfort|sore|tight|stiff|burning|tingling|numb|throbbing|cramping)\b/.test(
             part,
           ) &&
-            new RegExp(`\\b${label}\\b`).test(part)) ||
+            (new RegExp(`\\b${label}\\b`).test(part) ||
+              aliases.en.some((pattern) => pattern.test(part)))) ||
           (/\b(?:duele|duelen|dolor|dolores|molesta|molestan|molestia|molestias|arde|ardor|punzante|hormigueo|calambre|tension|rigidez|adolorid[oa])\b/.test(
             fold(part),
           ) &&
-            nombres.some((name) =>
+            (nombres.some((name) =>
               new RegExp(`\\b${name}\\b`).test(fold(part)),
-            )),
+            ) ||
+              aliases.es.some((pattern) => pattern.test(fold(part))))),
       );
     })
     .map(({ id }) => id);
-  return { fields, locations };
+  // Only offered when no rating was stated outright; the panel asks first.
+  const heard = fields.intensity === undefined ? heardRating(text) : null;
+  return heard ? { fields, locations, heard } : { fields, locations };
 }
 
 export function applyVoiceDraft(

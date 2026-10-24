@@ -39,6 +39,10 @@ interface ReviewDraft {
   text: string;
   fields: Record<string, boolean>;
   region: string;
+  // Kept so reopening shows the same suggestion; it is used only while its
+  // transcript still matches the text, and the pin still needs "Add to entry".
+  proposal?: PainProposal | null;
+  pin?: boolean;
 }
 
 export default function VoiceDraft(
@@ -114,10 +118,12 @@ function VoiceEditor({
   const [aiNotice, setAiNotice] = useState("");
   // The proposal stays in this panel's state. It is not autosaved and nothing
   // from it reaches the entry until "Add to entry".
-  const [proposal, setProposal] = useState<PainProposal | null>(null);
+  const [proposal, setProposal] = useState<PainProposal | null>(
+    draft?.proposal ?? null,
+  );
   const [extracting, setExtracting] = useState(false);
   const [answer, setAnswer] = useState("");
-  const [pin, setPin] = useState(true);
+  const [pin, setPin] = useState(draft?.pin ?? true);
   const extraction = useRef(0);
   const extractAbort = useRef<AbortController | null>(null);
   const gate = useRef(createAvailabilityGate()).current;
@@ -142,7 +148,13 @@ function VoiceEditor({
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
-    close({ text: busy ? previousText.current : text, fields, region });
+    close({
+      text: busy ? previousText.current : text,
+      fields,
+      region,
+      proposal,
+      pin,
+    });
   }
 
   function cancelCapture() {

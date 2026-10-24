@@ -274,7 +274,7 @@ function sideFromPhrase(phrase: string, item: Candidate, transcript: string) {
     if (!realSideAt(transcript, at, side)) continue;
     if (!sideReachable(item.at, at, transcript)) continue;
     const actual = said.slice(at.start, at.end).join(" ");
-    if (!grounded(actual, transcript, true)) continue;
+    if (!grounded(actual, transcript, true, true)) continue;
     return side;
   }
   return null;
@@ -303,7 +303,7 @@ function sidesInRange(
       !sideReachable(part, at, transcript)
     )
       continue;
-    if (!grounded(word, transcript, true)) continue;
+    if (!grounded(word, transcript, true, true)) continue;
     sides.add(side);
   }
   return sides;
@@ -875,7 +875,7 @@ export function verifyEvidence(
   // affirms, and it cannot keep a span the lexicon denies.
   const kept = dropExtras(
     candidates(evidence, transcript).filter((item) =>
-      grounded(item.evidence, transcript, true),
+      grounded(item.evidence, transcript, true, true),
     ),
   );
   return {

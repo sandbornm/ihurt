@@ -784,7 +784,8 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "schematic-fallback";
         setReady(true);
         update();
-        // A command given while the atlas loaded (like Confirm pin) still runs.
+        // The same replay as above: only a command that needs the atlas (like
+        // Confirm pin) given while it loaded runs; the rest ran on the body.
         if (
           latest.current.command.id &&
           needsAtlas.test(latest.current.command.type)

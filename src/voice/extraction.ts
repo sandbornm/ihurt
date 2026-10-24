@@ -678,6 +678,19 @@ const hurtWords = new Set([
   "duelen",
   "molesta",
   "molestan",
+  "dolia",
+  "dolian",
+  "dolio",
+  "molestaba",
+  "molestaban",
+]);
+// "no dolía ayer": the Spanish imperfect says how it was.
+const pastHurt = new Set([
+  "dolia",
+  "dolian",
+  "dolio",
+  "molestaba",
+  "molestaban",
 ]);
 const timeWords = new Set([
   "today",
@@ -699,7 +712,12 @@ const pastNegators =
 const pastMarkers = new Set(["earlier", "yesterday", "ayer", "anoche"]);
 const denialTail =
   /^(?:at all|para nada|en absoluto|nada|a bit|anymore|any more|ya|all (?:day|week|month|morning|night|year)|lately|recently|so far)$/;
-function deniesAfter(words: string[], end: number, corrected: boolean) {
+function deniesAfter(
+  words: string[],
+  end: number,
+  corrected: boolean,
+  current = false,
+) {
   const next = words.slice(end + 1, end + 6);
   const at = next.findIndex(isNegator);
   if (at < 0 || at >= 3) return false;
@@ -715,9 +733,11 @@ function deniesAfter(words: string[], end: number, corrected: boolean) {
   const negator = next[at];
   const pastNegation =
     pastNegators.test(negator) ||
-    (negator === "not" && /^(?:did|was|were|had)$/.test(next[at - 1] ?? ""));
+    (negator === "not" && /^(?:did|was|were|had)$/.test(next[at - 1] ?? "")) ||
+    pastHurt.has(rest[hurt]);
+  // It only grounds the part when something later says it hurts now.
   if (pastNegation && popped.some((word) => pastMarkers.has(word)))
-    return false;
+    return !current;
   return !tail.length || denialTail.test(tail.join(" "));
 }
 
@@ -788,6 +808,7 @@ function covers(
   needed: string[],
   part = false,
   corrected = false,
+  current = false,
 ) {
   // "it can't be my left knee" says it is not the knee.
   // "I can't be on my left knee" and "can't be walking" are ability.
@@ -805,7 +826,7 @@ function covers(
     last = Math.max(last, at);
     return at >= 0 && !words.slice(0, at).some((word) => denies(word, part));
   });
-  if (!found || deniesAfter(words, last, corrected)) return false;
+  if (!found || deniesAfter(words, last, corrected, current)) return false;
   // "I can't tell if my left knee is the problem" still denies it, but "I
   // can't walk because my left knee is the problem" does not.
   const before = words.slice(0, last);
@@ -858,6 +879,27 @@ function painGone(words: string[]) {
   );
 }
 
+// A phrase that says the pain is there now: "it hurts today", "but now it
+// does". "didn't hurt yesterday" alone is not a current pain.
+const currentWords = new Set([
+  "now",
+  "today",
+  "tonight",
+  "currently",
+  "still",
+  "then",
+  "hoy",
+  "ahora",
+  "actualmente",
+  "todavia",
+  "aun",
+  "luego",
+  "despues",
+]);
+const saysCurrent = (words: string[]) =>
+  !words.some(isNegator) &&
+  words.some((word) => hurtWords.has(word) || currentWords.has(word));
+
 // With `together`, the words must share one conjunction-free part, so "my
 // left knee and right foot" does not ground "left foot". Without it, words
 // joined only by conjunctions still count ("left knee and ankle"), as long as
@@ -869,6 +911,7 @@ function clauseGrounds(
   together: boolean,
   part: boolean,
   corrected: boolean,
+  current = false,
 ) {
   const split = exceptSides(clause);
   if (split) {
@@ -903,7 +946,18 @@ function clauseGrounds(
     )
   )
     return false;
-  if (soft.some((words) => covers(words, needed, part, corrected))) return true;
+  if (
+    soft.some((words, i) =>
+      covers(
+        words,
+        needed,
+        part,
+        corrected,
+        current || soft.slice(i + 1).some(saysCurrent),
+      ),
+    )
+  )
+    return true;
   if (together) return false;
   const affirmative = soft.filter((words) => !words.some(isNegator));
   return covers(affirmative.flat(), needed, false, corrected);
@@ -916,7 +970,7 @@ const clearing =
 // "it's not gone" and "it's not better" say the pain is still there, and so do
 // "no se ha ido", "no está mejor" and "todavía sigue".
 const stillThere =
-  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^no esta bien\b|^(?:todavia|aun) (?:sigue(?! (?:bien|mejor|sin)\b)|esta(?! (?:mejor|bien)\b)|me)\b|^sigue\b(?! (?:bien|mejor|sin)\b)/;
+  /^(?:not|no) (?:gone|over|better|good|great|fine|ok|okay|resolved|healed|finished|done|stopped|improved)\b|^no (?:se (?:me )?(?:ha |han )?(?:ido|quitado|pasado|quita|pasa|va)|esta mejor|ha (?:mejorado|pasado)|mejoro)\b|^no esta bien\b|^(?:todavia|aun) (?:sigue(?! (?:bien|mejor|sin)\b)|esta(?! (?:mejor|bien)\b)|me)\b|^sigue\b(?! (?:bien|mejor|sin)\b)/;
 function corrects(next: string) {
   const match = /^\s*(?:it['\u2019]s|its|it is|es|son)\s+(.*)$/i.exec(next);
   if (match === null) return false;
@@ -955,6 +1009,7 @@ export function grounded(
       part,
       // "isn't sore, it's aching": the next clause corrects the denial.
       corrects(said[i + 1] ?? ""),
+      said.slice(i + 1).some((later) => softParts(later).some(saysCurrent)),
     ),
   );
 }

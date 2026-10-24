@@ -256,7 +256,7 @@ function realSideAt(
 const sideOnlyWord =
   /^(?:left|right|side|one|on|of|the|my|a|an|el|la|los|las|lado|del|de|al|izquierd[oa]s?|derech[oa]s?|both|ambos|ambas|dos)$/;
 const sleptWord =
-  /\b(?:slept|sleeping|sleep|lay|lie|lies|lying|laying|laid|reclin\w*|dorm\w*|durm\w*|acost\w*|tumb\w*|echad\w*|recost\w*)\b/;
+  /\b(?:slept|sleeping|sleep|lay|lie (?:down|on|in|flat)|lies (?:down|on|in|flat)|lying|laying|laid|reclin\w*|dorm(?:i|ia|ir|ido|ida|imos|iste|io|iamos|ian)|durm(?:i|io|iendo|ieron)|duerm\w*|acost(?:ad[oa]s?|ar\w*|e|o|aba\w*|ando\w*)|tumb\w*|echad[oa]s?|recost\w*)\b/;
 
 // "the left one" and "I mean the left one" can give a side to the part.
 // "I slept on the left side" cannot.
@@ -609,20 +609,34 @@ function coordinatedSides(
     const a = sides[i];
     const b = sides[i + 1];
     if (a.side === b.side) continue;
-    const between = said.slice(a.index + 1, b.index);
+    const gap = said.slice(a.index + 1, b.index);
+    // "left knee and right knee": the part may be said again between the two
+    // sides, once. Two different parts are a different question.
+    const repeated = gap.filter((word) => partsIn(word).length > 0).length;
+    if (repeated > 1) continue;
+    const between = gap.filter((word) => partsIn(word).length === 0);
     if (!between.some((word) => joiners.has(word))) continue;
     if (!between.every((word) => joinFiller.has(word))) continue;
     // The part touches the pair: "left and right knee" or "rodilla izquierda
     // y derecha", with only filler words in between.
     const filler = (words: string[]) =>
       words.every((word) => sideOnlyWord.test(word) || word === "of");
-    const part = said.findIndex(
-      (word, index) =>
-        index >= clause.start && index < clause.end && partsIn(word).length > 0,
-    );
-    if (part < 0) continue;
-    if (part > b.index && filler(said.slice(b.index + 1, part))) return true;
-    if (part < a.index && filler(said.slice(part + 1, a.index))) return true;
+    const parts: number[] = [];
+    for (let index = clause.start; index < clause.end; index++)
+      if (partsIn(said[index]).length > 0) parts.push(index);
+    if (!parts.length) continue;
+    if (
+      parts.some(
+        (part) => part > b.index && filler(said.slice(b.index + 1, part)),
+      )
+    )
+      return true;
+    if (
+      parts.some(
+        (part) => part < a.index && filler(said.slice(part + 1, a.index)),
+      )
+    )
+      return true;
   }
   return false;
 }

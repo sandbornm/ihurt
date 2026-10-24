@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5-mini"
     openai_transcription_model: str = "gpt-4o-mini-transcribe"
-    transcription_provider: Literal["elevenlabs", "openai", "off"] = "elevenlabs"
+    # Off unless the operator opts in. No audio leaves the server by default.
+    transcription_provider: Literal["elevenlabs", "openai", "off"] = "off"
     elevenlabs_api_key: str = ""
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-haiku-4-5"

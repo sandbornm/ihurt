@@ -857,6 +857,11 @@ h1 > span {
   border-radius: 50%;
   box-shadow: 0 0 0 4px #baf38b16;
 }
+.callout-dot.proposed {
+  background: transparent;
+  border: 2px dashed #7fb0ff;
+  box-shadow: 0 0 0 4px #7fb0ff1f;
+}
 .region-callout > div {
   display: grid;
   gap: 4px;

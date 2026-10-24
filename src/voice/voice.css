@@ -75,3 +75,39 @@
   min-height: 44px;
   margin-top: 8px;
 }
+
+.voice-proposal {
+  margin: 12px 0;
+  border: 1px dashed #7fb0ff;
+  border-radius: 8px;
+  padding: 12px;
+  background: #7fb0ff0f;
+}
+.voice-proposal h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #a9c8ff;
+}
+.voice-proposal p {
+  margin: 6px 0;
+}
+.voice-follow-up {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.voice-follow-up input {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--line, #526158);
+  border-radius: 8px;
+  padding: 10px;
+}
+.voice-follow-up div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

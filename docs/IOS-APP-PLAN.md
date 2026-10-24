@@ -17,8 +17,9 @@ iHurt is already a **hybrid** product, not a greenfield native rewrite.
 | Hands | MediaPipe Tasks Vision (bundled WASM + model) | Front-camera gesture pin / dial / save |
 | Local storage | IndexedDB (shared web + WKWebView) | Entries, drafts; no cloud sync |
 | Optional AI | FastAPI (Python/uv) + provider adapters | Local BYOK; **hidden on iOS** |
-| Voice (web) | ElevenLabs via local Python API | Optional; not required for typed drafts |
+| Voice (web) | Off by default; ElevenLabs or OpenAI by env opt-in | Optional; not required for typed drafts |
 | Voice (iOS) | Apple Speech + microphone (on-device only) | Native Capacitor plugin |
+| Voice AI (iOS 26+) | Apple Foundation Models (on-device) | AppleIntelligence plugin; proposes fields and a pin, user confirms |
 | Packaging | Capacitor 8 (`app.ihurt.notebook`) | Offline WKWebView shell |
 | Native iOS | Xcode project under `ios/App`, SPM | Filesystem + Share plugins, AppleSpeech, privacy plist |
 | CI | `.github/workflows/ios.yml` on `macos-15` | Unsigned simulator build after `ios:sync` |

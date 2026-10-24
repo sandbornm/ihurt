@@ -1,16 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Square, X } from "lucide-react";
 import { nativeSpeech } from "../platform/speech";
+import { ExtractionCancelled, onDeviceAI } from "../platform/on-device-ai";
 import { isNativeApp } from "../platform/files";
 import { regionName, type SavedMap } from "../types";
 import VisitorCheck from "../VisitorCheck";
 import type { VoiceClient, VoiceSession } from "./client";
 import {
   suggestVoiceDraft,
+  voiceNotice,
   type DraftFields,
   type VoiceDraftValue,
 } from "./draft";
+import {
+  anatomyList,
+  answerFollowUp,
+  buildProposal,
+  confirmProposal,
+  describeLocation,
+  localToday,
+  pinAfterAnswer,
+  proposedRegion,
+  seedSuggestedFields,
+  type PainProposal,
+} from "./extraction";
+import { createAvailabilityGate } from "./ai-gate";
 import { startRecording, toWav, type Recording } from "./recording";
+import { createSuggestOnce } from "./suggest-once";
 import "./voice.css";
 
 export interface VoiceDraftProps {
@@ -22,6 +38,10 @@ interface ReviewDraft {
   text: string;
   fields: Record<string, boolean>;
   region: string;
+  // Kept so reopening shows the same suggestion; it is used only while its
+  // transcript still matches the text, and the pin still needs "Add to entry".
+  proposal?: PainProposal | null;
+  pin?: boolean;
 }
 
 export default function VoiceDraft(
@@ -90,9 +110,23 @@ function VoiceEditor({
     },
   );
   const speech = useRef(nativeSpeech()).current;
+  const ai = useRef(onDeviceAI()).current;
+  const [aiReady, setAiReady] = useState(false);
+  // The proposal stays in this panel's state. It is not autosaved and nothing
+  // from it reaches the entry until "Add to entry".
+  const [proposal, setProposal] = useState<PainProposal | null>(
+    draft?.proposal ?? null,
+  );
+  const [extracting, setExtracting] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const [pin, setPin] = useState(draft?.pin ?? true);
+  const extraction = useRef(0);
+  const extractAbort = useRef<AbortController | null>(null);
+  const gate = useRef(createAvailabilityGate()).current;
   const recording = useRef<Recording | null>(null);
   const upload = useRef<AbortController | null>(null);
   const generation = useRef(0);
+  const suggestOnce = useRef(createSuggestOnce()).current;
   const stopLatest = useRef(() => {});
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -103,10 +137,23 @@ function VoiceEditor({
     Math.max(1, session?.max_audio_seconds ?? 60),
   );
   const suggestions = useMemo(() => suggestVoiceDraft(text), [text]);
+  const live =
+    proposal && proposal.transcript === text.trim() ? proposal : null;
+  const shownFields = live ? live.fields : suggestions.fields;
+  const liveRegion = live ? proposedRegion(live) : null;
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
-    close({ text: busy ? previousText.current : text, fields, region });
+    // Closing the panel stops the on-device read and any spoken question now,
+    // not only when the editor unmounts.
+    cancelCapture();
+    close({
+      text: busy ? previousText.current : text,
+      fields,
+      region,
+      proposal,
+      pin,
+    });
   }
 
   function cancelCapture() {
@@ -116,6 +163,16 @@ function VoiceEditor({
     upload.current?.abort();
     upload.current = null;
     void speech?.cancel().catch(() => {});
+    stopExtraction();
+    void ai?.stopSpeaking().catch(() => {});
+  }
+
+  function stopExtraction() {
+    extraction.current++;
+    extractAbort.current?.abort();
+    extractAbort.current = null;
+    gate.clear();
+    setExtracting(false);
   }
   useEffect(() => {
     dialog.current?.showModal();
@@ -132,6 +189,20 @@ function VoiceEditor({
               "On-device speech is unavailable. Type or paste a transcript below."),
       );
     };
+    const settle = (ready: boolean) => {
+      if (!active) return;
+      setAiReady(ready);
+      // A recording that finished during the check is read now. Recording
+      // again or cancelling clears the queue, so the value is still current.
+      const queued = gate.settle(ready);
+      if (queued) void runExtraction(queued);
+    };
+    if (ai && native)
+      void ai
+        .isAvailable()
+        .then((state) => settle(state.available))
+        .catch(() => settle(false));
+    else gate.settle(false);
     void (async () => {
       try {
         if (speech) {
@@ -146,10 +217,6 @@ function VoiceEditor({
           if (!active) return;
           setSession(next);
           setAvailable(next.transcription_available);
-          if (!next.transcription_available)
-            setError(
-              "Voice transcription is not configured. Type or paste a transcript below.",
-            );
         }
       } catch {
         if (active)
@@ -193,6 +260,9 @@ function VoiceEditor({
     if (!available || busy) return;
     const current = ++generation.current;
     previousText.current = text;
+    stopExtraction();
+    setProposal(null);
+    void ai?.stopSpeaking().catch(() => {});
     setError("");
     setSeconds(0);
     setMode("starting");
@@ -203,11 +273,12 @@ function VoiceEditor({
           (value) => {
             if (generation.current === current) setText(value.slice(0, 3000));
           },
-          (message) => {
+          (message, final) => {
             ended = true;
             if (generation.current !== current) return;
             setMode("idle");
             if (message) setError(message);
+            else if (final !== undefined) suggestFinal(current, final);
           },
         );
         if (!ended && generation.current === current) setMode("recording");
@@ -244,8 +315,9 @@ function VoiceEditor({
     const current = generation.current;
     setMode("processing");
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let final: string | undefined;
     try {
-      if (speech) await speech.stop();
+      if (speech) final = await speech.stop();
       else if (recording.current) {
         const capture = recording.current;
         const blob = await capture.stop();
@@ -277,14 +349,94 @@ function VoiceEditor({
         setMode("idle");
         setChallenge("");
         setNonce((value) => value + 1);
+        if (speech && final !== undefined) suggestFinal(current, final);
       }
     }
+  }
+
+  // Suggest once per recording, from the recognizer's final transcript rather
+  // than the text box, which may not have rendered the last words yet.
+  function suggestFinal(current: number, final: string) {
+    const value = suggestOnce.deliver(current, generation.current, final);
+    if (value) propose(value);
+  }
+
+  function propose(transcript: string) {
+    const value = transcript.trim();
+    if (!ai || !value) return;
+    const now = gate.request(value);
+    if (now) void runExtraction(now);
+  }
+
+  async function runExtraction(value: string) {
+    if (!ai) return;
+    extractAbort.current?.abort();
+    const controller = new AbortController();
+    extractAbort.current = controller;
+    const current = ++extraction.current;
+    setExtracting(true);
+    setProposal(null);
+    setAnswer("");
+    try {
+      const today = localToday();
+      const raw = await ai.extractPainEntry(
+        { transcript: value, anatomyList, today },
+        { signal: controller.signal },
+      );
+      if (extraction.current !== current) return;
+      const next = buildProposal(raw, value, today);
+      setProposal(next);
+      setFields((old) => seedSuggestedFields(old, {}, next.fields, entry.map));
+      setPin(next.location.status === "mapped");
+      if (next.followUp) void ai.speak(next.followUp.question).catch(() => {});
+    } catch (caught) {
+      if (caught instanceof ExtractionCancelled) return;
+      if (extraction.current === current)
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Apple Intelligence could not read this note. You can still add it as text.",
+        );
+    } finally {
+      if (extraction.current === current) {
+        setExtracting(false);
+        extractAbort.current = null;
+      }
+    }
+  }
+
+  function submitAnswer(skip = false) {
+    if (!live) return;
+    void ai?.stopSpeaking().catch(() => {});
+    const next = answerFollowUp(live, skip ? "" : answer);
+    setProposal(next);
+    setFields((old) =>
+      seedSuggestedFields(old, live.fields, next.fields, entry.map),
+    );
+    setText(next.transcript);
+    setAnswer("");
+    setPin((current) => pinAfterAnswer(current, live.location, next.location));
   }
   stopLatest.current = () => {
     void stop();
   };
 
   function apply() {
+    if (live) {
+      try {
+        // "Add to entry" is the explicit confirmation of the proposal.
+        onApply(confirmProposal(live, { confirmed: true, fields, pin }));
+        void ai?.stopSpeaking().catch(() => {});
+        close();
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "The draft could not be added.",
+        );
+      }
+      return;
+    }
     const chosen: DraftFields = {};
     for (const key of Object.keys(suggestions.fields) as (keyof DraftFields)[])
       if (fields[key])
@@ -322,14 +474,18 @@ function VoiceEditor({
         </button>
       </div>
       <p>
-        {native
-          ? "Apple speech recognition runs on your device. Review the words before adding them."
-          : `Stopping or reaching the ${maxSeconds}-second limit sends audio to ${session?.transcription_provider ?? "ElevenLabs"}. Its retention policy applies.`}
+        {voiceNotice({
+          native,
+          checking: mode === "loading",
+          provider: session?.transcription_provider,
+          available,
+          maxSeconds,
+        })}
       </p>
-      {!native && (
+      {!native && available && session?.transcription_provider && (
         <a
           href={
-            session?.transcription_provider === "OpenAI"
+            session.transcription_provider === "OpenAI"
               ? "https://openai.com/policies/privacy-policy/"
               : "https://elevenlabs.io/privacy-policy"
           }
@@ -404,10 +560,84 @@ function VoiceEditor({
         rows={5}
         placeholder="My left calf feels tight, four out of ten. Activity: running. Duration: since yesterday."
       />
-      {Object.keys(suggestions.fields).length > 0 && (
+      {aiReady && (extracting || live || text.trim()) && (
+        <section className="voice-proposal" aria-live="polite">
+          <h3>Suggested from your words</h3>
+          {extracting ? (
+            <p>Reading your note on this device…</p>
+          ) : live ? (
+            <>
+              <p>{describeLocation(live.location)}</p>
+              {liveRegion && (
+                <label className="voice-field">
+                  <input
+                    type="checkbox"
+                    checked={pin}
+                    onChange={(event) => setPin(event.target.checked)}
+                  />{" "}
+                  <span>
+                    Propose a pin on {regionName(liveRegion)}. You confirm it on
+                    the body.
+                  </span>
+                </label>
+              )}
+              {live.followUp && !live.asked && (
+                <div className="voice-follow-up">
+                  <label htmlFor="voice-follow-up">
+                    {live.followUp.question}
+                  </label>
+                  <input
+                    id="voice-follow-up"
+                    value={answer}
+                    maxLength={300}
+                    onChange={(event) => setAnswer(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && answer.trim()) {
+                        event.preventDefault();
+                        submitAnswer();
+                      }
+                    }}
+                  />
+                  <div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={!answer.trim()}
+                      onClick={() => submitAnswer()}
+                    >
+                      Answer
+                    </button>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => submitAnswer(true)}
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || !text.trim()}
+              onClick={() => propose(text)}
+            >
+              Suggest fields
+            </button>
+          )}
+          <p className="subtle">
+            Runs on this device. It uses only what you said and saves nothing
+            until you add it.
+          </p>
+        </section>
+      )}
+      {Object.keys(shownFields).length > 0 && (
         <fieldset>
           <legend>Fill these fields</legend>
-          {Object.entries(suggestions.fields).map(([key, value]) => (
+          {Object.entries(shownFields).map(([key, value]) => (
             <label className="voice-field" key={key}>
               <input
                 type="checkbox"
@@ -427,7 +657,7 @@ function VoiceEditor({
           ))}
         </fieldset>
       )}
-      {suggestions.locations.length > 0 && (
+      {!live && suggestions.locations.length > 0 && (
         <label>
           Locate an area after adding the note
           <select
@@ -459,7 +689,7 @@ function VoiceEditor({
       <button
         type="button"
         className="primary"
-        disabled={!text.trim() || busy}
+        disabled={!text.trim() || busy || extracting}
         onClick={apply}
       >
         Add to entry
@@ -468,7 +698,10 @@ function VoiceEditor({
         type="button"
         className="text-button voice-discard"
         disabled={busy || !text.trim()}
-        onClick={() => close()}
+        onClick={() => {
+          cancelCapture();
+          close();
+        }}
       >
         Discard draft
       </button>

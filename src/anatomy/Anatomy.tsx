@@ -1,4 +1,4 @@
-import { PinMarkers } from "./pins";
+import { PinMarkers, ProposedPinMarker } from "./pins";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -44,6 +44,8 @@ interface Props {
   showSkeleton?: boolean;
   onOrientation?: (view: "front" | "back" | null) => void;
   handEntry?: HandEntryControls;
+  // Region of an unconfirmed voice proposal. Drawn apart from saved pins.
+  proposed?: RegionId | null;
 }
 type Candidate = { mesh: T.Object3D; point: PainPoint };
 
@@ -176,6 +178,8 @@ export default function Anatomy(props: Props) {
     scene.add(body.group);
     const pinGroup = new PinMarkers();
     scene.add(pinGroup);
+    const proposedPin = new ProposedPinMarker();
+    scene.add(proposedPin);
     const spread = new LayerSpread();
     scene.add(spread.group);
     let beforeSpread: { position: T.Vector3; look: T.Vector3 } | null = null;
@@ -400,15 +404,18 @@ export default function Anatomy(props: Props) {
           bone.material.color.lerp(cool, 0.7);
       }
       pinGroup.setPoints(p.points ?? []);
+      proposedPin.place(
+        (p.proposed && regions.find((r) => r.id === p.proposed)?.center) ||
+          null,
+      );
+      if (spread.active) proposedPin.visible = false;
       kick();
     };
+    // Commands that need the atlas are skipped until it loads, then replayed.
+    const needsAtlas = /^(layers:|point:|muscle:|mesh:|pin-center)/;
     const command = (type: string) => {
       clearStroke();
-      if (
-        !root.dataset.atlas &&
-        /^(layers:|point:|muscle:|mesh:|pin-center)/.test(type)
-      )
-        return;
+      if (!root.dataset.atlas && needsAtlas.test(type)) return;
       if (spread.active) {
         spread.clear();
         setSpreadAmount(0);
@@ -760,7 +767,11 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "z-anatomy";
         setReady(true);
         update();
-        if (latest.current.command.id) command(latest.current.command.type);
+        if (
+          latest.current.command.id &&
+          needsAtlas.test(latest.current.command.type)
+        )
+          command(latest.current.command.type);
       })
       .catch(() => {
         if (disposed) return;
@@ -772,6 +783,12 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "schematic-fallback";
         setReady(true);
         update();
+        // A command given while the atlas loaded (like Confirm pin) still runs.
+        if (
+          latest.current.command.id &&
+          needsAtlas.test(latest.current.command.type)
+        )
+          command(latest.current.command.type);
       });
     fetch("/heat.wasm")
       .then((r) => {
@@ -1218,6 +1235,7 @@ export default function Anatomy(props: Props) {
         }
       });
       pinGroup.dispose();
+      proposedPin.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       delete root.dataset.atlas;
@@ -1228,6 +1246,7 @@ export default function Anatomy(props: Props) {
     () => engine.current?.update(),
     [
       props.selected,
+      props.proposed,
       mappedKey,
       props.layer,
       props.showSkeleton,

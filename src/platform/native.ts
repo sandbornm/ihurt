@@ -4,6 +4,11 @@ import { Share } from "@capacitor/share";
 import { configureNativeExports } from "./files";
 import { configureNativeSpeech } from "./speech";
 import { createAppleSpeech, type AppleSpeechBridge } from "./apple-speech";
+import {
+  configureOnDeviceAI,
+  createAppleIntelligence,
+  type AppleIntelligenceBridge,
+} from "./on-device-ai";
 
 // Only the standalone app entry imports native packages. Website consumers of
 // Notebook keep the browser adapter without depending on Capacitor.
@@ -11,6 +16,11 @@ export function initializeNativeApp() {
   if (Capacitor.getPlatform() !== "ios") return;
   configureNativeSpeech(
     createAppleSpeech(registerPlugin<AppleSpeechBridge>("AppleSpeech")),
+  );
+  configureOnDeviceAI(
+    createAppleIntelligence(
+      registerPlugin<AppleIntelligenceBridge>("AppleIntelligence"),
+    ),
   );
   configureNativeExports({
     async write(file, path) {

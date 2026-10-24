@@ -26,7 +26,7 @@ interface Session {
   text: string;
   error?: string;
   onText: (text: string) => void;
-  onEnd?: (error?: string) => void;
+  onEnd?: (error?: string, text?: string) => void;
 }
 
 export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
@@ -89,7 +89,7 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
           session.ended = true;
           session.error = event.error;
           void removeListeners(session);
-          session.onEnd?.(event.error);
+          session.onEnd?.(event.error, event.error ? undefined : session.text);
         });
         if (session.cancelled || current !== session)
           throw new Error("Recording cancelled.");
@@ -102,16 +102,17 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
     },
     async stop() {
       const session = current;
-      if (!session || session.cancelled) return;
+      if (!session || session.cancelled) return undefined;
       if (session.ended) {
         if (session.error) throw new Error(session.error);
-        return;
+        return session.text;
       }
       try {
         const result = await bridge.stop({ session: session.id });
         // The bridge promise also carries the final text so stop never races an event.
         deliver(session, result.text);
         session.ended = true;
+        return session.text;
       } catch (error) {
         session.ended = true;
         session.error =

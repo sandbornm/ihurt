@@ -122,8 +122,16 @@ export function partMentions(value: string): { part: Part; text: string }[] {
     found.push({ part, text: match[0].trim() });
     rest = rest.replace(new RegExp(pattern.source, "g"), " ");
   }
+  const back = bareBack.exec(rest);
+  if (back) found.push({ part: "lower_back", text: back[1] });
   return found;
 }
+
+// "my back hurts" names a sore spot even though a bare "back" is not mapped to
+// a region. "back at work", "my back to the wall" and "the back of my knee" do
+// not.
+const bareBack =
+  /\b(?:my|the|your|his|her|our|their|mi|la|su|tu)\s+(back|espalda)\b(?!\s+(?:of|to|at|home|then|from|up|in|on|off|door|seat|yard|porch|pocket|garden|side|de)\b)/;
 
 const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
@@ -277,6 +285,40 @@ function isDirection(words: string[], index: number) {
   return cursor >= 0 && cursor > index - 10 && motionVerb.test(words[cursor]);
 }
 
+const rightPlace = new Set([
+  "at",
+  "on",
+  "in",
+  "above",
+  "below",
+  "under",
+  "over",
+  "behind",
+  "beside",
+  "near",
+  "around",
+  "by",
+  "inside",
+  "beneath",
+  "underneath",
+]);
+const sideLead = new Set([
+  "the",
+  "my",
+  "your",
+  "his",
+  "her",
+  "our",
+  "their",
+  "a",
+  "an",
+  "on",
+  "to",
+  "this",
+  "that",
+  "el",
+  "la",
+]);
 // One token's side, or null when this spot is an idiom or the verb "left".
 // "right now", "all right" and "todo derecho" are not sides.
 export function sideAt(
@@ -299,6 +341,8 @@ export function sideAt(
   if (word === "right") {
     if (next === "now" || next === "away" || next === "after") return null;
     if (prev === "all") return null;
+    // "it hurts right at my left knee": "right" means exactly there.
+    if (rightPlace.has(next) && !sideLead.has(prev)) return null;
     return "right";
   }
   if (/^derech/.test(word)) {
@@ -1020,7 +1064,19 @@ function painGone(words: string[]) {
     /\bpain left\b/.test(text) ||
     /\bpain (?:is|was|has been|has|been) gone\b/.test(text) ||
     /\bpain went away\b/.test(text) ||
-    /\bdolor (?:se fue|ya paso|paso)\b/.test(text)
+    /\bdolor (?:se fue|ya paso|paso)\b/.test(text) ||
+    // "my knee stopped hurting", "the pain in my knee is gone",
+    // "se me quito el dolor", "dejo de doler".
+    /\b(?:stopped|ceased|quit) (?:hurting|aching)\b/.test(text) ||
+    /\b(?:pain|ache|soreness)\b.*\b(?:is|was|has been|has|been|went|had gone|has gone) (?:gone|away)\b/.test(
+      text,
+    ) ||
+    /\b(?:pain|ache|soreness) (?:disappeared|vanished|subsided|cleared up|is over)\b/.test(
+      text,
+    ) ||
+    /\b(?:dejo de doler(?:me)?|se me quito|se quito|se me paso|ya paso el dolor|el dolor (?:ya )?(?:se )?(?:fue|paso|quito)|desaparecio)\b/.test(
+      text,
+    )
   );
 }
 
@@ -1100,6 +1156,8 @@ export const saysHurt = (clause: string) => {
 // joined only by conjunctions still count ("left knee and ankle"), as long as
 // none comes from a denied part. `part` marks the body-part check, where
 // ability negators ("can't bend", "no puedo doblar") do not deny it.
+const recoveredNow =
+  /^(?:but |pero )?(?:(?:it(?: is)?|its|ya esta|esta|ya) (?:fine|ok|okay|healed|gone|bien|curad[oa]|sano)\b|not (?:hurting )?(?:now|today|anymore)\b|no (?:me )?(?:duele|dolor) (?:hoy|ahora)\b)/;
 function clauseGrounds(
   clause: string,
   needed: string[],
@@ -1137,6 +1195,24 @@ function clauseGrounds(
               ) &&
               (next.includes("tampoco") ||
                 next.some((word) => hurtWords.has(word))),
+          ),
+    )
+  )
+    return false;
+  // "my left knee hurt yesterday but it's fine now": it hurt, and now it is
+  // not hurting.
+  if (
+    !corrected &&
+    soft.some(
+      (words, i) =>
+        words.some((word) => pastMarkers.has(word)) &&
+        !words.some(isNegator) &&
+        soft
+          .slice(i + 1)
+          .some(
+            (next) =>
+              partsIn(next.join(" ")).length === 0 &&
+              recoveredNow.test(next.join(" ")),
           ),
     )
   )
@@ -1305,8 +1381,18 @@ export function mapLocation(
         (word === "left" || word === "right") &&
         notModifiers.has(all[i + 1] ?? ""),
     );
+    // The same words can be a direction in the note: "from left to the right
+    // knee" is where it moves, not which knee.
+    const said = phraseTokens(transcript);
+    const at = findSpan(words, transcript);
+    const sayable = (found: "left" | "right" | "both" | null) =>
+      found === "both" ||
+      !at ||
+      range(at.start, at.end).some((i) => sideAt(said, i) === found)
+        ? found
+        : null;
     const stated =
-      (loose ? null : sideIn(words)) ??
+      (loose ? null : sayable(sideIn(words))) ??
       ((side === "left" || side === "right") &&
       sideIn(transcript) === side &&
       partsIn(transcript).length === 1 &&
@@ -1402,6 +1488,11 @@ const dateRange = new RegExp(
 const withoutDates = (text: string) => text.replace(dateRange, " ");
 const genericBefore =
   /\b(?:about|around|maybe|roughly|(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?)$/;
+// "I'm at 7 when I walk" says how bad it gets, but "I'm at 7 when I get home"
+// is a time of day.
+const imAt = /\b(?:i'?m|i am|estoy) (?:at|en)(?: a| un)?$/;
+const whenTail =
+  /^(?:when|while|during|if|cuando|mientras|al|durante|si)\b(?!.*\b(?:get|got|arrive|arrived|leave|left|wake|woke|home|work|llego|llegue|salgo|casa|trabajo|despierto)\b)/;
 const genericAfter =
   /^(?:|or so|ish|i guess|i think|now|today|right now|at (?:most|worst|best)|at the moment|aproximadamente|mas o menos|creo|ahora|ahorita|hoy)$/;
 // A prompt telling the model to set a number is not a rating the person gave.
@@ -1476,7 +1567,12 @@ export function ratedIn(transcript: string, value: number) {
         }
         const lead = before.join(" ");
         if (monthBefore.test(lead)) continue;
-        if (genericBefore.test(lead) && !genericAfter.test(after)) continue;
+        if (
+          genericBefore.test(lead) &&
+          !genericAfter.test(after) &&
+          !(imAt.test(lead) && whenTail.test(after))
+        )
+          continue;
         if (ratingBefore.test(lead)) return true;
       }
   }
@@ -2030,4 +2126,10 @@ export function proposedPinStep(
     case "select":
       return { state: action.region === state ? state : null, command: null };
   }
+}
+
+function range(start: number, end: number) {
+  const out: number[] = [];
+  for (let i = start; i < end; i++) out.push(i);
+  return out;
 }

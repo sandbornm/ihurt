@@ -4,7 +4,7 @@ import type { RegionId } from "../types.ts";
 // these when the on-device model is not there. Each word names the nearest
 // region, and the person still reviews the pin.
 //
-// Sided words ("glute", "forearm") only count with a side, as in "left glute"
+// Sided words ("glute") only count with a side, as in "left glute"
 // or "glúteo izquierdo". They are never guessed from one side.
 const plain: Partial<Record<RegionId, { en: string[]; es: string[] }>> = {
   lower_back: { en: [], es: ["cintura", "espalda de abajo"] },
@@ -15,8 +15,6 @@ const sided: Record<string, { en: string[]; es: string[] }> = {
     en: ["buttocks?", "glutes?", "gluteus"],
     es: ["gluteos?", "nalgas?"],
   },
-  // The "wrist & hand" region is the nearest one to the forearm.
-  wrist: { en: ["forearms?"], es: ["antebrazos?"] },
 };
 
 // Patterns for text that has already been lowercased and had accents removed.

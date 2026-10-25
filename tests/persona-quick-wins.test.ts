@@ -9,8 +9,10 @@ import {
   partsIn,
 } from "../src/voice/extraction.ts";
 import {
+  applyHeardRating,
   fieldsWithHeardRating,
   heardRating,
+  offeredRating,
 } from "../src/voice/natural-rating.ts";
 import { recordCue } from "../src/voice/record-cue.ts";
 import { speaksFollowUps } from "../src/voice/spoken-follow-up.ts";
@@ -65,8 +67,55 @@ test("counts, durations, denials and competing numbers offer nothing", () => {
     "I had a seven year old with me",
     "I have one knee that hurts",
     "Seven out of ten today and a six yesterday",
+    "I ran about 8 on Tuesday",
+    "Caminé como 8 en la mañana",
+    "Mi hijo es 8 y me duele la rodilla",
+    "I walked about five",
+    "Me duele desde las dos",
   ])
     assert.equal(heardRating(text), null, text);
+});
+
+test("the quoted rating keeps its accents and casing", () => {
+  assert.equal(heardRating("Diría que siete")?.heard, "Diría que siete");
+  assert.equal(heardRating("Me duele, un ocho sin duda")?.value, 8);
+});
+
+test("a rating tapped before the model answers is still offered and kept", () => {
+  const heard = { value: 7, heard: "about a seven" };
+  // The model left intensity out: the chip shows until it is tapped.
+  assert.deepEqual(offeredRating({}, heard, null), heard);
+  assert.equal(offeredRating({}, heard, 7), null);
+  // The model filled intensity itself: nothing to confirm.
+  assert.equal(offeredRating({ intensity: 4 }, heard, null), null);
+  assert.equal(offeredRating({}, undefined, null), null);
+  // Once the live fields arrive the tapped number is still applied.
+  assert.deepEqual(applyHeardRating({ activity: "run" }, heard, 7), {
+    activity: "run",
+    intensity: 7,
+  });
+  assert.deepEqual(applyHeardRating({ activity: "run" }, heard, null), {
+    activity: "run",
+  });
+  assert.deepEqual(applyHeardRating({ activity: "run" }, heard, 3), {
+    activity: "run",
+  });
+  // The model's own number is never overwritten.
+  assert.deepEqual(applyHeardRating({ intensity: 4 }, heard, 7), {
+    intensity: 4,
+  });
+});
+
+test("recording again clears a tapped rating", () => {
+  const source = readFileSync(
+    new URL("../src/voice/VoiceDraft.tsx", import.meta.url),
+    "utf8",
+  );
+  const record = source.slice(source.indexOf("async function record()"));
+  assert.match(
+    record.slice(0, record.indexOf("setMode(")),
+    /setAcceptedRating\(null\)/,
+  );
 });
 
 test("a stated rating wins over a heard one", () => {
@@ -92,6 +141,50 @@ test("the follow-up is skipped when the person says all over or both", () => {
     ["Me duelen los dos pies", "pies"],
     ["Me duele por todos lados", ""],
     ["Me duelen ambas rodillas", "rodillas"],
+  ] as const)
+    assert.equal(
+      buildProposal(raw({ spokenLocation: spoken }), transcript, today)
+        .followUp,
+      null,
+      transcript,
+    );
+});
+
+test("the side question survives both, las dos and all over used for something else", () => {
+  for (const [transcript, spoken] of [
+    ["My knee hurts and I took both pills", "knee"],
+    ["My knee hurts both when I walk and when I sit", "knee"],
+    ["My knee hurts both day and night", "knee"],
+    ["My shoulder hurts but both hands are fine", "shoulder"],
+    ["My knee hurts all over", "knee"],
+    ["Pain is all over my knee", "knee"],
+    ["It is all over my knee after the run", "knee"],
+    ["Me duele la rodilla desde las dos", "rodilla"],
+    ["Me duele la rodilla, tomé las dos pastillas", "rodilla"],
+    ["Me duele el hombro pero los dos pies están bien", "hombro"],
+    ["Me duele la rodilla por todos lados", "rodilla"],
+  ] as const)
+    assert.equal(
+      buildProposal(raw({ spokenLocation: spoken }), transcript, today).followUp
+        ?.key,
+      "side",
+      transcript,
+    );
+});
+
+test("the side question is skipped when both or all over describes the pain", () => {
+  for (const [transcript, spoken] of [
+    ["Both knees hurt", "knees"],
+    ["Pain in both knees", "knees"],
+    ["It hurts in both of my knees", "knees"],
+    ["My knees hurt, pain in both.", "knees"],
+    ["Pain on both sides of my knee", "knee"],
+    ["Me duele en las dos rodillas", "rodillas"],
+    ["Me duelen ambas rodillas", "rodillas"],
+    ["Me duelen los dos hombros", "hombros"],
+    ["Me duele la rodilla en ambos lados", "rodilla"],
+    ["It hurts all over my body", ""],
+    ["Pain all over my whole body", ""],
   ] as const)
     assert.equal(
       buildProposal(raw({ spokenLocation: spoken }), transcript, today)
@@ -136,13 +229,11 @@ test("regional and everyday words reach existing regions in the fallback", () =>
     ["My belly hurts", "abdomen"],
     ["My left glute hurts", "left_hip"],
     ["My right buttock aches", "right_hip"],
-    ["My left forearm aches", "left_wrist"],
     ["Me duele la cintura", "lower_back"],
     ["Me duele la espalda de abajo", "lower_back"],
     ["Me duele la barriga", "abdomen"],
     ["Me duele el vientre", "abdomen"],
     ["Me duele el glúteo derecho", "right_hip"],
-    ["Me duele el antebrazo izquierdo", "left_wrist"],
   ] as const)
     assert.deepEqual(suggestVoiceDraft(text).locations, [region], text);
 });
@@ -150,6 +241,8 @@ test("regional and everyday words reach existing regions in the fallback", () =>
 test("new words do not place a pin when denied, sideless or said without pain", () => {
   for (const text of [
     "My forearm hurts",
+    "My left forearm aches",
+    "Me duele el antebrazo izquierdo",
     "My glute hurts",
     "My left glute does not hurt",
     "No me duele la cintura",
@@ -222,7 +315,15 @@ test("tour copy: no Grok, a voice step, Activity wording", () => {
   assert.equal(translate("es", "notebook.activity"), "Actividad");
 });
 
-test("the Spanish report no longer says Izquierda del modelo", () => {
+test("the report names the model's sides the same way in both languages", () => {
+  assert.equal(
+    translate("en", "export.html.modelLeft"),
+    "Left side of the model",
+  );
+  assert.equal(
+    translate("en", "export.html.modelRight"),
+    "Right side of the model",
+  );
   assert.equal(
     translate("es", "export.html.modelLeft"),
     "Lado izquierdo del modelo",

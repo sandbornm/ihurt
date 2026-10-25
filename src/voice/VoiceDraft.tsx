@@ -27,7 +27,11 @@ import {
   type PainProposal,
 } from "./extraction";
 import { createAvailabilityGate } from "./ai-gate";
-import { fieldsWithHeardRating } from "./natural-rating";
+import {
+  applyHeardRating,
+  fieldsWithHeardRating,
+  offeredRating,
+} from "./natural-rating";
 import { recordCue, type RecordMode } from "./record-cue";
 import { speaksFollowUps } from "./spoken-follow-up";
 import { startRecording, toWav, type Recording } from "./recording";
@@ -152,7 +156,14 @@ function VoiceEditor({
     proposal && proposal.transcript === text.trim() ? proposal : null;
   const fallbackFields = fieldsWithHeardRating(suggestions, acceptedRating);
   const heard = suggestions.heard;
-  const shownFields = live ? live.fields : fallbackFields;
+  const shownFields = live
+    ? applyHeardRating(live.fields, heard, acceptedRating)
+    : fallbackFields;
+  const offered = offeredRating(
+    live ? live.fields : suggestions.fields,
+    heard,
+    acceptedRating,
+  );
   const liveRegion = live ? proposedRegion(live) : null;
   const busy = ["starting", "recording", "processing"].includes(mode);
 
@@ -288,6 +299,8 @@ function VoiceEditor({
     previousText.current = text;
     stopExtraction();
     setProposal(null);
+    // A number tapped for the last note does not carry to this one.
+    setAcceptedRating(null);
     void ai?.stopSpeaking().catch(() => {});
     setError("");
     setSeconds(0);
@@ -450,7 +463,24 @@ function VoiceEditor({
     if (live) {
       try {
         // "Add to entry" is the explicit confirmation of the proposal.
-        onApply(confirmProposal(live, { confirmed: true, fields, pin }));
+        const confirmed = confirmProposal(live, {
+          confirmed: true,
+          fields,
+          pin,
+        });
+        // A number the person tapped is theirs, even if the model left it out.
+        onApply(
+          fields.intensity
+            ? {
+                ...confirmed,
+                fields: applyHeardRating(
+                  confirmed.fields,
+                  heard,
+                  acceptedRating,
+                ),
+              }
+            : confirmed,
+        );
         void ai?.stopSpeaking().catch(() => {});
         close();
       } catch (caught) {
@@ -655,18 +685,18 @@ function VoiceEditor({
           <p className="subtle">{t("voice.runsHere")}</p>
         </section>
       )}
-      {!live && heard && acceptedRating !== heard.value && (
+      {offered && (
         <p className="voice-heard">
-          <span>{t("voice.heardRating", { heard: heard.heard })}</span>{" "}
+          <span>{t("voice.heardRating", { heard: offered.heard })}</span>{" "}
           <button
             type="button"
             className="secondary"
             onClick={() => {
-              setAcceptedRating(heard.value);
+              setAcceptedRating(offered.value);
               setFields((old) => ({ ...old, intensity: true }));
             }}
           >
-            {t("voice.useHeardRating", { value: heard.value })}
+            {t("voice.useHeardRating", { value: offered.value })}
           </button>
         </p>
       )}

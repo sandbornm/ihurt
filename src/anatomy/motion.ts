@@ -43,7 +43,6 @@ export function advanceCamera(
   elapsedSeconds: number,
   reducedMotion: boolean,
 ) {
-  // Match the original easing at 60 Hz; cap gaps after a stalled frame.
   const blend = reducedMotion
     ? 1
     : 1 - Math.pow(0.9, Math.max(0, Math.min(elapsedSeconds, 0.05)) * 60);

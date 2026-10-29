@@ -5,8 +5,6 @@ import draco from "../public/draco/LICENSE?raw";
 import code from "../LICENSE?raw";
 import { useI18n } from "./i18n/react";
 
-// Bundle the authoritative notices so they remain readable offline, including
-// in WKWebView. Render as text; never interpret license files as HTML.
 export default function AnatomyCredits() {
   const { t } = useI18n();
   return (

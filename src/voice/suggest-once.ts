@@ -1,7 +1,3 @@
-// stop() and the recognizer's end callback can both deliver one recording's
-// final transcript. The first non-blank delivery owns that generation. A
-// blank transcript does not start a suggestion or block a later one. A final
-// from a generation that cancel or unmount already moved past is ignored.
 export function createSuggestOnce() {
   let suggested = -1;
   return {

@@ -25,7 +25,6 @@ export function captureViewport(
   surfaces: Mesh[],
   caption: string,
 ): ViewportCapture {
-  // Read immediately after rendering; keeping the WebGL buffer alive would slow normal use.
   renderer.render(scene, camera);
   const source = renderer.domElement;
   const canvas = document.createElement("canvas");

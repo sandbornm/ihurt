@@ -127,7 +127,6 @@ test("a recovery phrase does not clear a part that still hurts or that it does n
     where("Me duele la rodilla izquierda, se quitó", rodilla, "es"),
     "left_knee",
   );
-  // These still clear.
   for (const note of [
     "My left knee stopped hurting",
     "The pain in my left knee is gone",
@@ -170,7 +169,6 @@ test("a second part that hurts after 'because' is not dropped", () => {
     ),
     "ambiguous",
   );
-  // A cause that is not hurting is still just a cause.
   assert.equal(
     where("My left knee hurts because I walk a lot", knee),
     "left_knee",
@@ -230,7 +228,6 @@ test("an activity that names a body part stays when it is a movement", () => {
     ),
     "bending my wrist",
   );
-  // A place alone is not an activity.
   assert.equal(
     activityOf("My left knee hurts", "my left knee", ["left knee", "left"]),
     undefined,
@@ -291,7 +288,6 @@ test("a denial in an earlier sentence does not block a later activity", () => {
     ),
     "Corrí",
   );
-  // The denial in the same clause still blocks it.
   assert.equal(
     activityOf("I can't run, my left knee hurts", "run", ["left knee", "left"]),
     undefined,
@@ -305,7 +301,6 @@ test("a recovery about another part does not clear the hurting one", () => {
     ]),
     "left_knee",
   );
-  // The recovery of the named part itself still clears it.
   assert.equal(
     where("My left knee pain is gone because I rested", [
       ["left knee", "left"],
@@ -322,7 +317,6 @@ test("a recovery is scoped by side: the other side's pain does not keep this one
   const note = "My left knee pain is gone because my right knee hurts";
   assert.equal(where(note, left), "missing");
   assert.equal(where(note, right), "right_knee");
-  // The same part named twice: a cause that does not hurt keeps nothing.
   assert.equal(
     where("My left knee pain is gone because my knee healed", left),
     "missing",
@@ -331,7 +325,6 @@ test("a recovery is scoped by side: the other side's pain does not keep this one
     where("My left knee pain is gone because my left knee healed", left),
     "missing",
   );
-  // A cause that says the same knee hurts does keep it.
   assert.equal(
     where("My left knee pain is gone because my left knee hurts", left),
     "left_knee",
@@ -453,7 +446,6 @@ test("a guessed cause does not make the rating a guess", () => {
     ),
     7,
   );
-  // A guess about the rating itself still asks.
   assert.equal(
     rating("My left knee hurts, it might be a 7 but I'm not sure", 7, knee),
     undefined,
@@ -488,7 +480,6 @@ test("pain on the other side does not bring back a denied side", () => {
     ),
     "right_knee",
   );
-  // Same side, so the denial is lifted.
   assert.equal(
     where("My left knee didn't hurt yesterday. My left knee hurts today", left),
     "left_knee",

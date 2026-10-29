@@ -5,7 +5,6 @@ final class NotebookUITests: XCTestCase {
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollUp: Bool = true) {
         for _ in 0..<14 {
             if element.exists && element.isHittable { return }
-            // Use the page gutter so dragging does not turn the 3D body instead.
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: scrollUp ? 0.8 : 0.3))
             let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: scrollUp ? 0.3 : 0.8))
             start.press(forDuration: 0.05, thenDragTo: end)
@@ -35,13 +34,10 @@ final class NotebookUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your notebook, your data"].waitForExistence(timeout: 10))
         app.buttons["Close information"].tap()
 
-        // These words come from the authorized public example, never a user's notebook.
         let note = "My left upper trap and high left neck feel stiff after sleeping on my side and stomach."
         let editor = app.textViews["Describe your discomfort"]
         reveal(editor, in: app, scrollUp: false)
         editor.tap()
-        // Long synthesized key bursts can lose events on a busy hosted simulator.
-        // Verify each word before testing whether the app persists the edit.
         var typed = ""
         for word in note.split(separator: " ") {
             let chunk = (typed.isEmpty ? "" : " ") + word

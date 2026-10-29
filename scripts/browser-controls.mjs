@@ -42,7 +42,6 @@ try {
   const widths = process.argv.includes("--camera-lifecycle") ? [] : [1440, 390];
   for (const width of widths) {
     const context = await browser.newContext({
-      // English UI regardless of the machine language.
       locale: "en-US",
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
@@ -63,7 +62,6 @@ try {
       false,
     );
     assert.equal(await atlas.getAttribute("data-drag-mode"), "pin");
-    // Native touch events exercise OrbitControls, capture, and pin suppression together.
     const touch = await context.newCDPSession(page);
     const touchCanvas = atlas.locator("canvas[data-engine]");
     await touchCanvas.scrollIntoViewIfNeeded();
@@ -445,7 +443,6 @@ try {
       .click();
     await page.getByRole("button", { name: "Undo last mark" }).click();
     await page.getByText("PINNED SPOTS · 1", { exact: true }).waitFor();
-    // Paint over the isolated muscle without rotating the camera.
     await page.getByRole("button", { name: "Highlight", exact: true }).click();
     const canvas = atlas.locator("canvas[data-engine]");
     await canvas.scrollIntoViewIfNeeded();
@@ -618,7 +615,6 @@ try {
       ),
       false,
     );
-    // Keep marking after the old ten-pin limit, then verify durable storage.
     await page.getByRole("button", { name: "More tools", exact: true }).click();
     await page
       .getByRole("button", { name: "Muscle list", exact: true })
@@ -659,7 +655,6 @@ try {
     );
     await context.close();
   }
-  // Fake streams exercise camera cleanup without a camera or model download.
   for (const phase of ["play failure", "pending play", "pending permission"]) {
     const context = await browser.newContext({ locale: "en-US" });
     await context.addInitScript((phase) => {

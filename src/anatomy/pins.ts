@@ -8,7 +8,6 @@ import {
 } from "three";
 import type { PainPoint } from "../types";
 
-// One draw call for all markers. Grow capacity only when the buffer fills.
 export class PinMarkers extends Group {
   private geometry = new SphereGeometry(0.025, 12, 10);
   private material = new MeshBasicMaterial({ color: "#f9c68a" });
@@ -48,8 +47,6 @@ export class PinMarkers extends Group {
   }
 }
 
-// A pin proposed from voice. Drawn hollow and blue, apart from saved pins, and
-// never part of the entry until the person confirms it.
 export class ProposedPinMarker extends Mesh<SphereGeometry, MeshBasicMaterial> {
   constructor() {
     super(

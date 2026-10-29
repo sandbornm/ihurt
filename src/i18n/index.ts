@@ -16,8 +16,6 @@ export const dictionaries = { en, es } as const;
 
 const storageKey = "ihurt-language";
 let preference: LanguagePreference = readPreference();
-// In the iOS app this is replaced with Locale.preferredLanguages, because the
-// web view reports the app's own localization rather than the phone's list.
 let deviceLanguages: readonly string[] =
   typeof navigator === "undefined"
     ? []
@@ -81,16 +79,10 @@ export function translate(lang: Language, key: MessageKey, vars?: Vars) {
   return formatMessage(lang, dictionaries[lang][key] ?? en[key], vars);
 }
 
-// Translates with the current language. React components call useI18n() so
-// they re-render when the language changes.
 export const t = (key: MessageKey, vars?: Vars) =>
   translate(current, key, vars);
 
-// A BCP 47 tag for speech recognition and synthesis in the chosen language.
-// It keeps the region from the device list when it matches, such as es-MX.
 export function speechLocale(lang: Language = current) {
-  // Compare the tag's own base language: "fr-FR" resolves to English for the
-  // UI, but it is not an English speech locale.
   const match = deviceLanguages.find(
     (tag) => tag.split(/[-_]/)[0].toLowerCase() === lang && /[-_]/.test(tag),
   );

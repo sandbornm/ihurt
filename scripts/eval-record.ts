@@ -1,6 +1,3 @@
-// Records on-device Apple Intelligence output for the extraction eval.
-// macOS only. The Swift tool calls the same extract function as the app.
-
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";

@@ -19,7 +19,6 @@ export interface NativeFiles {
   share(uri: string): Promise<void>;
 }
 
-// Keep the filename separate from directories, including for restored entries.
 export function reportPath(name: string, id: string): string {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,120}$/.test(name) || name.includes(".."))
     throw new Error("Invalid export filename.");
@@ -37,7 +36,6 @@ export async function saveNativeExport(
   id = crypto.randomUUID(),
 ): Promise<string> {
   const uri = await files.write(file, reportPath(file.name, id));
-  // Cancelling the share sheet leaves the saved report available in Files.
   try {
     await files.share(uri);
   } catch {

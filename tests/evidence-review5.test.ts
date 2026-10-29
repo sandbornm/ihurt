@@ -122,7 +122,6 @@ test("'right at my left knee' is the left knee, never both", () => {
     where("It hurts right above my left knee", [["left knee", "left"]]),
     "left_knee",
   );
-  // A real right side is still a side.
   assert.equal(
     where("It hurts on the right in my knee", [["knee", "right"]]),
     "right_knee",
@@ -231,7 +230,6 @@ test("month, year and calendar-date onset phrases are kept", () => {
     ["Me duele la rodilla desde el año pasado", "año pasado", "es"],
   ] as const)
     assert.ok(onset(note, phrase, lang), `${note} / ${phrase}`);
-  // Still not a time phrase.
   assert.equal(
     onset("My knee hurts when I run 5 miles in October", "5 miles"),
     undefined,

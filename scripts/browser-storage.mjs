@@ -1,6 +1,4 @@
-// Wait for this edit's committed transaction, not a status left by an older save.
 export async function waitForDraft(page, note) {
-  // Poll here so each asynchronous IndexedDB read resolves before retrying.
   for (let attempt = 0; attempt < 100; attempt++) {
     if (
       await page.evaluate(

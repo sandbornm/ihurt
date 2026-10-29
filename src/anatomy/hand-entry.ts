@@ -47,7 +47,6 @@ function palmSize(hand: Landmark[]) {
 
 export function thumbsUp(hand: Landmark[]) {
   const size = palmSize(hand);
-  // The thumb must extend above curled fingers, in the camera image.
   return (
     size > 0.0001 &&
     [5, 9, 13, 17].every(
@@ -60,11 +59,9 @@ export function thumbsUp(hand: Landmark[]) {
 }
 
 function roll(hand: Landmark[], aspect: number) {
-  // Mirror X like the camera preview; clockwise on screen increases the dial.
   return Math.atan2(hand[5].y - hand[17].y, -(hand[5].x - hand[17].x) * aspect);
 }
 
-/** A deliberate pin → rate → save flow, separate from camera navigation. */
 export class HandEntryGesture {
   state: HandEntryState = {
     phase: "aim",
@@ -245,7 +242,6 @@ export class HandEntryGesture {
       Math.cos(angle - this.lastRoll),
     );
     this.lastRoll = angle;
-    // A large single-frame jump is tracking loss, not an intentional dial turn.
     if (Math.abs(delta) > Math.PI / 4) return null;
     this.dialTurn += delta;
     this.dialValue = Math.max(

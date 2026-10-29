@@ -121,7 +121,6 @@ test("'still' before a side does not block it", () => {
   assert.equal(where("Still left knee hurts", knee), "left_knee");
   assert.equal(where("Still my left knee hurts", knee), "left_knee");
   assert.equal(where("I have left knee pain", knee), "left_knee");
-  // The verb still is the verb.
   assert.equal(
     where("I still left my brace and my knee hurts", [["knee", "left"]]),
     "need-side",
@@ -288,7 +287,6 @@ test("a part the note says hurts is not dropped when the model lists only one", 
     ],
   ] as const)
     assert.equal(where(note, [...part], lang), "ambiguous", note);
-  // A part that is not hurting, or that the note denies, is not extra.
   for (const note of [
     "My left knee hurts but my shoulder is fine",
     "My left knee hurts. My shoulder doesn't hurt",
@@ -335,7 +333,6 @@ test("a part named only in the condition of the pain is not another hurting part
     ),
     "left_knee",
   );
-  // The condition ends at the comma, so a later clause is still read.
   assert.equal(
     where("My left knee hurts when I walk, and my right shoulder hurts", knee),
     "ambiguous",

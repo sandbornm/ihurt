@@ -13,7 +13,6 @@ SAFETY_MESSAGE = "Some symptoms need prompt medical attention. If you have sudde
 def provider_error_message(error: Exception, provider: str) -> str:
     name = {"openai": "OpenAI", "anthropic": "Anthropic", "grok": "xAI / Grok", "local": "Your local model"}.get(provider, "The mapping service")
     if isinstance(error, (APIStatusError, AnthropicStatusError)):
-        # Classify the failure without exposing the provider's response or account IDs.
         detail = str(error.body).lower()
         if error.status_code in (402, 403, 429) and any(word in detail for word in ("credits", "spending limit", "insufficient_quota", "credit balance")):
             return f"{name} reports no available credits or a spending limit. Check your provider account's billing before retrying."
@@ -27,7 +26,6 @@ def provider_error_message(error: Exception, provider: str) -> str:
 
 
 def possible_emergency(text: str) -> bool:
-    # A conservative reminder, never a triage or all-clear decision.
     return bool(re.search(r"chest (pain|pressure|tightness)|can'?t breathe|trouble breathing|short(ness)? of breath|sudden weakness|new weakness|bladder|bowel|saddle numbness|numb(ness)? (in|around) (my )?(groin|genitals)", text, re.I))
 
 
@@ -44,7 +42,6 @@ class DemoProvider:
         answers = {a.key: a.text for a in request.answers}
         text = (request.note + " " + " ".join(answers.values())).lower()
         location = (request.note + " " + answers.get("location", "")).lower()
-        # Sleeping positions describe posture, not additional painful regions.
         location = re.sub(
             r"\b(?:sleep(?:ing)?|slept|lying|lie|lay)\s+on\s+"
             r"(?:(?:my|the|left|right)\s+)*(?:side|back|front|stomach)"
@@ -55,7 +52,6 @@ class DemoProvider:
         regions: list[Region] = [point.region for point in request.points]
         if request.selected_region:
             regions.append(request.selected_region)
-        # In the offline demo, explicit pins take priority over keyword guesses.
         if not request.points:
             for word, key in [("shoulder", "shoulder"), ("elbow", "elbow"), ("wrist", "wrist"), ("hand", "wrist"), ("hip", "hip"), ("thigh", "thigh"), ("knee", "knee"), ("calf", "calf"), ("calves", "calf"), ("ankle", "ankle"), ("foot", "foot"), ("feet", "foot")]:
                 matches = re.finditer(r"\b(left|right)\s+(?:\w+\s+){0,2}?" + re.escape(word) + r"s?\b", location)
@@ -146,7 +142,6 @@ class AnthropicProvider:
 
 
 class CompatibleProvider:
-    """Grok and local OpenAI-compatible servers share a validated output contract."""
     def __init__(self, settings: Settings, local=False):
         self.local = local
         self.model = settings.local_model if local else settings.xai_model

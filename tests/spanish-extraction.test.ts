@@ -18,7 +18,7 @@ import {
 } from "../src/platform/on-device-ai.ts";
 import { setLanguagePreference } from "../src/i18n/index.ts";
 
-const today = "2026-10-22"; // jueves
+const today = "2026-10-22";
 const raw = (patch: Partial<RawPainExtraction> = {}): RawPainExtraction => ({
   spokenLocation: "",
   region: "",
@@ -57,10 +57,8 @@ test("the Spanish padel sentence proposes a left foot pin, never places one", ()
   assert.equal(proposal.fields.activity, "pádel");
   assert.deepEqual(proposal.onset, { phrase: "ayer", date: "2026-10-21" });
   assert.equal(proposal.fields.duration, "Desde ayer (2026-10-21)");
-  // No rating was said. Intensity is optional, so there is no question.
   assert.equal(proposal.followUp, null);
   assert.match(describeLocation(proposal.location, "es"), /Pie izquierdo/);
-  // Nothing is saved or pinned until the person confirms.
   assert.throws(() =>
     confirmProposal(proposal, { confirmed: false, fields: {}, pin: true }),
   );
@@ -81,18 +79,15 @@ test("the Spanish padel sentence proposes a left foot pin, never places one", ()
 });
 
 test("a translated or stitched location is rejected", () => {
-  // The model translated instead of copying.
   assert.equal(
     mapLocation("left big toe joint", "left", padel).status,
     "unmapped",
   );
-  // Words said, but not next to each other.
   assert.equal(spanIn("pie gordo", padel), false);
   assert.equal(
     mapLocation("pie gordo izquierdo", "left", padel).status,
     "unmapped",
   );
-  // Invented qualities and activities are dropped.
   const proposal = buildProposal(
     raw({
       spokenLocation: "pie izquierdo",
@@ -171,7 +166,6 @@ test("Spanish sides, accents and the follow-up answer", () => {
       spoken: "parte baja de la espalda",
     },
   );
-  // "de pie" means standing, not a foot.
   assert.equal(
     mapLocation("de pie", "unspecified", "me duele estar de pie").status,
     "unmapped",
@@ -255,7 +249,6 @@ test("negated clauses are rejected in Spanish and English", () => {
   );
   assert.equal(english.fields.quality, "sharp");
   assert.equal(english.location.status, "unmapped");
-  // A denial covers what follows it, so the knee said before it still counts.
   const mixed = buildProposal(
     raw({
       spokenLocation: "rodilla izquierda",
@@ -268,7 +261,6 @@ test("negated clauses are rejected in Spanish and English", () => {
   );
   assert.equal(mixed.location.status, "mapped");
   assert.equal(mixed.fields.quality, "punzante");
-  // The denial stops at "y" and "pero".
   const after = buildProposal(
     raw({
       spokenLocation: "rodilla izquierda",

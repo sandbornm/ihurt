@@ -80,7 +80,6 @@ test("plurals follow Intl.PluralRules for each language", () => {
 });
 
 test("numbers in messages and dates use the language's format", () => {
-  // es-419 is neutral Latin American Spanish, which groups like en-US.
   assert.equal(formatMessage("es", "{n}", { n: 0.5 }), "0.5");
   assert.equal(
     formatMessage("es", "{n}", { n: 1234.5 }),

@@ -25,7 +25,7 @@ import {
   type RawPainExtraction,
 } from "../src/platform/on-device-ai.ts";
 
-const today = "2026-10-22"; // Thursday
+const today = "2026-10-22";
 const raw = (patch: Partial<RawPainExtraction> = {}): RawPainExtraction => ({
   spokenLocation: "",
   region: "",
@@ -77,9 +77,7 @@ test("a named part that is not on the map is not asked again", () => {
   );
   assert.equal(proposal.location.status, "unmapped");
   assert.equal(proposal.followUp, null);
-  // A valid-looking region id from the model is not enough on its own.
   assert.equal(mapLocation("spleen", "left", transcript).status, "unmapped");
-  // Ids missing from the provided list are rejected too.
   assert.equal(
     mapLocation("left knee", "left", "left knee hurts", ["right_knee"]).status,
     "unmapped",
@@ -87,7 +85,6 @@ test("a named part that is not on the map is not asked again", () => {
 });
 
 test("never takes a location the person did not say", () => {
-  // The model infers "knee" from the sport; the transcript never says it.
   const proposal = buildProposal(
     raw({ spokenLocation: "right knee", region: "right_knee", side: "right" }),
     "Played padel and it hurts",
@@ -103,7 +100,6 @@ test("needs a stated side for left and right regions", () => {
     spoken: "knee",
     part: "knee",
   });
-  // The model claims a side the person never said.
   assert.equal(
     mapLocation("knee", "right", "my knee aches").status,
     "need-side",
@@ -285,7 +281,6 @@ test("bridge output is validated as untrusted", async () => {
   assert.equal((calls[1] as { text: string }).text.length, 300);
 });
 
-// A bridge whose extraction never answers until told to, like a slow model.
 function slowBridge() {
   const log: string[] = [];
   let next = 0;
@@ -322,7 +317,6 @@ test("an extraction times out, cancels natively, and the next one works", async 
   const second = ai.extractPainEntry(request, { timeoutMs: 1000 });
   pending.get(2)?.({ intensity: 4 });
   assert.equal((await second).intensity, 4);
-  // A late answer from the timed-out call changes nothing.
   pending.get(1)?.({ intensity: 9 });
 });
 
@@ -369,7 +363,6 @@ test("a late native rejection after a timeout or cancel is not unhandled", async
     const second = ai.extractPainEntry(request, { signal: controller.signal });
     controller.abort();
     await assert.rejects(second, ExtractionCancelled);
-    // The native side answers late, as it does when cancelled.
     for (const reject of rejects)
       reject(new Error("Apple Intelligence stopped reading this note."));
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -393,7 +386,6 @@ test("the voice notice matches the transcription state", () => {
   });
   assert.match(off, /off here/);
   assert.doesNotMatch(off, /sends audio/);
-  // A provider name without a working server is still off.
   assert.doesNotMatch(
     voiceNotice({
       ...base,
@@ -430,7 +422,6 @@ test("new suggestions are pre-ticked and reach the entry", () => {
     "burning since yesterday in my left foot",
     today,
   );
-  // The person had unticked duration on an earlier draft.
   const choice = seedSuggestedFields(
     { duration: false, quality: false, intensity: true },
     {},
@@ -438,7 +429,6 @@ test("new suggestions are pre-ticked and reach the entry", () => {
     { quality: "dull" },
   );
   assert.equal(choice.duration, true);
-  // Replacing an existing value stays the person's choice.
   assert.equal(choice.quality, false);
   const value = confirmProposal(proposal, {
     confirmed: true,
@@ -447,8 +437,6 @@ test("new suggestions are pre-ticked and reach the entry", () => {
   });
   assert.equal(value.fields.duration, "Since yesterday (2026-10-21)");
   assert.equal(value.fields.quality, undefined);
-  // An intensity that arrives with the follow-up answer is ticked too, but a
-  // field the person already saw and unticked stays unticked.
   const answered = answerFollowUp(proposal, "about a 6");
   const after = seedSuggestedFields(
     { ...choice, duration: false },
@@ -458,7 +446,6 @@ test("new suggestions are pre-ticked and reach the entry", () => {
   );
   assert.equal(after.intensity, true);
   assert.equal(after.duration, false);
-  // The confirm gate is unchanged.
   assert.throws(
     () =>
       confirmProposal(answered, { confirmed: false, fields: after, pin: true }),
@@ -533,7 +520,6 @@ test("intensity needs a rating, not any number", () => {
       undefined,
       transcript,
     );
-  // "3" is how long ago it started. "7" is the rating.
   const both = "My left knee started 3 days ago and the pain is 7";
   assert.equal(
     buildProposal(raw({ intensity: 3 }), both, today).fields.intensity,
@@ -543,7 +529,6 @@ test("intensity needs a rating, not any number", () => {
     buildProposal(raw({ intensity: 7 }), both, today).fields.intensity,
     7,
   );
-  // The 10 in "7 out of 10" is the scale, not the rating.
   assert.equal(
     buildProposal(raw({ intensity: 10 }), "pain is 7 out of 10", today).fields
       .intensity,
@@ -608,7 +593,6 @@ test("a value in a denied clause is not grounded", () => {
   });
   assert.equal(yes.fields.quality, "burning");
 
-  // The denial stops at "and". The knee was still named.
   const ordered = "it isn't burning and my left knee hurts";
   const after = buildProposal(
     raw({
@@ -841,7 +825,6 @@ test("a follow-up that would be cut from the transcript is not used", () => {
     `my left knee hurts ${"x".repeat(2985)}`,
     today,
   );
-  // Intensity is not asked. The reply guard still applies when a question is open.
   const proposal = {
     ...built,
     followUp: {
@@ -1336,12 +1319,9 @@ test("answering a follow-up keeps an unchecked pin option unchecked", () => {
     today,
   ).location;
   const unmapped = buildProposal(raw({}), "It hurts", today).location;
-  // the person unchecked the pin, then answered or skipped the intensity question
   assert.equal(pinAfterAnswer(false, mapped, mapped), false);
   assert.equal(pinAfterAnswer(true, mapped, mapped), true);
-  // a side or location answer that first maps a region turns the pin on
   assert.equal(pinAfterAnswer(false, needSide, mapped), true);
   assert.equal(pinAfterAnswer(false, unmapped, mapped), true);
-  // nothing mapped, nothing to pin
   assert.equal(pinAfterAnswer(true, needSide, needSide), false);
 });

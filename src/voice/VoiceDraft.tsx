@@ -40,8 +40,6 @@ interface ReviewDraft {
   text: string;
   fields: Record<string, boolean>;
   region: string;
-  // Kept so reopening shows the same suggestion; it is used only while its
-  // transcript still matches the text, and the pin still needs "Add to entry".
   proposal?: PainProposal | null;
   pin?: boolean;
 }
@@ -117,8 +115,6 @@ function VoiceEditor({
   const ai = useRef(onDeviceAI()).current;
   const [aiReady, setAiReady] = useState(false);
   const [aiNotice, setAiNotice] = useState("");
-  // The proposal stays in this panel's state. It is not autosaved and nothing
-  // from it reaches the entry until "Add to entry".
   const [proposal, setProposal] = useState<PainProposal | null>(
     draft?.proposal ?? null,
   );
@@ -149,8 +145,6 @@ function VoiceEditor({
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
-    // Closing the panel stops the on-device read and any spoken question now,
-    // not only when the editor unmounts.
     cancelCapture();
     close({
       text: busy ? previousText.current : text,
@@ -202,8 +196,6 @@ function VoiceEditor({
           const queued = gate.recheck(state.available, check);
           setAiReady(state.available);
           if (queued) void runExtraction(queued);
-          // Dictation still works when the model does not support the
-          // language. Say so instead of hiding the suggestions silently.
           setAiNotice(
             !state.available && state.code === "ai-locale-unsupported"
               ? (state.reason ?? "")
@@ -245,7 +237,6 @@ function VoiceEditor({
         setMode("idle");
         setError(t("voice.error.leftScreen"));
       } else if (document.visibilityState === "visible") {
-        // Settings may have changed while the app was away.
         if (speech)
           void checkNative().catch(() => {
             if (active) setAvailable(false);
@@ -363,8 +354,6 @@ function VoiceEditor({
     }
   }
 
-  // Suggest once per recording, from the recognizer's final transcript rather
-  // than the text box, which may not have rendered the last words yet.
   function suggestFinal(current: number, final: string) {
     const value = suggestOnce.deliver(current, generation.current, final);
     if (value) propose(value);
@@ -432,7 +421,6 @@ function VoiceEditor({
   function apply() {
     if (live) {
       try {
-        // "Add to entry" is the explicit confirmation of the proposal.
         onApply(confirmProposal(live, { confirmed: true, fields, pin }));
         void ai?.stopSpeaking().catch(() => {});
         close();

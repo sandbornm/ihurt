@@ -1,5 +1,3 @@
-"""Validated observations from the existing ihurt.notebook v2 contract."""
-
 import json
 import math
 from datetime import datetime
@@ -240,7 +238,6 @@ class Notebook(Record):
 
 
 def parse_notebook(data: bytes) -> Notebook:
-    # Reject duplicate keys and non-JSON constants instead of letting a parser pick a value.
     def pairs(items):
         result = {}
         for key, value in items:

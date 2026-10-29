@@ -46,13 +46,11 @@ interface Props {
   showSkeleton?: boolean;
   onOrientation?: (view: "front" | "back" | null) => void;
   handEntry?: HandEntryControls;
-  // Region of an unconfirmed voice proposal. Drawn apart from saved pins.
   proposed?: RegionId | null;
 }
 type Candidate = { mesh: T.Object3D; point: PainPoint };
 
 export default function Anatomy(props: Props) {
-  // Re-render on a language change. Strings come from t().
   const { lang } = useI18n();
   const mappedKey = props.mapped.join("|");
   const pointsKey = JSON.stringify(
@@ -103,8 +101,6 @@ export default function Anatomy(props: Props) {
   };
   const [failure, setFailure] = useState(false);
   const [ready, setReady] = useState(false);
-  // The canvas is created once; its label follows the language without
-  // rebuilding the renderer.
   useEffect(() => {
     host.current
       ?.querySelector("canvas")
@@ -419,7 +415,6 @@ export default function Anatomy(props: Props) {
       if (spread.active) proposedPin.visible = false;
       kick();
     };
-    // Commands that need the atlas are skipped until it loads, then replayed.
     const needsAtlas = /^(layers:|point:|muscle:|mesh:|pin-center)/;
     const command = (type: string) => {
       clearStroke();
@@ -555,7 +550,6 @@ export default function Anatomy(props: Props) {
           type.slice(6),
           interaction.current.dragMode === "move",
         );
-        // The drag controls and buttons share the same pan boundary.
         const correction = next.look.clone().sub(controls.cursor);
         if (correction.length() > controls.maxTargetRadius) {
           const bounded = correction
@@ -701,7 +695,6 @@ export default function Anatomy(props: Props) {
       latest.current.captureRef.current = () => {
         if (!root.dataset.atlas) return null;
         camera.updateMatrixWorld();
-        // Reports show the actual anatomy at this angle, without display-only offsets.
         const wasSpread = spread.active;
         const visibility = [...body.muscles, ...body.bones].map(
           (mesh) => [mesh, mesh.visible] as const,
@@ -791,8 +784,6 @@ export default function Anatomy(props: Props) {
         root.dataset.atlas = "schematic-fallback";
         setReady(true);
         update();
-        // The same replay as above: only a command that needs the atlas (like
-        // Confirm pin) given while it loaded runs; the rest ran on the body.
         if (
           latest.current.command.id &&
           needsAtlas.test(latest.current.command.type)

@@ -168,8 +168,6 @@ export interface SavedMap {
     context_url?: string;
   }[];
 }
-// Display names come from the dictionaries, keyed by the stable region id.
-// Stored data always keeps the id, never the translated name.
 export const regionNameIn = (lang: Language, id: string) =>
   isRegionId(id) ? translate(lang, `region.${id}` as MessageKey) : id;
 export const regionName = (id: string) => regionNameIn(language(), id);
@@ -185,7 +183,6 @@ export const isRegionId = (id: string): id is RegionId =>
 
 const fold = (value: string) =>
   value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
-// Region search matches the name in English and Spanish, without accents.
 export const regionMatches = (id: RegionId, query: string) => {
   const q = fold(query);
   return (["en", "es"] as const).some((lang) =>

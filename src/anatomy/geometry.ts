@@ -2,7 +2,6 @@ import * as T from "three";
 
 export function bakeGeometry(source: T.BufferGeometry, transform: T.Matrix4) {
   const geometry = source.clone().applyMatrix4(transform);
-  // Mirroring reverses triangle winding. Preserve the outward-facing surface.
   if (transform.determinant() < 0) {
     if (!geometry.index)
       geometry.setIndex(

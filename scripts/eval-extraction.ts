@@ -1,5 +1,3 @@
-// Scores extraction cases against a recorded on-device run or the web rules.
-
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -162,8 +160,6 @@ function containsPhrase(hay: string, needle: string) {
   return false;
 }
 
-// A longer exact quote still counts when it contains the labeled words and
-// every extra word is in the note.
 function phraseOk(actual: string, expected: string, note: string) {
   if (fold(actual) === fold(expected)) return true;
   if (!containsPhrase(actual, expected)) return false;
@@ -244,9 +240,6 @@ export function loadCases(path = "tests/fixtures/extraction-eval/cases.json") {
 function validateCases(cases: EvalCase[]) {
   const problems: string[] = [];
   const ids = new Set<string>();
-  // The tuning set stays en-001..en-060 and es-001..es-040. Later cases
-  // continue those sequences with no gaps. The held-out set uses ho-en-001
-  // and ho-es-001.
   const heldOut = cases.length > 0 && cases.every((item) => item.id.startsWith("ho-"));
   const checkSequence = (lang: "en" | "es", minimum: number) => {
     const prefix = heldOut ? `ho-${lang}` : lang;
@@ -551,8 +544,6 @@ function proposalActual(
 ): Actual {
   try {
     const parsed = parseRawExtraction(raw);
-    // legacy is buildProposal as of 273f429, including its intensity question.
-    // The live proposal path is the evidence verifier and never asks intensity.
     const proposal =
       pipeline === "legacy"
         ? buildLegacyProposal(parsed, note, TODAY, lang)
@@ -575,10 +566,6 @@ function trustSide(said: string) {
   return null;
 }
 
-// Upper bound: trust the model's own fields and negated flags. The only check
-// is that each evidence quote is a real span of the note. The part lexicon
-// still maps the quote to a region, because the schema has no region id.
-// No side, denial, rating, or activity rules.
 function trustActual(raw: unknown, note: string): Actual {
   const evidence = parseRawExtraction(raw).evidence;
   if (!evidence) return emptyActual("no evidence");

@@ -9,7 +9,7 @@ import {
 } from "../src/voice/extraction.ts";
 import { createAvailabilityGate } from "../src/voice/ai-gate.ts";
 
-const today = "2026-10-22"; // jueves
+const today = "2026-10-22";
 const raw = (over: object = {}) => ({
   spokenLocation: "tobillo",
   region: "",
@@ -178,12 +178,10 @@ test("overlapping availability checks: only the newest one decides", () => {
   const first = gate.begin();
   assert.equal(gate.request("note"), undefined);
   const second = gate.begin();
-  // The older, slower check says no after a newer one began: ignored.
   assert.equal(gate.recheck(false, first), undefined);
   assert.equal(gate.state, "checking");
   assert.equal(gate.recheck(true, second), "note");
   assert.equal(gate.state, "ready");
-  // A stale answer cannot turn a good state off.
   const third = gate.begin();
   const fourth = gate.begin();
   assert.equal(gate.recheck(true, fourth), undefined);

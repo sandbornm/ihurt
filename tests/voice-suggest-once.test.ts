@@ -18,7 +18,6 @@ test("an empty or whitespace-only final transcript does not suggest", () => {
 
 test("a late final after cancel or unmount does not suggest", () => {
   const once = createSuggestOnce();
-  // Recording generation 1 already ended. Cancel advanced the active one.
   assert.equal(once.deliver(1, 2, "my left knee hurts"), undefined);
 });
 

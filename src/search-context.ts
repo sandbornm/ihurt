@@ -20,7 +20,6 @@ export function searchDescription(entry: SavedMap): string {
   ]
     .filter(Boolean)
     .join("\n");
-  // Keep room for the challenge token and topic fields in the 8 KiB request.
   let result = context.slice(0, 4000);
   while (new TextEncoder().encode(result).length > 5000)
     result = result.slice(0, -1);

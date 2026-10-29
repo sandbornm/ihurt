@@ -1,5 +1,3 @@
-"""Launch an optional stdio server with a user-selected export allowlist."""
-
 import argparse
 from importlib.metadata import version
 from pathlib import Path

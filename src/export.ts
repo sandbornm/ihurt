@@ -299,7 +299,6 @@ export function printMap(entry: SavedMap, view?: ViewportCapture): boolean {
 }
 
 export function downloadReport(entry: SavedMap, view?: ViewportCapture) {
-  // Reports are self-contained. Opening a saved report cannot load remote code.
   const content = renderPrintHtml(entry, view).replace(
     '<meta charset="utf-8">',
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">',

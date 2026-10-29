@@ -1,17 +1,7 @@
-// Frozen buildProposal from commit 273f429, before evidence spans.
-// The eval scores v1 recordings through this path, including the intensity
-// follow-up. Do not update it when the live verifier changes.
-
 import { regionNameIn, regions, type RegionId } from "../types.ts";
 import { translate, type Language, type MessageKey } from "../i18n/index.ts";
 import type { RawPainExtraction } from "../platform/on-device-ai.ts";
 import type { DraftFields, VoiceDraftValue } from "./draft.ts";
-
-// The on-device model only quotes the note. Everything here is deterministic:
-// a field survives only when its words appear in what the person said, and a
-// location maps only to an id in the fixed anatomy list. The checks work the
-// same in English and Spanish: the lexicon below holds both languages, and
-// the model's own region guess is never used.
 
 export const anatomyList: RegionId[] = regions.map(({ id }) => id);
 
@@ -43,11 +33,6 @@ const sided = new Set<Part>([
   "shoulder",
 ]);
 
-// Patterns run on normalized text: lowercase, accents removed. Order matters:
-// "upper back" and "shoulder blade" are checked before "shoulder", and
-// "dedo gordo del pie" before "pie". A bare "back", "espalda" or "dedo" is
-// ambiguous and is asked about instead. "de pie" means standing, so only
-// "pie" without a preceding "de" counts.
 const partWords: [Part, RegExp][] = [
   [
     "upper_back",
@@ -83,9 +68,6 @@ const partWords: [Part, RegExp][] = [
   ],
 ];
 
-// Lowercase, accents removed (NFD, then combining marks dropped), punctuation
-// to spaces. "Articulación" and "articulacion" compare equal; letters such as
-// ñ keep their base letter instead of being dropped.
 export const normalize = (value: string) =>
   value
     .normalize("NFD")
@@ -102,8 +84,6 @@ function partsIn(value: string): Part[] {
   for (const [part, pattern] of partWords) {
     if (pattern.test(rest)) {
       found.push(part);
-      // Remove the matched words so "shoulder blade" does not also count as
-      // "shoulder".
       rest = rest.replace(new RegExp(pattern.source, "g"), " ");
     }
   }
@@ -114,8 +94,6 @@ const leftWords = /\b(?:left|izquierd[oa]s?)\b/;
 const rightWords = /\b(?:right|derech[oa]s?)\b/;
 const bothWords = /\b(?:both|ambos|ambas|los dos|las dos)\b/;
 
-// A side counts only when the person said it. "right now" and "todo derecho"
-// are not sides.
 function sideIn(value: string): "left" | "right" | "both" | null {
   const text = normalize(value);
   const left = leftWords.test(text),
@@ -127,8 +105,6 @@ function sideIn(value: string): "left" | "right" | "both" | null {
   return left ? "left" : right ? "right" : null;
 }
 
-// The side word exactly as said, such as "left" or "izquierda", so a follow-up
-// answer can be added to the spoken location in the person's own words.
 function sideWordIn(value: string, side: "left" | "right") {
   const pattern = side === "left" ? leftWords : rightWords;
   const words = value.trim().split(/\s+/);
@@ -149,7 +125,6 @@ const stop = new Set([
   "was",
   "it",
   "i",
-  // Spanish articles, prepositions and pronouns.
   "el",
   "la",
   "los",
@@ -178,9 +153,6 @@ const irregular: Record<string, string> = {
   teeth: "tooth",
 };
 
-// Rough singular forms so "knee" matches "both knees", "foot" matches "feet",
-// "rodilla" matches "rodillas" and "talon" matches "talones". Any form that
-// is not in the transcript fails closed.
 function forms(word: string) {
   const out = new Set([word]);
   if (irregular[word]) out.add(irregular[word]);
@@ -197,9 +169,6 @@ const matches = (a: string, b: string) => {
   return false;
 };
 
-// "n't" covers isn't, don't, can't, and the rest. The bare forms are the same
-// words when speech drops the apostrophe. Spanish denials, after accents are
-// removed: "no es", "no me duele", "sin", "nunca", "tampoco", "ni", "ningun".
 const contraction = [
   "isn't",
   "wasn't",
@@ -249,9 +218,6 @@ const negators = new Set([
 
 const isNegator = (word: string) => word.includes("n't") || negators.has(word);
 
-// "I can't bend my left knee" says the knee is affected, not that it is fine.
-// Ability negators still count for ratings ("I wouldn't call it a 7").
-// Spanish inability is "no" plus a verb: "no puedo doblar la rodilla".
 const ability = new Set([
   "can't",
   "cant",
@@ -295,9 +261,6 @@ function deniesAt(words: string[], index: number) {
   return true;
 }
 
-// After the value, "is not the problem" or "doesn't hurt" denies it, while
-// "isn't burning, it's aching" only describes it. Spanish uses the same shape:
-// "no es el problema", "no me duele".
 const deniedAfter = new Set([
   "problem",
   "issue",
@@ -333,8 +296,6 @@ function deniesAfter(words: string[], end: number) {
   );
 }
 
-// Words that join two phrases. A denial on one side does not cancel the
-// other: "it isn't burning and my left knee hurts", "no es ardor pero duele".
 const conjunctions = new Set([
   "and",
   "but",
@@ -352,8 +313,6 @@ const conjunctions = new Set([
 
 const tokens = (text: string) => normalize(text).split(" ").filter(Boolean);
 
-// Punctuation separates clauses; conjunctions separate the soft parts inside
-// one clause.
 function softParts(clause: string) {
   const parts: string[][] = [[]];
   for (const word of tokens(clause))
@@ -365,10 +324,6 @@ function softParts(clause: string) {
 const clauses = (transcript: string) =>
   transcript.split(/[.!?;:,\n¿¡]+/).filter((clause) => clause.trim());
 
-// True when every wanted word occurs, no denial stands before it, and the
-// words after it do not deny it. "my left knee isn't burning" keeps the knee
-// and drops "burning"; "my left knee is not the problem" drops the knee.
-// "no me duele la rodilla" drops the knee. "no puedo doblar la rodilla" keeps it.
 function covers(words: string[], needed: string[]) {
   let last = -1;
   const found = needed.every((want) => {
@@ -380,10 +335,6 @@ function covers(words: string[], needed: string[]) {
   return found && !deniesAfter(words, last);
 }
 
-// With `together`, the words must share one conjunction-free part, so "my
-// left knee and right foot" does not ground "left foot". Without it, words
-// joined only by conjunctions still count ("left knee and ankle"), as long as
-// none comes from a denied part.
 function clauseGrounds(clause: string, needed: string[], together: boolean) {
   const soft = softParts(clause);
   if (soft.some((words) => covers(words, needed))) return true;
@@ -394,16 +345,12 @@ function clauseGrounds(clause: string, needed: string[], together: boolean) {
   return covers(affirmative.flat(), needed);
 }
 
-// Every meaningful word must appear in the transcript, in a clause that is
-// not denying it. This keeps model paraphrases, guesses, invented details and
-// denied details out of the proposal, in English and Spanish.
 export function grounded(
   value: string,
   transcript: string,
   together = false,
 ): boolean {
   const parts = softParts(value);
-  // "knee and ankle" names two parts; each must be said together on its own.
   if (together && parts.length > 1)
     return parts.every((part) => grounded(part.join(" "), transcript, true));
   const needed = tokens(value).filter((word) => !stop.has(word));
@@ -413,9 +360,6 @@ export function grounded(
   );
 }
 
-// The span must occur in the transcript as consecutive words, ignoring case,
-// accents and plural endings. A location stitched together from words said in
-// different places does not count.
 export function spanIn(value: string, transcript: string) {
   const span = tokens(value);
   const said = tokens(transcript);
@@ -440,7 +384,6 @@ export function mapLocation(
 ): LocationResult {
   const words = spoken.trim();
   if (!words) return { status: "missing" };
-  // A side and a body part count only when said together, as one phrase.
   if (!grounded(words, transcript, true) || !spanIn(words, transcript))
     return { status: "unmapped", spoken: words };
   const parts = partsIn(words);
@@ -449,9 +392,6 @@ export function mapLocation(
   const part = parts[0];
   let region: string = part;
   if (sided.has(part)) {
-    // A side counts only when the person said it.
-    // The model's side is used only when the note names this one part and
-    // says that side without denying it ("my knee, but not the left" asks).
     const stated =
       sideIn(words) ??
       ((side === "left" || side === "right") &&
@@ -481,7 +421,6 @@ const numberWords = [
   "nine",
   "ten",
 ];
-// "un" and "una" are left out: they are usually articles ("un dolor").
 const spanishNumbers = [
   "cero",
   "uno",
@@ -505,11 +444,6 @@ const numberValue = (word: string) =>
       ? numberWords.indexOf(word)
       : spanishNumbers.indexOf(word);
 
-// A number counts as a rating only when it is said as one: "7 out of 10",
-// "7/10", "about a six", "pain is 4", "I rated it 7", "7 de 10", "un siete",
-// "dolor de 6", "intensidad 5". "3 days ago", "at 7 am" or "hace 3 dias" is
-// not a rating, and neither is a number after a denial ("no es un 8"). When
-// unsure, drop it so the follow-up question can ask.
 const ratingBefore =
   /\b(?:about|around|maybe|like|roughly|a|an|is|was|rate|rated|rated it|rating|level|pain|intensity|un|una|como|es|era|esta|estaba|en|nivel|intensidad|calificacion|dolor|doy|daria|unos|unas)$/;
 const ratingAfter =
@@ -519,8 +453,6 @@ const notRatingAfter =
 const scaleThenUnit =
   /^(?:out of (?:10|ten)|of (?:10|ten)|(?:de|sobre) (?:10|diez))\s+(?:minutes?|hours?|days?|weeks?|months?|years?|times?|miles?|km|sets?|reps?|laps?|games?|minutos?|horas?|dias?|semanas?|meses|anos?|veces|vez|kilometros?|partidos?|series|vueltas?)\b/;
 
-// A slash rating such as "7/10" or "4/10". A date lead ("on", "since", "el",
-// "desde"), a second slash ("7/10/26"), or a unit ("7/10 days") is not one.
 function slashRating(clause: string, value: number) {
   const pattern = new RegExp(
     `(^|[^0-9])((?:on|since|el|desde(?:\\s+el)?)\\s+)?${value}\\s*/\\s*10\\b(\\s*/|\\s+(?:days?|times?|dias?|veces|partidos?))?`,
@@ -543,9 +475,6 @@ export function ratedIn(transcript: string, value: number) {
     `^(?:${value}|${numberWords[value]}|${spanishNumbers[value]})$`,
   );
   for (const clause of clauses(transcript)) {
-    // "7/10" is one rating. "on 7/10", "since 7/10", "el 7/10", "desde el 7/10"
-    // and "7/10/26" are dates. A unit after the scale ("3 out of 10 days",
-    // "7 de 10 veces") is a count, not a rating.
     if (slashRating(clause, value)) return true;
     for (const words of softParts(clause))
       for (const [at, word] of words.entries()) {
@@ -570,7 +499,6 @@ export function parseIntensityAnswer(answer: string): number | null {
   const found = [...text.matchAll(new RegExp(`\\b(${numberPattern})\\b`, "g"))]
     .map((match) => numberValue(match[1]))
     .filter((value) => value >= 0);
-  // "7 out of 10" and "7 de 10" name two numbers; the first is the rating.
   if (
     found.length === 2 &&
     found[1] === 10 &&
@@ -610,8 +538,6 @@ export function localToday(now = new Date()) {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-// Resolves common relative phrases in English and Spanish against the
-// device's local date. Anything else keeps the person's words without a date.
 export function resolveOnset(
   phrase: string,
   today: string,
@@ -625,9 +551,6 @@ export function resolveOnset(
   if (/\b(?:yesterday|last night|ayer|anoche)\b/.test(text))
     return { phrase, date: shift(today, 1) };
   if (
-    // "Earlier" and "mas temprano" are today only on their own or with this
-    // day ("earlier this morning", "mas temprano hoy"), not "earlier this
-    // week" or "mas temprano este ano".
     text === "earlier" ||
     text === "mas temprano" ||
     /\b(?:today|this morning|this afternoon|this evening|tonight|earlier this (?:morning|afternoon|evening)|a little while ago|hoy|esta manana|esta tarde|esta noche|hace un rato|hace rato|hace unas horas|hace unos minutos|mas temprano hoy)\b/.test(
@@ -719,7 +642,6 @@ function followUpFor(
   return null;
 }
 
-// Keeps the person's word, accents included, for display.
 const display = (value: string) =>
   value
     .toLowerCase()
@@ -747,8 +669,6 @@ export function buildProposal(
   if (raw.intensity !== null && ratedIn(transcript, raw.intensity))
     fields.intensity = raw.intensity;
   const activity = grounded(raw.activity, transcript) ? raw.activity : "";
-  // A surface is kept only when said with this activity, so "ran on pavement
-  // and played tennis on clay" never becomes "ran on clay".
   const surface =
     activity && grounded(`${raw.activity} ${raw.surface}`, transcript, true)
       ? raw.surface
@@ -758,8 +678,6 @@ export function buildProposal(
       ? translate(lang, "extraction.activityOn", { activity, surface })
       : activity;
   let onset: PainProposal["onset"];
-  // The onset must be said as one phrase: "three miles ... weeks ago" is not
-  // "three weeks ago". Spanish phrases use the same contiguous-span check.
   if (
     grounded(raw.onsetPhrase, transcript) &&
     spanIn(raw.onsetPhrase, transcript)
@@ -784,8 +702,6 @@ export function buildProposal(
   };
 }
 
-// Applies the single follow-up answer without another model call. The proposal
-// never asks a second question; anything still missing stays blank.
 export function answerFollowUp(
   proposal: PainProposal,
   answer: string,
@@ -809,8 +725,6 @@ export function answerFollowUp(
   } else if (key === "side" && proposal.location.status === "need-side") {
     const side = sideIn(reply);
     if (side === "left" || side === "right") {
-      // The side is added in the person's own word: "left ankle" in English,
-      // "tobillo izquierdo" in Spanish, where the side follows the noun.
       const word = sideWordIn(reply, side);
       const spoken =
         proposal.language === "es"
@@ -858,9 +772,6 @@ export function describeLocation(
   }
 }
 
-// Ticks fields the proposal newly suggests so they are not dropped on "Add to
-// entry". A field that would replace a value already in the entry keeps the
-// person's current choice. Fields they already saw keep their choice too.
 export function seedSuggestedFields(
   choice: Record<string, boolean>,
   previous: DraftFields,
@@ -877,8 +788,6 @@ export function seedSuggestedFields(
   return seeded;
 }
 
-// The confirm gate. Without an explicit confirmation the caller gets nothing
-// to save; the proposal itself lives only in the voice panel's state.
 export function confirmProposal(
   proposal: PainProposal,
   choice: {
@@ -901,8 +810,6 @@ export function confirmProposal(
   };
 }
 
-// A proposed pin is drawn apart from saved pins and becomes a real pin only on
-// an explicit confirm. Selecting another region or dismissing drops it.
 export type ProposedPinAction =
   | { type: "propose"; region: RegionId }
   | { type: "confirm" }

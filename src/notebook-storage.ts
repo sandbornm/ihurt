@@ -95,7 +95,6 @@ export async function saveResearch(
       const entry = matches
         ? currentDraft.entry
         : (saved.result as SavedMap | undefined);
-      // A deleted entry must stay deleted when an earlier search finishes.
       if (!entry) return;
       const references = [
         ...research.references,

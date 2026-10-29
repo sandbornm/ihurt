@@ -1,6 +1,5 @@
 import type { Message } from "./core.ts";
 
-// English is the source language. Every key here must exist in es.ts.
 export const en = {
   "region.neck": "Neck",
   "region.chest": "Chest",

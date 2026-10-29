@@ -76,7 +76,7 @@ test("a caller signal does not disable the deadline, including while reading the
     );
     const pending = api("map", {}, new AbortController().signal);
     const rejected = assert.rejects(pending, { name: "TimeoutError" });
-    await Promise.resolve(); // Let fetch resolve before advancing the body deadline.
+    await Promise.resolve();
     t.mock.timers.tick(135000);
     await rejected;
     mock.mock.restore();

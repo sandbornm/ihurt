@@ -1,7 +1,5 @@
 import type { Messages } from "./en.ts";
 
-// Neutral Latin American Spanish. The type makes a missing or extra key a
-// compile error.
 export const es: Messages = {
   "region.neck": "Cuello",
   "region.chest": "Pecho",

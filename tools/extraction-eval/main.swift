@@ -3,9 +3,6 @@ import Foundation
 import FoundationModels
 #endif
 
-// Runs PainExtractor.extract on every eval note and writes the dictionaries
-// the plugin returns to JavaScript. Compile with PainExtractionModel.swift.
-
 @main
 struct ExtractionEval {
     static func main() async {

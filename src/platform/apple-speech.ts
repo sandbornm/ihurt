@@ -128,7 +128,6 @@ export function createAppleSpeech(bridge: AppleSpeechBridge): NativeSpeech {
       }
       try {
         const result = await bridge.stop({ session: session.id });
-        // The bridge promise also carries the final text so stop never races an event.
         deliver(session, result.text);
         session.ended = true;
         return session.text;

@@ -16,8 +16,6 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "languages", returnType: CAPPluginReturnPromise)
     ]
 
-    // Each failure is sent as a stable code. The web layer shows it in the
-    // app's language; these English messages are the fallback.
     static let messages: [String: String] = [
         "speech-permission-denied": "Allow Speech Recognition for iHurt in Settings to dictate a draft.",
         "mic-permission-denied": "Allow Microphone access for iHurt in Settings to dictate a draft.",
@@ -47,8 +45,6 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         call.reject(Self.messages[code] ?? code, code)
     }
 
-    // The app's language setting picks the recognizer locale. Without one,
-    // use the phone's language.
     static func speechLocale(_ call: CAPPluginCall) -> Locale {
         guard let id = call.getString("locale"), !id.isEmpty, id.count <= 35 else { return Locale.current }
         return Locale(identifier: id)
@@ -56,8 +52,6 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private var locale = Locale.current
 
-    // Prefer the exact locale, then another region of the same language that
-    // runs on device (for example es-US when es-MX is not installed).
     static func recognizer(for locale: Locale) -> SFSpeechRecognizer? {
         if let exact = SFSpeechRecognizer(locale: locale), exact.supportsOnDeviceRecognition { return exact }
         guard let language = locale.language.languageCode?.identifier else { return nil }
@@ -183,7 +177,6 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
             self.completedError = nil
             self.transcript = ""
             self.startCall = call
-            // Permission prompts occur only after an explicit recording action.
             SFSpeechRecognizer.requestAuthorization { [weak self] status in
                 DispatchQueue.main.async {
                     guard let self, self.session == id else { return }
@@ -311,8 +304,6 @@ public class AppleSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    // WKWebView reports the app's localization, not the phone's language list,
-    // so the web layer asks for it to resolve the Automatic setting.
     @objc func languages(_ call: CAPPluginCall) {
         call.resolve(["languages": Locale.preferredLanguages])
     }

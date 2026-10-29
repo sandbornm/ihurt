@@ -48,7 +48,6 @@ try {
     await mkdir(deviceOutput, { recursive: true });
     const profile = devices[device];
     const context = await browser.newContext({
-      // English UI regardless of the machine language.
       locale: "en-US",
       ...profile,
       viewport: profile.screen ?? profile.viewport,
@@ -290,7 +289,6 @@ try {
       unfinished,
     );
     await page.screenshot({ path: `${deviceOutput}/notebook.png` });
-    // A failed final save must show a useful error, without an unhandled rejection.
     await page.evaluate(() => {
       const transaction = IDBDatabase.prototype.transaction;
       IDBDatabase.prototype.transaction = function (...args) {

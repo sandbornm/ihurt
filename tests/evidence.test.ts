@@ -855,7 +855,6 @@ test("a lone left or right is not the side of the part", () => {
     assert.equal(proposal.location.status, "need-side", note);
     assert.equal(proposal.followUp?.key, "side", note);
   }
-  // The pain went away, so the knee is not a current place and has no side.
   const gone = propose("The pain left my knee", {
     locations: [loc("knee", "left")],
   });
@@ -1200,8 +1199,6 @@ test("a correction gap can hold an article or a filler", () => {
     assert.equal(eh.location.region, "right_wrist");
 });
 
-// Review round 3: synthetic regression cases only. None of these notes come
-// from the held-out set.
 const sideOf = (
   note: string,
   evidence: string,
@@ -1258,8 +1255,6 @@ test("two sides joined by and mean both, even when the model kept one", () => {
 
 test("or between two sides, or two parts, does not become both", () => {
   asks("My left or right knee hurts", "right knee", "right");
-  // The model kept only the knee. The ankle is said to hurt too, so ask
-  // instead of saving the knee and dropping it.
   assert.equal(
     sideOf("My left knee hurts and my right ankle hurts", "left knee", "left"),
     "ambiguous",

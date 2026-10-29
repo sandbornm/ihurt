@@ -12,9 +12,6 @@ export interface OnDeviceAIAvailability {
   code?: string;
 }
 
-// Raw fields copied from the dictated note. Treat as untrusted model output:
-// src/voice/extraction.ts validates every field before anything is proposed.
-// schema v2 carries evidence spans. The flat fields are the older shape.
 export interface EvidenceLocation {
   evidence: string;
   negated: boolean;
@@ -55,8 +52,6 @@ export interface RawPainExtraction {
 
 export const EXTRACTION_TIMEOUT_MS = 20000;
 
-// Thrown when the caller cancels an extraction. The panel ignores it; a
-// timeout is a plain Error with a message the person can read.
 export class ExtractionCancelled extends Error {
   constructor() {
     super(t("native.ai-cancelled"));
@@ -65,11 +60,7 @@ export class ExtractionCancelled extends Error {
 }
 
 export interface OnDeviceAI {
-  // Checking availability never downloads a model or asks for permission.
-  // The language decides which locale the model must support.
   isAvailable(language?: Language): Promise<OnDeviceAIAvailability>;
-  // Stops after timeoutMs (default 20 s) or when signal aborts, and asks the
-  // native side to cancel so the next request starts cleanly.
   extractPainEntry(
     options: {
       transcript: string;
@@ -263,9 +254,6 @@ export function createAppleIntelligence(
         language: lang,
         locale: speechLocale(lang),
       });
-      // After a timeout or cancel nobody awaits the native call. Its late
-      // rejection is swallowed explicitly so it can never surface as
-      // unhandled, even if the race below is refactored away.
       pending.catch(() => {});
       try {
         let value: unknown;

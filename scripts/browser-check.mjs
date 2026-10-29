@@ -45,7 +45,6 @@ try {
   });
   for (const width of [1440, 390]) {
     const context = await browser.newContext({
-      // English UI regardless of the machine language.
       locale: "en-US",
       viewport: { width, height: 1050 },
       reducedMotion: "reduce",
@@ -167,7 +166,6 @@ try {
     assert.equal(await note.inputValue(), "Edited first entry.");
     await page.reload();
     await atlas.waitFor();
-    // The cached atlas can finish before IndexedDB restores the form.
     await page.locator(".explorer-grid:not([inert])").waitFor();
     assert.equal(await note.inputValue(), "Edited first entry.");
     const layout = await page.evaluate(() => ({

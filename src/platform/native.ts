@@ -11,13 +11,10 @@ import {
   type AppleIntelligenceBridge,
 } from "./on-device-ai";
 
-// Only the standalone app entry imports native packages. Website consumers of
-// Notebook keep the browser adapter without depending on Capacitor.
 export function initializeNativeApp() {
   if (Capacitor.getPlatform() !== "ios") return;
   const speech = registerPlugin<AppleSpeechBridge>("AppleSpeech");
   configureNativeSpeech(createAppleSpeech(speech));
-  // The Automatic language setting follows the phone's language list.
   void speech
     .languages?.()
     .then(({ languages }) => {

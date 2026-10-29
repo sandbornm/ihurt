@@ -41,7 +41,6 @@ try {
     args: ["--enable-unsafe-swiftshader"],
   });
   const context = await browser.newContext({
-    // English UI regardless of the machine language.
     locale: "en-US",
     viewport: { width: 390, height: 844 },
     reducedMotion: "reduce",
@@ -144,8 +143,6 @@ try {
   page.setDefaultTimeout(30000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin);
-  // The notebook is inert until its saved draft has loaded. A fill before then
-  // is dropped by React, which made this check flaky on slow runners.
   await page.locator(".explorer-grid:not([inert])").waitFor();
   const note = page.getByRole("textbox", { name: "Describe your discomfort" });
   await note.fill("An earlier observation.");

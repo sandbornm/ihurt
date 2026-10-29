@@ -2,7 +2,6 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""Vendor MediaPipe SIMD wasm and the hand landmarker so Hands works offline."""
 
 from __future__ import annotations
 

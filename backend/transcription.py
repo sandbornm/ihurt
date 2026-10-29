@@ -1,5 +1,3 @@
-"""Optional speech providers. Audio stays in memory for the request."""
-
 import httpx
 
 from .config import Settings
@@ -27,8 +25,6 @@ class ElevenLabsTranscriber:
 
 
 def create_transcriber(settings: Settings, providers):
-    # TRANSCRIPTION_PROVIDER defaults to "off". A provider runs only when the
-    # operator selects it and supplies its key on the server.
     if settings.transcription_provider == "elevenlabs" and settings.elevenlabs_api_key:
         return ElevenLabsTranscriber(settings), "ElevenLabs"
     if settings.transcription_provider == "openai" and "openai" in providers:

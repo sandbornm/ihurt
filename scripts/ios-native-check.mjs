@@ -110,7 +110,6 @@ try {
   if (result.error) console.error(result.error.message);
   status = result.status ?? 1;
 } finally {
-  // Only this process's newly-created device is eligible for deletion.
   spawnSync("xcrun", ["simctl", "shutdown", id], {
     stdio: "ignore",
     timeout: 60000,

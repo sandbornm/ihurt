@@ -3,12 +3,6 @@ import Foundation
 import FoundationModels
 #endif
 
-// Guided-generation schema and the on-device extract call. No UIKit or
-// Capacitor imports, so the eval CLI can compile this file on macOS.
-// schema v2 quotes evidence spans. The web layer checks every span against
-// the note and drops anything it cannot find. The model does not choose a
-// region id.
-
 #if canImport(FoundationModels)
 @available(iOS 26.0, macOS 26.0, *)
 @Generable
@@ -82,7 +76,6 @@ struct PainExtraction {
 enum PainExtractor {
     static let schema = "v2"
 
-    // Stable codes. The plugin maps them to text in the app's language.
     static func describe(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {
         case .deviceNotEligible: return "ai-device-not-eligible"
@@ -92,8 +85,6 @@ enum PainExtractor {
         }
     }
 
-    // Instructions follow the app's language. Either way the model copies the
-    // person's exact words and never translates them.
     static func instructions(language: String, anatomy: [String]) -> String {
         let areas = anatomy.count
         if language == "es" {

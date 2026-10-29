@@ -12,7 +12,7 @@ import { exportNotebook, parseNotebook } from "../src/notebook-data.ts";
 import { exampleEntry } from "../src/example.ts";
 import { setLanguagePreference } from "../src/i18n/index.ts";
 
-const today = "2026-10-22"; // jueves
+const today = "2026-10-22";
 
 test("a side said about another part does not pick the side", () => {
   assert.equal(

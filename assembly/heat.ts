@@ -1,4 +1,3 @@
-// Elliptical falloff for regional visualization; values are not probabilities.
 export function heat(
   x: f64,
   y: f64,

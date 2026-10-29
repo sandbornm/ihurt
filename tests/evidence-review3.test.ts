@@ -70,7 +70,6 @@ test("'didn't hurt yesterday' is not a current pain unless a later clause says i
       "left_knee",
       note,
     );
-  // A later denial still denies it.
   assert.equal(
     where(
       "My left knee didn't hurt yesterday and it doesn't hurt today",
@@ -99,7 +98,6 @@ test("the part said twice with a side each is both, even when the model kept one
       note,
     );
   }
-  // Two different parts are still a question, not "both".
   assert.notEqual(
     where("My left knee and right ankle hurt", one("left knee", "left")),
     "both",
@@ -187,7 +185,6 @@ test("'I can't lie', 'dormitorio' and 'acostumbrada' are not sleep", () => {
     ),
     "left_knee",
   );
-  // Real sleep phrases still keep the side away from the part.
   for (const [note, lang, side, part] of [
     ["I lie down on the left and my knee hurts", "en", "left", "knee"],
     [

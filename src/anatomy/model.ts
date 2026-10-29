@@ -45,7 +45,6 @@ export function createBody() {
     group.add(mesh);
     muscles.push(mesh);
     mesh.updateMatrix();
-    // Fine longitudinal fibers give each selectable muscle volume a readable direction.
     for (let f = 0; f < fibers; f++) {
       const a = ((f + 0.5) / fibers) * Math.PI * 2;
       for (let j = 2; j < 20; j++) {
@@ -102,7 +101,6 @@ export function createBody() {
     bones.push(mesh);
   }
 
-  // Original schematic anatomy, built locally from parametric surfaces.
   const profile = new T.SplineCurve(
     [
       [0.08, 0.45],

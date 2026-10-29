@@ -1,4 +1,3 @@
-"""Atomic quotas shared by workers using one persistent SQLite database."""
 from contextlib import contextmanager
 from decimal import Decimal
 import hashlib

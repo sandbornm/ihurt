@@ -2,8 +2,6 @@ import { Languages } from "lucide-react";
 import { setLanguagePreference, type LanguagePreference } from "./index";
 import { useI18n } from "./react";
 
-// Stored in localStorage next to the theme. "Automatic" follows the phone's
-// preferred languages and falls back to English.
 export default function LanguageSetting() {
   const { t, preference } = useI18n();
   return (

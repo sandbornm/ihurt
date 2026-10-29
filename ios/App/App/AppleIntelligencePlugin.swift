@@ -6,9 +6,6 @@ import UIKit
 import FoundationModels
 #endif
 
-// Reads a dictated note on the device with Apple Foundation Models and speaks
-// one short follow-up question. Output is a proposal: the web layer validates it
-// against the anatomy list and nothing is saved until the person confirms.
 @objc(AppleIntelligencePlugin)
 public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDelegate {
     public let identifier = "AppleIntelligencePlugin"
@@ -23,8 +20,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
 
     private var synthesizer = AVSpeechSynthesizer()
     private var ownsAudioSession = false
-    // Extraction state is touched only on the main thread. A new request
-    // replaces the one in flight, so nothing can stay stuck "busy".
     private var extraction: PendingExtraction?
     static let extractionTimeout: TimeInterval = 25
     private var observers: [NSObjectProtocol] = []
@@ -44,8 +39,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         synthesizer.stopSpeaking(at: .immediate)
     }
 
-    // Each failure is sent as a stable code. The web layer shows it in the
-    // app's language; these English messages are the fallback.
     static let messages: [String: String] = [
         "ai-unavailable": "Apple Intelligence needs iOS 26 or later on a supported device. Your transcript still goes into the note.",
         "ai-device-not-eligible": "This device does not support Apple Intelligence. Your transcript still goes into the note.",
@@ -68,7 +61,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         call.reject(Self.messages[code] ?? code, code)
     }
 
-    // The app's language setting, sent as "en" or "es" with a BCP 47 locale.
     static func requestLocale(_ call: CAPPluginCall) -> Locale {
         guard let id = call.getString("locale"), !id.isEmpty, id.count <= 35 else { return Locale.current }
         return Locale(identifier: id)
@@ -78,7 +70,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         call.getString("language") == "es" ? "es" : "en"
     }
 
-    // nil when the model can read notes in this locale, else a failure code.
     static func unavailableCode(_ locale: Locale) -> String? {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
@@ -134,8 +125,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         reject(call, "ai-unavailable")
     }
 
-    // Main thread only. Compiled only where FoundationModels exists, so an SDK
-    // without it still builds and reports unavailable.
     #if canImport(FoundationModels)
     @available(iOS 26.0, *)
     private func startExtraction(_ call: CAPPluginCall, transcript: String, anatomy: [String], today: String, language: String) {
@@ -152,8 +141,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
             }
             if self?.extraction === pending { self?.extraction = nil }
         }
-        // The web layer times out first; this is a backstop so a call
-        // can never stay open if the model stops answering.
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.extractionTimeout) { [weak self] in
             guard let self, self.extraction === pending else { return }
             pending.reject(code: "ai-timeout")
@@ -170,7 +157,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         }
     }
 
-    // Main thread only.
     private func finishExtraction(cancelled: Bool) {
         guard let pending = extraction else { return }
         extraction = nil
@@ -197,7 +183,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
                 try session.setActive(true)
                 self.ownsAudioSession = true
             } catch {
-                // The question is also shown as text, so report it unspoken.
                 call.resolve(["spoken": false])
                 return
             }
@@ -208,8 +193,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
         }
     }
 
-    // A voice for the app's language: the exact locale, then any installed
-    // voice of that language, then the system default.
     static func voice(for locale: Locale) -> AVSpeechSynthesisVoice? {
         let id = locale.identifier.replacingOccurrences(of: "_", with: "-")
         if let exact = AVSpeechSynthesisVoice(language: id) { return exact }
@@ -246,7 +229,6 @@ public class AppleIntelligencePlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynth
     }
 }
 
-// One extraction call. Settles its Capacitor call exactly once; main thread only.
 final class PendingExtraction {
     private let call: CAPPluginCall
     private var settled = false

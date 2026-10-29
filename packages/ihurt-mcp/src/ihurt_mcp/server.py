@@ -1,5 +1,3 @@
-"""Read-only MCP tools over a fixed catalog; no paths or URLs accepted by tools."""
-
 import json
 from typing import Annotated, Any
 

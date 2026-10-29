@@ -28,9 +28,6 @@ jobs:
       - run: npm run check
       - name: Check extraction eval against thresholds
         run: npm run eval:extraction -- --check
-      # Regression floor on the honest measure. These numbers are the first blind
-      # run of the verifier, not a target. Never tune the verifier against the
-      # held-out notes to move them; add tuning cases to cases.json instead.
       - name: Check held-out extraction eval floor
         run: |
           H=tests/fixtures/extraction-eval

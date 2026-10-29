@@ -95,7 +95,6 @@ test("a later 'but it hurts' keeps a part that only did not hurt in some situati
     ),
     "left_knee",
   );
-  // Nothing says the knee hurts later, so it stays out.
   for (const note of [
     "My left knee doesn't hurt when I walk",
     "My left knee doesn't hurt when I walk but my right shoulder hurts when I run",
@@ -133,7 +132,6 @@ test("a second hurting part after a condition is still asked about", () => {
     ],
   ] as const)
     assert.equal(where(note, [...list], lang), "ambiguous", note);
-  // An action's body part is not a second complaint.
   assert.equal(
     where("My left knee hurts when I lift my right shoulder", knee),
     "left_knee",

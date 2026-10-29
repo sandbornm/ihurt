@@ -145,7 +145,6 @@ def create_app(settings: Settings | None = None, provider=None):
                     result.question = None
                 return {"activity_id": activity_id, "map": result.model_dump(), "remaining": limits.remaining(owner, ip), "provider": body.provider}
             except (Exception,) as exc:
-                # Do not include provider errors or user content in logs or responses.
                 if isinstance(exc, HTTPException):
                     raise
                 return JSONResponse({"detail": provider_error_message(exc, body.provider), "activity_id": activity_id, "remaining": limits.remaining(owner, ip)}, status_code=502)

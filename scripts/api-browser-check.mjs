@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
-// Exercise the built app and real HTTP/session boundary with no live providers.
 const temporary = await mkdtemp(join(tmpdir(), "ihurt-api-check-"));
 const socket = createServer();
 await new Promise((done) => socket.listen(0, "127.0.0.1", done));
@@ -73,7 +72,6 @@ try {
     args: ["--enable-unsafe-swiftshader"],
   });
   const context = await browser.newContext({
-    // English UI regardless of the machine language.
     locale: "en-US",
     serviceWorkers: "block",
   });
@@ -97,7 +95,6 @@ try {
     external.push(route.request().url());
     return route.abort();
   });
-  // Observe the fake camera's tracks so stopping Hands is checked as well as starting it.
   await page.addInitScript(() => {
     window.testCameraTracks = [];
     navigator.mediaDevices.getUserMedia = async () => {

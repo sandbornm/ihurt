@@ -124,8 +124,6 @@ export const activities: Activity[] = [
   ...commonActivities,
   ...more.map(([name, regions]) => ({ name, regions })),
 ];
-// Activity names are stored as typed. Matching accepts the English name, the
-// Spanish name, and a few everyday words in either language.
 const fold = (value: string) =>
   value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 export const activityKey = (activity: Activity) =>
@@ -135,8 +133,6 @@ export const activityKey = (activity: Activity) =>
     .replace(/^_|_$/g, "")}` as MessageKey;
 export const activityName = (activity: Activity, lang: Language = language()) =>
   translate(lang, activityKey(activity));
-// A saved activity that is exactly a listed name is shown in the current
-// language; anything the person typed is kept as written.
 export function activityLabel(value: string, lang: Language = language()) {
   const text = fold(value.trim());
   const match = activities.find((activity) =>
@@ -160,8 +156,6 @@ const spanishTerms: Record<string, string[]> = {
   Sleep: ["dormir", "dormi", "cama"],
   Padel: ["padel"],
 };
-// Whole words only, so "pasear" is not "pase" and "tenis de mesa" is not
-// Tennis. A longer name that contains the matched one wins.
 const hasPhrase = (text: string, name: string) =>
   new RegExp(
     `(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
@@ -172,8 +166,6 @@ export function activityMatch(value: string): Activity | undefined {
   const words = text.split(/[^\p{L}\p{N}]+/u);
   const exact = activities.find((a) => names(a).includes(text));
   if (exact) return exact;
-  // The longest name or term said wins: "tenis de mesa" is Table tennis and
-  // "ciclismo de montana" is Mountain biking. Ties keep list order.
   let best: Activity | undefined;
   let length = 0;
   for (const a of activities) {

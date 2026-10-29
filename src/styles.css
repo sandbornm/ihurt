@@ -2080,7 +2080,6 @@ h1 > span {
   max-width: 120px;
 }
 
-/* Notebook fields stay compact beside the anatomy. */
 .notebook-input {
   display: block;
   width: 100%;
@@ -2344,7 +2343,6 @@ h1 > span {
   }
 }
 
-/* Camera buttons remain usable without trackpad gestures. */
 .anatomy-navigation {
   position: absolute;
   z-index: 3;
@@ -2722,7 +2720,6 @@ h1 > span {
   }
 }
 
-/* Keep secondary tools out of the initial map view. */
 [hidden] {
   display: none !important;
 }

@@ -157,7 +157,6 @@ export default function Notebook({
     ),
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">(example ? "back" : "front");
-  // Unconfirmed pin proposed from voice. Kept out of the autosaved draft.
   const [proposedPin, setProposedPin] = useState<RegionId | null>(null);
   const [command, setCommand] = useState({ type: "", id: 0 }),
     [landmarks, setLandmarks] = useState(false);

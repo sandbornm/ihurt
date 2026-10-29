@@ -9,8 +9,6 @@ import {
   type FeedbackType,
 } from "./feedback-client";
 
-// Shared feedback relay (public URL, not a secret). Override with
-// VITE_FEEDBACK_ENDPOINT; set it to an empty string to use only the mailto draft.
 const DEFAULT_ENDPOINT = "https://feedback-relay.msxndev.workers.dev/feedback";
 const ENDPOINT: string | undefined =
   (import.meta.env.VITE_FEEDBACK_ENDPOINT ?? DEFAULT_ENDPOINT) || undefined;
@@ -36,7 +34,6 @@ export default function FeedbackLinks() {
 
   const openMail = (type: FeedbackType, text: string) => {
     const d = diagnostics();
-    // Capacitor's iOS WebView hands mailto: to iOS (Mail). No Info.plist change needed.
     window.location.href = feedbackMailto({
       project: "ihurt",
       type,

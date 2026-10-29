@@ -23,7 +23,6 @@ export function prepareSharedEntry(
   if (!options.comments)
     shared.points?.forEach((point) => delete point.comment);
   if (!options.sources) shared.references = [];
-  // Search descriptions and AI output can repeat omitted notes and comments.
   if (!options.sources || !options.notes || !options.comments)
     delete shared.research;
   if (!options.ai || !options.notes || !options.comments || !options.sources)

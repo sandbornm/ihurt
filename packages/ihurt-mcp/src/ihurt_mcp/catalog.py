@@ -1,5 +1,3 @@
-"""A startup snapshot of files explicitly selected by the user."""
-
 import os
 import stat
 from datetime import UTC, datetime
@@ -12,7 +10,7 @@ MAX_TOTAL_BYTES = 64 * 1024 * 1024
 
 
 class ExportError(ValueError):
-    """An export cannot be admitted; messages never contain journal contents."""
+    pass
 
 
 def read_export(path: Path) -> bytes:
@@ -81,7 +79,6 @@ class Catalog:
 
     def read(self, entry_id: str, pin_offset: int, pin_limit: int, include_ai: bool) -> dict:
         entry = self.entry(entry_id)
-        # Exclude highlights before serialization so paging never serializes the entire map.
         data = entry.model_dump(mode="json", exclude_none=True, exclude={"highlights", "ai_notes"})
         data["highlights"] = [
             pin.model_dump(mode="json", exclude_none=True)

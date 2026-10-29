@@ -8,7 +8,6 @@ import {
   type Object3D,
 } from "three";
 
-// A bounding-box center can miss a curved muscle. Aim through a real triangle.
 export function surfaceNearViewCenter(mesh: Mesh, camera: Camera) {
   mesh.updateWorldMatrix(true, false);
   camera.updateMatrixWorld();
@@ -52,7 +51,6 @@ export function surfaceNearViewCenter(mesh: Mesh, camera: Camera) {
   return ray.intersectObject(mesh, false)[0];
 }
 
-// Keep nearby surfaces along the ray; exclude duplicate triangles and the far side.
 export function nearbySurfaces<T extends Object3D>(hits: Intersection<T>[]) {
   const first = hits[0];
   if (!first) return [];

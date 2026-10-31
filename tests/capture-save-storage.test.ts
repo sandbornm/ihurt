@@ -274,7 +274,9 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
     loaded.entries.map((item) => item.id).sort(),
     ["a", "b"],
   );
-  await storeEntries([entry("a", "knee again")]);
+  await storeEntries([
+    entry("a", "knee again", { noteUpdated: "2026-01-02T00:00:00.000Z" }),
+  ]);
   loaded = await loadNotebook();
   assert.equal(loaded.entries.find((item) => item.id === "b")?.note, "calf");
   assert.equal(
@@ -312,7 +314,11 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
   );
 
   const researchWrite = saveResearch("b", research);
-  const staleWrite = storeEntries([entry("b", "typed during the save")]);
+  const staleWrite = storeEntries([
+    entry("b", "typed during the save", {
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+    }),
+  ]);
   const settled = await Promise.allSettled([researchWrite, staleWrite]);
   assert.equal(settled[0].status, "fulfilled");
   assert.equal(settled[1].status, "fulfilled");
@@ -327,7 +333,10 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
     draftOf(entry("b", "old draft", { updated: "2026-01-01T00:00:00.000Z" })),
   );
   await storeEntries([
-    entry("b", "saved note", { updated: "2026-01-04T00:00:00.000Z" }),
+    entry("b", "saved note", {
+      updated: "2026-01-04T00:00:00.000Z",
+      noteUpdated: "2026-01-04T00:00:00.000Z",
+    }),
   ]);
   const afterNewerSave = await saveResearch("b", research);
   assert.equal(afterNewerSave?.note, "saved note");
@@ -335,19 +344,31 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
 
   // A prior search stamped "now". This save is later than that, and the draft is later still.
   await storeEntries([
-    entry("b", "stored earlier", { updated: "2099-01-01T00:00:00.000Z" }),
+    entry("b", "stored earlier", {
+      updated: "2099-01-01T00:00:00.000Z",
+      noteUpdated: "2099-01-01T00:00:00.000Z",
+    }),
   ]);
   await saveDraft(
     draftOf(
-      entry("b", "typed after save", { updated: "2099-06-01T00:00:00.000Z" }),
+      entry("b", "typed after save", {
+        updated: "2099-06-01T00:00:00.000Z",
+        noteUpdated: "2099-06-01T00:00:00.000Z",
+      }),
     ),
   );
   const afterNewerDraft = await saveResearch("b", research);
   assert.equal(afterNewerDraft?.note, "typed after save");
   assert.equal(afterNewerDraft?.research?.description, "stiff");
 
-  await storeEntries([entry("b", "still here")]);
-  await saveDraft(draftOf(entry("b", "still here")));
+  await storeEntries([
+    entry("b", "still here", { noteUpdated: "2026-01-05T00:00:00.000Z" }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("b", "still here", { noteUpdated: "2026-01-05T00:00:00.000Z" }),
+    ),
+  );
   await removeEntry("b");
   const restored = await saveResearch("b", research);
   loaded = await loadNotebook();
@@ -356,13 +377,18 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
 
   const undone = entry("b", "restored", {
     updated: "2026-01-06T00:00:00.000Z",
+    noteUpdated: "2026-01-06T00:00:00.000Z",
   });
   await storeEntries([undone]);
   const afterUndo = await saveResearch("b", research);
   assert.equal(afterUndo?.note, "restored");
   assert.equal(afterUndo?.research?.description, "stiff");
 
-  await saveDraft(draftOf(entry("d", "only a draft")));
+  await saveDraft(
+    draftOf(
+      entry("d", "only a draft", { noteUpdated: "2026-01-01T00:00:00.000Z" }),
+    ),
+  );
   const created = await saveResearch("d", research);
   assert.equal(created?.note, "only a draft");
   loaded = await loadNotebook();
@@ -413,6 +439,7 @@ test("a save with older research does not replace a newer search", async () => {
   await storeEntries([
     entry("r", "just-saved note", {
       updated: "2026-01-04T00:00:00.000Z",
+      noteUpdated: "2026-01-04T00:00:00.000Z",
       research: older,
       references: older.references,
     }),
@@ -448,6 +475,7 @@ test("a save with older research does not replace a newer search", async () => {
   await storeEntries([
     entry("legacy", "saved later", {
       updated: "2026-01-03T00:00:00.000Z",
+      noteUpdated: "2026-01-03T00:00:00.000Z",
       research: { ...older, description: "versioned search" },
       references: older.references,
     }),
@@ -523,6 +551,7 @@ test("storeEntries returns the merged row a card would show", async () => {
   await saveResearch("card", newer);
   const snapshot = entry("card", "saved note", {
     updated: "2026-01-04T00:00:00.000Z",
+    noteUpdated: "2026-01-04T00:00:00.000Z",
     research: older,
     references: older.references,
   });
@@ -572,7 +601,10 @@ test("a stale save keeps a newer note and a later search does not restore the ol
   ]);
   await saveDraft(
     draftOf(
-      entry("n", "typed in between", { updated: "2026-01-02T00:00:00.000Z" }),
+      entry("n", "typed in between", {
+        updated: "2026-01-02T00:00:00.000Z",
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+      }),
     ),
   );
   const landed = await saveResearch("n", research);
@@ -593,7 +625,10 @@ test("a stale save keeps a newer note and a later search does not restore the ol
 
   await saveDraft(
     draftOf(
-      entry("n", "typed in between", { updated: "2026-01-02T00:00:00.000Z" }),
+      entry("n", "typed in between", {
+        updated: "2026-01-02T00:00:00.000Z",
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+      }),
     ),
   );
   const again = await saveResearch("n", research);
@@ -978,4 +1013,54 @@ test("a search copies a stored note onto an editor that has no noteUpdated after
   await saveDraft(draftOf(next));
   const loaded = await loadNotebook();
   assert.equal(loaded.draft?.entry.note, "typed ahead");
+});
+
+test("a save keeps a stamped note when the incoming row has no noteUpdated and a later updated", async () => {
+  await storeEntries([
+    entry("kl-legacy", "merged note", {
+      updated: "2026-01-02T00:00:00.000Z",
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+    }),
+  ]);
+  const [row] = await storeEntries([
+    entry("kl-legacy", "stale note", {
+      updated: "2026-01-04T00:00:00.000Z",
+    }),
+  ]);
+  assert.equal(row?.note, "merged note");
+  assert.equal(row?.noteUpdated, "2026-01-02T00:00:00.000Z");
+});
+
+test("a search keeps a stamped note when the draft has no noteUpdated and a later updated", async () => {
+  await storeEntries([
+    entry("nn-legacy", "merged note", {
+      updated: "2026-01-02T00:00:00.000Z",
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("nn-legacy", "stale note", {
+        updated: "2026-01-04T00:00:00.000Z",
+      }),
+    ),
+  );
+  const after = await saveResearch("nn-legacy", research);
+  assert.equal(after?.note, "merged note");
+  assert.equal(after?.noteUpdated, "2026-01-02T00:00:00.000Z");
+});
+
+test("a save stamps noteUpdated on a legacy row", async () => {
+  const row = entry("stamp-me", "a note");
+  assert.equal(row.noteUpdated, undefined);
+  const [saved] = await storeEntries([row]);
+  assert.equal(typeof saved?.noteUpdated, "string");
+  assert.ok((saved?.noteUpdated ?? "").length > 0);
+  const loaded = await loadNotebook();
+  assert.equal(
+    typeof loaded.entries.find((item) => item.id === "stamp-me")?.noteUpdated,
+    "string",
+  );
+  const created = await saveResearch("stamp-me", research);
+  assert.equal(typeof created?.noteUpdated, "string");
 });

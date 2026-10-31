@@ -84,13 +84,16 @@ function laterStamp(left?: string, right?: string): string | undefined {
   return left > right ? left : right;
 }
 
-// The note's own time. A missing stamp falls back to updated, which on rows
-// saved before this field is the only clock they have.
+// The note's own time. A missing stamp is older than any present stamp.
+// Do not use updated. A title or pin edit bumps that field without a note change.
 function noteStamp(entry: SavedMap | undefined): string {
   if (!entry) return "";
-  return typeof entry.noteUpdated === "string"
-    ? entry.noteUpdated
-    : (entry.updated ?? "");
+  return typeof entry.noteUpdated === "string" ? entry.noteUpdated : "";
+}
+
+function ensureNoteStamp(entry: SavedMap, fallback: string): SavedMap {
+  if (typeof entry.noteUpdated === "string") return entry;
+  return { ...entry, noteUpdated: fallback };
 }
 
 function unionByUrl<T extends { url: string }>(
@@ -141,13 +144,17 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
     existing?.research !== undefined &&
     (entry.research === undefined ||
       researchVersion(existing) > researchVersion(entry));
-  if (!existingNewer) return withTime;
+  const stamped = ensureNoteStamp(
+    withTime,
+    updated ?? new Date().toISOString(),
+  );
+  if (!existingNewer) return stamped;
   const references = unionByUrl(
     existing.references ?? existing.research?.references,
     entry.references,
   );
   return {
-    ...withTime,
+    ...stamped,
     research: existing.research
       ? { ...existing.research, references }
       : existing.research,
@@ -312,14 +319,17 @@ export async function saveResearch(
       const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
       const noteEntry = newerNote(draftEntry, stored, entry);
-      const noteAt = noteStamp(noteEntry);
       const now = new Date().toISOString();
+      const noteAt =
+        typeof noteEntry.noteUpdated === "string"
+          ? noteEntry.noteUpdated
+          : now;
       const stamped = { ...research, version: now };
       const references = unionByUrl(stamped.references, entry.references);
       updated = {
         ...entry,
         note: noteEntry.note,
-        ...(noteAt ? { noteUpdated: noteAt } : {}),
+        noteUpdated: noteAt,
         research: stamped,
         references,
         updated: laterStamp(entry.updated, now) ?? now,

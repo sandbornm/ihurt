@@ -64,17 +64,67 @@ async function mutate(stores: string[], work: (tx: IDBTransaction) => void) {
     }
   });
 }
+const DELETED_IDS = "deleted-ids";
+
+function deletedIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string")
+    : [];
+}
+
+// The editor never clears research. A save that started before the search
+// finished still carries the note and the map from that moment.
+function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
+  if (existing?.research === undefined || entry.research !== undefined)
+    return entry;
+  const references = [
+    ...(existing.references ?? []),
+    ...(entry.references ?? []),
+  ].filter(
+    (item, index, all) =>
+      all.findIndex((other) => other.url === item.url) === index,
+  );
+  return { ...entry, research: existing.research, references };
+}
+
+function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
+  if (draft && stored && (draft.updated ?? "") > (stored.updated ?? ""))
+    return draft;
+  return stored ?? draft;
+}
+
 export const saveDraft = (draft: Draft) =>
   mutate(["settings"], (tx) => {
     tx.objectStore("settings").put(draft, "draft");
   });
 export const storeEntries = (entries: SavedMap[]) =>
-  mutate(["entries"], (tx) => {
-    for (const entry of entries) tx.objectStore("entries").put(entry);
+  mutate(["entries", "settings"], (tx) => {
+    const store = tx.objectStore("entries");
+    const settings = tx.objectStore("settings");
+    const tomb = settings.get(DELETED_IDS);
+    tomb.onsuccess = () => {
+      const ids = new Set(deletedIds(tomb.result));
+      let changed = false;
+      for (const entry of entries) {
+        if (ids.delete(entry.id)) changed = true;
+        const current = store.get(entry.id);
+        current.onsuccess = () => {
+          const existing = current.result as SavedMap | undefined;
+          store.put(keepLandedResearch(existing, entry));
+        };
+      }
+      if (changed) settings.put([...ids], DELETED_IDS);
+    };
   });
 export const removeEntry = (id: string) =>
-  mutate(["entries"], (tx) => {
+  mutate(["entries", "settings"], (tx) => {
     tx.objectStore("entries").delete(id);
+    const current = tx.objectStore("settings").get(DELETED_IDS);
+    current.onsuccess = () => {
+      const ids = deletedIds(current.result);
+      if (!ids.includes(id)) ids.push(id);
+      tx.objectStore("settings").put(ids, DELETED_IDS);
+    };
   });
 
 export async function saveResearch(
@@ -84,18 +134,22 @@ export async function saveResearch(
   const db = await open();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["entries", "settings"], "readwrite");
-    const saved = tx.objectStore("entries").get(entryId);
-    const draft = tx.objectStore("settings").get("draft");
+    const entries = tx.objectStore("entries");
+    const settings = tx.objectStore("settings");
+    const saved = entries.get(entryId);
+    const draft = settings.get("draft");
+    const tomb = settings.get(DELETED_IDS);
     let complete = 0,
       updated: SavedMap | undefined;
     const merge = () => {
-      if (++complete !== 2) return;
+      if (++complete !== 3) return;
+      // A deleted id stays deleted even when the draft still names it.
+      if (deletedIds(tomb.result).includes(entryId)) return;
       const currentDraft = draft.result as Draft | undefined;
-      const matches = currentDraft?.entry.id === entryId;
-      const entry = matches
-        ? currentDraft.entry
-        : (saved.result as SavedMap | undefined);
-      // A deleted entry must stay deleted when an earlier search finishes.
+      const stored = saved.result as SavedMap | undefined;
+      const draftEntry =
+        currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
+      const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
       const references = [
         ...research.references,
@@ -109,15 +163,13 @@ export async function saveResearch(
         references,
         updated: new Date().toISOString(),
       };
-      tx.objectStore("entries").put(updated);
-      if (matches)
-        tx.objectStore("settings").put(
-          { ...currentDraft, entry: updated },
-          "draft",
-        );
+      entries.put(updated);
+      if (draftEntry)
+        settings.put({ ...currentDraft, entry: updated }, "draft");
     };
     saved.onsuccess = merge;
     draft.onsuccess = merge;
+    tomb.onsuccess = merge;
     tx.oncomplete = () => resolve(updated);
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);

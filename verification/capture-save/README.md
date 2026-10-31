@@ -2,7 +2,7 @@
 
 The model checks one pain entry from voice or a body mark through to IndexedDB. The store is database `ihurt-notebook` in `src/notebook-storage.ts`. Entries are put by id. Settings holds one draft and the deleted-id list. Nothing here rewrites a localStorage blob of the whole notebook.
 
-Run `bash verification/capture-save/run.sh` from the repo root. Exit 0 means the anchor, the storage test, and every line in `expected.txt` matched. TLC runs one worker with `-fp 0` by default, so each FAIL line names the same invariant on every run. Set `TLC_WORKERS=auto` for a faster local run. A mutant that breaks more than one invariant can then report either one.
+Run `bash verification/capture-save/run.sh` from the repo root. Exit 0 means the anchor, the storage test, and every line in `expected.txt` matched. Configs expected to FAIL run one TLC worker with `-fp 0` by default, so each FAIL line names the same invariant on every run. Configs expected to PASS use every core, since their result doesn't depend on search order (`TLC_PASS_WORKERS` overrides). Set `TLC_WORKERS=auto` for a faster local run. A mutant that breaks more than one invariant can then report either one.
 
 Read results with the pstack /statechart skill.
 

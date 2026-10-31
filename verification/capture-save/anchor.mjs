@@ -242,6 +242,10 @@ assert.match(
 const runner = read("verification/capture-save/run.sh");
 assert.match(runner, /WORKERS="\$\{TLC_WORKERS:-1\}"/);
 assert.match(runner, /-fp 0/);
+assert.match(
+  runner,
+  /\[\[ "\$\{expect\}" == "PASS" \]\] && workers="\$\{PASS_WORKERS\}"/,
+);
 assert.match(types, /pointsUpdated\?: string/);
 assert.match(data, /entry\.pointsUpdated = date\(e\.pointsUpdated\)/);
 assert.match(data, /pointsUpdated: entry\.pointsUpdated/);

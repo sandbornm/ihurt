@@ -57,7 +57,21 @@ assert.match(notebook, /e\.id === entry\.id/);
 assert.match(notebook, /withStampedResearch\(e, entry\.id, updated\)/);
 assert.match(notebook, /const \[savedRow\] = await storeEntries\(\[item\]\);/);
 assert.match(notebook, /const saved = savedRow \?\? item;/);
-assert.match(notebook, /current\.id === saved\.id \? saved : current/);
+assert.match(notebook, /editorAfterSave\(current, item, saved\)/);
+assert.match(storage, /export function editorAfterSave/);
+assert.match(storage, /noteStamp\(editor\) !== noteStamp\(snapshot\)/);
+assert.match(
+  storage,
+  /\(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\)/,
+);
+assert.match(
+  storage,
+  /saved\.research !== undefined \? \{ research: saved\.research \} : \{\}/,
+);
+assert.match(
+  storage,
+  /saved\.references !== undefined \? \{ references: saved\.references \} : \{\}/,
+);
 assert.match(
   notebook,
   /patch\.note !== undefined \? \{ noteUpdated: now \} : \{\}/,

@@ -51,28 +51,28 @@ The journal card shows the row that was stored.
 | ExtractionReady | generation check at 395, then `setProposal` |
 | LateExtraction | the same check at 395. `src/voice/ai-gate.ts` 42 drops a stale availability check the same way |
 | EditTranscript | textarea at 563 |
-| ApplyToEntry | `apply` at 432, `confirmProposal` in `src/voice/extraction.ts` 2361, `onApply` in `src/Notebook.tsx` 1200, `applyVoiceDraft` in `src/voice/draft.ts` 149 |
+| ApplyToEntry | `apply` at 432, `confirmProposal` in `src/voice/extraction.ts` 2361, `onApply` in `src/Notebook.tsx` 1201, `applyVoiceDraft` in `src/voice/draft.ts` 149 |
 | DiscardDraft | discard button at 699. It calls `cancelCapture` and `close`, not `onApply` |
 | DismissVoice | `dismiss` at 151 |
 | PlacePin | pin and region updates in `src/Notebook.tsx` around 210. `src/anatomy/capture.ts` `captureViewport` is a PNG for export, not a save |
-| EditEntry | `change` at 223. The id stays |
-| FlushDraft | `saveDraft` in `src/notebook-storage.ts` 169, effect in `src/Notebook.tsx` 269, `pagehide` at 297 |
-| DraftFails | the effect catch at 281 |
-| PressSave | `commit` at 362. The button is disabled at 1367. Hand entry uses the same `commit` at 958 |
-| DoubleTap | `commit` returns at 363 while `busy` is set |
-| SaveCommits | `storeEntries` at 173 returns the merged rows. `keepLandedResearch` at 109 keeps the newer research and unions readings at 135, stored links first. `commit` passes that row to `setSaved` at 370 and to the editor at 371. `importFile` uses the returned rows at 482. The journal card reads the saved list at 695 and export at 712 |
-| SaveFails | `commit` catch at 374. `mutate` rejects on abort at 58 and does not publish the transaction |
-| DeleteEntry | `erase` at 433, `removeEntry` at 212. The id is recorded under `deleted-ids` |
-| UndoDelete | `undoDelete` at 451, which puts the removed entry back and clears that id |
-| Reload | `loadNotebook` effect at 242, `loadNotebook` in storage at 37 |
+| EditEntry | `change` at 224. The id stays |
+| FlushDraft | `saveDraft` in `src/notebook-storage.ts` 189, effect in `src/Notebook.tsx` 270, `pagehide` at 298 |
+| DraftFails | the effect catch at 282 |
+| PressSave | `commit` at 363. The button is disabled at 1368. Hand entry uses the same `commit` at 959 |
+| DoubleTap | `commit` returns at 364 while `busy` is set |
+| SaveCommits | `storeEntries` at 193 returns the merged rows. `keepLandedResearch` at 109 keeps the newer research and unions readings at 135, stored links first. `commit` passes that row to `setSaved` at 371. `editorAfterSave` at 156 copies the merged research and references onto the open editor. If `noteUpdated` or `updated` differs from the snapshot, the editor note and fields stay. Otherwise the editor takes the merged row. `importFile` uses the returned rows at 483. The journal card reads the saved list at 696 and export at 713 |
+| SaveFails | `commit` catch at 375. `mutate` rejects on abort at 58 and does not publish the transaction |
+| DeleteEntry | `erase` at 434, `removeEntry` at 232. The id is recorded under `deleted-ids` |
+| UndoDelete | `undoDelete` at 452, which puts the removed entry back and clears that id |
+| Reload | `loadNotebook` effect at 243, `loadNotebook` in storage at 37 |
 | OtherTabSaves | a second tab puts a different id. Puts do not replace the other id |
-| ResearchLands | `saveResearch` at 223 stamps `research.version` and can commit while `storeEntries` is in flight. The screen calls it at 1350 |
-| ResearchFromDraft | `newerEntry` at 153. The later `updated` value wins. `newerNote` at 159 picks the note by its own stamp |
-| ResearchAfterDelete | `deletedIds(tomb.result).includes(entryId)` in `saveResearch` at 240. That guard returns before any put. `entries.delete` is `removeEntry` at 214, which only records the id |
-| StoreVersionless | `researchVersion` at 76. A missing or non-string version is `""`, older than any stamp. The draft effect at 269 can persist a search payload that has no version |
-| TypeNote | `change` at 223. A patch that includes `note` sets `noteUpdated` at 229. Pin and context edits do not |
+| ResearchLands | `saveResearch` at 243 stamps `research.version` and can commit while `storeEntries` is in flight. The screen calls it at 1351 |
+| ResearchFromDraft | `newerEntry` at 173. The later `updated` value wins. `newerNote` at 179 picks the note by its own stamp |
+| ResearchAfterDelete | `deletedIds(tomb.result).includes(entryId)` in `saveResearch` at 260. That guard returns before any put. `entries.delete` is `removeEntry` at 234, which only records the id |
+| StoreVersionless | `researchVersion` at 76. A missing or non-string version is `""`, older than any stamp. The draft effect at 270 can persist a search payload that has no version |
+| TypeNote | `change` at 224. A patch that includes `note` sets `noteUpdated` at 230. Pin and context edits do not |
 | StaleNoteSave | the old save, which copied the research time onto an older note. The guard is `existingNote > incomingNote` in `keepLandedResearch` at 113 |
-| ResearchKeepsNote | `saveResearch` overlays `noteEntry.note` at 254 and writes `noteUpdated` from `noteStamp` at 248. The mutant writes the older note after that clock was laundered |
+| ResearchKeepsNote | `saveResearch` overlays `noteEntry.note` at 274 and writes `noteUpdated` from `noteStamp` at 268. The mutant writes the older note after that clock was laundered |
 | Wait | no screen step. It keeps the model from treating a finished screen as a deadlock |
 
 ## Mutants
@@ -106,4 +106,4 @@ Two entry ids. One in-flight transcript and one in-flight extraction. A generati
 
 ## Not covered
 
-Import re-ids on collision and rebuilds research without `version`, so an imported search is treated as oldest until the next `saveResearch`. The assistant's own save. Whether a suggestion is medically right. Two full puts of the same id from two tabs. The later commit wins for the note. The model does not merge those snapshots. Undo puts back the deleted record. The model tracks the id, not whether that copy still holds research. `captureViewport` is not a write. Two searches in the same millisecond share one version string. Readings are one extra URL, not an open set, and the model does not order the links. A row saved before `noteUpdated` existed falls back to `updated`, so an old research bump can still look like a newer note. New writes set `noteUpdated`. The model always has a separate note clock.
+Import re-ids on collision and rebuilds research without `version`, so an imported search is treated as oldest until the next `saveResearch`. The assistant's own save. Whether a suggestion is medically right. Two full puts of the same id from two tabs. The later commit wins for the note. The model does not merge those snapshots. Undo puts back the deleted record. The model tracks the id, not whether that copy still holds research. `captureViewport` is not a write. Two searches in the same millisecond share one version string. Readings are one extra URL, not an open set, and the model does not order the links. A row saved before `noteUpdated` existed falls back to `updated`, so an old research bump can still look like a newer note. New writes set `noteUpdated`. The model always has a separate note clock. An edit made while `storeEntries` is writing is not a model step. `TypeNote` and `EditEntry` run only while the screen is idle. `editorAfterSave` keeps that edit in the editor, and `tests/capture-save-storage.test.ts` checks it.

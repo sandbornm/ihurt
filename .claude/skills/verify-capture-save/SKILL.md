@@ -11,7 +11,7 @@ The check is a TLA+ model of one pain entry from voice or a body mark through to
 
 Look at the diff. It touches this check if it edits any of these.
 
-- `src/notebook-storage.ts` functions `open`, `loadNotebook`, `mutate`, `saveDraft`, `storeEntries`, `removeEntry`, `saveResearch`, `keepLandedResearch`, `withStampedResearch`, `newerNote`, `noteStamp`, `unionByUrl`
+- `src/notebook-storage.ts` functions `open`, `loadNotebook`, `mutate`, `saveDraft`, `storeEntries`, `removeEntry`, `saveResearch`, `keepLandedResearch`, `withStampedResearch`, `editorAfterSave`, `newerNote`, `noteStamp`, `unionByUrl`
 - `src/Notebook.tsx` functions `change`, `commit`, `newMap`, `openSaved`, `erase`, `undoDelete`, `importFile`, the draft effect, voice `onApply`, research `onSave`
 - `src/types.ts` field `SavedMap.noteUpdated`
 - `src/voice/VoiceDraft.tsx` functions `record`, `stop`, `suggestFinal`, `runExtraction`, `apply`, `dismiss`, `cancelCapture`, and the discard button
@@ -34,7 +34,7 @@ The anchor reads the TypeScript and checks the guards the model relies on. If it
 
 A safety config that fails prints `Invariant NAME is violated` and the shortest path. Replay each action against the file and line in `verification/capture-save/README.md`. If the TypeScript can do those steps, it is a bug. If it cannot, the model is wrong. Fix the model. Do not weaken the invariant and do not delete the action to make the run pass.
 
-`NewestResearchKept` means the stored research is never an older version than the newest search that committed for that id. `UpdatedMonotone` means the stored `updated` stamp is never older than a write that has committed for that id. `ReadingsKept` means a committed save's new readings stay on the stored row. `NewestNoteKept` means the stored note is never older than the newest note the user saved or typed. `CardMatchesStore` means the journal card shows the row that was stored. `mutant_overwrite_newer_research` must fail `NewestResearchKept`. `mutant_keep_older_updated` must fail `UpdatedMonotone`. `mutant_drop_incoming_readings` must fail `ReadingsKept`. `mutant_restore_stale_note` must fail `NewestNoteKept`. `mutant_show_pre_merge` must fail `CardMatchesStore`. `cover_newer` must reach stored research rank 3 while the in-flight snapshot still holds rank 2. `cover_readings`, `cover_newest_note`, and `cover_merged` must reach those three situations. If the anchor no longer matches `researchVersion(existing) > researchVersion(entry)`, the version check moved. If it no longer matches `deletedIds(tomb.result).includes(entryId)`, the delete guard moved. If it no longer matches `unionByUrl`, `withStampedResearch`, `storeEntries` returning `Promise<SavedMap[]>`, `savedRow ?? item`, or `noteStamp`, the matching fix moved.
+`NewestResearchKept` means the stored research is never an older version than the newest search that committed for that id. `UpdatedMonotone` means the stored `updated` stamp is never older than a write that has committed for that id. `ReadingsKept` means a committed save's new readings stay on the stored row. `NewestNoteKept` means the stored note is never older than the newest note the user saved or typed. `CardMatchesStore` means the journal card shows the row that was stored. `mutant_overwrite_newer_research` must fail `NewestResearchKept`. `mutant_keep_older_updated` must fail `UpdatedMonotone`. `mutant_drop_incoming_readings` must fail `ReadingsKept`. `mutant_restore_stale_note` must fail `NewestNoteKept`. `mutant_show_pre_merge` must fail `CardMatchesStore`. `cover_newer` must reach stored research rank 3 while the in-flight snapshot still holds rank 2. `cover_readings`, `cover_newest_note`, and `cover_merged` must reach those three situations. If the anchor no longer matches `researchVersion(existing) > researchVersion(entry)`, the version check moved. If it no longer matches `deletedIds(tomb.result).includes(entryId)`, the delete guard moved. If it no longer matches `unionByUrl`, `withStampedResearch`, `storeEntries` returning `Promise<SavedMap[]>`, `savedRow ?? item`, or `noteStamp`, the matching fix moved. If it no longer matches `editorAfterSave(current, item, saved)` or `noteStamp(editor) !== noteStamp(snapshot)`, the in-flight editor merge moved. That case is the unit test in `tests/capture-save-storage.test.ts`. TLC does not step an edit while a save is busy.
 
 A mutant config is supposed to fail the invariant named in `expected.txt`. If it passes, the guard it removes no longer protects that invariant, or the model no longer breaks when the guard is gone. Treat a passing mutant as a hole in the check.
 
@@ -48,11 +48,11 @@ Move the sync commit below only after a run against the new code exits 0 and the
 
 ## Coverage
 
-Synced to `357136b`. The model matches the readings union, the merged row returned to the card, and the separate note clock on that commit. The branch started from `1441c4f`.
+Synced to `832ca25`. The model matches the readings union, the merged row on the journal card, and the separate note clock. `editorAfterSave` keeps an edit made while `storeEntries` is writing. The unit test checks that. TLC still treats the editor as idle during the write. The branch started from `1441c4f`.
 
 | File | What the check covers |
 | --- | --- |
-| `src/notebook-storage.ts` | `open`, `loadNotebook`, `mutate`, `saveDraft`, `storeEntries`, `removeEntry`, `saveResearch`, `keepLandedResearch`, `withStampedResearch`, `newerEntry`, `newerNote`, `noteStamp`, `unionByUrl`, `researchVersion` |
+| `src/notebook-storage.ts` | `open`, `loadNotebook`, `mutate`, `saveDraft`, `storeEntries`, `removeEntry`, `saveResearch`, `keepLandedResearch`, `withStampedResearch`, `editorAfterSave`, `newerEntry`, `newerNote`, `noteStamp`, `unionByUrl`, `researchVersion` |
 | `src/Notebook.tsx` | `change`, draft effect, `commit`, `newMap`, `openSaved`, `erase`, `undoDelete`, `importFile`, voice `onApply`, research `onSave` |
 | `src/types.ts` | `SavedMap.noteUpdated`. The field is optional so older rows still load |
 | `src/voice/VoiceDraft.tsx` | `record`, `stop`, `suggestFinal`, `runExtraction`, `apply`, `dismiss`, `cancelCapture`, discard |

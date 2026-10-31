@@ -31,7 +31,22 @@ assert.match(
   storage,
   /\(draft\.updated \?\? ""\) > \(stored\.updated \?\? ""\)/,
 );
+assert.match(storage, /if \(deletedIds\(tomb\.result\)\.includes\(entryId\)\) return;/);
 assert.match(storage, /objectStore\("entries"\)\.delete\(id\)/);
+assert.match(
+  storage,
+  /references: unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
+);
+assert.match(storage, /existingNote > incomingNote/);
+assert.match(storage, /noteStamp\(draft\) > noteStamp\(stored\)/);
+assert.match(storage, /note: noteEntry\.note/);
+assert.match(
+  storage,
+  /export function storeEntries\(entries: SavedMap\[\]\): Promise<SavedMap\[\]>/,
+);
+assert.match(storage, /const row = keepLandedResearch\(existing, entry\)/);
+assert.match(storage, /merged\.push\(row\)/);
+assert.match(storage, /tx\.oncomplete = \(\) => resolve\(merged\)/);
 
 assert.match(notebook, /if \(!valid \|\| busy\) return false;/);
 assert.match(notebook, /disabled=\{!valid \|\| busy\}/);
@@ -39,6 +54,14 @@ assert.match(notebook, /window\.addEventListener\("pagehide", flush\)/);
 assert.match(notebook, /applyVoiceDraft\(entry, draft\)/);
 assert.match(notebook, /await saveResearch\(entry\.id, research\)/);
 assert.match(notebook, /e\.id === entry\.id/);
+assert.match(notebook, /withStampedResearch\(e, entry\.id, updated\)/);
+assert.match(notebook, /const \[savedRow\] = await storeEntries\(\[item\]\);/);
+assert.match(notebook, /const saved = savedRow \?\? item;/);
+assert.match(notebook, /current\.id === saved\.id \? saved : current/);
+assert.match(
+  notebook,
+  /patch\.note !== undefined \? \{ noteUpdated: now \} : \{\}/,
+);
 
 const kept = voice.indexOf("if (extraction.current !== current) return;");
 assert.ok(kept > 0, "extraction result must check its generation");

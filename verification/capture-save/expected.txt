@@ -24,3 +24,10 @@ cover_research.cfg FAIL CoverResearch
 cover_newer.cfg FAIL CoverNewer
 cover_note.cfg FAIL CoverNote
 cover_deleted.cfg FAIL CoverGone
+
+mutant_drop_incoming_readings.cfg FAIL ReadingsKept
+mutant_restore_stale_note.cfg FAIL NewestNoteKept
+mutant_show_pre_merge.cfg FAIL CardMatchesStore
+cover_readings.cfg FAIL CoverReadings
+cover_newest_note.cfg FAIL CoverNewestNote
+cover_merged.cfg FAIL CoverMerged

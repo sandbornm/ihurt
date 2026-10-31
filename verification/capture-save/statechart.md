@@ -12,6 +12,7 @@ The picture hides these steps. The full model still checks them.
 - A late transcript, a late suggestion, a failed draft write, and a failed save
 - Delete, undo, and another tab saving a different entry
 - Research landing during a save, research merged from a draft, and research after delete
+- A search with no version, typing a newer note, a stale save of an older note, and a research write that keeps the note. The chart config leaves those races off
 
 Read results with the pstack /statechart skill.
 

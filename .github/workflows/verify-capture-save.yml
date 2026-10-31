@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - src/notebook-storage.ts
+      - src/types.ts
       - src/notebook-data.ts
       - src/Notebook.tsx
       - src/voice/draft.ts

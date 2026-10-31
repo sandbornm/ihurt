@@ -47,6 +47,10 @@ const hidden = new Set([
   "ResearchFromDraft",
   "ResearchAfterDelete",
   "Reload",
+  "StoreVersionless",
+  "TypeNote",
+  "StaleNoteSave",
+  "ResearchKeepsNote",
 ]);
 
 const labels = {

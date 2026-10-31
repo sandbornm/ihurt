@@ -937,3 +937,45 @@ test("exampleEntry has no noteUpdated, same as a legacy row", () => {
   const example = exampleEntry();
   assert.equal(example.noteUpdated, undefined);
 });
+
+test("a search copies a stored note onto an editor that has no noteUpdated after a title edit", async () => {
+  await storeEntries([
+    entry("ws-legacy", "old editor", {
+      updated: "2026-01-01T00:00:00.000Z",
+      noteUpdated: "2026-01-01T00:00:00.000Z",
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("ws-legacy", "typed ahead", {
+        updated: "2026-01-02T00:00:00.000Z",
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+      }),
+    ),
+  );
+  const stored = await saveResearch("ws-legacy", research);
+  assert.equal(stored?.note, "typed ahead");
+  const editor = entry("ws-legacy", "old editor", {
+    updated: "2026-01-03T00:00:00.000Z",
+    map: {
+      title: "kept title",
+      summary: "old editor",
+      regions: [],
+      quality: "",
+      activity: "",
+      duration: "",
+      intensity: null,
+      question: null,
+      urgent: false,
+      safety_message: null,
+    },
+  });
+  assert.equal(editor.noteUpdated, undefined);
+  const next = withStampedResearch(editor, "ws-legacy", stored!);
+  assert.equal(next.note, "typed ahead");
+  assert.equal(next.noteUpdated, stored?.noteUpdated);
+  assert.equal(next.map.title, "kept title");
+  await saveDraft(draftOf(next));
+  const loaded = await loadNotebook();
+  assert.equal(loaded.draft?.entry.note, "typed ahead");
+});

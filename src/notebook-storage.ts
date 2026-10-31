@@ -159,14 +159,24 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
 // the stamp. The editor must keep that object or the next save looks older.
 // A stored note with a newer stamp replaces the editor note, or the draft
 // effect writes the editor's older note back over the row saveResearch fixed.
+// A missing editor noteUpdated is older than a present stored noteUpdated.
+// If both are present, compare them. Never use updated for this.
+function storedNoteNewerThanEditor(stored: SavedMap, editor: SavedMap) {
+  const storedAt = stored.noteUpdated;
+  const editorAt = editor.noteUpdated;
+  if (typeof storedAt !== "string") return false;
+  if (typeof editorAt !== "string") return true;
+  return storedAt > editorAt;
+}
+
 export function withStampedResearch<E extends SavedMap>(
   editor: E,
   entryId: string,
   stored: SavedMap,
 ): E {
   if (editor.id !== entryId || stored.research === undefined) return editor;
-  const storedNoteNewer = noteStamp(stored) > noteStamp(editor);
-  if (!storedNoteNewer) return { ...editor, research: stored.research };
+  if (!storedNoteNewerThanEditor(stored, editor))
+    return { ...editor, research: stored.research };
   return {
     ...editor,
     research: stored.research,

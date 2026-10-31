@@ -142,6 +142,7 @@ export interface SavedMap {
     description?: string;
     regions: RegionId[];
     checked: string;
+    version?: string;
     references: NonNullable<SavedMap["references"]>;
   };
   id: string;

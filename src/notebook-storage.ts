@@ -72,19 +72,42 @@ function deletedIds(value: unknown): string[] {
     : [];
 }
 
-// The editor never clears research. A save that started before the search
-// finished still carries the note and the map from that moment.
+// Missing on rows saved before versions existed. Older than any stamped search.
+function researchVersion(entry: SavedMap | undefined): string {
+  const version = entry?.research?.version;
+  return typeof version === "string" ? version : "";
+}
+
+function laterStamp(left?: string, right?: string): string | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  return left > right ? left : right;
+}
+
+// A save can still hold an older search after a newer one has committed.
+// Keep the newer research and its references. The row time is the later stamp.
 function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
-  if (existing?.research === undefined || entry.research !== undefined)
-    return entry;
-  const references = [
-    ...(existing.references ?? []),
-    ...(entry.references ?? []),
-  ].filter(
-    (item, index, all) =>
-      all.findIndex((other) => other.url === item.url) === index,
-  );
-  return { ...entry, research: existing.research, references };
+  const updated = laterStamp(existing?.updated, entry.updated);
+  const withTime =
+    updated !== undefined && updated !== entry.updated
+      ? { ...entry, updated }
+      : entry;
+  const existingNewer =
+    existing?.research !== undefined &&
+    (entry.research === undefined ||
+      researchVersion(existing) > researchVersion(entry));
+  if (!existingNewer) return withTime;
+  const references =
+    entry.research === undefined
+      ? [
+          ...(existing.references ?? []),
+          ...(entry.references ?? []),
+        ].filter(
+          (item, index, all) =>
+            all.findIndex((other) => other.url === item.url) === index,
+        )
+      : (existing.references ?? existing.research?.references);
+  return { ...withTime, research: existing.research, references };
 }
 
 function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
@@ -151,17 +174,19 @@ export async function saveResearch(
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
       const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
+      const now = new Date().toISOString();
+      const stamped = { ...research, version: now };
       const references = [
-        ...research.references,
+        ...stamped.references,
         ...(entry.references ?? []),
       ].filter(
         (r, i, all) => all.findIndex((other) => other.url === r.url) === i,
       );
       updated = {
         ...entry,
-        research,
+        research: stamped,
         references,
-        updated: new Date().toISOString(),
+        updated: laterStamp(entry.updated, now) ?? now,
       };
       entries.put(updated);
       if (draftEntry)

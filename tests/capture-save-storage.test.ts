@@ -321,12 +321,13 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
   assert.equal(afterNewerSave?.note, "saved note");
   assert.equal(afterNewerSave?.research?.description, "stiff");
 
+  // A prior search stamped "now". This save is later than that, and the draft is later still.
   await storeEntries([
-    entry("b", "stored earlier", { updated: "2026-01-01T00:00:00.000Z" }),
+    entry("b", "stored earlier", { updated: "2099-01-01T00:00:00.000Z" }),
   ]);
   await saveDraft(
     draftOf(
-      entry("b", "typed after save", { updated: "2026-01-05T00:00:00.000Z" }),
+      entry("b", "typed after save", { updated: "2099-06-01T00:00:00.000Z" }),
     ),
   );
   const afterNewerDraft = await saveResearch("b", research);
@@ -354,4 +355,109 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
   assert.equal(created?.note, "only a draft");
   loaded = await loadNotebook();
   assert.equal(loaded.entries.find((item) => item.id === "d")?.note, "only a draft");
+});
+
+test("a save with older research does not replace a newer search", async () => {
+  const older = {
+    ...research,
+    description: "old search",
+    version: "2026-01-02T00:00:00.000Z",
+    references: [
+      {
+        title: "Old knee",
+        url: "https://example.test/old",
+        publisher: "Example",
+        checked: "2026-01-02T00:00:00.000Z",
+      },
+    ],
+  };
+  const newer = {
+    ...research,
+    description: "new search",
+    references: [
+      {
+        title: "New knee",
+        url: "https://example.test/new",
+        publisher: "Example",
+        checked: "2026-01-06T00:00:00.000Z",
+      },
+    ],
+  };
+  await storeEntries([
+    entry("r", "base", { updated: "2026-01-01T00:00:00.000Z" }),
+  ]);
+  await saveResearch("r", newer);
+  let loaded = await loadNotebook();
+  const committed = loaded.entries.find((item) => item.id === "r") as Row & {
+    research?: {
+      version?: string;
+      description?: string;
+      references: { url: string }[];
+    };
+  };
+  const researchUpdated = committed.updated ?? "";
+  assert.equal(committed.research?.description, "new search");
+
+  await storeEntries([
+    entry("r", "just-saved note", {
+      updated: "2026-01-04T00:00:00.000Z",
+      research: older,
+      references: older.references,
+    }),
+  ]);
+  loaded = await loadNotebook();
+  const merged = loaded.entries.find((item) => item.id === "r") as Row & {
+    research?: { version?: string; description?: string; references: { url: string }[] };
+  };
+  assert.equal(merged.note, "just-saved note");
+  assert.equal(merged.research?.description, "new search");
+  assert.equal(merged.research?.references?.[0]?.url, "https://example.test/new");
+  assert.equal(
+    merged.references?.some((item) => item.url === "https://example.test/new"),
+    true,
+  );
+  assert.ok(merged.updated !== undefined && merged.updated >= researchUpdated);
+  assert.ok(merged.updated >= "2026-01-04T00:00:00.000Z");
+
+  await saveDraft(
+    draftOf(entry("r", "stale draft", { updated: "2026-01-05T00:00:00.000Z" })),
+  );
+  const afterDraft = await saveResearch("r", newer);
+  assert.equal(afterDraft?.note, "just-saved note");
+  assert.equal(afterDraft?.research?.description, "new search");
+
+  await storeEntries([
+    entry("legacy", "old row", {
+      updated: "2026-01-01T00:00:00.000Z",
+      research: { ...research, description: "unversioned" },
+      references: research.references,
+    }),
+  ]);
+  await storeEntries([
+    entry("legacy", "saved later", {
+      updated: "2026-01-03T00:00:00.000Z",
+      research: { ...older, description: "versioned search" },
+      references: older.references,
+    }),
+  ]);
+  loaded = await loadNotebook();
+  const legacy = loaded.entries.find((item) => item.id === "legacy") as Row;
+  assert.equal(legacy.note, "saved later");
+  assert.equal(legacy.research?.description, "versioned search");
+  assert.equal(legacy.updated, "2026-01-03T00:00:00.000Z");
+
+  await storeEntries([
+    entry("legacy", "plain snapshot", {
+      updated: "2026-01-02T00:00:00.000Z",
+      research: { ...research, description: "no version" },
+      references: research.references,
+    }),
+  ]);
+  loaded = await loadNotebook();
+  const kept = loaded.entries.find((item) => item.id === "legacy") as Row & {
+    research?: { version?: string; description?: string };
+  };
+  assert.equal(kept.research?.description, "versioned search");
+  assert.equal(kept.note, "plain snapshot");
+  assert.equal(kept.updated, "2026-01-03T00:00:00.000Z");
 });

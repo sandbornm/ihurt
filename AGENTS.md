@@ -44,3 +44,5 @@ Keep the user's selected surface, reported feeling, and original text separate
 from AI interpretation. Activity names, search results, and model suggestions must
 not create reported pain locations or diagnoses. Preserve source attribution and
 medical limitations when changing anatomy labels, generated text, or exports.
+
+Capture and save is checked by `verification/capture-save/run.sh`. Read results with the pstack /statechart skill.

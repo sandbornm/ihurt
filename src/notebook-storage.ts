@@ -64,17 +64,237 @@ async function mutate(stores: string[], work: (tx: IDBTransaction) => void) {
     }
   });
 }
+const DELETED_IDS = "deleted-ids";
+
+function deletedIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string")
+    : [];
+}
+
+// Missing on rows saved before versions existed. Older than any stamped search.
+function researchVersion(entry: SavedMap | undefined): string {
+  const version = entry?.research?.version;
+  return typeof version === "string" ? version : "";
+}
+
+function laterStamp(left?: string, right?: string): string | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  return left > right ? left : right;
+}
+
+// The note's own time. A missing stamp is older than any present stamp.
+// Do not use updated. A title or pin edit bumps that field without a note change.
+function noteStamp(entry: SavedMap | undefined): string {
+  if (!entry) return "";
+  return typeof entry.noteUpdated === "string" ? entry.noteUpdated : "";
+}
+
+function ensureNoteStamp(entry: SavedMap, fallback: string): SavedMap {
+  if (typeof entry.noteUpdated === "string") return entry;
+  return { ...entry, noteUpdated: fallback };
+}
+
+function unionByUrl<T extends { url: string }>(
+  first: readonly T[] | undefined,
+  second: readonly T[] | undefined,
+): T[] {
+  return [...(first ?? []), ...(second ?? [])].filter(
+    (item, index, all) =>
+      all.findIndex((other) => other.url === item.url) === index,
+  );
+}
+
+// The open entry's link list. Research links stay first, then links already
+// on the row, then readings found for the current regions. The next save and
+// the backup both start from this list.
+export function entryReferences(
+  entry: SavedMap,
+  readings: NonNullable<SavedMap["references"]> = [],
+): NonNullable<SavedMap["references"]> {
+  return unionByUrl(
+    unionByUrl(entry.research?.references, entry.references),
+    readings,
+  );
+}
+
+// A save can still hold an older search after a newer one has committed.
+// Keep the newer research. Readings union by URL, stored links first,
+// on the row and on that research list. The row time is the later stamp.
+// Equal note stamps keep the stored note, including two missing stamps.
+// saveResearch and editorAfterSave settle a tie the same way.
+function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
+  const incomingNote = noteStamp(entry);
+  const existingNote = noteStamp(existing);
+  const kept =
+    existing !== undefined && existingNote >= incomingNote
+      ? existing
+      : undefined;
+  const noteUpdated = kept ? existingNote : incomingNote;
+  const noted: SavedMap = {
+    ...entry,
+    ...(kept ? { note: kept.note } : {}),
+    ...(noteUpdated ? { noteUpdated } : {}),
+  };
+  const updated = laterStamp(existing?.updated, entry.updated);
+  const withTime =
+    updated !== undefined && updated !== noted.updated
+      ? { ...noted, updated }
+      : noted;
+  const existingNewer =
+    existing?.research !== undefined &&
+    (entry.research === undefined ||
+      researchVersion(existing) > researchVersion(entry));
+  // A note with no stamp gets the updated time of the row it came from.
+  // The later row time can be a title edit, which would rank the note too new.
+  const stamped = ensureNoteStamp(
+    withTime,
+    (kept ?? entry).updated ?? updated ?? new Date().toISOString(),
+  );
+  if (!existingNewer) return stamped;
+  const references = unionByUrl(
+    existing.references ?? existing.research?.references,
+    entry.references,
+  );
+  return {
+    ...stamped,
+    research: existing.research
+      ? { ...existing.research, references }
+      : existing.research,
+    references,
+  };
+}
+
+// The search panel hands back research without a version. The stored row has
+// the stamp. The editor must keep that object or the next save looks older.
+// A stored note with a newer stamp replaces the editor note, or the draft
+// effect writes the editor's older note back over the row saveResearch fixed.
+// A missing editor noteUpdated is older than a present stored noteUpdated.
+// If both are present, compare them. Never use updated for this.
+function storedNoteNewerThanEditor(stored: SavedMap, editor: SavedMap) {
+  const storedAt = stored.noteUpdated;
+  const editorAt = editor.noteUpdated;
+  if (typeof storedAt !== "string") return false;
+  if (typeof editorAt !== "string") return true;
+  return storedAt > editorAt;
+}
+
+export function withStampedResearch<E extends SavedMap>(
+  editor: E,
+  entryId: string,
+  stored: SavedMap,
+): E {
+  if (editor.id !== entryId || stored.research === undefined) return editor;
+  if (!storedNoteNewerThanEditor(stored, editor))
+    return { ...editor, research: stored.research };
+  return {
+    ...editor,
+    research: stored.research,
+    note: stored.note,
+    ...(typeof stored.noteUpdated === "string"
+      ? { noteUpdated: stored.noteUpdated }
+      : {}),
+  };
+}
+
+// commit() snapshots the open entry, then waits on storeEntries.
+// Keep the editor note only when its text or noteUpdated changed during
+// that wait. Compare those fields as-is, including a missing stamp.
+// A title, pin, or context edit bumps updated and keeps those fields, but
+// the merged note and noteUpdated still land. Otherwise take the merged row.
+export function editorAfterSave<E extends SavedMap>(
+  editor: E,
+  snapshot: SavedMap,
+  saved: SavedMap,
+): E {
+  if (editor.id !== saved.id) return editor;
+  const noteEdited =
+    editor.note !== snapshot.note || editor.noteUpdated !== snapshot.noteUpdated;
+  const researchAndRefs = {
+    ...(saved.research !== undefined ? { research: saved.research } : {}),
+    ...(saved.references !== undefined ? { references: saved.references } : {}),
+  };
+  if (noteEdited) return { ...editor, ...researchAndRefs };
+  const fieldsEdited = (editor.updated ?? "") !== (snapshot.updated ?? "");
+  if (!fieldsEdited) return { ...editor, ...saved, id: editor.id };
+  return {
+    ...editor,
+    note: saved.note,
+    ...(typeof saved.noteUpdated === "string"
+      ? { noteUpdated: saved.noteUpdated }
+      : {}),
+    ...researchAndRefs,
+  };
+}
+
+function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
+  if (draft && stored && (draft.updated ?? "") > (stored.updated ?? ""))
+    return draft;
+  return stored ?? draft;
+}
+
+// Equal note stamps keep the stored note, same as keepLandedResearch.
+function newerNote(
+  draft: SavedMap | undefined,
+  stored: SavedMap | undefined,
+): SavedMap | undefined {
+  if (draft && (!stored || noteStamp(draft) > noteStamp(stored))) return draft;
+  return stored;
+}
+
 export const saveDraft = (draft: Draft) =>
   mutate(["settings"], (tx) => {
     tx.objectStore("settings").put(draft, "draft");
   });
-export const storeEntries = (entries: SavedMap[]) =>
-  mutate(["entries"], (tx) => {
-    for (const entry of entries) tx.objectStore("entries").put(entry);
-  });
+export function storeEntries(entries: SavedMap[]): Promise<SavedMap[]> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["entries", "settings"], "readwrite");
+        const merged: SavedMap[] = [];
+        tx.oncomplete = () => resolve(merged);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+        try {
+          const store = tx.objectStore("entries");
+          const settings = tx.objectStore("settings");
+          const tomb = settings.get(DELETED_IDS);
+          tomb.onsuccess = () => {
+            const ids = new Set(deletedIds(tomb.result));
+            let changed = false;
+            for (const entry of entries) {
+              if (ids.delete(entry.id)) changed = true;
+              const current = store.get(entry.id);
+              current.onsuccess = () => {
+                const existing = current.result as SavedMap | undefined;
+                const row = keepLandedResearch(existing, entry);
+                merged.push(row);
+                store.put(row);
+              };
+            }
+            if (changed) settings.put([...ids], DELETED_IDS);
+          };
+        } catch (error) {
+          try {
+            tx.abort();
+          } catch {
+            // Already aborting.
+          }
+          reject(error);
+        }
+      }),
+  );
+}
 export const removeEntry = (id: string) =>
-  mutate(["entries"], (tx) => {
+  mutate(["entries", "settings"], (tx) => {
     tx.objectStore("entries").delete(id);
+    const current = tx.objectStore("settings").get(DELETED_IDS);
+    current.onsuccess = () => {
+      const ids = deletedIds(current.result);
+      if (!ids.includes(id)) ids.push(id);
+      tx.objectStore("settings").put(ids, DELETED_IDS);
+    };
   });
 
 export async function saveResearch(
@@ -84,40 +304,49 @@ export async function saveResearch(
   const db = await open();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["entries", "settings"], "readwrite");
-    const saved = tx.objectStore("entries").get(entryId);
-    const draft = tx.objectStore("settings").get("draft");
+    const entries = tx.objectStore("entries");
+    const settings = tx.objectStore("settings");
+    const saved = entries.get(entryId);
+    const draft = settings.get("draft");
+    const tomb = settings.get(DELETED_IDS);
     let complete = 0,
       updated: SavedMap | undefined;
     const merge = () => {
-      if (++complete !== 2) return;
+      if (++complete !== 3) return;
+      // A deleted id stays deleted even when the draft still names it.
+      if (deletedIds(tomb.result).includes(entryId)) return;
       const currentDraft = draft.result as Draft | undefined;
-      const matches = currentDraft?.entry.id === entryId;
-      const entry = matches
-        ? currentDraft.entry
-        : (saved.result as SavedMap | undefined);
-      // A deleted entry must stay deleted when an earlier search finishes.
+      const stored = saved.result as SavedMap | undefined;
+      const draftEntry =
+        currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
+      const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
-      const references = [
-        ...research.references,
-        ...(entry.references ?? []),
-      ].filter(
-        (r, i, all) => all.findIndex((other) => other.url === r.url) === i,
-      );
+      const noteEntry = newerNote(draftEntry, stored) ?? entry;
+      const now = new Date().toISOString();
+      // A note with no stamp gets its row's updated time, never now. A search
+      // stamped with now would outrank a note the user typed seconds earlier,
+      // and withStampedResearch would put the older note back in the editor.
+      const noteAt =
+        typeof noteEntry.noteUpdated === "string"
+          ? noteEntry.noteUpdated
+          : noteEntry.updated;
+      const stamped = { ...research, version: now };
+      const references = unionByUrl(stamped.references, entry.references);
       updated = {
         ...entry,
-        research,
+        note: noteEntry.note,
+        ...(noteAt !== undefined ? { noteUpdated: noteAt } : {}),
+        research: stamped,
         references,
-        updated: new Date().toISOString(),
+        updated: laterStamp(entry.updated, now) ?? now,
       };
-      tx.objectStore("entries").put(updated);
-      if (matches)
-        tx.objectStore("settings").put(
-          { ...currentDraft, entry: updated },
-          "draft",
-        );
+      entries.put(updated);
+      if (draftEntry)
+        settings.put({ ...currentDraft, entry: updated }, "draft");
     };
     saved.onsuccess = merge;
     draft.onsuccess = merge;
+    tomb.onsuccess = merge;
     tx.oncomplete = () => resolve(updated);
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);

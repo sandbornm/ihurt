@@ -39,3 +39,5 @@ mutant_fallback_to_updated.cfg FAIL EditorNoteNotStale
 cover_legacy_field.cfg FAIL CoverLegacyFieldSecond
 mutant_tie_takes_incoming.cfg FAIL NewestNoteKept
 mutant_search_stamps_now.cfg FAIL TypedNoteKept
+mutant_stale_summary.cfg FAIL SummaryMatchesNote
+mutant_drop_stored_pins.cfg FAIL PinsKept

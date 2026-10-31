@@ -17,33 +17,41 @@ const gate = read("src/voice/ai-gate.ts");
 const extraction = read("src/voice/extraction.ts");
 const data = read("src/notebook-data.ts");
 const capture = read("src/anatomy/capture.ts");
+const types = read("src/types.ts");
+const exp = read("src/export.ts");
 
 assert.equal(storage.includes("localStorage"), false);
 assert.match(storage, /indexedDB\.open\("ihurt-notebook"/);
 assert.match(
   storage,
-  /researchVersion\(existing\) > researchVersion\(entry\)/,
+  /stampMs\(researchVersion\(existing\)\) > stampMs\(researchVersion\(entry\)\)/,
 );
 assert.match(storage, /version: now/);
 assert.match(storage, /laterStamp\(existing\?\.updated, entry\.updated\)/);
 assert.match(storage, /deleted-ids/);
+assert.match(storage, /stampMs\(draft\.updated\) > stampMs\(stored\.updated\)/);
 assert.match(
   storage,
-  /\(draft\.updated \?\? ""\) > \(stored\.updated \?\? ""\)/,
+  /if \(deletedIds\(tomb\.result\)\.includes\(entryId\)\) return;/,
 );
-assert.match(storage, /if \(deletedIds\(tomb\.result\)\.includes\(entryId\)\) return;/);
 assert.match(storage, /objectStore\("entries"\)\.delete\(id\)/);
 assert.match(
   storage,
   /const references = unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
 );
 // A tie on note stamps keeps the stored note in both save paths.
-assert.match(storage, /existing !== undefined && existingNote >= incomingNote/);
 assert.match(
   storage,
-  /if \(draft && \(!stored \|\| noteStamp\(draft\) > noteStamp\(stored\)\)\) return draft;\s*return stored;/,
+  /existing !== undefined && stampMs\(existingNote\) >= stampMs\(incomingNote\)/,
 );
-assert.match(storage, /const noteEntry = newerNote\(draftEntry, stored\) \?\? entry;/);
+assert.match(
+  storage,
+  /if \(\s*draft &&\s*\(!stored \|\| stampMs\(noteStamp\(draft\)\) > stampMs\(noteStamp\(stored\)\)\)\s*\)/,
+);
+assert.match(
+  storage,
+  /const noteEntry = newerNote\(draftEntry, stored\) \?\? entry;/,
+);
 assert.match(storage, /note: noteEntry\.note/);
 assert.match(
   storage,
@@ -66,7 +74,7 @@ assert.match(notebook, /editorAfterSave\(current, item, saved\)/);
 assert.match(storage, /export function editorAfterSave/);
 assert.match(
   storage,
-  /const noteEdited =\s*editor\.note !== snapshot\.note \|\| editor\.noteUpdated !== snapshot\.noteUpdated;/,
+  /const noteEdited =\s*editor\.note !== snapshot\.note \|\|\s*editor\.noteUpdated !== snapshot\.noteUpdated;/,
 );
 assert.match(
   storage,
@@ -104,10 +112,13 @@ assert.equal(
   false,
   "saveResearch must not stamp a note with the search time",
 );
-assert.match(storage, /noteAt !== undefined \? \{ noteUpdated: noteAt \} : \{\}/);
 assert.match(
   storage,
-  /if \(typeof storedAt !== "string"\) return false;\s*if \(typeof editorAt !== "string"\) return true;\s*return storedAt > editorAt;/,
+  /noteAt !== undefined \? \{ noteUpdated: noteAt \} : \{\}/,
+);
+assert.match(
+  storage,
+  /return stampMs\(stored\.noteUpdated\) > stampMs\(editor\.noteUpdated\);/,
 );
 assert.match(
   storage,
@@ -135,12 +146,69 @@ assert.match(
   /patch\.note !== undefined \? \{ noteUpdated: now \} : \{\}/,
 );
 
+assert.match(storage, /function stampMs\(value\?: string\): number \{/);
+assert.match(storage, /Date\.parse\(value\)/);
+assert.match(storage, /return -Infinity;/);
+assert.match(
+  storage,
+  /return stampMs\(left\) > stampMs\(right\) \? left : right;/,
+);
+assert.equal(
+  /existing !== undefined && existingNote >= incomingNote/.test(storage),
+  false,
+  "note stamps must compare as instants",
+);
+assert.equal(
+  /\(draft\.updated \?\? ""\) > \(stored\.updated \?\? ""\)/.test(storage),
+  false,
+  "updated stamps must compare as instants",
+);
+assert.equal(
+  /researchVersion\(existing\) > researchVersion\(entry\)/.test(storage),
+  false,
+  "research versions must compare as instants",
+);
+assert.equal(
+  /return left > right \? left : right;/.test(storage),
+  false,
+  "laterStamp must compare instants",
+);
+assert.match(storage, /summary: chosenNote/);
+assert.match(storage, /summary: noteEntry\.note/);
+assert.match(
+  storage,
+  /description is the text sent to the source search\. History, not the note\./,
+);
+assert.match(storage, /keepLandedResearch\(stored, raw\.entry\)/);
+assert.match(storage, /stampMs\(existingPts\) >= stampMs\(incomingPts\)/);
+assert.match(storage, /function newerPoints/);
+assert.match(types, /pointsUpdated\?: string/);
+assert.match(data, /entry\.pointsUpdated = date\(e\.pointsUpdated\)/);
+assert.match(data, /pointsUpdated: entry\.pointsUpdated/);
+assert.match(notebook, /pointsUpdated: now/);
+assert.match(exp, /export function entryForExport/);
+assert.match(
+  notebook,
+  /entryForExport\(\s*item,\s*valid \? currentEntry\(\) : undefined/,
+);
+assert.equal(
+  /download\(\s*item,\s*"json"\s*\)/.test(notebook),
+  false,
+  "journal card export must use the open editor when it is that id",
+);
+
 const kept = voice.indexOf("if (extraction.current !== current) return;");
 assert.ok(kept > 0, "extraction result must check its generation");
 assert.ok(voice.indexOf("setProposal(next)", kept) > kept);
 assert.match(voice, /const current = \+\+generation\.current;/);
-assert.match(once, /if \(recording !== active \|\| suggested === recording\) return;/);
-assert.match(gate, /if \(check !== undefined && check !== latest\) return undefined;/);
+assert.match(
+  once,
+  /if \(recording !== active \|\| suggested === recording\) return;/,
+);
+assert.match(
+  gate,
+  /if \(check !== undefined && check !== latest\) return undefined;/,
+);
 assert.match(extraction, /if \(choice\.confirmed !== true\)/);
 
 const discardAt = voice.indexOf("voice-discard");

@@ -204,9 +204,8 @@ const {
   withStampedResearch,
   entryReferences,
 } = await import("../src/notebook-storage.ts");
-const { stringifyNotebook, parseNotebook, blankEntry } = await import(
-  "../src/notebook-data.ts"
-);
+const { stringifyNotebook, parseNotebook, blankEntry } =
+  await import("../src/notebook-data.ts");
 const { exampleEntry } = await import("../src/example.ts");
 
 type Row = {
@@ -270,10 +269,7 @@ const research = {
 test("notebook saves keep each id, a landed search, and a deleted row", async () => {
   await storeEntries([entry("a", "knee"), entry("b", "calf")]);
   let loaded = await loadNotebook();
-  assert.deepEqual(
-    loaded.entries.map((item) => item.id).sort(),
-    ["a", "b"],
-  );
+  assert.deepEqual(loaded.entries.map((item) => item.id).sort(), ["a", "b"]);
   await storeEntries([
     entry("a", "knee again", { noteUpdated: "2026-01-02T00:00:00.000Z" }),
   ]);
@@ -296,8 +292,8 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
   assert.equal(loaded.draft?.entry.id, "b");
 
   await Promise.all([
-    saveDraft(draftOf(entry("b", "older"))),
-    saveDraft(draftOf(entry("b", "newer"))),
+    saveDraft(draftOf(entry("draft-race", "older"))),
+    saveDraft(draftOf(entry("draft-race", "newer"))),
   ]);
   loaded = await loadNotebook();
   assert.equal(loaded.draft?.entry.note, "newer");
@@ -392,7 +388,10 @@ test("notebook saves keep each id, a landed search, and a deleted row", async ()
   const created = await saveResearch("d", research);
   assert.equal(created?.note, "only a draft");
   loaded = await loadNotebook();
-  assert.equal(loaded.entries.find((item) => item.id === "d")?.note, "only a draft");
+  assert.equal(
+    loaded.entries.find((item) => item.id === "d")?.note,
+    "only a draft",
+  );
 });
 
 test("a save with older research does not replace a newer search", async () => {
@@ -446,11 +445,18 @@ test("a save with older research does not replace a newer search", async () => {
   ]);
   loaded = await loadNotebook();
   const merged = loaded.entries.find((item) => item.id === "r") as Row & {
-    research?: { version?: string; description?: string; references: { url: string }[] };
+    research?: {
+      version?: string;
+      description?: string;
+      references: { url: string }[];
+    };
   };
   assert.equal(merged.note, "just-saved note");
   assert.equal(merged.research?.description, "new search");
-  assert.equal(merged.research?.references?.[0]?.url, "https://example.test/new");
+  assert.equal(
+    merged.research?.references?.[0]?.url,
+    "https://example.test/new",
+  );
   assert.equal(
     merged.references?.some((item) => item.url === "https://example.test/new"),
     true,
@@ -1125,4 +1131,269 @@ test("a search on a row with no noteUpdated does not replace a note typed just b
   assert.equal(next.note, "typed in the editor");
   assert.equal(next.noteUpdated, typedAt);
   assert.equal(next.research?.version, stored?.research?.version);
+});
+
+const samplePoint = {
+  id: "pin-1",
+  region: "neck" as const,
+  position: [0, 1, 0] as [number, number, number],
+  structure: "skin",
+};
+
+const neckMap = (note: string, regions: string[] = []) => ({
+  title: note || "Entry",
+  summary: note,
+  regions,
+  quality: "",
+  activity: "",
+  duration: "",
+  intensity: null,
+  question: null,
+  urgent: false,
+  safety_message: null,
+});
+
+test("a kept stored note writes that note as map.summary", async () => {
+  await storeEntries([
+    entry("sum", "stored note", {
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+      map: neckMap("stored note"),
+    }),
+  ]);
+  const [row] = await storeEntries([
+    entry("sum", "stale incoming", {
+      noteUpdated: "2026-01-01T00:00:00.000Z",
+      map: neckMap("stale incoming"),
+    }),
+  ]);
+  assert.equal(row?.note, "stored note");
+  assert.equal(row?.map.summary, "stored note");
+  assert.equal(row?.research?.description, undefined);
+});
+
+test("a search copies map.summary from the note it keeps", async () => {
+  await storeEntries([
+    entry("sum-r", "stored note", {
+      updated: "2026-01-04T00:00:00.000Z",
+      noteUpdated: "2026-01-01T00:00:00.000Z",
+      map: neckMap("stored note"),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("sum-r", "typed note", {
+        updated: "2026-01-02T00:00:00.000Z",
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+        map: neckMap("typed note"),
+      }),
+    ),
+  );
+  const after = await saveResearch("sum-r", research);
+  assert.equal(after?.note, "typed note");
+  assert.equal(after?.map.summary, "typed note");
+  // description is the text sent to the search, not the note.
+  assert.equal(after?.research?.description, "stiff");
+});
+
+const offsetEarlier = "2026-10-31T10:00:00+10:00";
+const utcLater = "2026-10-31T01:00:00.000Z";
+
+test("storeEntries orders notes by instant, not lexical stamp text", async () => {
+  await storeEntries([
+    entry("tz", "earlier offset", {
+      updated: offsetEarlier,
+      noteUpdated: offsetEarlier,
+    }),
+  ]);
+  const [row] = await storeEntries([
+    entry("tz", "later utc", {
+      updated: utcLater,
+      noteUpdated: utcLater,
+    }),
+  ]);
+  assert.equal(row?.note, "later utc");
+  assert.equal(row?.noteUpdated, utcLater);
+  assert.equal(row?.updated, utcLater);
+});
+
+test("storeEntries keeps the later instant when the offset stamp sorts after", async () => {
+  await storeEntries([
+    entry("tz-keep", "later utc", {
+      updated: utcLater,
+      noteUpdated: utcLater,
+    }),
+  ]);
+  const [row] = await storeEntries([
+    entry("tz-keep", "earlier offset", {
+      updated: offsetEarlier,
+      noteUpdated: offsetEarlier,
+    }),
+  ]);
+  assert.equal(row?.note, "later utc");
+  assert.equal(row?.noteUpdated, utcLater);
+  assert.equal(row?.updated, utcLater);
+});
+
+test("saveResearch orders notes by instant, not lexical stamp text", async () => {
+  await storeEntries([
+    entry("tz-r", "later utc", {
+      updated: utcLater,
+      noteUpdated: utcLater,
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("tz-r", "earlier offset", {
+        updated: offsetEarlier,
+        noteUpdated: offsetEarlier,
+      }),
+    ),
+  );
+  const after = await saveResearch("tz-r", research);
+  assert.equal(after?.note, "later utc");
+  assert.equal(after?.noteUpdated, utcLater);
+});
+
+test("saveResearch keeps a later utc note when the draft offset stamp sorts after", async () => {
+  await storeEntries([
+    entry("tz-r2", "earlier offset", {
+      updated: offsetEarlier,
+      noteUpdated: offsetEarlier,
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("tz-r2", "later utc", {
+        updated: utcLater,
+        noteUpdated: utcLater,
+      }),
+    ),
+  );
+  const after = await saveResearch("tz-r2", research);
+  assert.equal(after?.note, "later utc");
+  assert.equal(after?.noteUpdated, utcLater);
+});
+
+test("a stale draft with no pins reloads the stored pin", async () => {
+  const pinned = entry("pin-reload", "saved", {
+    noteUpdated: "2026-01-02T00:00:00.000Z",
+    pointsUpdated: "2026-01-02T00:00:00.000Z",
+    points: [samplePoint],
+    map: neckMap("saved", ["neck"]),
+  });
+  await storeEntries([pinned]);
+  await saveDraft(
+    draftOf(
+      entry("pin-reload", "saved", {
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+        points: [],
+        map: neckMap("saved"),
+      }),
+    ),
+  );
+  const loaded = await loadNotebook();
+  const open = loaded.draft?.entry;
+  assert.equal(open?.points?.length, 1);
+  assert.equal(open?.points?.[0]?.id, "pin-1");
+  assert.equal(open?.map.regions.includes("neck"), true);
+
+  const edited = {
+    ...open!,
+    note: "edited after reload",
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+    updated: "2026-01-03T00:00:00.000Z",
+    map: { ...open!.map, summary: "edited after reload" },
+  };
+  const [saved] = await storeEntries([edited]);
+  assert.equal(saved?.note, "edited after reload");
+  assert.equal(saved?.map.summary, "edited after reload");
+  assert.equal(saved?.points?.length, 1);
+  assert.equal(saved?.points?.[0]?.id, "pin-1");
+});
+
+test("a save with empty points does not drop a stored pin that has a newer stamp", async () => {
+  await storeEntries([
+    entry("pin-keep", "saved", {
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+      pointsUpdated: "2026-01-02T00:00:00.000Z",
+      points: [samplePoint],
+      map: neckMap("saved", ["neck"]),
+    }),
+  ]);
+  const [row] = await storeEntries([
+    entry("pin-keep", "edited note", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+      points: [],
+      map: neckMap("edited note"),
+    }),
+  ]);
+  assert.equal(row?.note, "edited note");
+  assert.equal(row?.map.summary, "edited note");
+  assert.equal(row?.points?.length, 1);
+  assert.equal(row?.map.regions.includes("neck"), true);
+});
+
+test("an intentional pin removal with a newer pointsUpdated wins", async () => {
+  await storeEntries([
+    entry("pin-drop", "saved", {
+      pointsUpdated: "2026-01-02T00:00:00.000Z",
+      points: [samplePoint],
+      map: neckMap("saved", ["neck"]),
+    }),
+  ]);
+  const [row] = await storeEntries([
+    entry("pin-drop", "saved", {
+      pointsUpdated: "2026-01-03T00:00:00.000Z",
+      points: [],
+      map: neckMap("saved"),
+    }),
+  ]);
+  assert.equal(row?.points?.length, 0);
+  assert.deepEqual(row?.map.regions, []);
+});
+
+test("saveResearch keeps stored pins when the draft points are older", async () => {
+  await storeEntries([
+    entry("pin-sr", "saved", {
+      updated: "2026-01-02T00:00:00.000Z",
+      pointsUpdated: "2026-01-02T00:00:00.000Z",
+      points: [samplePoint],
+      map: neckMap("saved", ["neck"]),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("pin-sr", "typed note", {
+        updated: "2026-01-03T00:00:00.000Z",
+        noteUpdated: "2026-01-03T00:00:00.000Z",
+        points: [],
+        map: neckMap("typed note"),
+      }),
+    ),
+  );
+  const after = await saveResearch("pin-sr", research);
+  assert.equal(after?.note, "typed note");
+  assert.equal(after?.map.summary, "typed note");
+  assert.equal(after?.points?.length, 1);
+  assert.equal(after?.research?.description, "stiff");
+});
+
+test("parseNotebook keeps pointsUpdated on a round trip", () => {
+  const source = entry("imp-pts", "note", {
+    points: [samplePoint],
+    pointsUpdated: "2026-01-02T00:00:00.000Z",
+    map: neckMap("note", ["neck"]),
+  });
+  const parsed = parseNotebook(stringifyNotebook([source]))[0];
+  assert.equal(parsed.pointsUpdated, "2026-01-02T00:00:00.000Z");
+  assert.equal(parsed.points?.length, 1);
+});
+
+test("journal export uses the open editor when it is the same id", async () => {
+  const { entryForExport } = await import("../src/export.ts");
+  const saved = entry("ex", "saved");
+  const open = entry("ex", "typed in editor");
+  assert.equal(entryForExport(saved, open).note, "typed in editor");
+  assert.equal(entryForExport(saved, undefined).note, "saved");
+  assert.equal(entryForExport(saved, entry("other", "nope")).note, "saved");
 });

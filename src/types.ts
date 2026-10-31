@@ -150,6 +150,8 @@ export interface SavedMap {
   updated?: string;
   // When the note text last changed. Missing on older rows. Not the research stamp.
   noteUpdated?: string;
+  // When the pins last changed. Missing on older rows. A missing stamp is older.
+  pointsUpdated?: string;
   note: string;
   map: HurtMap;
   answers: Answer[];

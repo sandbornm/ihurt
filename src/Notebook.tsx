@@ -44,6 +44,7 @@ import {
   downloadViewport,
   downloadReport,
   printMap,
+  entryForExport,
 } from "./export";
 import { isNativeApp } from "./platform/files";
 import { applyVoiceDraft } from "./voice/draft";
@@ -214,10 +215,12 @@ export default function Notebook({
     if (remember) markHistory.current.record(points);
     setEntry((old) => {
       const next = updater(old.points ?? []);
+      const now = new Date().toISOString();
       return {
         ...old,
         points: next,
-        updated: new Date().toISOString(),
+        updated: now,
+        pointsUpdated: now,
         map: { ...old.map, regions: [...new Set(next.map((p) => p.region))] },
       };
     });
@@ -706,7 +709,15 @@ export default function Notebook({
                         <button
                           className="text-button"
                           onClick={() =>
-                            void exportFile(() => download(item, "json"))
+                            void exportFile(() =>
+                              download(
+                                entryForExport(
+                                  item,
+                                  valid ? currentEntry() : undefined,
+                                ),
+                                "json",
+                              ),
+                            )
                           }
                         >
                           {t("notebook.exportJson")}

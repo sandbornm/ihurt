@@ -485,6 +485,62 @@ test("a save with older research does not replace a newer search", async () => {
   );
 });
 
+test("storeEntries returns the merged row a card would show", async () => {
+  const older = {
+    ...research,
+    description: "old search",
+    version: "2026-01-02T00:00:00.000Z",
+    references: [
+      {
+        title: "Old knee",
+        url: "https://example.test/old-card",
+        publisher: "Example",
+        checked: "2026-01-02T00:00:00.000Z",
+      },
+    ],
+  };
+  const newer = {
+    ...research,
+    description: "new search",
+    references: [
+      {
+        title: "New knee",
+        url: "https://example.test/new-card",
+        publisher: "Example",
+        checked: "2026-01-06T00:00:00.000Z",
+      },
+    ],
+  };
+  await storeEntries([
+    entry("card", "base", { updated: "2026-01-01T00:00:00.000Z" }),
+  ]);
+  await saveResearch("card", newer);
+  const snapshot = entry("card", "saved note", {
+    updated: "2026-01-04T00:00:00.000Z",
+    research: older,
+    references: older.references,
+  });
+  const returned = await storeEntries([snapshot]);
+  assert.equal(returned.length, 1);
+  assert.equal(returned[0]?.note, "saved note");
+  assert.equal(returned[0]?.research?.description, "new search");
+  assert.notEqual(
+    returned[0]?.research?.description,
+    snapshot.research.description,
+  );
+  const loaded = await loadNotebook();
+  const row = loaded.entries.find((item) => item.id === "card");
+  assert.equal(row?.research?.description, returned[0]?.research?.description);
+  assert.equal(
+    row?.research && "version" in row.research
+      ? row.research.version
+      : undefined,
+    returned[0]?.research && "version" in returned[0].research
+      ? returned[0].research.version
+      : undefined,
+  );
+});
+
 test("the editor keeps the stamped research version", () => {
   const bare = { ...research, description: "from the search panel" };
   const stamped = { ...bare, version: "2026-01-06T00:00:00.000Z" };

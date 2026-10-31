@@ -359,8 +359,10 @@ export default function Notebook({
     setBusy(true);
     setError("");
     try {
-      await storeEntries([item]);
-      setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
+      const [savedRow] = await storeEntries([item]);
+      const saved = savedRow ?? item;
+      setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
+      setEntry((current) => (current.id === saved.id ? saved : current));
       setToast(t("notebook.toast.saved"));
       return true;
     } catch {
@@ -376,8 +378,9 @@ export default function Notebook({
       setBusy(true);
       const item = currentEntry();
       try {
-        await storeEntries([item]);
-        setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
+        const [savedRow] = await storeEntries([item]);
+        const saved = savedRow ?? item;
+        setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       } catch {
         setError(t("notebook.error.saveBeforeNew"));
         setBusy(false);
@@ -410,11 +413,9 @@ export default function Notebook({
     try {
       if (valid && entry.id !== item.id) {
         const previous = currentEntry();
-        await storeEntries([previous]);
-        setSaved((old) => [
-          ...old.filter((e) => e.id !== previous.id),
-          previous,
-        ]);
+        const [savedRow] = await storeEntries([previous]);
+        const saved = savedRow ?? previous;
+        setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       }
       openEntry(item);
     } catch {
@@ -444,8 +445,9 @@ export default function Notebook({
   async function undoDelete() {
     if (!removed) return;
     try {
-      await storeEntries([removed]);
-      setSaved((old) => [...old.filter((e) => e.id !== removed.id), removed]);
+      const [savedRow] = await storeEntries([removed]);
+      const saved = savedRow ?? removed;
+      setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       setRemoved(null);
       setToast(t("notebook.toast.restored"));
     } catch {
@@ -471,8 +473,8 @@ export default function Notebook({
           },
         ];
       });
-      await storeEntries(additions);
-      setSaved((old) => [...old, ...additions]);
+      const stored = await storeEntries(additions);
+      setSaved((old) => [...old, ...stored]);
       setTab("journal");
       setToast(t("notebook.toast.imported", { count: additions.length }));
     } catch (e) {

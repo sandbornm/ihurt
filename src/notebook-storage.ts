@@ -139,25 +139,45 @@ export const saveDraft = (draft: Draft) =>
   mutate(["settings"], (tx) => {
     tx.objectStore("settings").put(draft, "draft");
   });
-export const storeEntries = (entries: SavedMap[]) =>
-  mutate(["entries", "settings"], (tx) => {
-    const store = tx.objectStore("entries");
-    const settings = tx.objectStore("settings");
-    const tomb = settings.get(DELETED_IDS);
-    tomb.onsuccess = () => {
-      const ids = new Set(deletedIds(tomb.result));
-      let changed = false;
-      for (const entry of entries) {
-        if (ids.delete(entry.id)) changed = true;
-        const current = store.get(entry.id);
-        current.onsuccess = () => {
-          const existing = current.result as SavedMap | undefined;
-          store.put(keepLandedResearch(existing, entry));
-        };
-      }
-      if (changed) settings.put([...ids], DELETED_IDS);
-    };
-  });
+export function storeEntries(entries: SavedMap[]): Promise<SavedMap[]> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["entries", "settings"], "readwrite");
+        const merged: SavedMap[] = [];
+        tx.oncomplete = () => resolve(merged);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+        try {
+          const store = tx.objectStore("entries");
+          const settings = tx.objectStore("settings");
+          const tomb = settings.get(DELETED_IDS);
+          tomb.onsuccess = () => {
+            const ids = new Set(deletedIds(tomb.result));
+            let changed = false;
+            for (const entry of entries) {
+              if (ids.delete(entry.id)) changed = true;
+              const current = store.get(entry.id);
+              current.onsuccess = () => {
+                const existing = current.result as SavedMap | undefined;
+                const row = keepLandedResearch(existing, entry);
+                merged.push(row);
+                store.put(row);
+              };
+            }
+            if (changed) settings.put([...ids], DELETED_IDS);
+          };
+        } catch (error) {
+          try {
+            tx.abort();
+          } catch {
+            // Already aborting.
+          }
+          reject(error);
+        }
+      }),
+  );
+}
 export const removeEntry = (id: string) =>
   mutate(["entries", "settings"], (tx) => {
     tx.objectStore("entries").delete(id);

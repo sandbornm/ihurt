@@ -1,0 +1,23 @@
+# config expect invariant
+base.cfg PASS
+mutant_skip_generation.cfg FAIL LateSafe
+mutant_append_on_save.cfg FAIL NoDuplicate
+mutant_save_on_discard.cfg FAIL DiscardStaysOut
+mutant_corrupt_write.cfg FAIL StoreParseable
+mutant_wrong_id.cfg FAIL WritesIntended
+mutant_replace_notebook.cfg FAIL ConfirmedPresent
+mutant_drop_research.cfg FAIL ResearchKept
+mutant_stale_draft.cfg FAIL NewerNoteKept
+mutant_restore_deleted.cfg FAIL NoResurrection
+cover_saved.cfg FAIL CoverSaved
+cover_discard.cfg FAIL CoverDiscard
+cover_late.cfg FAIL CoverLate
+cover_undo.cfg FAIL CoverUndo
+cover_retry.cfg FAIL CoverRetry
+cover_two_tabs.cfg FAIL CoverTwo
+cover_failed_write.cfg FAIL CoverFail
+cover_edit.cfg FAIL CoverEdit
+cover_draft.cfg FAIL CoverDraft
+cover_research.cfg FAIL CoverResearch
+cover_note.cfg FAIL CoverNote
+cover_deleted.cfg FAIL CoverGone

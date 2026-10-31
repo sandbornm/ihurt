@@ -1,0 +1,38 @@
+name: Verify capture and save
+on:
+  pull_request:
+    paths:
+      - src/notebook-storage.ts
+      - src/notebook-data.ts
+      - src/Notebook.tsx
+      - src/voice/draft.ts
+      - src/voice/VoiceDraft.tsx
+      - src/voice/suggest-once.ts
+      - src/voice/ai-gate.ts
+      - src/voice/extraction.ts
+      - src/anatomy/capture.ts
+      - src/anatomy/hand-entry.ts
+      - tests/capture-save-storage.test.ts
+      - verification/capture-save/**
+      - .github/workflows/verify-capture-save.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/tlaplus
+          key: tla2tools-1.7.4
+      - run: bash verification/capture-save/run.sh

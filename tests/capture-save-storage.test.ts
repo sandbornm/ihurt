@@ -1443,3 +1443,183 @@ test("journal export uses the open editor when it is the same id", async () => {
   assert.equal(entryForExport(saved, undefined).note, "saved");
   assert.equal(entryForExport(saved, entry("other", "nope")).note, "saved");
 });
+
+// Rows and drafts from before noteUpdated/pointsUpdated. storeEntries stamps
+// noteUpdated, so the stored legacy row goes straight into the fake store.
+const secondPoint = { ...samplePoint, id: "pin-2" };
+const T1 = "2026-01-02T00:00:00.000Z";
+const T2 = "2026-01-03T00:00:00.000Z";
+function putLegacyRow(row: ReturnType<typeof entry>) {
+  committed.entries.set(row.id, structuredClone(row));
+}
+
+test("a legacy draft that adds to the stored note keeps it on load", async () => {
+  putLegacyRow(entry("lg-add", "ache", { updated: T2 }));
+  await saveDraft(
+    draftOf(entry("lg-add", "ache, worse at night", { updated: T1 })),
+  );
+  const loaded = await loadNotebook();
+  assert.equal(loaded.draft?.entry.note, "ache, worse at night");
+  assert.equal(loaded.draft?.entry.map.summary, "ache, worse at night");
+});
+
+test("a legacy tie with different notes keeps the stored note", async () => {
+  putLegacyRow(entry("lg-tie", "stored words", { updated: T1 }));
+  const [saved] = await storeEntries([
+    entry("lg-tie", "other words", { updated: T1 }),
+  ]);
+  assert.equal(saved?.note, "stored words");
+});
+
+test("saveResearch keeps a legacy typed note that is newer than the row", async () => {
+  putLegacyRow(entry("lg-sr", "ache", { updated: T1 }));
+  await saveDraft(draftOf(entry("lg-sr", "ache, typed more", { updated: T2 })));
+  const after = await saveResearch("lg-sr", research);
+  assert.equal(after?.note, "ache, typed more");
+  assert.equal(after?.map.summary, "ache, typed more");
+  assert.equal(after?.research?.description, "stiff");
+});
+
+test("legacy draft-only pins count as an edit even with an older row time", async () => {
+  putLegacyRow(
+    entry("lg-pins", "n", {
+      updated: T2,
+      points: [samplePoint],
+      map: neckMap("n", ["neck"]),
+    }),
+  );
+  await saveDraft(
+    draftOf(
+      entry("lg-pins", "n", {
+        updated: T1,
+        points: [samplePoint, secondPoint],
+        map: neckMap("n", ["neck"]),
+      }),
+    ),
+  );
+  const loaded = await loadNotebook();
+  assert.deepEqual(
+    loaded.draft?.entry.points?.map((p) => p.id),
+    ["pin-1", "pin-2"],
+  );
+});
+
+test("an older legacy save that lacks a stored pin keeps the stored pins", async () => {
+  putLegacyRow(
+    entry("lg-older", "n", {
+      updated: T2,
+      points: [samplePoint, secondPoint],
+      map: neckMap("n", ["neck"]),
+    }),
+  );
+  const [saved] = await storeEntries([
+    entry("lg-older", "n", {
+      updated: T1,
+      points: [samplePoint],
+      map: neckMap("n", ["neck"]),
+    }),
+  ]);
+  assert.equal(saved?.points?.length, 2);
+});
+
+test("editorAfterSave copies stored pins back when the note changed during the save", () => {
+  const snapshot = entry("eas-pins", "before", { updated: T1, points: [] });
+  const editor = {
+    ...snapshot,
+    note: "typed during save",
+    noteUpdated: T2,
+    updated: T2,
+  };
+  const saved = entry("eas-pins", "before", {
+    updated: T1,
+    pointsUpdated: T1,
+    points: [samplePoint],
+    map: neckMap("before", ["neck"]),
+  });
+  const next = editorAfterSave(editor, snapshot, saved);
+  assert.equal(next.note, "typed during save");
+  assert.deepEqual(
+    next.points?.map((p) => p.id),
+    ["pin-1"],
+  );
+  assert.deepEqual(next.map.regions, ["neck"]);
+  assert.equal(next.pointsUpdated, T1);
+});
+
+test("editorAfterSave copies stored pins back after a field edit during the save", () => {
+  const snapshot = entry("eas-field", "n", { updated: T1, points: [] });
+  const editor = {
+    ...snapshot,
+    updated: T2,
+    map: { ...snapshot.map, title: "retitled" },
+  };
+  const saved = entry("eas-field", "n", {
+    updated: T1,
+    pointsUpdated: T1,
+    points: [samplePoint],
+    map: neckMap("n", ["neck"]),
+  });
+  const next = editorAfterSave(editor, snapshot, saved);
+  assert.equal(next.map.title, "retitled");
+  assert.equal(next.points?.length, 1);
+  assert.deepEqual(next.map.regions, ["neck"]);
+});
+
+test("editorAfterSave keeps pins edited during the save", () => {
+  const snapshot = entry("eas-own", "n", { updated: T1, points: [] });
+  const editor = {
+    ...snapshot,
+    updated: T2,
+    pointsUpdated: T2,
+    points: [secondPoint],
+    map: neckMap("n", ["neck"]),
+  };
+  const saved = entry("eas-own", "n", {
+    updated: T1,
+    pointsUpdated: T1,
+    points: [samplePoint],
+    map: neckMap("n", ["neck"]),
+  });
+  const next = editorAfterSave(editor, snapshot, saved);
+  assert.deepEqual(
+    next.points?.map((p) => p.id),
+    ["pin-2"],
+  );
+  assert.equal(next.pointsUpdated, T2);
+});
+
+test("withStampedResearch copies newer stored pins into the editor", () => {
+  const editor = entry("ws-pins", "n", { updated: T1, points: [] });
+  const stored = entry("ws-pins", "n", {
+    updated: T2,
+    pointsUpdated: T1,
+    points: [samplePoint],
+    research: { ...research, version: T2 },
+    map: neckMap("n", ["neck"]),
+  });
+  const next = withStampedResearch(editor, "ws-pins", stored);
+  assert.equal(next.points?.length, 1);
+  assert.deepEqual(next.map.regions, ["neck"]);
+  assert.equal(next.pointsUpdated, T1);
+});
+
+test("withStampedResearch keeps editor pins that are newer than the row", () => {
+  const editor = entry("ws-own", "n", {
+    updated: T2,
+    pointsUpdated: T2,
+    points: [secondPoint],
+    map: neckMap("n", ["neck"]),
+  });
+  const stored = entry("ws-own", "n", {
+    updated: T2,
+    pointsUpdated: T1,
+    points: [samplePoint],
+    research: { ...research, version: T2 },
+    map: neckMap("n", ["neck"]),
+  });
+  const next = withStampedResearch(editor, "ws-own", stored);
+  assert.deepEqual(
+    next.points?.map((p) => p.id),
+    ["pin-2"],
+  );
+});

@@ -39,14 +39,41 @@ assert.match(
   storage,
   /const references = unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
 );
-// A tie on note stamps keeps the stored note in both save paths.
+// Notes and pins share one rule in both save paths (incomingWins). A stamp on
+// either side decides, with ties to stored. With no stamp on either side, only
+// an addition (more note text after stored, or more pins) beats stored.
 assert.match(
   storage,
-  /existing !== undefined && stampMs\(existingNote\) >= stampMs\(incomingNote\)/,
+  /if \(storedAt !== "" \|\| incomingAt !== ""\)\s*return stampMs\(incomingAt\) > stampMs\(storedAt\);\s*return adds\(stored, incoming\);/,
 );
 assert.match(
   storage,
-  /if \(\s*draft &&\s*\(!stored \|\| stampMs\(noteStamp\(draft\)\) > stampMs\(noteStamp\(stored\)\)\)\s*\)/,
+  /incoming\.note\.length > stored\.note\.length &&\s*incoming\.note\.startsWith\(stored\.note\)/,
+);
+assert.match(
+  storage,
+  /have\.size > old\.length && old\.every\(\(id\) => have\.has\(id\)\)/,
+);
+assert.match(
+  storage,
+  /existing !== undefined && !incomingNoteWins\(existing, entry\)/,
+);
+assert.match(
+  storage,
+  /existing !== undefined && !incomingPointsWin\(existing, entry\)/,
+);
+assert.match(
+  storage,
+  /return incomingNoteWins\(stored, draft\) \? draft : stored;/,
+);
+assert.match(
+  storage,
+  /return incomingPointsWin\(stored, draft\) \? draft : stored;/,
+);
+assert.equal(
+  /stampMs\(incoming\.updated\) > stampMs\(stored\.updated\)/.test(storage),
+  false,
+  "the missing-stamp rule must not rank a note or pins by row updated",
 );
 assert.match(
   storage,
@@ -78,7 +105,7 @@ assert.match(
 );
 assert.match(
   storage,
-  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*\.\.\.pins,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
 );
 assert.equal(
   /noteEdited = noteStamp\(editor\) !== noteStamp\(snapshot\)/.test(storage),
@@ -122,7 +149,25 @@ assert.match(
 );
 assert.match(
   storage,
-  /if \(!storedNoteNewerThanEditor\(stored, editor\)\)\s*return \{ \.\.\.editor, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*research: stored\.research,\s*note: stored\.note,/,
+  /if \(!storedNoteNewerThanEditor\(stored, editor\)\)\s*return \{ \.\.\.editor, \.\.\.pins, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*\.\.\.pins,\s*research: stored\.research,\s*note: stored\.note,/,
+);
+// The editor takes the row's pins after a save or search unless its own are
+// newer, so the next pin edit does not write a shorter list over the row.
+assert.match(
+  storage,
+  /stampMs\(editor\.pointsUpdated\) > stampMs\(stored\.pointsUpdated\)\s*\? \{\}\s*: storedPins\(editor, stored\);/,
+);
+assert.match(
+  storage,
+  /const pins = pinsEdited \? \{\} : storedPins\(editor, saved\);/,
+);
+assert.match(
+  storage,
+  /if \(noteEdited\) return \{ \.\.\.editor, \.\.\.pins, \.\.\.researchAndRefs \};/,
+);
+assert.match(
+  storage,
+  /points: stored\.points \?\? \[\],\s*map: \{ \.\.\.editor\.map, regions: stored\.map\.regions \},/,
 );
 assert.match(
   storage,
@@ -180,11 +225,23 @@ assert.match(
   /description is the text sent to the source search\. History, not the note\./,
 );
 assert.match(storage, /keepLandedResearch\(stored, raw\.entry\)/);
-assert.match(storage, /stampMs\(existingPts\) >= stampMs\(incomingPts\)/);
 assert.match(storage, /function newerPoints/);
-// Legacy rows have no pin stamp on either side; the incoming pins still win.
-assert.match(storage, /existingPts !== "" \|\| incomingPts !== ""/);
-assert.match(storage, /!pointsStamp\(draft\) && !pointsStamp\(stored\)/);
+assert.equal(
+  /!pointsStamp\(draft\) && !pointsStamp\(stored\)/.test(storage),
+  false,
+  "legacy pins must not fall back to the newer row",
+);
+
+// The model's corrupt-write branch clears the confirmed ids with the store,
+// and run.sh runs TLC deterministically.
+const spec = read("verification/capture-save/CaptureSave.tla");
+assert.match(
+  spec,
+  /THEN \/\\ storeOk' = FALSE\s*\/\\ e1' = "absent"\s*\/\\ e2' = "absent"[\s\S]*?\/\\ c1' = FALSE\s*\/\\ c2' = FALSE/,
+);
+const runner = read("verification/capture-save/run.sh");
+assert.match(runner, /WORKERS="\$\{TLC_WORKERS:-1\}"/);
+assert.match(runner, /-fp 0/);
 assert.match(types, /pointsUpdated\?: string/);
 assert.match(data, /entry\.pointsUpdated = date\(e\.pointsUpdated\)/);
 assert.match(data, /pointsUpdated: entry\.pointsUpdated/);

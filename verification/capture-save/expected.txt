@@ -41,3 +41,6 @@ mutant_tie_takes_incoming.cfg FAIL NewestNoteKept
 mutant_search_stamps_now.cfg FAIL TypedNoteKept
 mutant_stale_summary.cfg FAIL SummaryMatchesNote
 mutant_drop_stored_pins.cfg FAIL PinsKept
+corrupt_write_clears_confirmed.cfg PASS
+mutant_legacy_keeps_stored.cfg FAIL LegacyDraftKept
+mutant_editor_keeps_old_pins.cfg FAIL EditorPinsCurrent

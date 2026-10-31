@@ -2,7 +2,7 @@
 
 The model checks one pain entry from voice or a body mark through to IndexedDB. The store is database `ihurt-notebook` in `src/notebook-storage.ts`. Entries are put by id. Settings holds one draft and the deleted-id list. Nothing here rewrites a localStorage blob of the whole notebook.
 
-Run `bash verification/capture-save/run.sh` from the repo root. Exit 0 means the anchor, the storage test, and every line in `expected.txt` matched. Set `TLC_WORKERS=2` when other model checks are already using the machine. The default is `auto`.
+Run `bash verification/capture-save/run.sh` from the repo root. Exit 0 means the anchor, the storage test, and every line in `expected.txt` matched. TLC runs one worker with `-fp 0` by default, so each FAIL line names the same invariant on every run. Set `TLC_WORKERS=auto` for a faster local run. A mutant that breaks more than one invariant can then report either one.
 
 Read results with the pstack /statechart skill.
 
@@ -37,6 +37,10 @@ The stored note is never older than the newest note the user saved or typed.
 After a save is applied, the editor does not still show an older note. The gap is allowed only while the write is in flight and before the editor catches up.
 
 The journal card shows the row that was stored.
+
+A draft from before `noteUpdated` and `pointsUpdated` that only adds note text or pins keeps that addition. With no stamp on either side, anything else keeps the stored row, the same tie rule as two missing note stamps.
+
+Once a save or search is applied, the editor holds the row's pins unless its own pins changed since, so the next pin edit does not write a shorter list over the row.
 
 The stored map.summary is the note that was kept.
 
@@ -113,8 +117,12 @@ Each `mutant_*.cfg` turns one constant on. That constant is one guard removed or
 | mutant_search_stamps_now            | the old `saveResearch` stamps a note with no `noteUpdated` with the search time. `withStampedResearch` then puts that older note over a note typed seconds earlier                        | TypedNoteKept        |
 | mutant_stale_summary                | the old merge keeps the stored note and leaves the incoming `map.summary`                                                                                                                 | SummaryMatchesNote   |
 | mutant_drop_stored_pins             | the old merge writes the snapshot points and drops stored pins                                                                                                                            | PinsKept             |
+| mutant_legacy_keeps_stored          | with no note or pin stamp on either side, the merge keeps the stored row, so a draft's added note text or pins is lost on load or search                                                  | LegacyDraftKept      |
+| mutant_editor_keeps_old_pins        | the old `editorAfterSave` and `withStampedResearch` leave the editor's older pins after a save or search kept the stored pins                                                             | EditorPinsCurrent    |
 
-The research mutants split the old merge in `keepLandedResearch`. One puts an older search back. One writes the save's older stamp. One drops the incoming readings. One lets a research write restore an older note. The card mutant is `setSaved` with the pre-merge snapshot. The summary mutant leaves `map.summary` on the incoming note. The pin mutant writes snapshot points over a stored pin. Each config breaks only the invariant that piece guarded. Pin presence is abstract. A later save of an already stored entry must not drop pins. An intentional removal with a newer `pointsUpdated` is checked by `tests/capture-save-storage.test.ts`.
+The research mutants split the old merge in `keepLandedResearch`. One puts an older search back. One writes the save's older stamp. One drops the incoming readings. One lets a research write restore an older note. The card mutant is `setSaved` with the pre-merge snapshot. The summary mutant leaves `map.summary` on the incoming note. The pin mutant writes snapshot points over a stored pin. Each config breaks only the invariant that piece guarded. Pin presence is abstract. A later save of an already stored entry must not drop pins. An intentional removal with a newer `pointsUpdated` is checked by `tests/capture-save-storage.test.ts`. The legacy and editor-pin mutants are abstract in the same way. The storage test checks the real content rule (a note that extends the stored note, a strict superset of pin ids) and the pin copy-back.
+
+`corrupt_write_clears_confirmed.cfg` turns `CorruptOnFailedWrite` on and checks every invariant except `StoreParseable`. It must pass. The wiped store clears the confirmed ids too, so only `StoreParseable` breaks and `mutant_corrupt_write` reports it on every run.
 
 `cover_*.cfg` files must reach the situation they name. A pass there would mean the safety check never visited it. `cover_newer.cfg` reaches stored research rank 3 while the in-flight snapshot still holds rank 2. `cover_readings.cfg` reaches a kept extra reading on a saved row and on the kept search. `cover_newest_note.cfg` reaches a stored note at the newest typed rank. `cover_merged.cfg` reaches a card that shows the merged research. `cover_field_edit.cfg` reaches a non-note edit during a save, then a later save, with the editor note still at least the stored note. `CountFieldSecond` is on only in that config. It counts those two steps and does not change the save. `cover_legacy_field.cfg` reaches a title edit on a row with no `noteUpdated`, then a later save, after the save has stamped the row. `CountLegacyFieldSecond` is on only in that config.
 

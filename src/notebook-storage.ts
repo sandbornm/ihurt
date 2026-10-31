@@ -113,6 +113,50 @@ function pointsStamp(entry: SavedMap | undefined): string {
   return typeof entry.pointsUpdated === "string" ? entry.pointsUpdated : "";
 }
 
+function pointIds(entry: SavedMap) {
+  return (entry.points ?? []).map((point) => point.id);
+}
+
+function noteAdds(stored: SavedMap, incoming: SavedMap) {
+  return (
+    incoming.note.length > stored.note.length &&
+    incoming.note.startsWith(stored.note)
+  );
+}
+
+function pointsAdd(stored: SavedMap, incoming: SavedMap) {
+  const have = new Set(pointIds(incoming));
+  const old = pointIds(stored);
+  return have.size > old.length && old.every((id) => have.has(id));
+}
+
+// Should the incoming side's field replace the stored one?
+// A stamp on either side decides it: a missing stamp is older, and a tie keeps
+// stored. With no stamp on either side (rows from before the stamp existed),
+// an incoming that only adds to stored (more note text after it, or more pins)
+// is an edit and wins. Anything else is a tie and keeps stored. Row updated
+// is not used: a title edit can make an old note look new.
+function incomingWins(
+  stored: SavedMap,
+  incoming: SavedMap,
+  stamp: (entry: SavedMap) => string,
+  adds: (stored: SavedMap, incoming: SavedMap) => boolean,
+) {
+  const storedAt = stamp(stored);
+  const incomingAt = stamp(incoming);
+  if (storedAt !== "" || incomingAt !== "")
+    return stampMs(incomingAt) > stampMs(storedAt);
+  return adds(stored, incoming);
+}
+
+function incomingNoteWins(stored: SavedMap, incoming: SavedMap) {
+  return incomingWins(stored, incoming, noteStamp, noteAdds);
+}
+
+function incomingPointsWin(stored: SavedMap, incoming: SavedMap) {
+  return incomingWins(stored, incoming, pointsStamp, pointsAdd);
+}
+
 function ensureNoteStamp(entry: SavedMap, fallback: string): SavedMap {
   if (typeof entry.noteUpdated === "string") return entry;
   return { ...entry, noteUpdated: fallback };
@@ -144,25 +188,21 @@ export function entryReferences(
 // A save can still hold an older search after a newer one has committed.
 // Keep the newer research. Readings union by URL, stored links first,
 // on the row and on that research list. The row time is the later stamp.
-// Equal note stamps keep the stored note, including two missing stamps.
+// Notes and pins each follow incomingWins: equal stamps keep stored.
 // saveResearch and editorAfterSave settle a tie the same way.
 function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   const incomingNote = noteStamp(entry);
   const existingNote = noteStamp(existing);
   const kept =
-    existing !== undefined && stampMs(existingNote) >= stampMs(incomingNote)
+    existing !== undefined && !incomingNoteWins(existing, entry)
       ? existing
       : undefined;
   const noteUpdated = kept ? existingNote : incomingNote;
   const chosenNote = kept ? kept.note : entry.note;
   const incomingPts = pointsStamp(entry);
   const existingPts = pointsStamp(existing);
-  // Rows from before pointsUpdated have no stamp on either side. Keep the old
-  // rule for them: the incoming pins win.
   const keepPoints =
-    existing !== undefined &&
-    (existingPts !== "" || incomingPts !== "") &&
-    stampMs(existingPts) >= stampMs(incomingPts);
+    existing !== undefined && !incomingPointsWin(existing, entry);
   const points = keepPoints && existing ? existing.points : entry.points;
   const regions =
     keepPoints && existing ? existing.map.regions : entry.map.regions;
@@ -215,16 +255,34 @@ function storedNoteNewerThanEditor(stored: SavedMap, editor: SavedMap) {
   return stampMs(stored.noteUpdated) > stampMs(editor.noteUpdated);
 }
 
+// The row's pins, for an editor that has not changed its own since.
+function storedPins(editor: SavedMap, stored: SavedMap) {
+  return {
+    points: stored.points ?? [],
+    map: { ...editor.map, regions: stored.map.regions },
+    ...(typeof stored.pointsUpdated === "string"
+      ? { pointsUpdated: stored.pointsUpdated }
+      : {}),
+  };
+}
+
 export function withStampedResearch<E extends SavedMap>(
   editor: E,
   entryId: string,
   stored: SavedMap,
 ): E {
   if (editor.id !== entryId || stored.research === undefined) return editor;
+  // saveResearch picked these pins. Keep the editor's only if they are newer,
+  // or the next pin edit writes an older, shorter list over the row.
+  const pins =
+    stampMs(editor.pointsUpdated) > stampMs(stored.pointsUpdated)
+      ? {}
+      : storedPins(editor, stored);
   if (!storedNoteNewerThanEditor(stored, editor))
-    return { ...editor, research: stored.research };
+    return { ...editor, ...pins, research: stored.research };
   return {
     ...editor,
+    ...pins,
     research: stored.research,
     note: stored.note,
     ...(typeof stored.noteUpdated === "string"
@@ -251,11 +309,19 @@ export function editorAfterSave<E extends SavedMap>(
     ...(saved.research !== undefined ? { research: saved.research } : {}),
     ...(saved.references !== undefined ? { references: saved.references } : {}),
   };
-  if (noteEdited) return { ...editor, ...researchAndRefs };
+  // The merge can keep stored pins. Take them unless pins changed during the
+  // wait, or the next pin edit writes the editor's shorter list over the row.
+  const pinsEdited =
+    editor.pointsUpdated !== snapshot.pointsUpdated ||
+    JSON.stringify(editor.points ?? []) !==
+      JSON.stringify(snapshot.points ?? []);
+  const pins = pinsEdited ? {} : storedPins(editor, saved);
+  if (noteEdited) return { ...editor, ...pins, ...researchAndRefs };
   const fieldsEdited = (editor.updated ?? "") !== (snapshot.updated ?? "");
   if (!fieldsEdited) return { ...editor, ...saved, id: editor.id };
   return {
     ...editor,
+    ...pins,
     note: saved.note,
     ...(typeof saved.noteUpdated === "string"
       ? { noteUpdated: saved.noteUpdated }
@@ -275,28 +341,16 @@ function newerNote(
   draft: SavedMap | undefined,
   stored: SavedMap | undefined,
 ): SavedMap | undefined {
-  if (
-    draft &&
-    (!stored || stampMs(noteStamp(draft)) > stampMs(noteStamp(stored)))
-  )
-    return draft;
-  return stored;
+  if (!draft || !stored) return draft ?? stored;
+  return incomingNoteWins(stored, draft) ? draft : stored;
 }
 
 function newerPoints(
   draft: SavedMap | undefined,
   stored: SavedMap | undefined,
 ): SavedMap | undefined {
-  // Neither side has a pin stamp (rows from before pointsUpdated). Let the
-  // caller fall back to the newer row, as before.
-  if (draft && stored && !pointsStamp(draft) && !pointsStamp(stored))
-    return undefined;
-  if (
-    draft &&
-    (!stored || stampMs(pointsStamp(draft)) > stampMs(pointsStamp(stored)))
-  )
-    return draft;
-  return stored;
+  if (!draft || !stored) return draft ?? stored;
+  return incomingPointsWin(stored, draft) ? draft : stored;
 }
 
 export const saveDraft = (draft: Draft) =>

@@ -22,8 +22,10 @@ assert.equal(storage.includes("localStorage"), false);
 assert.match(storage, /indexedDB\.open\("ihurt-notebook"/);
 assert.match(
   storage,
-  /existing\?\.research === undefined \|\| entry\.research !== undefined/,
+  /researchVersion\(existing\) > researchVersion\(entry\)/,
 );
+assert.match(storage, /version: now/);
+assert.match(storage, /laterStamp\(existing\?\.updated, entry\.updated\)/);
 assert.match(storage, /deleted-ids/);
 assert.match(
   storage,

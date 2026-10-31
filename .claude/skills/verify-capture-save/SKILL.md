@@ -33,6 +33,8 @@ The anchor reads the TypeScript and checks the guards the model relies on. If it
 
 A safety config that fails prints `Invariant NAME is violated` and the shortest path. Replay each action against the file and line in `verification/capture-save/README.md`. If the TypeScript can do those steps, it is a bug. If it cannot, the model is wrong. Fix the model. Do not weaken the invariant and do not delete the action to make the run pass.
 
+`NewestResearchKept` means the stored research is never an older version than the newest search that committed for that id. `UpdatedMonotone` means the stored `updated` stamp is never older than a write that has committed for that id. `mutant_overwrite_newer_research` must fail the first. `mutant_keep_older_updated` must fail the second. `cover_newer` must reach a stored search of version 2 while the in-flight snapshot still holds version 1. If the anchor no longer matches `researchVersion(existing) > researchVersion(entry)`, the version check moved.
+
 A mutant config is supposed to fail the invariant named in `expected.txt`. If it passes, the guard it removes no longer protects that invariant, or the model no longer breaks when the guard is gone. Treat a passing mutant as a hole in the check.
 
 A cover config is supposed to fail its `Cover*` invariant, which only means that situation was reached. If a cover passes, the safety run may no longer visit that situation. The pass would be vacuous. Make the situation reachable again.
@@ -45,7 +47,7 @@ Move the sync commit below only after a run against the new code exits 0 and the
 
 ## Coverage
 
-Synced to `addab96`. The model matches the storage fix on that commit. The branch started from `1441c4f`.
+Synced to `feec682`. The model matches the research-version fix on that commit. The branch started from `1441c4f`.
 
 | File | What the check covers |
 | --- | --- |

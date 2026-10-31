@@ -9,6 +9,8 @@ mutant_replace_notebook.cfg FAIL ConfirmedPresent
 mutant_drop_research.cfg FAIL ResearchKept
 mutant_stale_draft.cfg FAIL NewerNoteKept
 mutant_restore_deleted.cfg FAIL NoResurrection
+mutant_overwrite_newer_research.cfg FAIL NewestResearchKept
+mutant_keep_older_updated.cfg FAIL UpdatedMonotone
 cover_saved.cfg FAIL CoverSaved
 cover_discard.cfg FAIL CoverDiscard
 cover_late.cfg FAIL CoverLate
@@ -19,5 +21,6 @@ cover_failed_write.cfg FAIL CoverFail
 cover_edit.cfg FAIL CoverEdit
 cover_draft.cfg FAIL CoverDraft
 cover_research.cfg FAIL CoverResearch
+cover_newer.cfg FAIL CoverNewer
 cover_note.cfg FAIL CoverNote
 cover_deleted.cfg FAIL CoverGone

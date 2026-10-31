@@ -63,6 +63,7 @@ import {
   saveResearch,
   storeEntries,
   removeEntry,
+  withStampedResearch,
   type Draft,
 } from "./notebook-storage";
 import { activities, activityName, activityRegions } from "./activities";
@@ -1342,13 +1343,7 @@ export default function Notebook({
                         if (!updated)
                           throw Error(t("notebook.error.removedDuringSearch"));
                         setEntry((e) =>
-                          e.id === entry.id
-                            ? {
-                                ...e,
-                                research,
-                                updated: new Date().toISOString(),
-                              }
-                            : e,
+                          withStampedResearch(e, entry.id, updated),
                         );
                         setSaved((old) => [
                           ...old.filter((e) => e.id !== updated.id),

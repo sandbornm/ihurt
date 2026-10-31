@@ -194,8 +194,14 @@ globalThis.indexedDB = {
   },
 } as unknown as IDBFactory;
 
-const { loadNotebook, storeEntries, removeEntry, saveDraft, saveResearch } =
-  await import("../src/notebook-storage.ts");
+const {
+  loadNotebook,
+  storeEntries,
+  removeEntry,
+  saveDraft,
+  saveResearch,
+  withStampedResearch,
+} = await import("../src/notebook-storage.ts");
 
 type Row = {
   id: string;
@@ -450,14 +456,50 @@ test("a save with older research does not replace a newer search", async () => {
     entry("legacy", "plain snapshot", {
       updated: "2026-01-02T00:00:00.000Z",
       research: { ...research, description: "no version" },
-      references: research.references,
+      references: [
+        ...research.references,
+        {
+          title: "Related reading",
+          url: "https://example.test/extra-reading",
+          publisher: "Example",
+          checked: "2026-01-02T00:00:00.000Z",
+        },
+      ],
     }),
   ]);
   loaded = await loadNotebook();
   const kept = loaded.entries.find((item) => item.id === "legacy") as Row & {
     research?: { version?: string; description?: string };
+    references?: { url: string }[];
   };
   assert.equal(kept.research?.description, "versioned search");
   assert.equal(kept.note, "plain snapshot");
   assert.equal(kept.updated, "2026-01-03T00:00:00.000Z");
+  // Existing links stay first. The save's new reading is not dropped.
+  assert.equal(kept.references?.[0]?.url, "https://example.test/old");
+  assert.equal(
+    kept.references?.some(
+      (item) => item.url === "https://example.test/extra-reading",
+    ),
+    true,
+  );
+});
+
+test("the editor keeps the stamped research version", () => {
+  const bare = { ...research, description: "from the search panel" };
+  const stamped = { ...bare, version: "2026-01-06T00:00:00.000Z" };
+  const editor = entry("e", "typed", {
+    research: bare,
+    updated: "2026-01-06T00:00:01.000Z",
+  });
+  const stored = entry("e", "older row", {
+    research: stamped,
+    updated: "2026-01-06T00:00:00.000Z",
+  });
+  const next = withStampedResearch(editor, "e", stored);
+  assert.equal(next.research?.version, "2026-01-06T00:00:00.000Z");
+  assert.equal(next.note, "typed");
+  assert.equal(next.updated, "2026-01-06T00:00:01.000Z");
+  const other = withStampedResearch(editor, "nope", stored);
+  assert.equal(other, editor);
 });

@@ -84,8 +84,19 @@ function laterStamp(left?: string, right?: string): string | undefined {
   return left > right ? left : right;
 }
 
+function unionByUrl<T extends { url: string }>(
+  first: readonly T[] | undefined,
+  second: readonly T[] | undefined,
+): T[] {
+  return [...(first ?? []), ...(second ?? [])].filter(
+    (item, index, all) =>
+      all.findIndex((other) => other.url === item.url) === index,
+  );
+}
+
 // A save can still hold an older search after a newer one has committed.
-// Keep the newer research and its references. The row time is the later stamp.
+// Keep the newer research. Readings union by URL, stored links first.
+// The row time is the later stamp.
 function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   const updated = laterStamp(existing?.updated, entry.updated);
   const withTime =
@@ -97,17 +108,25 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
     (entry.research === undefined ||
       researchVersion(existing) > researchVersion(entry));
   if (!existingNewer) return withTime;
-  const references =
-    entry.research === undefined
-      ? [
-          ...(existing.references ?? []),
-          ...(entry.references ?? []),
-        ].filter(
-          (item, index, all) =>
-            all.findIndex((other) => other.url === item.url) === index,
-        )
-      : (existing.references ?? existing.research?.references);
-  return { ...withTime, research: existing.research, references };
+  return {
+    ...withTime,
+    research: existing.research,
+    references: unionByUrl(
+      existing.references ?? existing.research?.references,
+      entry.references,
+    ),
+  };
+}
+
+// The search panel hands back research without a version. The stored row has
+// the stamp. The editor must keep that object or the next save looks older.
+export function withStampedResearch<E extends SavedMap>(
+  editor: E,
+  entryId: string,
+  stored: SavedMap,
+): E {
+  if (editor.id !== entryId || stored.research === undefined) return editor;
+  return { ...editor, research: stored.research };
 }
 
 function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
@@ -176,12 +195,7 @@ export async function saveResearch(
       if (!entry) return;
       const now = new Date().toISOString();
       const stamped = { ...research, version: now };
-      const references = [
-        ...stamped.references,
-        ...(entry.references ?? []),
-      ].filter(
-        (r, i, all) => all.findIndex((other) => other.url === r.url) === i,
-      );
+      const references = unionByUrl(stamped.references, entry.references);
       updated = {
         ...entry,
         research: stamped,

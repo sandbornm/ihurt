@@ -35,3 +35,5 @@ cover_merged.cfg FAIL CoverMerged
 mutant_keep_editor_note_on_any_edit.cfg FAIL EditorNoteNotStale
 mutant_union_top_level_only.cfg FAIL ReadingsKept
 cover_field_edit.cfg FAIL CoverFieldSecond
+mutant_fallback_to_updated.cfg FAIL EditorNoteNotStale
+cover_legacy_field.cfg FAIL CoverLegacyFieldSecond

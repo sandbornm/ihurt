@@ -61,11 +61,45 @@ assert.match(notebook, /editorAfterSave\(current, item, saved\)/);
 assert.match(storage, /export function editorAfterSave/);
 assert.match(
   storage,
-  /const noteEdited = noteStamp\(editor\) !== noteStamp\(snapshot\);\s*const researchAndRefs = \{[\s\S]*?\};\s*if \(noteEdited\) return \{ \.\.\.editor, \.\.\.researchAndRefs \};\s*const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+  /const noteEdited =\s*editor\.note !== snapshot\.note \|\| editor\.noteUpdated !== snapshot\.noteUpdated;/,
 );
 assert.match(
   storage,
-  /const storedNoteNewer = noteStamp\(stored\) > noteStamp\(editor\);\s*if \(!storedNoteNewer\) return \{ \.\.\.editor, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*research: stored\.research,\s*note: stored\.note,/,
+  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+);
+assert.equal(
+  /noteEdited = noteStamp\(editor\) !== noteStamp\(snapshot\)/.test(storage),
+  false,
+  "editorAfterSave must not rank a note edit through noteStamp",
+);
+assert.match(
+  storage,
+  /function noteStamp\(entry: SavedMap \| undefined\): string \{\s*if \(!entry\) return "";\s*return typeof entry\.noteUpdated === "string" \? entry\.noteUpdated : "";\s*\}/,
+);
+assert.equal(
+  /noteUpdated === "string"\s*\? entry\.noteUpdated\s*: \(entry\.updated \?\? ""\)/.test(
+    storage,
+  ),
+  false,
+  "noteStamp must not fall back to updated",
+);
+assert.match(storage, /function ensureNoteStamp/);
+assert.match(
+  storage,
+  /const stamped = ensureNoteStamp\(\s*withTime,\s*updated \?\? new Date\(\)\.toISOString\(\),\s*\);/,
+);
+assert.match(
+  storage,
+  /typeof noteEntry\.noteUpdated === "string"\s*\? noteEntry\.noteUpdated\s*: now/,
+);
+assert.match(storage, /noteUpdated: noteAt,/);
+assert.match(
+  storage,
+  /if \(typeof storedAt !== "string"\) return false;\s*if \(typeof editorAt !== "string"\) return true;\s*return storedAt > editorAt;/,
+);
+assert.match(
+  storage,
+  /if \(!storedNoteNewerThanEditor\(stored, editor\)\)\s*return \{ \.\.\.editor, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*research: stored\.research,\s*note: stored\.note,/,
 );
 assert.match(
   storage,

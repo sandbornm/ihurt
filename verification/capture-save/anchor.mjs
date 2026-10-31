@@ -35,7 +35,7 @@ assert.match(storage, /if \(deletedIds\(tomb\.result\)\.includes\(entryId\)\) re
 assert.match(storage, /objectStore\("entries"\)\.delete\(id\)/);
 assert.match(
   storage,
-  /references: unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
+  /const references = unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
 );
 assert.match(storage, /existingNote > incomingNote/);
 assert.match(storage, /noteStamp\(draft\) > noteStamp\(stored\)/);
@@ -59,11 +59,23 @@ assert.match(notebook, /const \[savedRow\] = await storeEntries\(\[item\]\);/);
 assert.match(notebook, /const saved = savedRow \?\? item;/);
 assert.match(notebook, /editorAfterSave\(current, item, saved\)/);
 assert.match(storage, /export function editorAfterSave/);
-assert.match(storage, /noteStamp\(editor\) !== noteStamp\(snapshot\)/);
 assert.match(
   storage,
-  /\(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\)/,
+  /const noteEdited = noteStamp\(editor\) !== noteStamp\(snapshot\);\s*const researchAndRefs = \{[\s\S]*?\};\s*if \(noteEdited\) return \{ \.\.\.editor, \.\.\.researchAndRefs \};\s*const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
 );
+assert.match(
+  storage,
+  /const storedNoteNewer = noteStamp\(stored\) > noteStamp\(editor\);\s*if \(!storedNoteNewer\) return \{ \.\.\.editor, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*research: stored\.research,\s*note: stored\.note,/,
+);
+assert.match(
+  storage,
+  /research: existing\.research\s*\?\s*\{ \.\.\.existing\.research, references \}\s*: existing\.research,/,
+);
+assert.match(
+  storage,
+  /unionByUrl\(entry\.research\?\.references, entry\.references\)/,
+);
+assert.match(notebook, /entryReferences\(/);
 assert.match(
   storage,
   /saved\.research !== undefined \? \{ research: saved\.research \} : \{\}/,

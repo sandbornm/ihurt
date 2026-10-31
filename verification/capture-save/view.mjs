@@ -51,6 +51,10 @@ const hidden = new Set([
   "TypeNote",
   "StaleNoteSave",
   "ResearchKeepsNote",
+  "EditNoteWhileSaving",
+  "EditFieldWhileSaving",
+  "MergeKeepsNewer",
+  "EditorAfterSave",
 ]);
 
 const labels = {

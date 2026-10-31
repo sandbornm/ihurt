@@ -27,6 +27,9 @@ CONSTANTS
   DropIncomingReadings,  \* old merge keeps stored research and drops the save's new readings
   RestoreStaleNote,      \* a research write puts back the note from a laundered row
   ShowPreMerge,          \* the journal card keeps the snapshot from before the merge
+  KeepEditorNoteOnAnyEdit, \* old editorAfterSave keeps the editor note when any field changed
+  UnionTopLevelOnly,     \* old merge writes the URL union only on the top-level list
+  CountFieldSecond,      \* cover only. Counts a non-note edit, then the next save
   ModelRaces             \* FALSE only in the chart config, which omits these races
 
 \* Research rank. 0 is none. 1 is present with no version. 2 is v1. 3 is v2.
@@ -71,18 +74,27 @@ VARIABLES
   note,        \* stored note rank
   draftNote,   \* note rank in the draft
   best,        \* newest note rank a write was obliged to keep
-  laundered    \* a stale save adopted the research timestamp for an older note
+  laundered,   \* a stale save adopted the research timestamp for an older note
+  editorNote,  \* note rank on the open editor
+  snapNote,    \* note rank copied when save was pressed
+  touch,       \* none, note, or field. What changed while this save is in flight
+  pending,     \* the store committed and the editor has not caught up
+  newerKept,   \* this save's merge keeps a stored note one rank newer than the snapshot
+  afterField,  \* 0 none, 1 a non-note edit was caught up, 2 a later save committed
+  researchExtra \* the extra reading is on research.references as well as the row
 
 vars == <<
   phase, flightT, flightX, text, filled, revised,
   e1, e2, c1, c2, snap2, busy, undo, dropped, banned,
   clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen, retrySeen,
   draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
-  resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, draftNote, best, laundered
+  resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, draftNote, best, laundered,
+  editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra
 >>
 
 \* Left unchanged by actions that do not assign them.
 noteVars == <<cardStale, owedExtra, extra, note, draftNote, best, laundered>>
+editorVars == <<editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra>>
 
 TypeOK ==
   /\ phase \in {"shut", "idle", "recording", "processing", "extracting", "ready", "error"}
@@ -102,6 +114,10 @@ TypeOK ==
   /\ cardStale \in BOOLEAN /\ owedExtra \in BOOLEAN /\ extra \in BOOLEAN
   /\ note \in 0..2 /\ draftNote \in 0..2 /\ best \in 0..2
   /\ laundered \in BOOLEAN
+  /\ editorNote \in 0..2 /\ snapNote \in 0..2
+  /\ touch \in {"none", "note", "field"}
+  /\ pending \in BOOLEAN /\ newerKept \in BOOLEAN
+  /\ afterField \in 0..2 /\ researchExtra \in BOOLEAN
 
 \* After save returns, that id is still in the store until the person deletes it.
 ConfirmedPresent ==
@@ -138,8 +154,16 @@ NewerNoteKept == owedNote => fresh
 \* A deleted id is not put back when a search finishes.
 NoResurrection == ~resurrected
 
-\* A committed save's new readings are in the stored row.
-ReadingsKept == owedExtra => extra
+\* A committed save's new readings stay on the row and on the kept search.
+\* The screen rebuilds the row list from both, and the next save stores that.
+ReadingsKept == owedExtra => (extra /\ researchExtra)
+
+\* After a save is applied, the editor does not still show an older note.
+\* The gap is allowed while the write is in flight and before the editor catches up.
+EditorNoteNotStale ==
+  \/ busy
+  \/ pending
+  \/ editorNote >= note
 
 \* The stored note is never older than the newest note a write had to keep.
 NewestNoteKept == note >= best
@@ -160,9 +184,10 @@ CoverResearch == ~(owed /\ research > 0 /\ e1 \in {"saved", "dup"})
 CoverNewer == ~(research = 3 /\ snapResearch = 2 /\ ~busy /\ retrySeen /\ ~failSeen /\ e1 \in {"saved", "dup"})
 CoverNote == ~(owedNote /\ fresh)
 CoverGone == ~lateDeleteSeen
-CoverReadings == ~(owedExtra /\ extra /\ research >= 2 /\ ~busy /\ e1 \in {"saved", "dup"})
+CoverReadings == ~(owedExtra /\ extra /\ researchExtra /\ research >= 2 /\ ~busy /\ ~pending /\ e1 \in {"saved", "dup"})
 CoverNewestNote == ~(note = 2 /\ best = 2 /\ draftNote = 2)
-CoverMerged == ~(c1 /\ ~cardStale /\ ~busy /\ research > snapResearch /\ snapResearch > 0 /\ e1 \in {"saved", "dup"})
+CoverMerged == ~(c1 /\ ~cardStale /\ ~busy /\ ~pending /\ research > snapResearch /\ snapResearch > 0 /\ e1 \in {"saved", "dup"})
+CoverFieldSecond == ~(afterField = 2 /\ ~pending /\ ~busy /\ editorNote >= note)
 
 Init ==
   /\ phase = "shut"
@@ -180,11 +205,15 @@ Init ==
   /\ resurrected = FALSE /\ lateDeleteSeen = FALSE
   /\ cardStale = FALSE /\ owedExtra = FALSE /\ extra = FALSE
   /\ note = 0 /\ draftNote = 0 /\ best = 0 /\ laundered = FALSE
+  /\ editorNote = 0 /\ snapNote = 0 /\ touch = "none"
+  /\ pending = FALSE /\ newerKept = FALSE
+  /\ afterField = 0 /\ researchExtra = FALSE
 
 panel == phase \in {"idle", "ready", "error", "extracting"}
 
 \* The voice button opens the editor. Nothing is stored yet.
 OpenVoice ==
+  /\ ~pending
   /\ phase = "shut" /\ ~busy
   /\ phase' = "idle"
   /\ text' = FALSE
@@ -193,9 +222,11 @@ OpenVoice ==
        dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* record() bumps the recording generation and stops extraction.
 StartRecording ==
+  /\ ~pending
   /\ panel /\ ~busy
   /\ phase' = "recording"
   /\ flightT' = "none"
@@ -204,6 +235,7 @@ StartRecording ==
        dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 StopRecording ==
   /\ phase = "recording"
@@ -213,6 +245,7 @@ StopRecording ==
        undo, dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* Cancel, or leaving the screen while a capture is running.
 \* The request may still finish. Its generation no longer matches.
@@ -225,6 +258,7 @@ CancelOrHide ==
        dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* Web path. The final transcript is shown and suggestions are local.
 TranscriptReady ==
@@ -236,6 +270,7 @@ TranscriptReady ==
        dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* Native path. The final transcript starts on-device extraction.
 TranscriptStartsExtraction ==
@@ -248,9 +283,11 @@ TranscriptStartsExtraction ==
        banned, clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen,
        retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* suggest-once and the generation check drop a finished-too-late transcript.
 LateTranscript ==
+  /\ ~pending
   /\ flightT = "stale"
   /\ flightT' = "none"
   /\ lateSeen' = TRUE
@@ -258,8 +295,10 @@ LateTranscript ==
        busy, undo, dropped, banned, clobber, storeOk, wrongWrite, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 BeginExtraction ==
+  /\ ~pending
   /\ phase = "idle" /\ text /\ flightX = "none" /\ ~busy
   /\ phase' = "extracting"
   /\ flightX' = "live"
@@ -267,8 +306,10 @@ BeginExtraction ==
        undo, dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 ExtractionReady ==
+  /\ ~pending
   /\ flightX = "live"
   /\ flightX' = "none"
   /\ phase' = "ready"
@@ -276,9 +317,11 @@ ExtractionReady ==
        undo, dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* The generation check. SkipGenerationGuard is the mutant that deletes it.
 LateExtraction ==
+  /\ ~pending
   /\ flightX = "stale"
   /\ flightX' = "none"
   /\ IF SkipGenerationGuard
@@ -293,6 +336,7 @@ LateExtraction ==
                snap2, busy, undo, dropped, banned, clobber, storeOk,
                wrongWrite, failSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 EditTranscript ==
   /\ phase \in {"idle", "ready", "error"} /\ text
@@ -301,6 +345,7 @@ EditTranscript ==
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* Add to entry. Confirms the proposal, merges it into the open id, closes.
 ApplyToEntry ==
@@ -316,6 +361,7 @@ ApplyToEntry ==
        research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* Discard draft calls cancelCapture and close, and does not call onApply.
 DiscardDraft ==
@@ -330,6 +376,7 @@ DiscardDraft ==
   /\ UNCHANGED <<flightT, revised, e2, c2, snap2, busy, undo, clobber, storeOk,
        wrongWrite, lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* The X button. Keeps nothing in the notebook. A late result is now stale.
 DismissVoice ==
@@ -342,9 +389,11 @@ DismissVoice ==
        banned, clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen,
        retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* A pin or a chosen region. Not the viewport PNG, which is export-only.
 PlacePin ==
+  /\ ~pending
   /\ phase = "shut" /\ ~busy /\ ~filled
   /\ filled' = TRUE
   /\ draftStored' = FALSE
@@ -353,9 +402,11 @@ PlacePin ==
        failSeen, undoSeen, retrySeen, research, newest, storedAt, owed, editorResearch,
        snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* change() patches the open entry and leaves its id alone.
 EditEntry ==
+  /\ ~pending
   /\ phase = "shut" /\ ~busy /\ filled /\ (~revised \/ draftStored)
   /\ revised' = TRUE
   /\ draftStored' = FALSE
@@ -364,9 +415,11 @@ EditEntry ==
        failSeen, undoSeen, retrySeen, research, newest, storedAt, owed, editorResearch,
        snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* saveDraft writes the one settings record.
 FlushDraft ==
+  /\ ~pending
   /\ filled /\ ~draftStored /\ ~busy /\ phase = "shut"
   /\ draftStored' = TRUE
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1,
@@ -375,25 +428,31 @@ FlushDraft ==
        editorResearch, snapResearch, fresh, owedNote, resurrected,
        lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 DraftFails ==
+  /\ ~pending
   /\ filled /\ ~draftStored /\ ~failSeen /\ ~busy /\ phase = "shut"
   /\ failSeen' = TRUE
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1,
        c2, snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* commit() copies the open entry, then storeEntries runs.
 \* The copy's research bit is snapResearch. A double tap does nothing.
 PressSave ==
-  /\ filled /\ ~busy /\ phase = "shut"
+  /\ filled /\ ~busy /\ ~pending /\ phase = "shut"
   /\ busy' = TRUE
   /\ snapResearch' = editorResearch
+  /\ snapNote' = editorNote
+  /\ touch' = "none"
+  /\ newerKept' = FALSE
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1,
        c2, snap2, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed,
-       editorResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
+       editorResearch, fresh, owedNote, resurrected, lateDeleteSeen, editorNote, pending, afterField, researchExtra>>
   /\ UNCHANGED noteVars
 
 DoubleTap ==
@@ -402,57 +461,69 @@ DoubleTap ==
 
 SaveCommits ==
   /\ busy
-  /\ busy' = FALSE
-  /\ retrySeen' = (retrySeen \/ (e1 = "saved" /\ ~WriteWrongId /\ ~ReplaceWholeNotebook))
-  /\ IF WriteWrongId
-     THEN /\ wrongWrite' = TRUE
-          /\ e2' = "saved"
-          /\ UNCHANGED <<e1, c1, c2, banned, storeOk, research, newest, storedAt, owed,
-               editorResearch, snapResearch, fresh, owedNote, resurrected,
-               lateDeleteSeen>>
-          /\ UNCHANGED noteVars
-     ELSE /\ wrongWrite' = FALSE
-          /\ e1' = IF ReplaceWholeNotebook
-                     THEN "saved"
-                     ELSE IF AppendOnSave /\ e1 = "saved" THEN "dup" ELSE "saved"
-          /\ c1' = TRUE
-          /\ e2' = IF ReplaceWholeNotebook
-                     THEN (IF snap2 THEN "saved" ELSE "absent")
-                     ELSE e2
-          /\ c2' = c2
-          /\ banned' = banned
-          /\ storeOk' = storeOk
-          /\ research' = IF ~ModelRaces THEN research
-                         ELSE IF DropResearch THEN snapResearch
-                         ELSE IF OverwriteNewerResearch /\ snapResearch > 0
-                              THEN snapResearch
-                         ELSE IF snapResearch > research THEN snapResearch
-                         ELSE research
-          /\ storedAt' = IF ~ModelRaces THEN storedAt
-                         ELSE IF KeepOlderUpdated THEN snapResearch
-                         ELSE IF snapResearch > storedAt THEN snapResearch
-                         ELSE storedAt
-          /\ fresh' = IF ModelRaces THEN TRUE ELSE fresh
-          /\ owedNote' = IF ModelRaces THEN TRUE ELSE owedNote
-          /\ cardStale' = (ShowPreMerge /\ snapResearch > 0 /\ snapResearch < research /\ ~DropResearch /\ ~OverwriteNewerResearch)
-          /\ owedExtra' = (owedExtra \/ (snapResearch = 1 /\ research >= 2 /\ ~DropResearch /\ ~OverwriteNewerResearch))
-          /\ extra' = IF (DropIncomingReadings /\ snapResearch = 1 /\ research >= 2 /\ ~DropResearch /\ ~OverwriteNewerResearch)
-                       THEN FALSE
-                       ELSE IF (snapResearch = 1 /\ research >= 2 /\ ~DropResearch /\ ~OverwriteNewerResearch)
-                            THEN TRUE
+  /\ LET land == snapResearch = 1 /\ research >= 2 /\ ~DropResearch /\ ~OverwriteNewerResearch
+         stored == IF ModelRaces /\ newerKept /\ note < 2 THEN note + 1 ELSE note
+         drafted == IF ModelRaces /\ draftNote > stored THEN draftNote ELSE stored
+         chosen == IF ModelRaces /\ snapNote > drafted THEN snapNote ELSE drafted
+     IN /\ busy' = FALSE
+        /\ retrySeen' = (retrySeen \/ (e1 = "saved" /\ ~WriteWrongId /\ ~ReplaceWholeNotebook))
+        /\ newerKept' = FALSE
+        /\ IF WriteWrongId
+           THEN /\ wrongWrite' = TRUE
+                /\ e2' = "saved"
+                /\ pending' = FALSE
+                /\ UNCHANGED <<e1, c1, c2, banned, storeOk, research, newest, storedAt, owed,
+                     editorResearch, snapResearch, fresh, owedNote, resurrected,
+                     lateDeleteSeen, editorNote, snapNote, touch, afterField, researchExtra>>
+                /\ UNCHANGED noteVars
+           ELSE /\ wrongWrite' = FALSE
+                /\ e1' = IF ReplaceWholeNotebook
+                           THEN "saved"
+                           ELSE IF AppendOnSave /\ e1 = "saved" THEN "dup" ELSE "saved"
+                /\ c1' = TRUE
+                /\ e2' = IF ReplaceWholeNotebook
+                           THEN (IF snap2 THEN "saved" ELSE "absent")
+                           ELSE e2
+                /\ c2' = c2
+                /\ banned' = banned
+                /\ storeOk' = storeOk
+                /\ pending' = ModelRaces
+                /\ afterField' = IF CountFieldSecond /\ afterField = 1 THEN 2 ELSE afterField
+                /\ research' = IF ~ModelRaces THEN research
+                               ELSE IF DropResearch THEN snapResearch
+                               ELSE IF OverwriteNewerResearch /\ snapResearch > 0
+                                    THEN snapResearch
+                               ELSE IF snapResearch > research THEN snapResearch
+                               ELSE research
+                /\ storedAt' = IF ~ModelRaces THEN storedAt
+                               ELSE IF KeepOlderUpdated THEN snapResearch
+                               ELSE IF snapResearch > storedAt THEN snapResearch
+                               ELSE storedAt
+                /\ fresh' = IF ModelRaces THEN TRUE ELSE fresh
+                /\ owedNote' = IF ModelRaces THEN TRUE ELSE owedNote
+                /\ cardStale' = (ShowPreMerge /\ snapResearch > 0 /\ snapResearch < research /\ ~DropResearch /\ ~OverwriteNewerResearch)
+                /\ owedExtra' = (owedExtra \/ land)
+                /\ extra' = IF DropIncomingReadings /\ land THEN FALSE
+                            ELSE IF land THEN TRUE
                             ELSE extra
-          /\ note' = IF ModelRaces /\ draftNote > note THEN draftNote ELSE note
-          /\ best' = IF ModelRaces /\ draftNote > note THEN draftNote ELSE best
-          /\ UNCHANGED <<newest, owed, editorResearch, snapResearch, resurrected,
-               lateDeleteSeen, draftNote, laundered>>
-  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, snap2, undo,
-       dropped, clobber, lateSeen, failSeen, undoSeen, draftStored>>
+                /\ researchExtra' = IF land /\ (DropIncomingReadings \/ UnionTopLevelOnly) THEN FALSE
+                                    ELSE IF land THEN TRUE
+                                    ELSE researchExtra
+                /\ note' = chosen
+                /\ best' = IF ~ModelRaces THEN best ELSE IF chosen > best THEN chosen ELSE best
+                /\ UNCHANGED <<newest, owed, editorResearch, snapResearch, resurrected,
+                     lateDeleteSeen, draftNote, laundered, editorNote, snapNote, touch>>
+        /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, snap2, undo,
+             dropped, clobber, lateSeen, failSeen, undoSeen, draftStored>>
 
 \* onerror / abort. The real transaction does not publish its puts.
 SaveFails ==
   /\ busy /\ ~failSeen
   /\ busy' = FALSE
   /\ failSeen' = TRUE
+  /\ newerKept' = FALSE
+  /\ touch' = "none"
+  /\ pending' = FALSE
   /\ IF CorruptOnFailedWrite
      THEN /\ storeOk' = FALSE
           /\ e1' = "absent"
@@ -467,15 +538,18 @@ SaveFails ==
           /\ owedNote' = FALSE
           /\ cardStale' = FALSE /\ owedExtra' = FALSE /\ extra' = FALSE
           /\ note' = 0 /\ draftNote' = 0 /\ best' = 0 /\ laundered' = FALSE
-     ELSE /\ UNCHANGED <<storeOk, e1, e2, research, newest, storedAt, owed, editorResearch,
-               snapResearch, fresh, owedNote>>
+          /\ editorNote' = 0 /\ snapNote' = 0
+          /\ afterField' = 0 /\ researchExtra' = FALSE
+     ELSE /\ snapNote' = editorNote
+          /\ UNCHANGED <<storeOk, e1, e2, research, newest, storedAt, owed, editorResearch,
+               snapResearch, fresh, owedNote, editorNote, afterField, researchExtra>>
           /\ UNCHANGED noteVars
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, c1, c2, snap2,
        undo, dropped, banned, clobber, wrongWrite, lateSeen, undoSeen,
        retrySeen, draftStored, resurrected, lateDeleteSeen>>
 
 DeleteEntry ==
-  /\ ~busy /\ phase = "shut" /\ e1 \in {"saved", "dup"}
+  /\ ~busy /\ ~pending /\ phase = "shut" /\ e1 \in {"saved", "dup"}
   /\ e1' = "absent" /\ c1' = FALSE /\ undo' = TRUE
   /\ filled' = FALSE /\ revised' = FALSE /\ draftStored' = FALSE
   /\ text' = FALSE
@@ -484,44 +558,58 @@ DeleteEntry ==
   /\ fresh' = FALSE /\ owedNote' = FALSE
   /\ cardStale' = FALSE /\ owedExtra' = FALSE /\ extra' = FALSE
   /\ note' = 0 /\ draftNote' = 0 /\ best' = 0 /\ laundered' = FALSE
+  /\ editorNote' = 0 /\ snapNote' = 0 /\ touch' = "none"
+  /\ pending' = FALSE /\ newerKept' = FALSE
+  /\ afterField' = 0 /\ researchExtra' = FALSE
   /\ UNCHANGED <<phase, flightT, flightX, e2, c2, snap2, busy, dropped, banned,
        clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen, retrySeen,
        resurrected, lateDeleteSeen>>
 
 UndoDelete ==
+  /\ ~pending
   /\ undo /\ ~busy
   /\ e1' = "saved" /\ c1' = TRUE /\ undo' = FALSE /\ undoSeen' = TRUE
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e2, c2, snap2,
        busy, dropped, banned, clobber, storeOk, wrongWrite, lateSeen, failSeen,
        retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* Opening the app again. Voice panel memory is not in the database.
 \* Entries stay as the last committed transaction left them.
+\* An in-flight save is no longer on screen, so its edit flags do not stick.
 Reload ==
+  /\ ~pending
   /\ phase' = "shut"
   /\ flightT' = "none" /\ flightX' = "none"
   /\ text' = FALSE
   /\ busy' = FALSE
   /\ snap2' = (e2 = "saved")
+  /\ touch' = "none"
+  /\ newerKept' = FALSE
+  /\ snapNote' = editorNote
   /\ UNCHANGED <<filled, revised, e1, e2, c1, c2, undo, dropped, banned,
        clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen, retrySeen,
        draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED <<editorNote, pending, afterField, researchExtra>>
 
 \* A second tab puts a different id. It does not replace this tab's record.
 OtherTabSaves ==
+  /\ ~pending
   /\ e2 = "absent"
   /\ e2' = "saved" /\ c2' = TRUE
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, c1, snap2,
        busy, undo, dropped, banned, clobber, storeOk, wrongWrite, lateSeen,
        failSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* saveResearch commits the next version onto the saved id. The in-flight
 \* snapshot stays as it was at PressSave. The editor catches up only when
 \* no save is in flight, which is when setEntry runs before the next snapshot.
 ResearchLands ==
+  /\ ~pending
   /\ ModelRaces
   /\ e1 \in {"saved", "dup"}
   /\ phase = "shut"
@@ -537,10 +625,12 @@ ResearchLands ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored,
        fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* saveResearch after a newer storeEntries. The real merge keeps the row
 \* with the later updated time. PreferStaleDraft always uses the draft.
 ResearchFromDraft ==
+  /\ ~pending
   /\ ModelRaces
   /\ e1 \in {"saved", "dup"}
   /\ fresh /\ ~busy /\ phase = "shut"
@@ -556,10 +646,12 @@ ResearchFromDraft ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored,
        owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* A search finishes after removeEntry. deleted-ids makes this a no-op.
 \* RestoreDeleted puts the row back from the leftover draft.
 ResearchAfterDelete ==
+  /\ ~pending
   /\ ModelRaces
   /\ undo /\ e1 = "absent" /\ ~lateDeleteSeen
   /\ lateDeleteSeen' = TRUE
@@ -576,9 +668,11 @@ ResearchAfterDelete ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, editorResearch,
        snapResearch, fresh, owedNote>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* A stored row whose search has no version. Older than any stamped search.
 StoreVersionless ==
+  /\ ~pending
   /\ ModelRaces
   /\ ~busy /\ phase = "shut"
   /\ e1 \in {"saved", "dup"}
@@ -590,26 +684,30 @@ StoreVersionless ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, newest, storedAt,
        owed, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
+  /\ UNCHANGED editorVars
 
 \* The user types a newer note. It lives in the draft until a write keeps it.
+\* Typing never moves the editor back to an older rank.
 TypeNote ==
   /\ ModelRaces
-  /\ ~busy /\ phase = "shut" /\ filled
+  /\ ~busy /\ ~pending /\ phase = "shut" /\ filled
   /\ e1 \in {"saved", "dup"}
   /\ research >= 2
   /\ draftNote < 2
   /\ draftNote' = draftNote + 1
+  /\ editorNote' = IF editorNote > draftNote' THEN editorNote ELSE draftNote'
+  /\ snapNote' = editorNote'
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, best,
-       laundered>>
+       laundered, touch, pending, newerKept, afterField, researchExtra>>
 
 \* The old save copies the research stamp onto an older note.
 StaleNoteSave ==
   /\ RestoreStaleNote /\ ModelRaces
-  /\ ~busy /\ phase = "shut"
+  /\ ~busy /\ ~pending /\ phase = "shut"
   /\ e1 \in {"saved", "dup"}
   /\ research >= 2
   /\ draftNote > note
@@ -621,25 +719,90 @@ StaleNoteSave ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note,
        draftNote, best>>
+  /\ UNCHANGED editorVars
 
 \* saveResearch keeps the newer note. The mutant writes the laundered note.
 ResearchKeepsNote ==
   /\ ModelRaces
-  /\ ~busy /\ phase = "shut"
+  /\ ~busy /\ ~pending /\ phase = "shut"
   /\ e1 \in {"saved", "dup"}
   /\ draftNote > note
   /\ IF RestoreStaleNote
      THEN /\ laundered
           /\ best' = draftNote
           /\ note' = note
+          /\ editorNote' = note
      ELSE /\ note' = draftNote
           /\ best' = draftNote
+          /\ editorNote' = draftNote
+  /\ snapNote' = editorNote'
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, draftNote,
-       laundered>>
+       laundered, touch, pending, newerKept, afterField, researchExtra>>
+
+\* A title, pin, or context edit while storeEntries is writing.
+\* updated changes. The note stamp does not.
+EditFieldWhileSaving ==
+  /\ ModelRaces /\ busy /\ ~pending /\ touch = "none"
+  /\ touch' = "field"
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
+       storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
+       resurrected, lateDeleteSeen>>
+  /\ UNCHANGED noteVars
+  /\ UNCHANGED <<editorNote, snapNote, pending, newerKept, afterField, researchExtra>>
+
+\* The note itself changes while storeEntries is writing.
+\* The draft rank moves with it, same as a note typed while the screen is idle.
+EditNoteWhileSaving ==
+  /\ ModelRaces /\ busy /\ ~pending /\ touch = "none" /\ editorNote < 2
+  /\ touch' = "note"
+  /\ editorNote' = editorNote + 1
+  /\ draftNote' = editorNote'
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
+       storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
+       resurrected, lateDeleteSeen, snapNote, pending, newerKept, afterField, researchExtra>>
+  /\ UNCHANGED <<cardStale, owedExtra, extra, note, best, laundered>>
+
+\* keepLandedResearch keeps a stored note whose stamp is newer than the snapshot.
+\* The row already exists. The editor still shows the snapshot note, so this is
+\* not a note the user typed during the save. The merge reveals that stored note.
+MergeKeepsNewer ==
+  /\ ModelRaces /\ busy /\ ~pending /\ ~newerKept
+  /\ e1 \in {"saved", "dup"}
+  /\ note < 2 /\ snapNote = note /\ editorNote = snapNote
+  /\ newerKept' = TRUE
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
+       storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
+       resurrected, lateDeleteSeen>>
+  /\ UNCHANGED noteVars
+  /\ UNCHANGED <<editorNote, snapNote, touch, pending, afterField, researchExtra>>
+
+\* editorAfterSave. A note edit keeps the editor note.
+\* Any other edit, or no edit, takes the stored note.
+\* The old code kept the editor note whenever updated had changed.
+EditorAfterSave ==
+  /\ pending
+  /\ LET keep == touch = "note" \/ (KeepEditorNoteOnAnyEdit /\ touch = "field")
+     IN /\ pending' = FALSE
+        /\ touch' = "none"
+        /\ editorNote' = IF keep THEN editorNote ELSE note
+        /\ snapNote' = editorNote'
+        /\ afterField' = IF CountFieldSecond /\ touch = "field" /\ ~keep /\ afterField = 0 THEN 1 ELSE afterField
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
+       storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
+       resurrected, lateDeleteSeen, newerKept, researchExtra>>
+  /\ UNCHANGED noteVars
 
 Wait ==
   UNCHANGED vars
@@ -678,6 +841,10 @@ Next ==
   \/ TypeNote
   \/ StaleNoteSave
   \/ ResearchKeepsNote
+  \/ EditFieldWhileSaving
+  \/ EditNoteWhileSaving
+  \/ MergeKeepsNewer
+  \/ EditorAfterSave
   \/ Wait
 
 \* Used only by cfg/chart.cfg so the picture stays readable.

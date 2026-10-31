@@ -44,3 +44,7 @@ mutant_drop_stored_pins.cfg FAIL PinsKept
 corrupt_write_clears_confirmed.cfg PASS
 mutant_legacy_keeps_stored.cfg FAIL LegacyDraftKept
 mutant_editor_keeps_old_pins.cfg FAIL EditorPinsCurrent
+mutant_load_skips_stamp.cfg FAIL LegacyDraftKept
+mutant_legacy_research_takes_draft.cfg FAIL SearchKeepsStoredOnTie
+mutant_skip_pins_on_pin_edit.cfg FAIL EditorPinsCurrent
+cover_pin_edit.cfg FAIL CoverPinEdit

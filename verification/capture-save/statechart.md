@@ -14,7 +14,7 @@ The picture hides these steps. The full model still checks them.
 - Research landing during a save, research merged from a draft, and research after delete
 - A search with no version, typing a newer note, a stale save of an older note, and a research write that keeps the note
 - A note edit or a title, pin, or context edit while a save is in flight, the merge that keeps a newer stored note, and the editor catching up after the save. The chart config leaves those races off
-- A kept note rewriting `map.summary`, a later save dropping stored pins, a legacy draft's added note or pins, the editor taking the row's pins after a save or search, and offset timestamps. Those are checked by the full model and the storage tests
+- A kept note rewriting `map.summary`, a later save dropping stored pins, a legacy draft's edit on load and its stamp, a search keeping stored on a tie, the editor taking the row's pins after a save or search, a pin edit during a save merged per pin, and offset timestamps. Those are checked by the full model and the storage tests
 
 Read results with the pstack /statechart skill.
 

@@ -1402,20 +1402,22 @@ test("a legacy draft with no pin stamps keeps its newer pins on load", async () 
   assert.equal(loaded.draft?.entry.map.regions.includes("neck"), true);
 });
 
-test("saveResearch keeps legacy draft pins when neither side has a pin stamp", async () => {
+test("saveResearch keeps stored pins on a tie when neither side has a pin stamp", async () => {
+  // A search never overwrites what is stored on a tie. A draft only gets
+  // past this once loadNotebook has stamped it (see the load-then-search test).
   await storeEntries([
     entry("pin-legacy-sr", "saved", {
       updated: "2026-01-02T00:00:00.000Z",
-      points: [],
-      map: neckMap("saved"),
+      points: [samplePoint],
+      map: neckMap("saved", ["neck"]),
     }),
   ]);
   await saveDraft(
     draftOf(
       entry("pin-legacy-sr", "saved", {
         updated: "2026-01-03T00:00:00.000Z",
-        points: [samplePoint],
-        map: neckMap("saved", ["neck"]),
+        points: [],
+        map: neckMap("saved"),
       }),
     ),
   );
@@ -1471,13 +1473,12 @@ test("a legacy tie with different notes keeps the stored note", async () => {
   assert.equal(saved?.note, "stored words");
 });
 
-test("saveResearch keeps a legacy typed note that is newer than the row", async () => {
+test("saveResearch keeps the stored note on a legacy tie", async () => {
   putLegacyRow(entry("lg-sr", "ache", { updated: T1 }));
   await saveDraft(draftOf(entry("lg-sr", "ache, typed more", { updated: T2 })));
   const after = await saveResearch("lg-sr", research);
-  assert.equal(after?.note, "ache, typed more");
-  assert.equal(after?.map.summary, "ache, typed more");
-  assert.equal(after?.research?.description, "stiff");
+  assert.equal(after?.note, "ache");
+  assert.equal(after?.map.summary, "ache");
 });
 
 test("legacy draft-only pins count as an edit even with an older row time", async () => {
@@ -1565,7 +1566,7 @@ test("editorAfterSave copies stored pins back after a field edit during the save
   assert.deepEqual(next.map.regions, ["neck"]);
 });
 
-test("editorAfterSave keeps pins edited during the save", () => {
+test("editorAfterSave keeps the merged pins plus a pin added during the save", () => {
   const snapshot = entry("eas-own", "n", { updated: T1, points: [] });
   const editor = {
     ...snapshot,
@@ -1583,8 +1584,9 @@ test("editorAfterSave keeps pins edited during the save", () => {
   const next = editorAfterSave(editor, snapshot, saved);
   assert.deepEqual(
     next.points?.map((p) => p.id),
-    ["pin-2"],
+    ["pin-1", "pin-2"],
   );
+  assert.deepEqual(next.map.regions, ["neck"]);
   assert.equal(next.pointsUpdated, T2);
 });
 
@@ -1621,5 +1623,193 @@ test("withStampedResearch keeps editor pins that are newer than the row", () => 
   assert.deepEqual(
     next.points?.map((p) => p.id),
     ["pin-2"],
+  );
+});
+
+// Load path: a draft exists only because of unsaved typing, so on a tie with
+// no stamps on either side the draft wins, whatever the edit.
+async function loadLegacy(
+  id: string,
+  stored: Record<string, unknown>,
+  draft: Record<string, unknown>,
+) {
+  putLegacyRow(
+    entry(id, (stored.note as string) ?? "n", { updated: T2, ...stored }),
+  );
+  await saveDraft(
+    draftOf(
+      entry(id, (draft.note as string) ?? "n", { updated: T1, ...draft }),
+    ),
+  );
+  const loaded = await loadNotebook();
+  return loaded.draft?.entry;
+}
+const pinAt = (id: string, extra: Record<string, unknown> = {}) => ({
+  ...samplePoint,
+  id,
+  ...extra,
+});
+
+test("load keeps a legacy draft's mid-note edit", async () => {
+  const open = await loadLegacy(
+    "ld-mid",
+    { note: "neck ache at night" },
+    { note: "neck pain at night" },
+  );
+  assert.equal(open?.note, "neck pain at night");
+  assert.equal(open?.map.summary, "neck pain at night");
+});
+
+test("load keeps a legacy draft's deletion", async () => {
+  const open = await loadLegacy(
+    "ld-del",
+    { note: "ache, much worse at night" },
+    { note: "ache, worse at night" },
+  );
+  assert.equal(open?.note, "ache, worse at night");
+});
+
+test("load keeps a shorter legacy draft", async () => {
+  const open = await loadLegacy(
+    "ld-short",
+    { note: "ache, worse at night" },
+    { note: "ache" },
+  );
+  assert.equal(open?.note, "ache");
+});
+
+test("load keeps a legacy draft's moved pin", async () => {
+  const open = await loadLegacy(
+    "ld-move",
+    { points: [pinAt("pin-1")], map: neckMap("n", ["neck"]) },
+    {
+      points: [pinAt("pin-1", { position: [0, 2, 0] })],
+      map: neckMap("n", ["neck"]),
+    },
+  );
+  assert.deepEqual(open?.points?.[0]?.position, [0, 2, 0]);
+});
+
+test("load keeps a legacy draft's changed pin comment", async () => {
+  const open = await loadLegacy(
+    "ld-comment",
+    {
+      points: [pinAt("pin-1", { comment: "dull" })],
+      map: neckMap("n", ["neck"]),
+    },
+    {
+      points: [pinAt("pin-1", { comment: "sharp" })],
+      map: neckMap("n", ["neck"]),
+    },
+  );
+  assert.equal(open?.points?.[0]?.comment, "sharp");
+});
+
+test("load keeps a legacy draft's deleted pin", async () => {
+  const open = await loadLegacy(
+    "ld-unpin",
+    {
+      points: [pinAt("pin-1"), pinAt("pin-2")],
+      map: neckMap("n", ["neck"]),
+    },
+    { points: [pinAt("pin-1")], map: neckMap("n", ["neck"]) },
+  );
+  assert.deepEqual(
+    open?.points?.map((p) => p.id),
+    ["pin-1"],
+  );
+});
+
+test("a search after load keeps the legacy draft's edits", async () => {
+  // loadNotebook stamps the draft that won, the autosave writes it, and the
+  // search's stored-wins tie no longer applies.
+  const open = await loadLegacy(
+    "ld-search",
+    {
+      note: "ache, much worse at night",
+      points: [pinAt("pin-1"), pinAt("pin-2")],
+      map: neckMap("ache, much worse at night", ["neck"]),
+    },
+    {
+      note: "ache at night",
+      points: [pinAt("pin-1", { position: [0, 2, 0] })],
+      map: neckMap("ache at night", ["neck"]),
+    },
+  );
+  assert.ok(open);
+  await saveDraft(draftOf(open as ReturnType<typeof entry>));
+  const after = await saveResearch("ld-search", research);
+  assert.equal(after?.note, "ache at night");
+  assert.deepEqual(
+    after?.points?.map((p) => [p.id, p.position[1]]),
+    [["pin-1", 2]],
+  );
+  const [saved] = await storeEntries([open as ReturnType<typeof entry>]);
+  assert.equal(saved?.note, "ache at night");
+  assert.equal(saved?.points?.length, 1);
+});
+
+test("editorAfterSave applies a pin removal and a move made during the save", () => {
+  const p1 = pinAt("pin-1"),
+    p2 = pinAt("pin-2"),
+    p3 = pinAt("pin-3");
+  const snapshot = entry("eas-merge", "n", {
+    updated: T1,
+    pointsUpdated: T1,
+    points: [p1, p2],
+    map: neckMap("n", ["neck"]),
+  });
+  const editor = {
+    ...snapshot,
+    updated: T2,
+    pointsUpdated: T2,
+    points: [{ ...p1, position: [0, 3, 0] as [number, number, number] }],
+  };
+  // The merge kept pin-3 from the stored row.
+  const saved = entry("eas-merge", "n", {
+    updated: T1,
+    pointsUpdated: T1,
+    points: [p1, p2, p3],
+    map: neckMap("n", ["neck"]),
+  });
+  const next = editorAfterSave(editor, snapshot, saved);
+  assert.deepEqual(
+    next.points?.map((p) => [p.id, p.position[1]]),
+    [
+      ["pin-1", 3],
+      ["pin-3", 1],
+    ],
+  );
+  assert.equal(next.pointsUpdated, T2);
+});
+
+test("a pin edit during a save does not let the next save drop a merged pin", async () => {
+  await storeEntries([
+    entry("eas-next", "n", {
+      pointsUpdated: T2,
+      points: [pinAt("pin-1")],
+      map: neckMap("n", ["neck"]),
+    }),
+  ]);
+  const snapshot = entry("eas-next", "n", {
+    pointsUpdated: T1,
+    points: [],
+    map: neckMap("n"),
+  });
+  const [saved] = await storeEntries([snapshot]);
+  assert.equal(saved?.points?.length, 1);
+  const T3 = "2026-01-04T00:00:00.000Z";
+  const editor = {
+    ...snapshot,
+    updated: T3,
+    pointsUpdated: T3,
+    points: [pinAt("pin-2")],
+    map: neckMap("n", ["neck"]),
+  };
+  const next = editorAfterSave(editor, snapshot, saved!);
+  const [again] = await storeEntries([next as ReturnType<typeof entry>]);
+  assert.deepEqual(
+    again?.points?.map((p) => p.id),
+    ["pin-1", "pin-2"],
   );
 });

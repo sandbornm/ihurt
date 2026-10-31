@@ -39,28 +39,40 @@ assert.match(
   storage,
   /const references = unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
 );
-// Notes and pins share one rule in both save paths (incomingWins). A stamp on
-// either side decides, with ties to stored. With no stamp on either side, only
-// an addition (more note text after stored, or more pins) beats stored.
+// Notes and pins share one rule (incomingWins). A stamp on either side
+// decides, with ties to stored. With no stamp on either side, the path picks:
+// a load takes the draft, a search or save keeps stored.
 assert.match(
   storage,
-  /if \(storedAt !== "" \|\| incomingAt !== ""\)\s*return stampMs\(incomingAt\) > stampMs\(storedAt\);\s*return adds\(stored, incoming\);/,
+  /if \(storedAt !== "" \|\| incomingAt !== ""\)\s*return stampMs\(incomingAt\) > stampMs\(storedAt\);\s*return tie === "draft";/,
+);
+assert.match(storage, /type UnstampedTie = "stored" \| "draft";/);
+assert.equal(
+  /noteAdds|pointsAdd|pointIds/.test(storage),
+  false,
+  "a missing-stamp tie must not depend on the edit being an addition",
 );
 assert.match(
   storage,
-  /incoming\.note\.length > stored\.note\.length &&\s*incoming\.note\.startsWith\(stored\.note\)/,
+  /function keepLandedResearch\(\s*existing: SavedMap \| undefined,\s*entry: SavedMap,\s*tie: UnstampedTie = "stored",\s*\)/,
+);
+// A loaded draft that won its pins on a tie gets a stamp, so the next search
+// (stored wins a tie) does not revert it.
+assert.match(
+  storage,
+  /const loadedPins =\s*tie === "draft" &&\s*existing !== undefined &&\s*!keepPoints &&\s*incomingPts === "" &&\s*existingPts === "" &&\s*!samePins\(existing, entry\);/,
 );
 assert.match(
   storage,
-  /have\.size > old\.length && old\.every\(\(id\) => have\.has\(id\)\)/,
+  /: loadedPins\s*\? \(entry\.updated \?\? new Date\(\)\.toISOString\(\)\)\s*: incomingPts;/,
 );
 assert.match(
   storage,
-  /existing !== undefined && !incomingNoteWins\(existing, entry\)/,
+  /existing !== undefined && !incomingNoteWins\(existing, entry, tie\)/,
 );
 assert.match(
   storage,
-  /existing !== undefined && !incomingPointsWin\(existing, entry\)/,
+  /existing !== undefined && !incomingPointsWin\(existing, entry, tie\)/,
 );
 assert.match(
   storage,
@@ -157,9 +169,17 @@ assert.match(
   storage,
   /stampMs\(editor\.pointsUpdated\) > stampMs\(stored\.pointsUpdated\)\s*\? \{\}\s*: storedPins\(editor, stored\);/,
 );
+// A pin edit during the save is merged per pin onto the saved pins.
+assert.match(storage, /function mergePinEdits\(/);
 assert.match(
   storage,
-  /const pins = pinsEdited \? \{\} : storedPins\(editor, saved\);/,
+  /const merged = mergePinEdits\(\s*snapshot\.points \?\? \[\],\s*editor\.points \?\? \[\],\s*saved\.points \?\? \[\],\s*\);/,
+);
+assert.match(storage, /const pins = pinsEdited\s*\? \{\s*points: merged,/);
+assert.equal(
+  /pinsEdited \? \{\} :/.test(storage),
+  false,
+  "a pin edit during a save must not skip the saved pins",
 );
 assert.match(
   storage,
@@ -224,7 +244,7 @@ assert.match(
   storage,
   /description is the text sent to the source search\. History, not the note\./,
 );
-assert.match(storage, /keepLandedResearch\(stored, raw\.entry\)/);
+assert.match(storage, /keepLandedResearch\(stored, raw\.entry, "draft"\)/);
 assert.match(storage, /function newerPoints/);
 assert.equal(
   /!pointsStamp\(draft\) && !pointsStamp\(stored\)/.test(storage),
@@ -239,6 +259,14 @@ assert.match(
   spec,
   /THEN \/\\ storeOk' = FALSE\s*\/\\ e1' = "absent"\s*\/\\ e2' = "absent"[\s\S]*?\/\\ c1' = FALSE\s*\/\\ c2' = FALSE/,
 );
+// The model's load takes and stamps the draft, a search keeps stored on a
+// tie, and a pin edit during the save is merged onto the saved pins.
+assert.match(
+  spec,
+  /draftUnstamped' = \(~LegacyKeepsStored \/\\ LoadSkipsStamp\)/,
+);
+assert.match(spec, /staleDraftWon' = LegacyResearchTakesDraft/);
+assert.match(spec, /\\\/ \(SkipPinsOnPinEdit \/\\ pinTouched\)/);
 const runner = read("verification/capture-save/run.sh");
 assert.match(runner, /WORKERS="\$\{TLC_WORKERS:-1\}"/);
 assert.match(runner, /-fp 0/);

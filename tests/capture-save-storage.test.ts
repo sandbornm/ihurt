@@ -202,7 +202,9 @@ const {
   saveResearch,
   editorAfterSave,
   withStampedResearch,
+  entryReferences,
 } = await import("../src/notebook-storage.ts");
+const { stringifyNotebook } = await import("../src/notebook-data.ts");
 
 type Row = {
   id: string;
@@ -783,4 +785,77 @@ test("a search keeps a newer stored note on the editor", async () => {
   await saveDraft(draftOf(next));
   const loaded = await loadNotebook();
   assert.equal(loaded.draft?.entry.note, "typed ahead");
+});
+
+test("a second save keeps a reading merged onto a newer search", async () => {
+  const versioned = {
+    ...research,
+    description: "versioned search",
+    version: "2026-01-03T00:00:00.000Z",
+    references: [
+      {
+        title: "Old knee",
+        url: "https://example.test/old",
+        publisher: "Example",
+        checked: "2026-01-02T00:00:00.000Z",
+      },
+    ],
+  };
+  const extra = {
+    title: "Related reading",
+    url: "https://example.test/extra-reading",
+    publisher: "Example",
+    checked: "2026-01-02T00:00:00.000Z",
+  };
+  await storeEntries([
+    entry("round", "saved later", {
+      updated: "2026-01-03T00:00:00.000Z",
+      research: versioned,
+      references: versioned.references,
+    }),
+  ]);
+  const [merged] = await storeEntries([
+    entry("round", "saved later", {
+      updated: "2026-01-02T00:00:00.000Z",
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+      research: { ...research, description: "no version" },
+      references: [...research.references, extra],
+    }),
+  ]);
+  assert.equal(merged?.research?.description, "versioned search");
+  assert.equal(
+    merged?.research?.references?.some((item) => item.url === extra.url),
+    true,
+  );
+  assert.equal(
+    merged?.references?.some((item) => item.url === extra.url),
+    true,
+  );
+  const topOnly = {
+    ...merged!,
+    research: {
+      ...merged!.research!,
+      references: merged!.research!.references.filter(
+        (item) => item.url !== extra.url,
+      ),
+    },
+  };
+  assert.equal(
+    entryReferences(topOnly).some((item) => item.url === extra.url),
+    true,
+  );
+  const snapshot = { ...merged!, references: entryReferences(merged!) };
+  const [again] = await storeEntries([snapshot]);
+  assert.equal(
+    again?.references?.some((item) => item.url === extra.url),
+    true,
+  );
+  assert.equal(
+    again?.research?.references?.some((item) => item.url === extra.url),
+    true,
+  );
+  assert.match(
+    stringifyNotebook([again!]),
+    /https:\/\/example\.test\/extra-reading/,
+  );
 });

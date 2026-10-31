@@ -65,6 +65,7 @@ import {
   removeEntry,
   editorAfterSave,
   withStampedResearch,
+  entryReferences,
   type Draft,
 } from "./notebook-storage";
 import { activities, activityName, activityRegions } from "./activities";
@@ -342,23 +343,18 @@ export default function Notebook({
   }
   function currentEntry(): SavedMap {
     const item = finishEntry(entry);
-    return {
-      ...item,
-      references: [
-        ...(item.research?.references ?? []),
-        ...findReadings(
-          item.map.regions,
-          `${note} ${item.map.activity}`,
-          readingSources,
-        ).map((r) => ({
-          title: r.title,
-          kind: r.type === "Video" ? ("video" as const) : ("article" as const),
-          url: r.url,
-          publisher: sources.find((s) => s.id === r.source)!.name,
-          checked: r.checked,
-        })),
-      ].filter((r, i, all) => all.findIndex((v) => v.url === r.url) === i),
-    };
+    const readings = findReadings(
+      item.map.regions,
+      `${note} ${item.map.activity}`,
+      readingSources,
+    ).map((r) => ({
+      title: r.title,
+      kind: r.type === "Video" ? ("video" as const) : ("article" as const),
+      url: r.url,
+      publisher: sources.find((s) => s.id === r.source)!.name,
+      checked: r.checked,
+    }));
+    return { ...item, references: entryReferences(item, readings) };
   }
   async function commit() {
     if (!valid || busy) return false;

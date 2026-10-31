@@ -103,9 +103,22 @@ function unionByUrl<T extends { url: string }>(
   );
 }
 
+// The open entry's link list. Research links stay first, then links already
+// on the row, then readings found for the current regions. The next save and
+// the backup both start from this list.
+export function entryReferences(
+  entry: SavedMap,
+  readings: NonNullable<SavedMap["references"]> = [],
+): NonNullable<SavedMap["references"]> {
+  return unionByUrl(
+    unionByUrl(entry.research?.references, entry.references),
+    readings,
+  );
+}
+
 // A save can still hold an older search after a newer one has committed.
-// Keep the newer research. Readings union by URL, stored links first.
-// The row time is the later stamp.
+// Keep the newer research. Readings union by URL, stored links first,
+// on the row and on that research list. The row time is the later stamp.
 function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   const incomingNote = noteStamp(entry);
   const existingNote = noteStamp(existing);
@@ -129,13 +142,16 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
     (entry.research === undefined ||
       researchVersion(existing) > researchVersion(entry));
   if (!existingNewer) return withTime;
+  const references = unionByUrl(
+    existing.references ?? existing.research?.references,
+    entry.references,
+  );
   return {
     ...withTime,
-    research: existing.research,
-    references: unionByUrl(
-      existing.references ?? existing.research?.references,
-      entry.references,
-    ),
+    research: existing.research
+      ? { ...existing.research, references }
+      : existing.research,
+    references,
   };
 }
 

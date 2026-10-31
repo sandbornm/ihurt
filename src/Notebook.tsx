@@ -63,6 +63,9 @@ import {
   saveResearch,
   storeEntries,
   removeEntry,
+  editorAfterSave,
+  withStampedResearch,
+  entryReferences,
   type Draft,
 } from "./notebook-storage";
 import { activities, activityName, activityRegions } from "./activities";
@@ -220,7 +223,13 @@ export default function Notebook({
     });
   };
   function change(patch: Partial<SavedMap>) {
-    setEntry((e) => ({ ...e, ...patch, updated: new Date().toISOString() }));
+    const now = new Date().toISOString();
+    setEntry((e) => ({
+      ...e,
+      ...patch,
+      updated: now,
+      ...(patch.note !== undefined ? { noteUpdated: now } : {}),
+    }));
   }
   function context(
     field: "title" | "quality" | "activity" | "duration" | "intensity",
@@ -334,23 +343,18 @@ export default function Notebook({
   }
   function currentEntry(): SavedMap {
     const item = finishEntry(entry);
-    return {
-      ...item,
-      references: [
-        ...(item.research?.references ?? []),
-        ...findReadings(
-          item.map.regions,
-          `${note} ${item.map.activity}`,
-          readingSources,
-        ).map((r) => ({
-          title: r.title,
-          kind: r.type === "Video" ? ("video" as const) : ("article" as const),
-          url: r.url,
-          publisher: sources.find((s) => s.id === r.source)!.name,
-          checked: r.checked,
-        })),
-      ].filter((r, i, all) => all.findIndex((v) => v.url === r.url) === i),
-    };
+    const readings = findReadings(
+      item.map.regions,
+      `${note} ${item.map.activity}`,
+      readingSources,
+    ).map((r) => ({
+      title: r.title,
+      kind: r.type === "Video" ? ("video" as const) : ("article" as const),
+      url: r.url,
+      publisher: sources.find((s) => s.id === r.source)!.name,
+      checked: r.checked,
+    }));
+    return { ...item, references: entryReferences(item, readings) };
   }
   async function commit() {
     if (!valid || busy) return false;
@@ -358,8 +362,10 @@ export default function Notebook({
     setBusy(true);
     setError("");
     try {
-      await storeEntries([item]);
-      setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
+      const [savedRow] = await storeEntries([item]);
+      const saved = savedRow ?? item;
+      setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
+      setEntry((current) => editorAfterSave(current, item, saved));
       setToast(t("notebook.toast.saved"));
       return true;
     } catch {
@@ -375,8 +381,9 @@ export default function Notebook({
       setBusy(true);
       const item = currentEntry();
       try {
-        await storeEntries([item]);
-        setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
+        const [savedRow] = await storeEntries([item]);
+        const saved = savedRow ?? item;
+        setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       } catch {
         setError(t("notebook.error.saveBeforeNew"));
         setBusy(false);
@@ -409,11 +416,9 @@ export default function Notebook({
     try {
       if (valid && entry.id !== item.id) {
         const previous = currentEntry();
-        await storeEntries([previous]);
-        setSaved((old) => [
-          ...old.filter((e) => e.id !== previous.id),
-          previous,
-        ]);
+        const [savedRow] = await storeEntries([previous]);
+        const saved = savedRow ?? previous;
+        setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       }
       openEntry(item);
     } catch {
@@ -443,8 +448,9 @@ export default function Notebook({
   async function undoDelete() {
     if (!removed) return;
     try {
-      await storeEntries([removed]);
-      setSaved((old) => [...old.filter((e) => e.id !== removed.id), removed]);
+      const [savedRow] = await storeEntries([removed]);
+      const saved = savedRow ?? removed;
+      setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       setRemoved(null);
       setToast(t("notebook.toast.restored"));
     } catch {
@@ -470,8 +476,8 @@ export default function Notebook({
           },
         ];
       });
-      await storeEntries(additions);
-      setSaved((old) => [...old, ...additions]);
+      const stored = await storeEntries(additions);
+      setSaved((old) => [...old, ...stored]);
       setTab("journal");
       setToast(t("notebook.toast.imported", { count: additions.length }));
     } catch (e) {
@@ -1342,13 +1348,7 @@ export default function Notebook({
                         if (!updated)
                           throw Error(t("notebook.error.removedDuringSearch"));
                         setEntry((e) =>
-                          e.id === entry.id
-                            ? {
-                                ...e,
-                                research,
-                                updated: new Date().toISOString(),
-                              }
-                            : e,
+                          withStampedResearch(e, entry.id, updated),
                         );
                         setSaved((old) => [
                           ...old.filter((e) => e.id !== updated.id),

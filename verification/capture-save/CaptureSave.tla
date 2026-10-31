@@ -32,6 +32,8 @@ CONSTANTS
   CountFieldSecond,      \* cover only. Counts a non-note edit, then the next save
   FallbackToUpdated,     \* old noteStamp falls back to updated when noteUpdated is missing
   CountLegacyFieldSecond,\* cover only. Counts a field edit on a row with no note stamp, then the next save
+  TieTakesIncoming,      \* old keepLandedResearch: two missing note stamps tie and the snapshot note wins
+  SearchStampsNow,       \* old saveResearch: a missing note stamp becomes the search time
   ModelRaces             \* FALSE only in the chart config, which omits these races
 
 \* Research rank. 0 is none. 1 is present with no version. 2 is v1. 3 is v2.
@@ -85,7 +87,8 @@ VARIABLES
   afterField,  \* 0 none, 1 a non-note edit was caught up, 2 a later save committed
   researchExtra,\* the extra reading is on research.references as well as the row
   legacy,      \* the editor has no noteUpdated (blankEntry, import, example, old row)
-  rowLegacy    \* the stored row has no noteUpdated
+  rowLegacy,   \* the stored row has no noteUpdated
+  typed        \* rank of a note typed in the editor before the draft write ran
 
 vars == <<
   phase, flightT, flightX, text, filled, revised,
@@ -94,12 +97,12 @@ vars == <<
   draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
   resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, draftNote, best, laundered,
   editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra,
-  legacy, rowLegacy
+  legacy, rowLegacy, typed
 >>
 
 \* Left unchanged by actions that do not assign them.
 noteVars == <<cardStale, owedExtra, extra, note, draftNote, best, laundered, rowLegacy>>
-editorVars == <<editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra, legacy>>
+editorVars == <<editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra, legacy, typed>>
 
 TypeOK ==
   /\ phase \in {"shut", "idle", "recording", "processing", "extracting", "ready", "error"}
@@ -124,6 +127,7 @@ TypeOK ==
   /\ pending \in BOOLEAN /\ newerKept \in BOOLEAN
   /\ afterField \in 0..2 /\ researchExtra \in BOOLEAN
   /\ legacy \in BOOLEAN /\ rowLegacy \in BOOLEAN
+  /\ typed \in 0..2
 
 \* After save returns, that id is still in the store until the person deletes it.
 ConfirmedPresent ==
@@ -174,6 +178,10 @@ EditorNoteNotStale ==
 \* The stored note is never older than the newest note a write had to keep.
 NewestNoteKept == note >= best
 
+\* A note typed in the editor is not replaced by an older note before a save
+\* stores it. A search must not make the stored note look newer.
+TypedNoteKept == editorNote >= typed \/ note >= typed
+
 \* The journal card shows the merged row, not the snapshot from before the merge.
 CardMatchesStore == ~cardStale
 
@@ -216,6 +224,7 @@ Init ==
   /\ pending = FALSE /\ newerKept = FALSE
   /\ afterField = 0 /\ researchExtra = FALSE
   /\ legacy = TRUE /\ rowLegacy = TRUE
+  /\ typed = 0
 
 panel == phase \in {"idle", "ready", "error", "extracting"}
 
@@ -460,23 +469,35 @@ PressSave ==
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1,
        c2, snap2, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest, storedAt, owed,
-       editorResearch, fresh, owedNote, resurrected, lateDeleteSeen, editorNote, pending, afterField, researchExtra, legacy>>
+       editorResearch, fresh, owedNote, resurrected, lateDeleteSeen, editorNote, pending, afterField, researchExtra, legacy, typed>>
   /\ UNCHANGED noteVars
 
 DoubleTap ==
   /\ busy
   /\ UNCHANGED vars
 
+\* AheadOk: both rows were saved before noteUpdated existed, and another writer
+\* left a newer note on the stored row while this save was writing. Both stamps
+\* are missing, so they tie. That write is folded into this step, so a save that
+\* fails or a reload in between never sees it.
+AheadOk ==
+  /\ ModelRaces /\ legacy /\ rowLegacy /\ ~newerKept
+  /\ note < 2 /\ snapNote = note /\ draftNote <= note
+
 SaveCommits ==
   /\ busy
-  /\ LET land == snapResearch = 1 /\ research >= 2 /\ ~DropResearch /\ ~OverwriteNewerResearch
-         stored == IF ModelRaces /\ newerKept /\ note < 2 THEN note + 1 ELSE note
+  /\ \E ahead \in IF AheadOk THEN BOOLEAN ELSE {FALSE} :
+     LET land == snapResearch = 1 /\ research >= 2 /\ ~DropResearch /\ ~OverwriteNewerResearch
+         stored == IF (ModelRaces /\ newerKept /\ note < 2) \/ ahead THEN note + 1 ELSE note
          drafted == IF ModelRaces /\ draftNote > stored THEN draftNote ELSE stored
          ranked == IF ModelRaces /\ snapNote > drafted THEN snapNote ELSE drafted
          \* Old noteStamp used updated. An unstamped editor with a later field
          \* edit then looks newer than a stamped stored note.
          overwrite == FallbackToUpdated /\ legacy /\ ~rowLegacy
-         chosen == IF overwrite THEN snapNote ELSE ranked
+         \* Both stamps missing. The real merge keeps the stored note on a tie.
+         tie == TieTakesIncoming /\ legacy /\ rowLegacy
+         chosen == IF overwrite \/ tie THEN snapNote ELSE ranked
+         kept == IF ahead /\ stored > chosen THEN stored ELSE chosen
      IN /\ busy' = FALSE
         /\ retrySeen' = (retrySeen \/ (e1 = "saved" /\ ~WriteWrongId /\ ~ReplaceWholeNotebook))
         /\ newerKept' = FALSE
@@ -486,7 +507,7 @@ SaveCommits ==
                 /\ pending' = FALSE
                 /\ UNCHANGED <<e1, c1, c2, banned, storeOk, research, newest, storedAt, owed,
                      editorResearch, snapResearch, fresh, owedNote, resurrected,
-                     lateDeleteSeen, editorNote, snapNote, touch, afterField, researchExtra, legacy>>
+                     lateDeleteSeen, editorNote, snapNote, touch, afterField, researchExtra, legacy, typed>>
                 /\ UNCHANGED noteVars
            ELSE /\ wrongWrite' = FALSE
                 /\ e1' = IF ReplaceWholeNotebook
@@ -522,10 +543,10 @@ SaveCommits ==
                                     ELSE IF land THEN TRUE
                                     ELSE researchExtra
                 /\ note' = chosen
-                /\ best' = IF ~ModelRaces THEN best ELSE IF chosen > best THEN chosen ELSE best
+                /\ best' = IF ~ModelRaces THEN best ELSE IF kept > best THEN kept ELSE best
                 /\ rowLegacy' = FALSE
                 /\ UNCHANGED <<newest, owed, editorResearch, snapResearch, resurrected,
-                     lateDeleteSeen, draftNote, laundered, editorNote, snapNote, touch, legacy>>
+                     lateDeleteSeen, draftNote, laundered, editorNote, snapNote, touch, legacy, typed>>
         /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, snap2, undo,
              dropped, clobber, lateSeen, failSeen, undoSeen, draftStored>>
 
@@ -553,10 +574,10 @@ SaveFails ==
           /\ note' = 0 /\ draftNote' = 0 /\ best' = 0 /\ laundered' = FALSE
           /\ editorNote' = 0 /\ snapNote' = 0
           /\ afterField' = 0 /\ researchExtra' = FALSE
-          /\ legacy' = TRUE /\ rowLegacy' = TRUE
+          /\ legacy' = TRUE /\ rowLegacy' = TRUE /\ typed' = 0
      ELSE /\ snapNote' = editorNote
           /\ UNCHANGED <<storeOk, e1, e2, research, newest, storedAt, owed, editorResearch,
-               snapResearch, fresh, owedNote, editorNote, afterField, researchExtra, legacy>>
+               snapResearch, fresh, owedNote, editorNote, afterField, researchExtra, legacy, typed>>
           /\ UNCHANGED noteVars
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, c1, c2, snap2,
        undo, dropped, banned, clobber, wrongWrite, lateSeen, undoSeen,
@@ -575,7 +596,7 @@ DeleteEntry ==
   /\ editorNote' = 0 /\ snapNote' = 0 /\ touch' = "none"
   /\ pending' = FALSE /\ newerKept' = FALSE
   /\ afterField' = 0 /\ researchExtra' = FALSE
-  /\ legacy' = TRUE /\ rowLegacy' = TRUE
+  /\ legacy' = TRUE /\ rowLegacy' = TRUE /\ typed' = 0
   /\ UNCHANGED <<phase, flightT, flightX, e2, c2, snap2, busy, dropped, banned,
        clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen, retrySeen,
        resurrected, lateDeleteSeen>>
@@ -607,7 +628,7 @@ Reload ==
        clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen, retrySeen,
        draftStored, research, newest, storedAt, owed, editorResearch, snapResearch, fresh, owedNote, resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
-  /\ UNCHANGED <<editorNote, pending, afterField, researchExtra, legacy>>
+  /\ UNCHANGED <<editorNote, pending, afterField, researchExtra, legacy, typed>>
 
 \* A second tab puts a different id. It does not replace this tab's record.
 OtherTabSaves ==
@@ -718,7 +739,7 @@ TypeNote ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, best,
-       laundered, touch, pending, newerKept, afterField, researchExtra, rowLegacy>>
+       laundered, touch, pending, newerKept, afterField, researchExtra, rowLegacy, typed>>
 
 \* The old save copies the research stamp onto an older note.
 StaleNoteSave ==
@@ -759,7 +780,7 @@ ResearchKeepsNote ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, draftNote,
-       laundered, touch, pending, newerKept, afterField, researchExtra, rowLegacy>>
+       laundered, touch, pending, newerKept, afterField, researchExtra, rowLegacy, typed>>
 
 \* A title, pin, or context edit while storeEntries is writing.
 \* updated changes. The note stamp does not.
@@ -772,7 +793,7 @@ EditFieldWhileSaving ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
-  /\ UNCHANGED <<editorNote, snapNote, pending, newerKept, afterField, researchExtra, legacy>>
+  /\ UNCHANGED <<editorNote, snapNote, pending, newerKept, afterField, researchExtra, legacy, typed>>
 
 \* The note itself changes while storeEntries is writing.
 \* The draft rank moves with it, same as a note typed while the screen is idle.
@@ -786,7 +807,7 @@ EditNoteWhileSaving ==
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
-       resurrected, lateDeleteSeen, snapNote, pending, newerKept, afterField, researchExtra>>
+       resurrected, lateDeleteSeen, snapNote, pending, newerKept, afterField, researchExtra, typed>>
   /\ UNCHANGED <<cardStale, owedExtra, extra, note, best, laundered, rowLegacy>>
 
 \* keepLandedResearch keeps a stored note whose stamp is newer than the snapshot.
@@ -803,7 +824,7 @@ MergeKeepsNewer ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen>>
   /\ UNCHANGED noteVars
-  /\ UNCHANGED <<editorNote, snapNote, touch, pending, afterField, researchExtra, legacy>>
+  /\ UNCHANGED <<editorNote, snapNote, touch, pending, afterField, researchExtra, legacy, typed>>
 
 \* editorAfterSave. A note edit keeps the editor note.
 \* Any other edit, or no edit, takes the stored note.
@@ -826,8 +847,36 @@ EditorAfterSave ==
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
-       resurrected, lateDeleteSeen, newerKept, researchExtra>>
+       resurrected, lateDeleteSeen, newerKept, researchExtra, typed>>
   /\ UNCHANGED noteVars
+
+\* The user types a note. The draft write has not run yet. A search then lands
+\* on a row whose note has no noteUpdated. saveResearch stamps that note with
+\* the row's own updated, which is older than the typed stamp, so
+\* withStampedResearch keeps the typed note. SearchStampsNow stamps the stored
+\* note with the search time, and the older note replaces the typed one.
+SearchOverTypedNote ==
+  /\ ModelRaces /\ ~busy /\ ~pending /\ phase = "shut" /\ filled
+  /\ e1 \in {"saved", "dup"} /\ rowLegacy
+  /\ note < 2 /\ editorNote = note /\ draftNote = note
+  /\ newest < 3
+  /\ newest' = IF newest < 2 THEN 2 ELSE 3
+  /\ research' = newest'
+  /\ storedAt' = newest'
+  /\ owed' = TRUE
+  /\ editorResearch' = newest'
+  /\ snapResearch' = 0
+  /\ typed' = note + 1
+  /\ editorNote' = IF SearchStampsNow THEN note ELSE note + 1
+  /\ snapNote' = editorNote'
+  /\ legacy' = FALSE
+  /\ rowLegacy' = FALSE
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored,
+       fresh, owedNote, resurrected, lateDeleteSeen>>
+  /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered>>
+  /\ UNCHANGED <<touch, pending, newerKept, afterField, researchExtra>>
 
 Wait ==
   UNCHANGED vars
@@ -870,6 +919,7 @@ Next ==
   \/ EditNoteWhileSaving
   \/ MergeKeepsNewer
   \/ EditorAfterSave
+  \/ SearchOverTypedNote
   \/ Wait
 
 \* Used only by cfg/chart.cfg so the picture stays readable.

@@ -37,3 +37,5 @@ mutant_union_top_level_only.cfg FAIL ReadingsKept
 cover_field_edit.cfg FAIL CoverFieldSecond
 mutant_fallback_to_updated.cfg FAIL EditorNoteNotStale
 cover_legacy_field.cfg FAIL CoverLegacyFieldSecond
+mutant_tie_takes_incoming.cfg FAIL NewestNoteKept
+mutant_search_stamps_now.cfg FAIL TypedNoteKept

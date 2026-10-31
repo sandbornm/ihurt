@@ -1355,7 +1355,13 @@ export default function Notebook({
                       entry={currentEntry()}
                       sources={readingSources}
                       onSave={async (research) => {
-                        const updated = await saveResearch(entry.id, research);
+                        const updated = await saveResearch(
+                          entry.id,
+                          research,
+                          // The latest editor, which the autosave has not
+                          // written yet. The search merges against it.
+                          draftRef.current.entry,
+                        );
                         if (!updated)
                           throw Error(t("notebook.error.removedDuringSearch"));
                         setEntry((e) =>

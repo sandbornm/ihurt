@@ -104,7 +104,33 @@ assert.match(notebook, /if \(!valid \|\| busy\) return false;/);
 assert.match(notebook, /disabled=\{!valid \|\| busy\}/);
 assert.match(notebook, /window\.addEventListener\("pagehide", flush\)/);
 assert.match(notebook, /applyVoiceDraft\(entry, draft\)/);
-assert.match(notebook, /await saveResearch\(entry\.id, research\)/);
+assert.match(
+  notebook,
+  /await saveResearch\(\s*entry\.id,\s*research,[\s\S]{0,300}?draftRef\.current\.entry,\s*\)/,
+);
+// Load writes the draft it reconciled back in its own readwrite transaction,
+// so it resolves only after the stamped draft is stored.
+assert.match(
+  storage,
+  /db\.transaction\(\["entries", "settings"\], "readwrite"\);\s*const settings = tx\.objectStore\("settings"\);\s*const entries = tx\.objectStore\("entries"\)\.getAll\(\),\s*draft = settings\.get\("draft"\);/,
+);
+assert.match(
+  storage,
+  /JSON\.stringify\(result\) !== JSON\.stringify\(raw\)\)\s*settings\.put\(result, "draft"\);/,
+);
+assert.match(
+  storage,
+  /entries\.onsuccess = reconcile;\s*draft\.onsuccess = reconcile;/,
+);
+assert.match(
+  storage,
+  /tx\.oncomplete = \(\) => resolve\(\{ entries: list, draft: result \}\);/,
+);
+// saveResearch merges against the open editor when it is this entry.
+assert.match(
+  storage,
+  /const draftEntry = editor\?\.id === entryId \? editor : savedDraft;/,
+);
 assert.match(notebook, /e\.id === entry\.id/);
 assert.match(notebook, /withStampedResearch\(e, entry\.id, updated\)/);
 assert.match(notebook, /const \[savedRow\] = await storeEntries\(\[item\]\);/);
@@ -263,7 +289,15 @@ assert.match(
 // tie, and a pin edit during the save is merged onto the saved pins.
 assert.match(
   spec,
-  /draftUnstamped' = \(~LegacyKeepsStored \/\\ LoadSkipsStamp\)/,
+  /loadStamp' = IF LegacyKeepsStored THEN "idle"\s*ELSE IF LoadSkipsStamp THEN "none"\s*ELSE IF LoadStampsInMemoryOnly THEN "memory"\s*ELSE "stored"/,
+);
+assert.match(
+  spec,
+  /draftLost' = CASE loadStamp = "stored" -> FALSE\s*\[\] loadStamp = "memory" -> src = "other"\s*\[\] OTHER -> TRUE/,
+);
+assert.match(
+  spec,
+  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad ELSE Settled/,
 );
 assert.match(spec, /staleDraftWon' = LegacyResearchTakesDraft/);
 assert.match(spec, /\\\/ \(SkipPinsOnPinEdit \/\\ pinTouched\)/);

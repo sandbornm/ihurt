@@ -1749,6 +1749,97 @@ test("a search after load keeps the legacy draft's edits", async () => {
   assert.equal(saved?.points?.length, 1);
 });
 
+test("a search right after load, before any autosave, keeps the legacy draft", async () => {
+  // The autosave runs about 280 ms after hydration. A search inside that
+  // window must still see the draft load took, not the old stored row.
+  const open = await loadLegacy(
+    "ld-race",
+    {
+      note: "ache, much worse at night",
+      points: [pinAt("pin-1"), pinAt("pin-2")],
+      map: neckMap("ache, much worse at night", ["neck"]),
+    },
+    {
+      note: "ache at night",
+      points: [pinAt("pin-1", { position: [0, 2, 0] })],
+      map: neckMap("ache at night", ["neck"]),
+    },
+  );
+  assert.equal(open?.note, "ache at night");
+  const after = await saveResearch("ld-race", research);
+  assert.equal(after?.note, "ache at night");
+  assert.equal(after?.map.summary, "ache at night");
+  assert.deepEqual(
+    after?.points?.map((p) => [p.id, p.position[1]]),
+    [["pin-1", 2]],
+  );
+  const reloaded = await loadNotebook();
+  assert.equal(reloaded.draft?.entry.note, "ache at night");
+  assert.equal(reloaded.draft?.entry.points?.length, 1);
+  const row = reloaded.entries.find((e) => e.id === "ld-race");
+  assert.equal(row?.note, "ache at night");
+  assert.equal(row?.points?.length, 1);
+});
+
+test("load writes the stamped legacy draft before it resolves", async () => {
+  const open = await loadLegacy(
+    "ld-persist",
+    { note: "ache", points: [pinAt("pin-1")], map: neckMap("ache", ["neck"]) },
+    { note: "ache, typed", points: [], map: neckMap("ache, typed", []) },
+  );
+  const stored = committed.settings.get("draft") as {
+    entry: ReturnType<typeof entry>;
+  };
+  assert.equal(stored.entry.note, "ache, typed");
+  assert.deepEqual(stored.entry.points, []);
+  assert.equal(typeof stored.entry.noteUpdated, "string");
+  assert.equal(typeof stored.entry.pointsUpdated, "string");
+  assert.equal(stored.entry.noteUpdated, open?.noteUpdated);
+  assert.equal(stored.entry.pointsUpdated, open?.pointsUpdated);
+});
+
+test("load leaves a draft with no stored row as it is", async () => {
+  // Guard: only a draft that load reconciled with a stored row is rewritten.
+  await saveDraft(draftOf(entry("ld-new", "fresh", { updated: T1 })));
+  const loaded = await loadNotebook();
+  const stored = committed.settings.get("draft") as {
+    entry: ReturnType<typeof entry>;
+  };
+  assert.equal(stored.entry.noteUpdated, undefined);
+  assert.equal(loaded.draft?.entry.noteUpdated, undefined);
+});
+
+test("saveResearch merges against the open editor, not only the stored row", async () => {
+  // The stored draft is still the unstamped legacy copy, but the editor holds
+  // the stamped draft that load took.
+  putLegacyRow(entry("live", "ache", { updated: T2 }));
+  await saveDraft(draftOf(entry("live", "ache, typed", { updated: T1 })));
+  const T3 = "2026-01-04T00:00:00.000Z";
+  const editor = entry("live", "ache, typed more", {
+    updated: T3,
+    noteUpdated: T3,
+    pointsUpdated: T3,
+    points: [],
+    map: neckMap("ache, typed more", []),
+  });
+  const after = await saveResearch("live", research, editor);
+  assert.equal(after?.note, "ache, typed more");
+  assert.equal(after?.noteUpdated, T3);
+  assert.deepEqual(after?.points, []);
+  const reloaded = await loadNotebook();
+  assert.equal(
+    reloaded.entries.find((e) => e.id === "live")?.note,
+    "ache, typed more",
+  );
+});
+
+test("saveResearch with an unstamped editor still keeps stored on a tie", async () => {
+  putLegacyRow(entry("live-tie", "stored note", { updated: T2 }));
+  const editor = entry("live-tie", "editor note", { updated: T1 });
+  const after = await saveResearch("live-tie", research, editor);
+  assert.equal(after?.note, "stored note");
+});
+
 test("editorAfterSave applies a pin removal and a move made during the save", () => {
   const p1 = pinAt("pin-1"),
     p2 = pinAt("pin-2"),

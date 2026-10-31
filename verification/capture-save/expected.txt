@@ -48,3 +48,5 @@ mutant_load_skips_stamp.cfg FAIL LegacyDraftKept
 mutant_legacy_research_takes_draft.cfg FAIL SearchKeepsStoredOnTie
 mutant_skip_pins_on_pin_edit.cfg FAIL EditorPinsCurrent
 cover_pin_edit.cfg FAIL CoverPinEdit
+mutant_load_stamps_in_memory.cfg FAIL LegacyDraftKept
+cover_search_after_load.cfg FAIL CoverSearchAfterLoad

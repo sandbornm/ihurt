@@ -39,8 +39,10 @@ CONSTANTS
   LegacyKeepsStored,     \* old load: no stamp on either side keeps stored, so the draft's edit is lost
   EditorKeepsOldPins,    \* old editorAfterSave/withStampedResearch leave the editor's older pins
   LoadSkipsStamp,        \* load takes the draft but leaves it unstamped, so a later search reverts it
+  LoadStampsInMemoryOnly,\* 41347e7 load: stamps the draft in memory and leaves the stored draft to the autosave
   LegacyResearchTakesDraft, \* a search on an unstamped tie takes the draft over the stored row
   SkipPinsOnPinEdit,     \* old editorAfterSave: a pin edit during the save skips the merged pins
+  MarkSearch,            \* TRUE only in cover_search_after_load: the search leaves a mark; else it returns to idle
   ModelRaces             \* FALSE only in the chart config, which omits these races
 
 \* Research rank. 0 is none. 1 is present with no version. 2 is v1. 3 is v2.
@@ -100,7 +102,7 @@ VARIABLES
   pinDropped,  \* a later save wrote empty points over a stored pin
   draftLost,   \* a legacy draft's added note text or pins were replaced by the stored row
   editorPinsStale,\* the editor holds older pins than the row after a save or search
-  draftUnstamped,\* a loaded legacy draft won but carries no stamp
+  loadStamp,   \* where a legacy load's stamp is, until the next search: "idle", "none", "memory", "stored", "searched"
   staleDraftWon, \* a search took an unstamped draft over the stored row
   pinTouched     \* the user edited pins while storeEntries was writing
 
@@ -112,11 +114,11 @@ vars == <<
   resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, draftNote, best, laundered,
   editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra,
   legacy, rowLegacy, typed, summaryStale, pinDropped, draftLost, editorPinsStale,
-  draftUnstamped, staleDraftWon, pinTouched
+  loadStamp, staleDraftWon, pinTouched
 >>
 
 \* Left unchanged by actions that do not assign them.
-noteVars == <<cardStale, owedExtra, extra, note, draftNote, best, laundered, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+noteVars == <<cardStale, owedExtra, extra, note, draftNote, best, laundered, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
 editorVars == <<editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra, legacy, typed, pinTouched>>
 
 TypeOK ==
@@ -145,7 +147,7 @@ TypeOK ==
   /\ typed \in 0..2
   /\ summaryStale \in BOOLEAN /\ pinDropped \in BOOLEAN
   /\ draftLost \in BOOLEAN /\ editorPinsStale \in BOOLEAN
-  /\ draftUnstamped \in BOOLEAN /\ staleDraftWon \in BOOLEAN /\ pinTouched \in BOOLEAN
+  /\ loadStamp \in {"idle", "none", "memory", "stored", "searched"} /\ staleDraftWon \in BOOLEAN /\ pinTouched \in BOOLEAN
 
 \* After save returns, that id is still in the store until the person deletes it.
 ConfirmedPresent ==
@@ -238,6 +240,7 @@ CoverNewestNote == ~(note = 2 /\ best = 2 /\ draftNote = 2)
 CoverMerged == ~(c1 /\ ~cardStale /\ ~busy /\ ~pending /\ research > snapResearch /\ snapResearch > 0 /\ e1 \in {"saved", "dup"})
 CoverFieldSecond == ~(afterField = 2 /\ ~pending /\ ~busy /\ editorNote >= note)
 CoverPinEdit == ~(pending /\ pinTouched)
+CoverSearchAfterLoad == loadStamp # "searched"
 CoverLegacyFieldSecond == ~(afterField = 2 /\ ~pending /\ ~busy /\ editorNote >= note /\ ~legacy /\ ~rowLegacy)
 
 Init ==
@@ -263,7 +266,7 @@ Init ==
   /\ typed = 0
   /\ summaryStale = FALSE /\ pinDropped = FALSE
   /\ draftLost = FALSE /\ editorPinsStale = FALSE
-  /\ draftUnstamped = FALSE /\ staleDraftWon = FALSE /\ pinTouched = FALSE
+  /\ loadStamp = "idle" /\ staleDraftWon = FALSE /\ pinTouched = FALSE
 
 panel == phase \in {"idle", "ready", "error", "extracting"}
 
@@ -588,7 +591,7 @@ SaveCommits ==
                 /\ rowLegacy' = FALSE
                 /\ summaryStale' = (StaleSummary /\ chosen /= snapNote)
                 /\ pinDropped' = (DropStoredPins /\ e1 = "saved")
-                /\ UNCHANGED <<draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+                /\ UNCHANGED <<draftLost, editorPinsStale, loadStamp, staleDraftWon>>
                 /\ UNCHANGED <<newest, owed, editorResearch, snapResearch, resurrected,
                      lateDeleteSeen, draftNote, laundered, editorNote, snapNote, touch, legacy, typed>>
         /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, snap2, undo,
@@ -627,7 +630,7 @@ SaveFails ==
           /\ legacy' = TRUE /\ rowLegacy' = TRUE /\ typed' = 0
           /\ summaryStale' = FALSE /\ pinDropped' = FALSE
           /\ draftLost' = FALSE /\ editorPinsStale' = FALSE
-          /\ draftUnstamped' = FALSE /\ staleDraftWon' = FALSE
+          /\ loadStamp' = "idle" /\ staleDraftWon' = FALSE
      ELSE /\ snapNote' = editorNote
           /\ UNCHANGED <<storeOk, e1, e2, c1, c2, research, newest, storedAt, owed, editorResearch,
                snapResearch, fresh, owedNote, editorNote, afterField, researchExtra, legacy, typed>>
@@ -652,7 +655,7 @@ DeleteEntry ==
   /\ legacy' = TRUE /\ rowLegacy' = TRUE /\ typed' = 0
   /\ summaryStale' = FALSE /\ pinDropped' = FALSE
           /\ draftLost' = FALSE /\ editorPinsStale' = FALSE
-          /\ draftUnstamped' = FALSE /\ staleDraftWon' = FALSE
+          /\ loadStamp' = "idle" /\ staleDraftWon' = FALSE
   /\ UNCHANGED pinTouched
   /\ UNCHANGED <<phase, flightT, flightX, e2, c2, snap2, busy, dropped, banned,
        clobber, storeOk, wrongWrite, lateSeen, failSeen, undoSeen, retrySeen,
@@ -799,7 +802,7 @@ TypeNote ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, best,
        laundered, touch, pending, newerKept, afterField, researchExtra, rowLegacy, typed,
-       summaryStale, pinDropped, draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+       summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
 
 \* The old save copies the research stamp onto an older note.
 StaleNoteSave ==
@@ -815,7 +818,7 @@ StaleNoteSave ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note,
-       draftNote, best, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+       draftNote, best, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
   /\ UNCHANGED editorVars
 
 \* saveResearch keeps the newer note. The mutant writes the laundered note.
@@ -843,7 +846,7 @@ ResearchKeepsNote ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, cardStale, owedExtra, extra, draftNote,
        laundered, touch, pending, newerKept, afterField, researchExtra, rowLegacy, typed,
-       pinDropped, draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+       pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
 
 \* A title, pin, or context edit while storeEntries is writing.
 \* updated changes. The note stamp does not.
@@ -873,7 +876,7 @@ EditNoteWhileSaving ==
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, snapNote, pending, newerKept, afterField, researchExtra, typed>>
-  /\ UNCHANGED <<cardStale, owedExtra, extra, note, best, laundered, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+  /\ UNCHANGED <<cardStale, owedExtra, extra, note, best, laundered, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
 
 \* keepLandedResearch keeps a stored note whose stamp is newer than the snapshot.
 \* The row already exists. The editor still shows the snapshot note, so this is
@@ -922,7 +925,7 @@ EditorAfterSave ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen, newerKept, researchExtra, typed>>
   /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered,
-       rowLegacy, summaryStale, pinDropped, draftLost, draftUnstamped, staleDraftWon>>
+       rowLegacy, summaryStale, pinDropped, draftLost, loadStamp, staleDraftWon>>
 
 \* The user types a note. The draft write has not run yet. A search then lands
 \* on a row whose note has no noteUpdated. saveResearch stamps that note with
@@ -950,19 +953,25 @@ SearchOverTypedNote ==
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored,
        fresh, owedNote, resurrected, lateDeleteSeen>>
-  /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered, summaryStale, pinDropped, draftLost, editorPinsStale, draftUnstamped, staleDraftWon>>
+  /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
   /\ UNCHANGED <<touch, pending, newerKept, afterField, researchExtra>>
 
 \* loadNotebook reads a draft for a row, and neither has a noteUpdated or
 \* pointsUpdated stamp. The draft differs: added, deleted, or rewritten text, a
 \* moved, re-commented, added, or removed pin. The draft exists only because of
-\* unsaved typing, so load takes it and stamps it. LegacyKeepsStored keeps the
-\* stored row. LoadSkipsStamp takes the draft without a stamp.
+\* unsaved typing, so load takes it, stamps it, and writes the stamped draft
+\* back in the same transaction before it resolves. LegacyKeepsStored keeps
+\* the stored row. LoadSkipsStamp takes the draft without a stamp.
+\* LoadStampsInMemoryOnly stamps the editor's copy and leaves the stored draft
+\* unstamped until the autosave runs about 280 ms later.
 LoadLegacyDraft ==
   /\ ModelRaces /\ ~busy /\ ~pending /\ phase = "shut"
-  /\ e1 \in {"saved", "dup"} /\ rowLegacy /\ legacy /\ ~draftLost /\ ~draftUnstamped
+  /\ e1 \in {"saved", "dup"} /\ rowLegacy /\ legacy /\ ~draftLost /\ loadStamp = "idle"
   /\ draftLost' = LegacyKeepsStored
-  /\ draftUnstamped' = (~LegacyKeepsStored /\ LoadSkipsStamp)
+  /\ loadStamp' = IF LegacyKeepsStored THEN "idle"
+                  ELSE IF LoadSkipsStamp THEN "none"
+                  ELSE IF LoadStampsInMemoryOnly THEN "memory"
+                  ELSE "stored"
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
@@ -972,12 +981,19 @@ LoadLegacyDraft ==
        rowLegacy, summaryStale, pinDropped, editorPinsStale, staleDraftWon>>
   /\ UNCHANGED editorVars
 
-\* A search or save after that load. Both keep stored on a missing-stamp tie,
-\* so a loaded draft with no stamp loses its edit here.
+\* A search right after that load, before the autosave writes the draft.
+\* saveResearch merges the stored row with the stored draft and the editor it
+\* is given, and keeps stored on a missing-stamp tie. src "editor" is the tab
+\* that loaded, so its editor carries the in-memory stamp. src "other" is a
+\* reader without that editor (a second tab on the entry), so only a stamp in
+\* the stored draft saves the edit.
 SearchAfterLegacyLoad ==
-  /\ draftUnstamped
-  /\ draftUnstamped' = FALSE
-  /\ draftLost' = TRUE
+  /\ loadStamp \in {"none", "memory", "stored"}
+  /\ \E src \in {"editor", "other"}:
+       draftLost' = CASE loadStamp = "stored" -> FALSE
+                      [] loadStamp = "memory" -> src = "other"
+                      [] OTHER -> TRUE
+  /\ loadStamp' = IF MarkSearch THEN "searched" ELSE "idle"
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
@@ -1000,7 +1016,7 @@ LegacyResearchTie ==
        storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
        resurrected, lateDeleteSeen>>
   /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered,
-       rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, draftUnstamped>>
+       rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp>>
   /\ UNCHANGED editorVars
 
 \* A pin is added, moved, re-commented, or removed while storeEntries writes.
@@ -1018,7 +1034,25 @@ EditPinWhileSaving ==
 Wait ==
   UNCHANGED vars
 
-Next ==
+\* The 280 ms between a legacy load and its autosave. Only a search or the
+\* autosave runs in it, which keeps the state space near its old size.
+LoadWindow == loadStamp \in {"none", "memory", "stored"}
+
+\* The autosave writes the editor's stamped draft and closes the window.
+\* LoadSkipsStamp has no stamp to write, so its window ends only in a search.
+AutosaveAfterLoad ==
+  /\ loadStamp \in {"memory", "stored"}
+  /\ loadStamp' = "idle"
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
+       storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
+       resurrected, lateDeleteSeen>>
+  /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered,
+       rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, staleDraftWon>>
+  /\ UNCHANGED editorVars
+
+Settled ==
   \/ OpenVoice
   \/ StartRecording
   \/ StopRecording
@@ -1058,10 +1092,12 @@ Next ==
   \/ EditorAfterSave
   \/ SearchOverTypedNote
   \/ LoadLegacyDraft
-  \/ SearchAfterLegacyLoad
   \/ LegacyResearchTie
   \/ EditPinWhileSaving
   \/ Wait
+
+Next ==
+  IF LoadWindow THEN SearchAfterLegacyLoad \/ AutosaveAfterLoad ELSE Settled
 
 \* Used only by cfg/chart.cfg so the picture stays readable.
 \* The safety configs explore the whole reachable state space.

@@ -40,21 +40,31 @@ export async function loadNotebook(): Promise<{
 }> {
   const db = await open();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(["entries", "settings"], "readonly");
+    // Read-write: a draft reconciled with its stored row is written back, with
+    // its stamps, in this transaction. The autosave runs later, and a search in
+    // between must not read the unstamped draft and keep the stored row.
+    const tx = db.transaction(["entries", "settings"], "readwrite");
+    const settings = tx.objectStore("settings");
     const entries = tx.objectStore("entries").getAll(),
-      draft = tx.objectStore("settings").get("draft");
-    tx.oncomplete = () => {
-      const list = (entries.result ?? []) as SavedMap[];
+      draft = settings.get("draft");
+    let list: SavedMap[] = [],
+      result: Draft | undefined,
+      done = 0;
+    const reconcile = () => {
+      if (++done !== 2) return;
+      list = (entries.result ?? []) as SavedMap[];
       const raw = draft.result as Draft | undefined;
       const stored = raw && list.find((item) => item.id === raw.entry.id);
-      resolve({
-        entries: list,
-        draft:
-          raw && stored
-            ? { ...raw, entry: keepLandedResearch(stored, raw.entry, "draft") }
-            : raw,
-      });
+      result =
+        raw && stored
+          ? { ...raw, entry: keepLandedResearch(stored, raw.entry, "draft") }
+          : raw;
+      if (raw && result && JSON.stringify(result) !== JSON.stringify(raw))
+        settings.put(result, "draft");
     };
+    entries.onsuccess = reconcile;
+    draft.onsuccess = reconcile;
+    tx.oncomplete = () => resolve({ entries: list, draft: result });
     tx.onabort = () => reject(tx.error);
     tx.onerror = () => reject(tx.error);
   });
@@ -465,9 +475,12 @@ export const removeEntry = (id: string) =>
     };
   });
 
+// editor is the open entry, when it is this one. It is newer than the stored
+// draft, which the autosave writes later, so the merge starts from it.
 export async function saveResearch(
   entryId: string,
   research: NonNullable<SavedMap["research"]>,
+  editor?: SavedMap,
 ): Promise<SavedMap | undefined> {
   const db = await open();
   return new Promise((resolve, reject) => {
@@ -485,8 +498,9 @@ export async function saveResearch(
       if (deletedIds(tomb.result).includes(entryId)) return;
       const currentDraft = draft.result as Draft | undefined;
       const stored = saved.result as SavedMap | undefined;
-      const draftEntry =
+      const savedDraft =
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
+      const draftEntry = editor?.id === entryId ? editor : savedDraft;
       const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
       const noteEntry = newerNote(draftEntry, stored) ?? entry;
@@ -521,7 +535,7 @@ export async function saveResearch(
         updated: laterStamp(entry.updated, now) ?? now,
       };
       entries.put(updated);
-      if (draftEntry)
+      if (savedDraft && currentDraft)
         settings.put({ ...currentDraft, entry: updated }, "draft");
     };
     saved.onsuccess = merge;

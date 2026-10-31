@@ -683,10 +683,12 @@ test("an edit made while a save is writing stays in the editor", () => {
     research: older,
   });
   const fields = editorAfterSave(retitled, snapshot, saved);
-  assert.equal(fields.note, "before");
-  assert.equal(fields.noteUpdated, "2026-01-01T00:00:00.000Z");
+  assert.equal(fields.note, "stored note");
+  assert.equal(fields.noteUpdated, "2026-01-02T00:00:00.000Z");
+  assert.equal(fields.updated, "2026-01-03T00:00:00.000Z");
   assert.equal(fields.map.title, "kept title");
   assert.equal(fields.research?.description, "merged search");
+  assert.equal(fields.references?.[0]?.url, "https://example.test/merged");
 
   const other = editorAfterSave(
     typed,
@@ -694,4 +696,91 @@ test("an edit made while a save is writing stays in the editor", () => {
     entry("other", "stored note", { research: merged }),
   );
   assert.equal(other, typed);
+});
+
+test("a title edit during a save takes the merged note and the next save keeps it", async () => {
+  const snapshot = entry("gap", "editor note", {
+    updated: "2026-01-01T00:00:00.000Z",
+    noteUpdated: "2026-01-01T00:00:00.000Z",
+  });
+  await storeEntries([
+    entry("gap", "merged note", {
+      updated: "2026-01-02T00:00:00.000Z",
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+    }),
+  ]);
+  const [saved] = await storeEntries([snapshot]);
+  assert.equal(saved?.note, "merged note");
+  const during = entry("gap", "editor note", {
+    updated: "2026-01-03T00:00:00.000Z",
+    noteUpdated: "2026-01-01T00:00:00.000Z",
+    map: { ...snapshot.map, title: "kept title" },
+  });
+  const editor = editorAfterSave(during, snapshot, saved!);
+  assert.equal(editor.note, "merged note");
+  assert.equal(editor.noteUpdated, "2026-01-02T00:00:00.000Z");
+  assert.equal(editor.map.title, "kept title");
+  // The next edit stamps a fresh noteUpdated. The text must already be the merged note.
+  const retouched = {
+    ...editor,
+    updated: "2026-01-04T00:00:00.000Z",
+    noteUpdated: "2026-01-04T00:00:00.000Z",
+  };
+  const [again] = await storeEntries([retouched]);
+  assert.equal(again?.note, "merged note");
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.find((item) => item.id === "gap")?.note,
+    "merged note",
+  );
+});
+
+test("a search keeps a newer stored note on the editor", async () => {
+  await storeEntries([
+    entry("ws", "old editor", {
+      updated: "2026-01-01T00:00:00.000Z",
+      noteUpdated: "2026-01-01T00:00:00.000Z",
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("ws", "typed ahead", {
+        updated: "2026-01-02T00:00:00.000Z",
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+      }),
+    ),
+  );
+  const stored = await saveResearch("ws", research);
+  assert.equal(stored?.note, "typed ahead");
+  const editor = entry("ws", "old editor", {
+    updated: "2026-01-03T00:00:00.000Z",
+    noteUpdated: "2026-01-01T00:00:00.000Z",
+    map: {
+      title: "kept title",
+      summary: "old editor",
+      regions: [],
+      quality: "",
+      activity: "",
+      duration: "",
+      intensity: null,
+      question: null,
+      urgent: false,
+      safety_message: null,
+    },
+  });
+  const next = withStampedResearch(editor, "ws", stored!);
+  assert.equal(next.note, "typed ahead");
+  assert.equal(next.noteUpdated, stored?.noteUpdated);
+  assert.equal(next.map.title, "kept title");
+  assert.equal(
+    next.research && "version" in next.research
+      ? next.research.version
+      : undefined,
+    stored?.research && "version" in stored.research
+      ? stored.research.version
+      : undefined,
+  );
+  await saveDraft(draftOf(next));
+  const loaded = await loadNotebook();
+  assert.equal(loaded.draft?.entry.note, "typed ahead");
 });

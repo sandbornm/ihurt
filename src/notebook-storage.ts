@@ -141,33 +141,51 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
 
 // The search panel hands back research without a version. The stored row has
 // the stamp. The editor must keep that object or the next save looks older.
+// A stored note with a newer stamp replaces the editor note, or the draft
+// effect writes the editor's older note back over the row saveResearch fixed.
 export function withStampedResearch<E extends SavedMap>(
   editor: E,
   entryId: string,
   stored: SavedMap,
 ): E {
   if (editor.id !== entryId || stored.research === undefined) return editor;
-  return { ...editor, research: stored.research };
+  const storedNoteNewer = noteStamp(stored) > noteStamp(editor);
+  if (!storedNoteNewer) return { ...editor, research: stored.research };
+  return {
+    ...editor,
+    research: stored.research,
+    note: stored.note,
+    ...(typeof stored.noteUpdated === "string"
+      ? { noteUpdated: stored.noteUpdated }
+      : {}),
+  };
 }
 
 // commit() snapshots the open entry, then waits on storeEntries.
-// If noteUpdated or updated changed during that write, keep the editor's
-// note and fields and bring the merged research and references.
-// Otherwise the editor is still the snapshot, so take the merged row.
+// Keep the editor note only when its note stamp changed during that wait.
+// A title, pin, or context edit bumps updated and keeps those fields, but
+// the merged note and noteUpdated still land. Otherwise take the merged row.
 export function editorAfterSave<E extends SavedMap>(
   editor: E,
   snapshot: SavedMap,
   saved: SavedMap,
 ): E {
   if (editor.id !== saved.id) return editor;
-  const moved =
-    noteStamp(editor) !== noteStamp(snapshot) ||
-    (editor.updated ?? "") !== (snapshot.updated ?? "");
-  if (!moved) return { ...editor, ...saved, id: editor.id };
-  return {
-    ...editor,
+  const noteEdited = noteStamp(editor) !== noteStamp(snapshot);
+  const researchAndRefs = {
     ...(saved.research !== undefined ? { research: saved.research } : {}),
     ...(saved.references !== undefined ? { references: saved.references } : {}),
+  };
+  if (noteEdited) return { ...editor, ...researchAndRefs };
+  const fieldsEdited = (editor.updated ?? "") !== (snapshot.updated ?? "");
+  if (!fieldsEdited) return { ...editor, ...saved, id: editor.id };
+  return {
+    ...editor,
+    note: saved.note,
+    ...(typeof saved.noteUpdated === "string"
+      ? { noteUpdated: saved.noteUpdated }
+      : {}),
+    ...researchAndRefs,
   };
 }
 

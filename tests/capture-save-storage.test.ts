@@ -200,6 +200,7 @@ const {
   removeEntry,
   saveDraft,
   saveResearch,
+  editorAfterSave,
   withStampedResearch,
 } = await import("../src/notebook-storage.ts");
 
@@ -623,4 +624,74 @@ test("a search keeps a note typed after the snapshot when the row time was bumpe
     "typed in between",
   );
   assert.equal(loaded.draft?.entry.note, "typed in between");
+});
+
+test("an edit made while a save is writing stays in the editor", () => {
+  const older = {
+    ...research,
+    description: "old search",
+    version: "2026-01-01T00:00:00.000Z",
+  };
+  const merged = {
+    ...research,
+    description: "merged search",
+    version: "2026-01-04T00:00:00.000Z",
+  };
+  const links = [
+    {
+      title: "Merged",
+      url: "https://example.test/merged",
+      publisher: "Example",
+      checked: "2026-01-04T00:00:00.000Z",
+    },
+  ];
+  const snapshot = entry("e", "before", {
+    updated: "2026-01-01T00:00:00.000Z",
+    noteUpdated: "2026-01-01T00:00:00.000Z",
+    research: older,
+  });
+  const typed = entry("e", "typed while saving", {
+    updated: "2026-01-03T00:00:00.000Z",
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+    map: { ...snapshot.map, title: "kept title" },
+    research: older,
+  });
+  const saved = entry("e", "stored note", {
+    updated: "2026-01-02T00:00:00.000Z",
+    noteUpdated: "2026-01-02T00:00:00.000Z",
+    research: merged,
+    references: links,
+  });
+  const next = editorAfterSave(typed, snapshot, saved);
+  assert.equal(next.note, "typed while saving");
+  assert.equal(next.noteUpdated, "2026-01-03T00:00:00.000Z");
+  assert.equal(next.updated, "2026-01-03T00:00:00.000Z");
+  assert.equal(next.map.title, "kept title");
+  assert.equal(next.research?.description, "merged search");
+  assert.equal(
+    next.research && "version" in next.research
+      ? next.research.version
+      : undefined,
+    "2026-01-04T00:00:00.000Z",
+  );
+  assert.equal(next.references?.[0]?.url, "https://example.test/merged");
+
+  const retitled = entry("e", "before", {
+    updated: "2026-01-03T00:00:00.000Z",
+    noteUpdated: "2026-01-01T00:00:00.000Z",
+    map: { ...snapshot.map, title: "kept title" },
+    research: older,
+  });
+  const fields = editorAfterSave(retitled, snapshot, saved);
+  assert.equal(fields.note, "before");
+  assert.equal(fields.noteUpdated, "2026-01-01T00:00:00.000Z");
+  assert.equal(fields.map.title, "kept title");
+  assert.equal(fields.research?.description, "merged search");
+
+  const other = editorAfterSave(
+    typed,
+    snapshot,
+    entry("other", "stored note", { research: merged }),
+  );
+  assert.equal(other, typed);
 });

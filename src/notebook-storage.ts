@@ -150,6 +150,27 @@ export function withStampedResearch<E extends SavedMap>(
   return { ...editor, research: stored.research };
 }
 
+// commit() snapshots the open entry, then waits on storeEntries.
+// If noteUpdated or updated changed during that write, keep the editor's
+// note and fields and bring the merged research and references.
+// Otherwise the editor is still the snapshot, so take the merged row.
+export function editorAfterSave<E extends SavedMap>(
+  editor: E,
+  snapshot: SavedMap,
+  saved: SavedMap,
+): E {
+  if (editor.id !== saved.id) return editor;
+  const moved =
+    noteStamp(editor) !== noteStamp(snapshot) ||
+    (editor.updated ?? "") !== (snapshot.updated ?? "");
+  if (!moved) return { ...editor, ...saved, id: editor.id };
+  return {
+    ...editor,
+    ...(saved.research !== undefined ? { research: saved.research } : {}),
+    ...(saved.references !== undefined ? { references: saved.references } : {}),
+  };
+}
+
 function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
   if (draft && stored && (draft.updated ?? "") > (stored.updated ?? ""))
     return draft;

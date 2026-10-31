@@ -63,6 +63,7 @@ import {
   saveResearch,
   storeEntries,
   removeEntry,
+  editorAfterSave,
   withStampedResearch,
   type Draft,
 } from "./notebook-storage";
@@ -368,7 +369,7 @@ export default function Notebook({
       const [savedRow] = await storeEntries([item]);
       const saved = savedRow ?? item;
       setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
-      setEntry((current) => (current.id === saved.id ? saved : current));
+      setEntry((current) => editorAfterSave(current, item, saved));
       setToast(t("notebook.toast.saved"));
       return true;
     } catch {

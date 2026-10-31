@@ -178,7 +178,8 @@ export function withStampedResearch<E extends SavedMap>(
 }
 
 // commit() snapshots the open entry, then waits on storeEntries.
-// Keep the editor note only when its note stamp changed during that wait.
+// Keep the editor note only when its text or noteUpdated changed during
+// that wait. Compare those fields as-is, including a missing stamp.
 // A title, pin, or context edit bumps updated and keeps those fields, but
 // the merged note and noteUpdated still land. Otherwise take the merged row.
 export function editorAfterSave<E extends SavedMap>(
@@ -187,7 +188,8 @@ export function editorAfterSave<E extends SavedMap>(
   saved: SavedMap,
 ): E {
   if (editor.id !== saved.id) return editor;
-  const noteEdited = noteStamp(editor) !== noteStamp(snapshot);
+  const noteEdited =
+    editor.note !== snapshot.note || editor.noteUpdated !== snapshot.noteUpdated;
   const researchAndRefs = {
     ...(saved.research !== undefined ? { research: saved.research } : {}),
     ...(saved.references !== undefined ? { references: saved.references } : {}),

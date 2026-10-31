@@ -204,7 +204,10 @@ const {
   withStampedResearch,
   entryReferences,
 } = await import("../src/notebook-storage.ts");
-const { stringifyNotebook } = await import("../src/notebook-data.ts");
+const { stringifyNotebook, parseNotebook, blankEntry } = await import(
+  "../src/notebook-data.ts"
+);
+const { exampleEntry } = await import("../src/example.ts");
 
 type Row = {
   id: string;
@@ -858,4 +861,79 @@ test("a second save keeps a reading merged onto a newer search", async () => {
     stringifyNotebook([again!]),
     /https:\/\/example\.test\/extra-reading/,
   );
+});
+
+async function fieldEditThenSecondSaveKeepsMergedNote(
+  id: string,
+  base: ReturnType<typeof entry>,
+) {
+  assert.equal(base.noteUpdated, undefined);
+  await storeEntries([
+    {
+      ...base,
+      id,
+      note: "merged note",
+      updated: "2026-01-02T00:00:00.000Z",
+    },
+  ]);
+  const snapshot = {
+    ...base,
+    id,
+    note: "editor note",
+    updated: "2026-01-01T00:00:00.000Z",
+    map: { ...base.map, title: "editor note", summary: "editor note" },
+  };
+  const [saved] = await storeEntries([snapshot]);
+  assert.equal(saved?.note, "merged note");
+  const during = {
+    ...snapshot,
+    updated: "2026-01-03T00:00:00.000Z",
+    map: { ...snapshot.map, title: "kept title" },
+  };
+  assert.equal(during.noteUpdated, undefined);
+  const editor = editorAfterSave(during, snapshot, saved!);
+  assert.equal(editor.note, "merged note");
+  assert.equal(editor.map.title, "kept title");
+  const [again] = await storeEntries([editor]);
+  assert.equal(again?.note, "merged note");
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.find((item) => item.id === id)?.note,
+    "merged note",
+  );
+}
+
+test("a field edit during save on a legacy row keeps the merged note", async () => {
+  await fieldEditThenSecondSaveKeepsMergedNote(
+    "legacy-row",
+    entry("legacy-row", "editor note"),
+  );
+});
+
+test("a field edit during save on a blankEntry keeps the merged note", async () => {
+  const blank = blankEntry();
+  assert.equal(blank.noteUpdated, undefined);
+  await fieldEditThenSecondSaveKeepsMergedNote(blank.id, {
+    ...blank,
+    note: "editor note",
+    map: { ...blank.map, title: "editor note", summary: "editor note" },
+  });
+});
+
+test("a field edit during save on an imported entry keeps the merged note", async () => {
+  const source = entry("imported-row", "editor note", {
+    updated: "2026-01-01T00:00:00.000Z",
+  });
+  const [imported] = parseNotebook(stringifyNotebook([source]));
+  assert.equal(imported.noteUpdated, undefined);
+  assert.equal(imported.id, "imported-row");
+  await fieldEditThenSecondSaveKeepsMergedNote(imported.id, {
+    ...imported,
+    map: { ...imported.map, title: "editor note", summary: "editor note" },
+  });
+});
+
+test("exampleEntry has no noteUpdated, same as a legacy row", () => {
+  const example = exampleEntry();
+  assert.equal(example.noteUpdated, undefined);
 });

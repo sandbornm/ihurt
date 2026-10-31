@@ -1378,6 +1378,52 @@ test("saveResearch keeps stored pins when the draft points are older", async () 
   assert.equal(after?.research?.description, "stiff");
 });
 
+test("a legacy draft with no pin stamps keeps its newer pins on load", async () => {
+  // Rows and drafts written before pointsUpdated existed. Keep the old rule:
+  // the draft's pins win.
+  await storeEntries([
+    entry("pin-legacy", "saved", {
+      updated: "2026-01-02T00:00:00.000Z",
+      points: [],
+      map: neckMap("saved"),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("pin-legacy", "saved", {
+        updated: "2026-01-03T00:00:00.000Z",
+        points: [samplePoint],
+        map: neckMap("saved", ["neck"]),
+      }),
+    ),
+  );
+  const loaded = await loadNotebook();
+  assert.equal(loaded.draft?.entry.points?.length, 1);
+  assert.equal(loaded.draft?.entry.map.regions.includes("neck"), true);
+});
+
+test("saveResearch keeps legacy draft pins when neither side has a pin stamp", async () => {
+  await storeEntries([
+    entry("pin-legacy-sr", "saved", {
+      updated: "2026-01-02T00:00:00.000Z",
+      points: [],
+      map: neckMap("saved"),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("pin-legacy-sr", "saved", {
+        updated: "2026-01-03T00:00:00.000Z",
+        points: [samplePoint],
+        map: neckMap("saved", ["neck"]),
+      }),
+    ),
+  );
+  const after = await saveResearch("pin-legacy-sr", research);
+  assert.equal(after?.points?.length, 1);
+  assert.equal(after?.map.regions.includes("neck"), true);
+});
+
 test("parseNotebook keeps pointsUpdated on a round trip", () => {
   const source = entry("imp-pts", "note", {
     points: [samplePoint],

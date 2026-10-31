@@ -182,6 +182,9 @@ assert.match(
 assert.match(storage, /keepLandedResearch\(stored, raw\.entry\)/);
 assert.match(storage, /stampMs\(existingPts\) >= stampMs\(incomingPts\)/);
 assert.match(storage, /function newerPoints/);
+// Legacy rows have no pin stamp on either side; the incoming pins still win.
+assert.match(storage, /existingPts !== "" \|\| incomingPts !== ""/);
+assert.match(storage, /!pointsStamp\(draft\) && !pointsStamp\(stored\)/);
 assert.match(types, /pointsUpdated\?: string/);
 assert.match(data, /entry\.pointsUpdated = date\(e\.pointsUpdated\)/);
 assert.match(data, /pointsUpdated: entry\.pointsUpdated/);

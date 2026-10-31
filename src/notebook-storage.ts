@@ -157,8 +157,12 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   const chosenNote = kept ? kept.note : entry.note;
   const incomingPts = pointsStamp(entry);
   const existingPts = pointsStamp(existing);
+  // Rows from before pointsUpdated have no stamp on either side. Keep the old
+  // rule for them: the incoming pins win.
   const keepPoints =
-    existing !== undefined && stampMs(existingPts) >= stampMs(incomingPts);
+    existing !== undefined &&
+    (existingPts !== "" || incomingPts !== "") &&
+    stampMs(existingPts) >= stampMs(incomingPts);
   const points = keepPoints && existing ? existing.points : entry.points;
   const regions =
     keepPoints && existing ? existing.map.regions : entry.map.regions;
@@ -283,6 +287,10 @@ function newerPoints(
   draft: SavedMap | undefined,
   stored: SavedMap | undefined,
 ): SavedMap | undefined {
+  // Neither side has a pin stamp (rows from before pointsUpdated). Let the
+  // caller fall back to the newer row, as before.
+  if (draft && stored && !pointsStamp(draft) && !pointsStamp(stored))
+    return undefined;
   if (
     draft &&
     (!stored || stampMs(pointsStamp(draft)) > stampMs(pointsStamp(stored)))

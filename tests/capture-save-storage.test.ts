@@ -426,7 +426,7 @@ test("a save with older research does not replace a newer search", async () => {
   assert.ok(merged.updated >= "2026-01-04T00:00:00.000Z");
 
   await saveDraft(
-    draftOf(entry("r", "stale draft", { updated: "2026-01-05T00:00:00.000Z" })),
+    draftOf(entry("r", "older draft", { updated: "2026-01-03T00:00:00.000Z" })),
   );
   const afterDraft = await saveResearch("r", newer);
   assert.equal(afterDraft?.note, "just-saved note");
@@ -473,7 +473,7 @@ test("a save with older research does not replace a newer search", async () => {
     references?: { url: string }[];
   };
   assert.equal(kept.research?.description, "versioned search");
-  assert.equal(kept.note, "plain snapshot");
+  assert.equal(kept.note, "saved later");
   assert.equal(kept.updated, "2026-01-03T00:00:00.000Z");
   // Existing links stay first. The save's new reading is not dropped.
   assert.equal(kept.references?.[0]?.url, "https://example.test/old");
@@ -558,4 +558,69 @@ test("the editor keeps the stamped research version", () => {
   assert.equal(next.updated, "2026-01-06T00:00:01.000Z");
   const other = withStampedResearch(editor, "nope", stored);
   assert.equal(other, editor);
+});
+
+test("a stale save keeps a newer note and a later search does not restore the old one", async () => {
+  await storeEntries([
+    entry("n", "first", { updated: "2026-01-01T00:00:00.000Z" }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("n", "typed in between", { updated: "2026-01-02T00:00:00.000Z" }),
+    ),
+  );
+  const landed = await saveResearch("n", research);
+  assert.equal(landed?.note, "typed in between");
+  const researchUpdated = landed?.updated ?? "";
+
+  await storeEntries([
+    entry("n", "old note", {
+      updated: "2026-01-01T00:00:00.000Z",
+      research: { ...research, description: "no version" },
+      references: research.references,
+    }),
+  ]);
+  let loaded = await loadNotebook();
+  let row = loaded.entries.find((item) => item.id === "n");
+  assert.equal(row?.note, "typed in between");
+  assert.ok((row?.updated ?? "") >= researchUpdated);
+
+  await saveDraft(
+    draftOf(
+      entry("n", "typed in between", { updated: "2026-01-02T00:00:00.000Z" }),
+    ),
+  );
+  const again = await saveResearch("n", research);
+  assert.equal(again?.note, "typed in between");
+  loaded = await loadNotebook();
+  assert.equal(loaded.draft?.entry.note, "typed in between");
+  assert.equal(
+    loaded.entries.find((item) => item.id === "n")?.note,
+    "typed in between",
+  );
+});
+
+test("a search keeps a note typed after the snapshot when the row time was bumped", async () => {
+  await storeEntries([
+    entry("bump", "old note", {
+      updated: "2026-10-31T00:00:00.000Z",
+      noteUpdated: "2026-01-01T00:00:00.000Z",
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("bump", "typed in between", {
+        updated: "2026-01-02T00:00:00.000Z",
+        noteUpdated: "2026-01-02T00:00:00.000Z",
+      }),
+    ),
+  );
+  const after = await saveResearch("bump", research);
+  assert.equal(after?.note, "typed in between");
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.find((item) => item.id === "bump")?.note,
+    "typed in between",
+  );
+  assert.equal(loaded.draft?.entry.note, "typed in between");
 });

@@ -221,7 +221,13 @@ export default function Notebook({
     });
   };
   function change(patch: Partial<SavedMap>) {
-    setEntry((e) => ({ ...e, ...patch, updated: new Date().toISOString() }));
+    const now = new Date().toISOString();
+    setEntry((e) => ({
+      ...e,
+      ...patch,
+      updated: now,
+      ...(patch.note !== undefined ? { noteUpdated: now } : {}),
+    }));
   }
   function context(
     field: "title" | "quality" | "activity" | "duration" | "intensity",

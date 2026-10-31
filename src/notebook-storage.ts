@@ -84,6 +84,15 @@ function laterStamp(left?: string, right?: string): string | undefined {
   return left > right ? left : right;
 }
 
+// The note's own time. A missing stamp falls back to updated, which on rows
+// saved before this field is the only clock they have.
+function noteStamp(entry: SavedMap | undefined): string {
+  if (!entry) return "";
+  return typeof entry.noteUpdated === "string"
+    ? entry.noteUpdated
+    : (entry.updated ?? "");
+}
+
 function unionByUrl<T extends { url: string }>(
   first: readonly T[] | undefined,
   second: readonly T[] | undefined,
@@ -98,11 +107,23 @@ function unionByUrl<T extends { url: string }>(
 // Keep the newer research. Readings union by URL, stored links first.
 // The row time is the later stamp.
 function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
+  const incomingNote = noteStamp(entry);
+  const existingNote = noteStamp(existing);
+  const kept =
+    existing !== undefined && existingNote > incomingNote
+      ? existing
+      : undefined;
+  const noteUpdated = kept ? existingNote : incomingNote;
+  const noted: SavedMap = {
+    ...entry,
+    ...(kept ? { note: kept.note } : {}),
+    ...(noteUpdated ? { noteUpdated } : {}),
+  };
   const updated = laterStamp(existing?.updated, entry.updated);
   const withTime =
-    updated !== undefined && updated !== entry.updated
-      ? { ...entry, updated }
-      : entry;
+    updated !== undefined && updated !== noted.updated
+      ? { ...noted, updated }
+      : noted;
   const existingNewer =
     existing?.research !== undefined &&
     (entry.research === undefined ||
@@ -133,6 +154,16 @@ function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
   if (draft && stored && (draft.updated ?? "") > (stored.updated ?? ""))
     return draft;
   return stored ?? draft;
+}
+
+function newerNote(
+  draft: SavedMap | undefined,
+  stored: SavedMap | undefined,
+  base: SavedMap,
+): SavedMap {
+  if (draft && (!stored || noteStamp(draft) > noteStamp(stored))) return draft;
+  if (stored && (!draft || noteStamp(stored) > noteStamp(draft))) return stored;
+  return base;
 }
 
 export const saveDraft = (draft: Draft) =>
@@ -213,11 +244,15 @@ export async function saveResearch(
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
       const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
+      const noteEntry = newerNote(draftEntry, stored, entry);
+      const noteAt = noteStamp(noteEntry);
       const now = new Date().toISOString();
       const stamped = { ...research, version: now };
       const references = unionByUrl(stamped.references, entry.references);
       updated = {
         ...entry,
+        note: noteEntry.note,
+        ...(noteAt ? { noteUpdated: noteAt } : {}),
         research: stamped,
         references,
         updated: laterStamp(entry.updated, now) ?? now,

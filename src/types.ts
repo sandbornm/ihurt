@@ -148,6 +148,8 @@ export interface SavedMap {
   id: string;
   created: string;
   updated?: string;
+  // When the note text last changed. Missing on older rows. Not the research stamp.
+  noteUpdated?: string;
   note: string;
   map: HurtMap;
   answers: Answer[];

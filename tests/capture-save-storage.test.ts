@@ -1064,3 +1064,65 @@ test("a save stamps noteUpdated on a legacy row", async () => {
   const created = await saveResearch("stamp-me", research);
   assert.equal(typeof created?.noteUpdated, "string");
 });
+
+// A row written before noteUpdated existed. storeEntries would stamp it,
+// so put it in the committed store directly.
+function seedLegacyRow(row: ReturnType<typeof entry>) {
+  assert.equal("noteUpdated" in row, false);
+  committed.entries.set(row.id, structuredClone(row));
+}
+
+test("a save of two rows with no noteUpdated keeps the stored note", async () => {
+  seedLegacyRow(
+    entry("tie-store", "newer stored note", {
+      updated: "2026-06-01T00:00:00.000Z",
+    }),
+  );
+  const [row] = await storeEntries([
+    entry("tie-store", "stale incoming note", {
+      updated: "2026-01-01T00:00:00.000Z",
+    }),
+  ]);
+  assert.equal(row?.note, "newer stored note");
+  assert.equal(row?.noteUpdated, "2026-06-01T00:00:00.000Z");
+});
+
+test("a save and a search agree on a pair of rows with no noteUpdated", async () => {
+  const stored = entry("tie-both", "stored note", {
+    updated: "2026-01-01T00:00:00.000Z",
+  });
+  const later = entry("tie-both", "editor note", {
+    updated: "2026-01-05T00:00:00.000Z",
+  });
+  seedLegacyRow(stored);
+  const [saved] = await storeEntries([later]);
+  seedLegacyRow(stored);
+  await saveDraft(draftOf(later));
+  const searched = await saveResearch("tie-both", research);
+  assert.equal(saved?.note, "stored note");
+  assert.equal(searched?.note, saved?.note);
+});
+
+test("a search on a row with no noteUpdated does not replace a note typed just before", async () => {
+  const legacy = entry("typed-first", "empty draft note", {
+    updated: "2026-01-01T00:00:00.000Z",
+  });
+  seedLegacyRow(legacy);
+  await saveDraft(draftOf(legacy));
+  const typedAt = new Date(Date.now() - 5000).toISOString();
+  const editor = {
+    ...legacy,
+    note: "typed in the editor",
+    noteUpdated: typedAt,
+    updated: typedAt,
+  };
+  const stored = await saveResearch("typed-first", research);
+  assert.ok(
+    (stored?.noteUpdated ?? "") <= typedAt,
+    `search stamped the note ${stored?.noteUpdated}, after the typed note ${typedAt}`,
+  );
+  const next = withStampedResearch(editor, "typed-first", stored!);
+  assert.equal(next.note, "typed in the editor");
+  assert.equal(next.noteUpdated, typedAt);
+  assert.equal(next.research?.version, stored?.research?.version);
+});

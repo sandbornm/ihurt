@@ -122,11 +122,13 @@ export function entryReferences(
 // A save can still hold an older search after a newer one has committed.
 // Keep the newer research. Readings union by URL, stored links first,
 // on the row and on that research list. The row time is the later stamp.
+// Equal note stamps keep the stored note, including two missing stamps.
+// saveResearch and editorAfterSave settle a tie the same way.
 function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   const incomingNote = noteStamp(entry);
   const existingNote = noteStamp(existing);
   const kept =
-    existing !== undefined && existingNote > incomingNote
+    existing !== undefined && existingNote >= incomingNote
       ? existing
       : undefined;
   const noteUpdated = kept ? existingNote : incomingNote;
@@ -144,9 +146,11 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
     existing?.research !== undefined &&
     (entry.research === undefined ||
       researchVersion(existing) > researchVersion(entry));
+  // A note with no stamp gets the updated time of the row it came from.
+  // The later row time can be a title edit, which would rank the note too new.
   const stamped = ensureNoteStamp(
     withTime,
-    updated ?? new Date().toISOString(),
+    (kept ?? entry).updated ?? updated ?? new Date().toISOString(),
   );
   if (!existingNewer) return stamped;
   const references = unionByUrl(
@@ -230,14 +234,13 @@ function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
   return stored ?? draft;
 }
 
+// Equal note stamps keep the stored note, same as keepLandedResearch.
 function newerNote(
   draft: SavedMap | undefined,
   stored: SavedMap | undefined,
-  base: SavedMap,
-): SavedMap {
+): SavedMap | undefined {
   if (draft && (!stored || noteStamp(draft) > noteStamp(stored))) return draft;
-  if (stored && (!draft || noteStamp(stored) > noteStamp(draft))) return stored;
-  return base;
+  return stored;
 }
 
 export const saveDraft = (draft: Draft) =>
@@ -318,18 +321,21 @@ export async function saveResearch(
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
       const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
-      const noteEntry = newerNote(draftEntry, stored, entry);
+      const noteEntry = newerNote(draftEntry, stored) ?? entry;
       const now = new Date().toISOString();
+      // A note with no stamp gets its row's updated time, never now. A search
+      // stamped with now would outrank a note the user typed seconds earlier,
+      // and withStampedResearch would put the older note back in the editor.
       const noteAt =
         typeof noteEntry.noteUpdated === "string"
           ? noteEntry.noteUpdated
-          : now;
+          : noteEntry.updated;
       const stamped = { ...research, version: now };
       const references = unionByUrl(stamped.references, entry.references);
       updated = {
         ...entry,
         note: noteEntry.note,
-        noteUpdated: noteAt,
+        ...(noteAt !== undefined ? { noteUpdated: noteAt } : {}),
         research: stamped,
         references,
         updated: laterStamp(entry.updated, now) ?? now,

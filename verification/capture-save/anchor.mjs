@@ -37,8 +37,13 @@ assert.match(
   storage,
   /const references = unionByUrl\(\s*existing\.references \?\? existing\.research\?\.references,\s*entry\.references,/,
 );
-assert.match(storage, /existingNote > incomingNote/);
-assert.match(storage, /noteStamp\(draft\) > noteStamp\(stored\)/);
+// A tie on note stamps keeps the stored note in both save paths.
+assert.match(storage, /existing !== undefined && existingNote >= incomingNote/);
+assert.match(
+  storage,
+  /if \(draft && \(!stored \|\| noteStamp\(draft\) > noteStamp\(stored\)\)\) return draft;\s*return stored;/,
+);
+assert.match(storage, /const noteEntry = newerNote\(draftEntry, stored\) \?\? entry;/);
 assert.match(storage, /note: noteEntry\.note/);
 assert.match(
   storage,
@@ -86,13 +91,20 @@ assert.equal(
 assert.match(storage, /function ensureNoteStamp/);
 assert.match(
   storage,
-  /const stamped = ensureNoteStamp\(\s*withTime,\s*updated \?\? new Date\(\)\.toISOString\(\),\s*\);/,
+  /const stamped = ensureNoteStamp\(\s*withTime,\s*\(kept \?\? entry\)\.updated \?\? updated \?\? new Date\(\)\.toISOString\(\),\s*\);/,
 );
+// saveResearch stamps a missing note stamp with the row's own time, not the
+// search time, so a search never outranks a note typed in the editor.
 assert.match(
   storage,
-  /typeof noteEntry\.noteUpdated === "string"\s*\? noteEntry\.noteUpdated\s*: now/,
+  /typeof noteEntry\.noteUpdated === "string"\s*\? noteEntry\.noteUpdated\s*: noteEntry\.updated;/,
 );
-assert.match(storage, /noteUpdated: noteAt,/);
+assert.equal(
+  /noteEntry\.noteUpdated\s*: now/.test(storage),
+  false,
+  "saveResearch must not stamp a note with the search time",
+);
+assert.match(storage, /noteAt !== undefined \? \{ noteUpdated: noteAt \} : \{\}/);
 assert.match(
   storage,
   /if \(typeof storedAt !== "string"\) return false;\s*if \(typeof editorAt !== "string"\) return true;\s*return storedAt > editorAt;/,

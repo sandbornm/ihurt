@@ -158,6 +158,9 @@ export interface SavedMap {
   // When each map detail last changed, by field. A field with no stamp is
   // older than one with a stamp; a stamped blank is a deliberate clear.
   mapUpdated?: Partial<Record<MapDetail, string>>;
+  // When the AI note was last saved or removed. A stamp with no ai is a
+  // deliberate removal. Missing is older than any stamp.
+  aiUpdated?: string;
   note: string;
   map: HurtMap;
   answers: Answer[];

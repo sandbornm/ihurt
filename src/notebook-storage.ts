@@ -241,11 +241,16 @@ function keepLandedResearch(
     : loadedPins
       ? (entry.updated ?? new Date().toISOString())
       : incomingPts;
+  // Map details and the AI note go by their own stamps, so a stamped clear or
+  // removal on the row beats an older value on a draft loaded or saved later.
+  const landed = landStamped(existing, entry);
   const noted: SavedMap = {
-    ...entry,
+    ...withoutAi(entry),
+    ...landed.ai,
     note: chosenNote,
     points,
-    map: { ...entry.map, summary: chosenNote, regions },
+    map: { ...landed.map, summary: chosenNote, regions },
+    ...(landed.mapUpdated ? { mapUpdated: landed.mapUpdated } : {}),
     ...(noteUpdated ? { noteUpdated } : {}),
     ...(pointsUpdated ? { pointsUpdated } : {}),
   };
@@ -303,13 +308,16 @@ function storedPins(editor: SavedMap, stored: SavedMap) {
 // saveResearch merged the stored row, the saved draft and the editor. The
 // editor takes that whole merge, not only the note and research, or the next
 // autosave writes its older readings, answers and map details over the row.
-// Fields the user changed during the search keep by the same stamp rules:
-// note and pins by their stamps, map details by their field stamps, readings
-// union by URL, and answers merge by question with the row first.
+// searched is the editor saveResearch merged. The editor keeps a field only
+// if it changed that field since then: note, pins, map details and the AI
+// note by their own stamps; an unstamped detail or answer by comparing with
+// searched. Never by the editor's updated time: a keystroke after the search
+// read now would make every field of the editor look newer than the merge.
 export function withStampedResearch<E extends SavedMap>(
   editor: E,
   entryId: string,
   stored: SavedMap,
+  searched: SavedMap = editor,
 ): E {
   if (editor.id !== entryId || stored.research === undefined) return editor;
   // saveResearch picked these pins. Keep the editor's only if they are newer,
@@ -319,13 +327,34 @@ export function withStampedResearch<E extends SavedMap>(
       ? undefined
       : storedPins(editor, stored);
   const noteFrom = storedNoteNewerThanEditor(stored, editor) ? stored : editor;
-  const ranked = byUpdated([stored, editor]);
-  const details = mergeMap([stored, editor], ranked);
-  const ai = ranked.find((record) => record.ai !== undefined)?.ai;
+  const map: Record<string, unknown> = { ...stored.map };
+  const mapUpdated: NonNullable<SavedMap["mapUpdated"]> = {
+    ...stored.mapUpdated,
+  };
+  for (const key of MAP_DETAILS) {
+    const rowAt = detailStamp(stored, key);
+    const editorAt = detailStamp(editor, key);
+    const editorWins =
+      rowAt !== undefined || editorAt !== undefined
+        ? stampMs(editorAt) > stampMs(rowAt)
+        : differs(editor.map[key], searched.map[key]);
+    if (!editorWins) continue;
+    map[key] = editor.map[key];
+    if (editorAt !== undefined) mapUpdated[key] = editorAt;
+  }
+  const rowAi = aiStamp(stored);
+  const editorAi = aiStamp(editor);
+  const aiFrom = (
+    rowAi !== undefined || editorAi !== undefined
+      ? stampMs(editorAi) > stampMs(rowAi)
+      : differs(editor.ai, searched.ai)
+  )
+    ? editor
+    : stored;
   return {
-    ...editor,
-    ...(ai !== undefined ? { ai } : {}),
-    answers: fillAnswers(ranked),
+    ...withoutAi(editor),
+    ...aiFields(aiFrom),
+    answers: answersAfterSearch(stored, editor, searched),
     references: unionByUrl(stored.references, editor.references),
     research: stored.research,
     note: noteFrom.note,
@@ -341,14 +370,41 @@ export function withStampedResearch<E extends SavedMap>(
         }
       : {}),
     map: {
-      ...details.map,
-      summary: noteFrom.map.summary,
+      ...(map as unknown as HurtMap),
+      summary: noteFrom.note,
       regions: (pins ?? editor).map.regions,
     },
-    ...(Object.keys(details.mapUpdated).length > 0
-      ? { mapUpdated: details.mapUpdated }
-      : {}),
+    ...(Object.keys(mapUpdated).length > 0 ? { mapUpdated } : {}),
   };
+}
+
+const differs = (left: unknown, right: unknown) =>
+  JSON.stringify(left) !== JSON.stringify(right);
+
+// The row's answers, with the answers the editor changed, added or removed
+// since searched applied on top.
+function answersAfterSearch(
+  stored: SavedMap,
+  editor: SavedMap,
+  searched: SavedMap,
+): SavedMap["answers"] {
+  const before = new Map(
+    (searched.answers ?? []).map((a) => [a.key, JSON.stringify(a)]),
+  );
+  const mine = new Map((editor.answers ?? []).map((a) => [a.key, a]));
+  const edits = new Map(
+    (editor.answers ?? [])
+      .filter((a) => before.get(a.key) !== JSON.stringify(a))
+      .map((a) => [a.key, a]),
+  );
+  const removed = new Set([...before.keys()].filter((key) => !mine.has(key)));
+  const rowKeys = new Set((stored.answers ?? []).map((a) => a.key));
+  return [
+    ...(stored.answers ?? [])
+      .filter((a) => !removed.has(a.key))
+      .map((a) => edits.get(a.key) ?? a),
+    ...[...edits.values()].filter((a) => !rowKeys.has(a.key)),
+  ];
 }
 
 // The user's pin edits made while a save was in flight, applied to the pins
@@ -529,6 +585,79 @@ function mergeMap(
   return { map: map as unknown as HurtMap, mapUpdated };
 }
 
+const aiStamp = (record: SavedMap) =>
+  typeof record.aiUpdated === "string" ? record.aiUpdated : undefined;
+
+function withoutAi<E extends SavedMap>(record: E): E {
+  const { ai: _ai, aiUpdated: _at, ...rest } = record;
+  return rest as E;
+}
+
+function aiFields(record: SavedMap): Pick<SavedMap, "ai" | "aiUpdated"> {
+  return {
+    ...(record.ai !== undefined ? { ai: record.ai } : {}),
+    ...(aiStamp(record) !== undefined ? { aiUpdated: aiStamp(record) } : {}),
+  };
+}
+
+// The AI note goes to the record with the newest aiUpdated, removal included:
+// a stamp with no ai is a deliberate removal. Equal stamps keep the earlier
+// record in order. With no stamp on any record, the newest record with a note.
+function pickAi(
+  ordered: SavedMap[],
+  ranked: SavedMap[],
+): Pick<SavedMap, "ai" | "aiUpdated"> {
+  let winner: SavedMap | undefined;
+  for (const record of ordered) {
+    const at = aiStamp(record);
+    if (
+      at !== undefined &&
+      (winner === undefined || stampMs(at) > stampMs(aiStamp(winner)))
+    )
+      winner = record;
+  }
+  if (winner) return aiFields(winner);
+  const ai = ranked.find((record) => record.ai !== undefined)?.ai;
+  return ai !== undefined ? { ai } : {};
+}
+
+// A row write or a draft load: map details and the AI note by their own
+// stamps. A stamp on either side decides it, a missing stamp is older and
+// equal stamps keep existing, so a stamped clear or removal beats an older
+// unstamped value. With no stamp on either side the incoming value lands.
+function landStamped(
+  existing: SavedMap | undefined,
+  entry: SavedMap,
+): {
+  map: HurtMap;
+  mapUpdated?: NonNullable<SavedMap["mapUpdated"]>;
+  ai: Pick<SavedMap, "ai" | "aiUpdated">;
+} {
+  const map: Record<string, unknown> = { ...entry.map };
+  const mapUpdated: NonNullable<SavedMap["mapUpdated"]> = {
+    ...entry.mapUpdated,
+  };
+  for (const key of MAP_DETAILS) {
+    const was = existing && detailStamp(existing, key);
+    const now = detailStamp(entry, key);
+    if (was === undefined || stampMs(now) > stampMs(was)) continue;
+    map[key] = existing!.map[key];
+    mapUpdated[key] = was;
+  }
+  const wasAi = existing && aiStamp(existing);
+  const ai =
+    existing &&
+    wasAi !== undefined &&
+    !(stampMs(aiStamp(entry)) > stampMs(wasAi))
+      ? aiFields(existing)
+      : aiFields(entry);
+  return {
+    map: map as unknown as HurtMap,
+    ...(Object.keys(mapUpdated).length > 0 ? { mapUpdated } : {}),
+    ai,
+  };
+}
+
 // Answers merge by question. The newest record's answer to a question wins;
 // a question only an older record answered is kept.
 function fillAnswers(ranked: SavedMap[]): SavedMap["answers"] {
@@ -656,16 +785,13 @@ export async function saveResearch(
         (all, record) => unionByUrl(all, record.references),
         stamped.references,
       );
-      const ai = ranked.find((record) => record.ai !== undefined)?.ai;
-      const details = mergeMap(
-        [stored, savedDraft, openEditor].filter(
-          (r): r is SavedMap => r !== undefined,
-        ),
-        ranked,
+      const ordered = [stored, savedDraft, openEditor].filter(
+        (r): r is SavedMap => r !== undefined,
       );
+      const details = mergeMap(ordered, ranked);
       updated = {
-        ...entry,
-        ...(ai !== undefined ? { ai } : {}),
+        ...withoutAi(entry),
+        ...pickAi(ordered, ranked),
         answers: fillAnswers(ranked),
         note: noteEntry.note,
         points: pointsEntry.points,

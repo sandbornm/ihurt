@@ -236,6 +236,8 @@ export default function Notebook({
         ...rest,
         updated: now,
         ...(patch.note !== undefined ? { noteUpdated: now } : {}),
+        // Removing the AI note stamps it, so a search or load keeps it gone.
+        ...("ai" in patch ? { aiUpdated: now } : {}),
       };
     });
   }
@@ -1362,17 +1364,19 @@ export default function Notebook({
                       entry={currentEntry()}
                       sources={readingSources}
                       onSave={async (research) => {
+                        // The latest editor, which the autosave has not
+                        // written yet. The search merges against it, and the
+                        // handback keeps only what changed since.
+                        const searched = draftRef.current.entry;
                         const updated = await saveResearch(
                           entry.id,
                           research,
-                          // The latest editor, which the autosave has not
-                          // written yet. The search merges against it.
-                          draftRef.current.entry,
+                          searched,
                         );
                         if (!updated)
                           throw Error(t("notebook.error.removedDuringSearch"));
                         setEntry((e) =>
-                          withStampedResearch(e, entry.id, updated),
+                          withStampedResearch(e, entry.id, updated, searched),
                         );
                         setSaved((old) => [
                           ...old.filter((e) => e.id !== updated.id),
@@ -1503,7 +1507,15 @@ export default function Notebook({
                         onSave={(ai) =>
                           setEntry((e) =>
                             e.id === entry.id
-                              ? { ...e, ai, updated: new Date().toISOString() }
+                              ? (() => {
+                                  const now = new Date().toISOString();
+                                  return {
+                                    ...e,
+                                    ai,
+                                    updated: now,
+                                    aiUpdated: now,
+                                  };
+                                })()
                               : e,
                           )
                         }

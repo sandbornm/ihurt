@@ -58,3 +58,4 @@ mutant_hand_back_note_only.cfg FAIL TabDraftKept
 mutant_pick_first_ai.cfg FAIL TabDraftKept
 mutant_land_ignores_stamps.cfg FAIL TabDraftKept
 mutant_hand_back_by_updated.cfg FAIL TabDraftKept
+mutant_spread_saved_over_editor.cfg FAIL EditorAiCurrent

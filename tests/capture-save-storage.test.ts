@@ -2563,3 +2563,112 @@ test("a pin edit during a save does not let the next save drop a merged pin", as
     ["pin-1", "pin-2"],
   );
 });
+
+// Grok's finding on d124244: editorAfterSave spread the saved row over the
+// editor, so a removal (aiUpdated, no ai) left the editor's note in place,
+// and the backup exported it. The in-flight paths kept the editor's map
+// details and AI even when only another field changed during the write.
+const T3 = "2026-01-04T00:00:00.000Z";
+const staleAi = {
+  provider: "old",
+  created: T1,
+  based_on: "x",
+  map: withContext("ai", {}),
+  answers: [],
+};
+// The editor as commit() snapshots it: AI note and quality from T1.
+const easSnapshot = (id: string) =>
+  entry(id, "n", {
+    updated: T1,
+    noteUpdated: T1,
+    ai: staleAi,
+    aiUpdated: T1,
+    map: withContext("n", { quality: "sharp" }),
+    mapUpdated: { quality: T1 },
+  });
+// The merged row: another tab removed the AI note and cleared quality at T2.
+const easSaved = (id: string) =>
+  entry(id, "n", {
+    updated: T2,
+    noteUpdated: T1,
+    aiUpdated: T2,
+    map: withContext("n", { quality: "" }),
+    mapUpdated: { quality: T2 },
+  });
+
+test("editorAfterSave drops the AI note when the saved row removed it", () => {
+  const snapshot = easSnapshot("eas-ai-quiet");
+  const next = editorAfterSave(
+    { ...snapshot },
+    snapshot,
+    easSaved("eas-ai-quiet"),
+  );
+  assert.equal("ai" in next, false);
+  assert.equal(next.aiUpdated, T2);
+  assert.equal(next.map.quality, "");
+  assert.equal(next.mapUpdated?.quality, T2);
+});
+
+test("editorAfterSave takes the saved removal and clear after a note edit during the save", () => {
+  const snapshot = easSnapshot("eas-ai-note");
+  const editor = { ...snapshot, note: "typed", noteUpdated: T3, updated: T3 };
+  const next = editorAfterSave(editor, snapshot, easSaved("eas-ai-note"));
+  assert.equal(next.note, "typed");
+  assert.equal("ai" in next, false);
+  assert.equal(next.aiUpdated, T2);
+  assert.equal(next.map.quality, "");
+  assert.equal(next.mapUpdated?.quality, T2);
+});
+
+test("editorAfterSave takes the saved removal and clear after a title edit during the save", () => {
+  const snapshot = easSnapshot("eas-ai-field");
+  const editor = {
+    ...snapshot,
+    updated: T3,
+    map: { ...snapshot.map, title: "retitled" },
+  };
+  const next = editorAfterSave(editor, snapshot, easSaved("eas-ai-field"));
+  assert.equal(next.map.title, "retitled");
+  assert.equal("ai" in next, false);
+  assert.equal(next.aiUpdated, T2);
+  assert.equal(next.map.quality, "");
+  assert.equal(next.mapUpdated?.quality, T2);
+});
+
+test("editorAfterSave keeps an AI note and a detail the editor changed during the save", () => {
+  const snapshot = easSnapshot("eas-ai-mine");
+  const fresh = { ...staleAi, provider: "fresh", created: T3 };
+  const editor = {
+    ...snapshot,
+    updated: T3,
+    ai: fresh,
+    aiUpdated: T3,
+    map: { ...snapshot.map, quality: "dull" },
+    mapUpdated: { quality: T3 },
+  };
+  const next = editorAfterSave(editor, snapshot, easSaved("eas-ai-mine"));
+  assert.equal(next.ai?.provider, "fresh");
+  assert.equal(next.aiUpdated, T3);
+  assert.equal(next.map.quality, "dull");
+  assert.equal(next.mapUpdated?.quality, T3);
+});
+
+test("a save that lands a stamped AI removal keeps the note out of the backup", async () => {
+  const { entryForExport } = await import("../src/export.ts");
+  await storeEntries([
+    entry("eas-backup", "n", { updated: T2, noteUpdated: T1, aiUpdated: T2 }),
+  ]);
+  const snapshot = entry("eas-backup", "n", {
+    updated: T1,
+    noteUpdated: T1,
+    ai: staleAi,
+    aiUpdated: T1,
+  });
+  const [saved] = await storeEntries([snapshot]);
+  assert.equal(saved?.ai, undefined);
+  const open = editorAfterSave({ ...snapshot }, snapshot, saved!);
+  const exported = entryForExport(saved!, open);
+  assert.equal(exported.ai, undefined);
+  const parsed = parseNotebook(stringifyNotebook([exported]))[0];
+  assert.equal(parsed.ai, undefined);
+});

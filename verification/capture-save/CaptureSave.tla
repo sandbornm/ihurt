@@ -49,6 +49,7 @@ CONSTANTS
   LoadStampsInMemoryOnly,\* 41347e7 load: stamps the draft in memory and leaves the stored draft to the autosave
   LegacyResearchTakesDraft, \* a search on an unstamped tie takes the draft over the stored row
   SkipPinsOnPinEdit,     \* old editorAfterSave: a pin edit during the save skips the merged pins
+  SpreadSavedOverEditor, \* d124244 editorAfterSave: spreads the saved row over the editor and keeps the editor's map details and AI note on an in-flight edit, so a stamped removal or clear stays on screen and in the backup
   MarkSearch,            \* TRUE only in the search covers: the search leaves a mark; else it returns to idle
   ModelRaces             \* FALSE only in the chart config, which omits these races
 
@@ -113,7 +114,8 @@ VARIABLES
   tabLost,     \* a search dropped the other tab's newer note or pins for this tab's older editor
   loadStamp,   \* where a legacy load's stamp is, until the next search: "idle", "none", "memory", "stored", "searched"
   staleDraftWon, \* a search took an unstamped draft over the stored row
-  pinTouched     \* the user edited pins while storeEntries was writing
+  pinTouched,    \* the user edited pins while storeEntries was writing
+  editorAiStale  \* the editor shows an AI note or map detail the saved row removed or cleared
 
 vars == <<
   phase, flightT, flightX, text, filled, revised,
@@ -123,7 +125,7 @@ vars == <<
   resurrected, lateDeleteSeen, cardStale, owedExtra, extra, note, draftNote, best, laundered,
   editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra,
   legacy, rowLegacy, typed, summaryStale, pinDropped, draftLost, editorPinsStale,
-  loadStamp, tabDraft, tabLost, staleDraftWon, pinTouched
+  loadStamp, tabDraft, tabLost, staleDraftWon, pinTouched, editorAiStale
 >>
 
 \* Left unchanged by actions that do not assign them.
@@ -177,6 +179,7 @@ TypeOK ==
   /\ draftLost \in BOOLEAN /\ editorPinsStale \in BOOLEAN
   /\ loadStamp \in {"idle", "none", "memory", "stored", "searched"}
   /\ tabDraft \in {"idle", "newer", "searched"} /\ tabLost \in BOOLEAN /\ staleDraftWon \in BOOLEAN /\ pinTouched \in BOOLEAN
+  /\ editorAiStale \in BOOLEAN
 
 \* After save returns, that id is still in the store until the person deletes it.
 ConfirmedPresent ==
@@ -252,6 +255,11 @@ SearchKeepsStoredOnTie == ~staleDraftWon
 \* so the next pin edit does not write a shorter list over the row.
 EditorPinsCurrent == busy \/ pending \/ ~editorPinsStale
 
+\* Once a save is applied, the editor holds no AI note or map detail that the
+\* saved row removed or cleared by a newer stamp, so backup (which exports the
+\* open editor) and the next save match the row.
+EditorAiCurrent == busy \/ pending \/ ~editorAiStale
+
 CoverSaved == ~(c1 /\ e1 = "saved" /\ ~busy)
 CoverDiscard == ~dropped
 CoverLate == ~lateSeen
@@ -298,6 +306,7 @@ Init ==
   /\ summaryStale = FALSE /\ pinDropped = FALSE
   /\ draftLost = FALSE /\ editorPinsStale = FALSE
   /\ loadStamp = "idle" /\ tabDraft = "idle" /\ tabLost = FALSE /\ staleDraftWon = FALSE /\ pinTouched = FALSE
+  /\ editorAiStale = FALSE
 
 panel == phase \in {"idle", "ready", "error", "extracting"}
 
@@ -950,6 +959,12 @@ EditorAfterSave ==
         /\ editorPinsStale' = \/ (EditorKeepsOldPins /\ touch = "note")
                               \/ (SkipPinsOnPinEdit /\ pinTouched)
         /\ pinTouched' = FALSE
+        \* The merge may land a stamped AI removal or detail clear from the
+        \* stored row that the editor did not touch during the write. The
+        \* editor takes it on a quiet save and on a note or field edit.
+        \* SpreadSavedOverEditor leaves the editor's value instead.
+        /\ \E rowCleared \in BOOLEAN :
+             editorAiStale' = (SpreadSavedOverEditor /\ rowCleared)
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
        lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
@@ -1227,7 +1242,6 @@ Settled ==
   \/ EditFieldWhileSaving
   \/ EditNoteWhileSaving
   \/ MergeKeepsNewer
-  \/ EditorAfterSave
   \/ SearchOverTypedNote
   \/ LoadLegacyDraft
   \/ OtherTabSavesDraft
@@ -1235,10 +1249,13 @@ Settled ==
   \/ EditPinWhileSaving
   \/ Wait
 
+\* Only EditorAfterSave assigns editorAiStale.
 Next ==
-  IF LoadWindow THEN SearchAfterLegacyLoad \/ AutosaveAfterLoad
-  ELSE IF TabWindow THEN SearchWithOlderEditor \/ TabDraftSettles
-  ELSE Settled
+  IF LoadWindow
+    THEN (SearchAfterLegacyLoad \/ AutosaveAfterLoad) /\ UNCHANGED editorAiStale
+  ELSE IF TabWindow
+    THEN (SearchWithOlderEditor \/ TabDraftSettles) /\ UNCHANGED editorAiStale
+  ELSE (Settled /\ UNCHANGED editorAiStale) \/ EditorAfterSave
 
 \* Used only by cfg/chart.cfg so the picture stays readable.
 \* The safety configs explore the whole reachable state space.

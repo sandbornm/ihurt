@@ -472,17 +472,71 @@ export function editorAfterSave<E extends SavedMap>(
         },
       }
     : storedPins(editor, saved);
-  if (noteEdited) return { ...editor, ...pins, ...researchAndRefs };
   const fieldsEdited = (editor.updated ?? "") !== (snapshot.updated ?? "");
-  if (!fieldsEdited) return { ...editor, ...saved, id: editor.id };
-  return {
-    ...editor,
+  // A spread never deletes a key: a removal on the saved row (aiUpdated, no
+  // ai) must strip the editor's note, or backup exports it from the editor.
+  if (!noteEdited && !fieldsEdited)
+    return { ...withoutAi(editor), ...saved, id: editor.id };
+  // Something changed during the write. Map details and the AI note come
+  // from the saved row unless the editor changed that field since snapshot.
+  const landed = savedUnlessEdited(editor, snapshot, saved);
+  const base = {
+    ...withoutAi(editor),
     ...pins,
+    ...landed.ai,
+    ...researchAndRefs,
+  };
+  const { mapUpdated: _mapUpdated, ...rest } = base;
+  const withDetails = {
+    ...rest,
+    ...(landed.mapUpdated ? { mapUpdated: landed.mapUpdated } : {}),
+  } as E;
+  if (noteEdited)
+    return {
+      ...withDetails,
+      map: { ...pins.map, ...landed.map, summary: editor.map.summary },
+    };
+  return {
+    ...withDetails,
     note: saved.note,
     ...(typeof saved.noteUpdated === "string"
       ? { noteUpdated: saved.noteUpdated }
       : {}),
-    ...researchAndRefs,
+    map: { ...pins.map, ...landed.map, summary: saved.map.summary },
+  };
+}
+
+// Map details and the AI note for editorAfterSave's in-flight paths. The
+// editor keeps a field only if its value or stamp changed since snapshot.
+function savedUnlessEdited(
+  editor: SavedMap,
+  snapshot: SavedMap,
+  saved: SavedMap,
+): {
+  map: Partial<HurtMap>;
+  mapUpdated?: NonNullable<SavedMap["mapUpdated"]>;
+  ai: Pick<SavedMap, "ai" | "aiUpdated">;
+} {
+  const map: Record<string, unknown> = {};
+  const mapUpdated: NonNullable<SavedMap["mapUpdated"]> = {
+    ...editor.mapUpdated,
+  };
+  for (const key of MAP_DETAILS) {
+    const edited =
+      detailStamp(editor, key) !== detailStamp(snapshot, key) ||
+      differs(editor.map[key], snapshot.map[key]);
+    if (edited) continue;
+    map[key] = saved.map[key];
+    const at = detailStamp(saved, key);
+    if (at !== undefined) mapUpdated[key] = at;
+    else delete mapUpdated[key];
+  }
+  const aiEdited =
+    aiStamp(editor) !== aiStamp(snapshot) || differs(editor.ai, snapshot.ai);
+  return {
+    map: map as Partial<HurtMap>,
+    ...(Object.keys(mapUpdated).length > 0 ? { mapUpdated } : {}),
+    ai: aiFields(aiEdited ? editor : saved),
   };
 }
 

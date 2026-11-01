@@ -204,8 +204,23 @@ assert.match(
 );
 assert.match(
   storage,
-  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*\.\.\.pins,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);/,
 );
+// SpreadSavedOverEditor: a quiet save strips the editor's AI note before the
+// saved row lands, and the in-flight paths take the saved details and AI.
+assert.match(
+  storage,
+  /if \(!noteEdited && !fieldsEdited\)\s*return \{ \.\.\.withoutAi\(editor\), \.\.\.saved, id: editor\.id \};/,
+);
+assert.match(
+  storage,
+  /const landed = savedUnlessEdited\(editor, snapshot, saved\);\s*const base = \{\s*\.\.\.withoutAi\(editor\),\s*\.\.\.pins,\s*\.\.\.landed\.ai,/,
+);
+assert.match(
+  storage,
+  /return \{\s*\.\.\.withDetails,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+);
+assert.match(storage, /ai: aiFields\(aiEdited \? editor : saved\),/);
 assert.equal(
   /noteEdited = noteStamp\(editor\) !== noteStamp\(snapshot\)/.test(storage),
   false,
@@ -270,7 +285,7 @@ assert.equal(
 );
 assert.match(
   storage,
-  /if \(noteEdited\) return \{ \.\.\.editor, \.\.\.pins, \.\.\.researchAndRefs \};/,
+  /if \(noteEdited\)\s*return \{\s*\.\.\.withDetails,\s*map: \{ \.\.\.pins\.map, \.\.\.landed\.map, summary: editor\.map\.summary \},/,
 );
 assert.match(
   storage,
@@ -374,7 +389,11 @@ assert.match(
 );
 assert.match(
   spec,
-  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\s*ELSE IF TabWindow THEN SearchWithOlderEditor \\\/ TabDraftSettles\s*ELSE Settled/,
+  /Next ==\s*IF LoadWindow\s*THEN \(SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\) \/\\ UNCHANGED editorAiStale\s*ELSE IF TabWindow\s*THEN \(SearchWithOlderEditor \\\/ TabDraftSettles\) \/\\ UNCHANGED editorAiStale\s*ELSE \(Settled \/\\ UNCHANGED editorAiStale\) \\\/ EditorAfterSave/,
+);
+assert.match(
+  spec,
+  /\\E rowCleared \\in BOOLEAN :\s*editorAiStale' = \(SpreadSavedOverEditor \/\\ rowCleared\)/,
 );
 assert.match(
   spec,

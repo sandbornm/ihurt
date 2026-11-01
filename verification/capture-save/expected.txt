@@ -52,3 +52,4 @@ mutant_load_stamps_in_memory.cfg FAIL LegacyDraftKept
 cover_search_after_load.cfg FAIL CoverSearchAfterLoad
 mutant_search_prefers_editor.cfg FAIL TabDraftKept
 cover_two_tab_search.cfg FAIL CoverTwoTabSearch
+mutant_whole_record_by_updated.cfg FAIL TabDraftKept

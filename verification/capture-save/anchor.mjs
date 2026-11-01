@@ -29,7 +29,10 @@ assert.match(
 assert.match(storage, /version: now/);
 assert.match(storage, /laterStamp\(existing\?\.updated, entry\.updated\)/);
 assert.match(storage, /deleted-ids/);
-assert.match(storage, /stampMs\(draft\.updated\) > stampMs\(stored\.updated\)/);
+assert.match(
+  storage,
+  /stampMs\(b\.r\.updated\) - stampMs\(a\.r\.updated\) \|\| a\.i - b\.i/,
+);
 assert.match(
   storage,
   /if \(deletedIds\(tomb\.result\)\.includes\(entryId\)\) return;/,
@@ -134,7 +137,24 @@ assert.match(
 );
 assert.match(
   storage,
-  /newerEntry\(openEditor, base\)[\s\S]{0,300}newerPoints\(openEditor, newerPoints\(savedDraft, stored\)\)/,
+  /const entry = ranked\[0\];[\s\S]{0,300}newerPoints\(openEditor, newerPoints\(savedDraft, stored\)\)/,
+);
+// Fields with no stamp come from every record, not only the newest
+// (WholeRecordByUpdated, dc337c7).
+assert.match(
+  storage,
+  /const ranked = byUpdated\(\[stored, savedDraft, openEditor\]\);/,
+);
+assert.match(
+  storage,
+  /ranked\.reduce<[^>]*>>\(\s*\(all, record\) => unionByUrl\(all, record\.references\),\s*stamped\.references,/,
+);
+assert.match(storage, /answers: fillAnswers\(ranked\),/);
+assert.match(storage, /\.\.\.fillMap\(ranked\),/);
+assert.equal(
+  /unionByUrl\(stamped\.references, entry\.references\)/.test(storage),
+  false,
+  "readings must union across all records (WholeRecordByUpdated)",
 );
 assert.equal(
   /editor\?\.id === entryId \? editor : savedDraft/.test(storage),
@@ -291,6 +311,7 @@ assert.equal(
 // The model's corrupt-write branch clears the confirmed ids with the store,
 // and run.sh runs TLC deterministically.
 const spec = read("verification/capture-save/CaptureSave.tla");
+assert.match(spec, /WholeRecordByUpdated THEN newestRec ELSE UNION recs/);
 assert.match(
   spec,
   /THEN \/\\ storeOk' = FALSE\s*\/\\ e1' = "absent"\s*\/\\ e2' = "absent"[\s\S]*?\/\\ c1' = FALSE\s*\/\\ c2' = FALSE/,
@@ -309,7 +330,14 @@ assert.match(
   spec,
   /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\s*ELSE IF TabWindow THEN SearchWithOlderEditor \\\/ TabDraftSettles\s*ELSE Settled/,
 );
-assert.match(spec, /tabLost' = SearchPrefersEditor/);
+assert.match(
+  spec,
+  /tabLost' = ~\(\(DraftRec \\cup StoredRec\(h\) \\cup EditorRec\(h\)\) \\subseteq SearchRow\(h\)\)/,
+);
+assert.match(
+  spec,
+  /IF SearchPrefersEditor THEN \{StoredRec\(h\), EditorRec\(h\)\}/,
+);
 assert.match(spec, /staleDraftWon' = LegacyResearchTakesDraft/);
 assert.match(spec, /\\\/ \(SkipPinsOnPinEdit \/\\ pinTouched\)/);
 const runner = read("verification/capture-save/run.sh");

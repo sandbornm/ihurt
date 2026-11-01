@@ -40,6 +40,7 @@ CONSTANTS
   EditorKeepsOldPins,    \* old editorAfterSave/withStampedResearch leave the editor's older pins
   LoadSkipsStamp,        \* load takes the draft but leaves it unstamped, so a later search reverts it
   SearchPrefersEditor,   \* 0db75f3 saveResearch: the open editor replaces the saved draft, so another tab's newer draft is lost
+  WholeRecordByUpdated,  \* dc337c7 saveResearch: readings, answers and map details come only from the newest record by updated
   LoadStampsInMemoryOnly,\* 41347e7 load: stamps the draft in memory and leaves the stored draft to the autosave
   LegacyResearchTakesDraft, \* a search on an unstamped tie takes the draft over the stored row
   SkipPinsOnPinEdit,     \* old editorAfterSave: a pin edit during the save skips the merged pins
@@ -1074,12 +1075,37 @@ OtherTabSavesDraft ==
        rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
   /\ UNCHANGED editorVars
 
-\* This tab's research lands with its older editor. saveResearch merges the
-\* row, the saved draft, and the editor field by field, so the other tab's
-\* newer note and pins stay. SearchPrefersEditor drops the saved draft.
+\* The data each record holds that no other record has. The other tab's draft
+\* is newest by updated and holds the newer note and pins. The stored row or
+\* the older editor may hold a reading, an answer, or a map detail (title,
+\* quality, activity, duration, intensity) that the draft lacks. h names that
+\* one item, or none. Checking one item at a time is enough: the merge treats
+\* each item on its own.
+TabFamilies == {"reading", "answer", "detail"}
+TabHeld == {<<"none", "none">>} \cup ({"stored", "editor"} \X TabFamilies)
+StoredRec(h) == IF h[1] = "stored" THEN {h} ELSE {}
+EditorRec(h) == IF h[1] = "editor" THEN {h} ELSE {}
+DraftRec == {<<"draft", "note">>, <<"draft", "pins">>}
+
+\* The row saveResearch writes, as the set of items on it. Note and pins go by
+\* their own stamps, so the draft's newer ones win. Readings union by URL,
+\* answers merge by question, and blank map details fill from older records,
+\* so the row holds every record's items. WholeRecordByUpdated (dc337c7) takes
+\* readings, answers and details from the newest record only.
+\* SearchPrefersEditor (0db75f3) reads the editor in place of the saved draft.
+SearchRow(h) ==
+  LET recs == IF SearchPrefersEditor THEN {StoredRec(h), EditorRec(h)}
+              ELSE {StoredRec(h), DraftRec, EditorRec(h)}
+      newestRec == IF SearchPrefersEditor THEN EditorRec(h) ELSE DraftRec
+      stamped == {i \in UNION recs : i[2] \in {"note", "pins"}}
+  IN stamped \cup (IF WholeRecordByUpdated THEN newestRec ELSE UNION recs)
+
+\* This tab's research lands with its older editor. Every item any record
+\* holds must be on the row.
 SearchWithOlderEditor ==
   /\ tabDraft = "newer"
-  /\ tabLost' = SearchPrefersEditor
+  /\ \E h \in TabHeld :
+       tabLost' = ~((DraftRec \cup StoredRec(h) \cup EditorRec(h)) \subseteq SearchRow(h))
   /\ tabDraft' = IF MarkSearch THEN "searched" ELSE "idle"
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,

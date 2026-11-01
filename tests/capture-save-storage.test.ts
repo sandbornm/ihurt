@@ -1914,6 +1914,185 @@ test("a search takes each field from whichever of editor and saved draft is newe
   );
 });
 
+const link = (url: string) => ({
+  title: url,
+  url: `https://example.test/${url}`,
+  publisher: "Example",
+  checked: T1,
+});
+const urls = (row: { references?: { url: string }[] } | undefined) =>
+  (row?.references ?? []).map((r) => r.url).sort();
+const withContext = (note: string, context: Record<string, unknown>) => ({
+  ...entry("x", note).map,
+  ...context,
+});
+
+test("a newer draft from another tab keeps the stored row's readings, answers and map details", async () => {
+  // Grok's repro on dc337c7: the stored row holds a link, an answer and a
+  // quality. The older editor holds another link and quality. The other tab's
+  // draft is newest by updated, with a newer note and none of those.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  const T4 = "2026-01-05T00:00:00.000Z";
+  await storeEntries([
+    entry("ctx-stored", "stored", {
+      updated: T3,
+      noteUpdated: T1,
+      references: [link("stored")],
+      answers: [{ key: "onset", text: "after a run" }],
+      map: withContext("stored", { title: "Stored title", quality: "sharp" }),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("ctx-stored", "draft, newest", {
+        updated: T4,
+        noteUpdated: T4,
+        references: [],
+        answers: [],
+        map: withContext("draft, newest", { title: "Draft title" }),
+      }),
+    ),
+  );
+  const editor = entry("ctx-stored", "editor, older", {
+    updated: T2,
+    noteUpdated: T2,
+    references: [link("editor")],
+    map: withContext("editor, older", { quality: "dull" }),
+  });
+  const after = await saveResearch("ctx-stored", research, editor);
+  for (const row of [
+    after,
+    (await loadNotebook()).entries.find((e) => e.id === "ctx-stored"),
+    (await loadNotebook()).draft?.entry,
+  ]) {
+    assert.equal(row?.note, "draft, newest");
+    assert.deepEqual(urls(row), [
+      "https://example.test/editor",
+      "https://example.test/knee",
+      "https://example.test/stored",
+    ]);
+    assert.deepEqual(row?.answers, [{ key: "onset", text: "after a run" }]);
+    // The newest record's own value wins; a blank there is filled from the
+    // next newest record (stored at T3 before the editor at T2).
+    assert.equal(row?.map.title, "Draft title");
+    assert.equal(row?.map.quality, "sharp");
+  }
+});
+
+test("a newer draft from another tab keeps the open editor's readings, answers and map details", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("ctx-editor", "stored", { updated: T1, noteUpdated: T1 }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("ctx-editor", "draft, newest", {
+        updated: T3,
+        noteUpdated: T3,
+        map: withContext("draft, newest", { title: "" }),
+      }),
+    ),
+  );
+  const editor = entry("ctx-editor", "editor, older", {
+    updated: T2,
+    noteUpdated: T2,
+    references: [link("editor")],
+    answers: [{ key: "onset", text: "lifting" }],
+    map: withContext("editor, older", {
+      title: "Lifting",
+      quality: "burning",
+      activity: "lifting",
+      duration: "2 days",
+      intensity: 6,
+    }),
+  });
+  const after = await saveResearch("ctx-editor", research, editor);
+  const row = (await loadNotebook()).entries.find((e) => e.id === "ctx-editor");
+  for (const r of [after, row]) {
+    assert.equal(r?.note, "draft, newest");
+    assert.deepEqual(urls(r), [
+      "https://example.test/editor",
+      "https://example.test/knee",
+    ]);
+    assert.deepEqual(r?.answers, [{ key: "onset", text: "lifting" }]);
+    assert.equal(r?.map.title, "Lifting");
+    assert.equal(r?.map.quality, "burning");
+    assert.equal(r?.map.activity, "lifting");
+    assert.equal(r?.map.duration, "2 days");
+    assert.equal(r?.map.intensity, 6);
+  }
+});
+
+test("a search keeps answers by question from every record, newest first", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("answers", "stored", {
+      updated: T1,
+      answers: [
+        { key: "onset", text: "stored onset" },
+        { key: "better", text: "rest" },
+      ],
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("answers", "draft", {
+        updated: T3,
+        answers: [{ key: "onset", text: "draft onset" }],
+      }),
+    ),
+  );
+  const editor = entry("answers", "editor", {
+    updated: T2,
+    answers: [{ key: "worse", text: "stairs" }],
+  });
+  const after = await saveResearch("answers", research, editor);
+  assert.deepEqual(after?.answers, [
+    { key: "onset", text: "draft onset" },
+    { key: "worse", text: "stairs" },
+    { key: "better", text: "rest" },
+  ]);
+});
+
+test("an editor and saved draft with equal stamps keep the saved draft, and blanks fill", async () => {
+  await storeEntries([
+    entry("equal", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("equal", "draft note", {
+        updated: T2,
+        noteUpdated: T2,
+        pointsUpdated: T2,
+        points: [pinAt("pin-d")],
+      }),
+    ),
+  );
+  const editor = entry("equal", "editor note", {
+    updated: T2,
+    noteUpdated: T2,
+    pointsUpdated: T2,
+    points: [pinAt("pin-e")],
+    references: [link("editor")],
+    map: withContext("editor note", { quality: "dull" }),
+  });
+  const after = await saveResearch("equal", research, editor);
+  assert.equal(after?.note, "draft note");
+  assert.deepEqual(
+    after?.points?.map((p) => p.id),
+    ["pin-d"],
+  );
+  assert.equal(after?.map.quality, "dull");
+  assert.deepEqual(urls(after), [
+    "https://example.test/editor",
+    "https://example.test/knee",
+  ]);
+});
+
 test("saveResearch with an unstamped editor still keeps stored on a tie", async () => {
   putLegacyRow(entry("live-tie", "stored note", { updated: T2 }));
   const editor = entry("live-tie", "editor note", { updated: T1 });

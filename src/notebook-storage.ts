@@ -1,4 +1,4 @@
-import type { SavedMap, RegionId, PainPoint } from "./types";
+import type { SavedMap, RegionId, PainPoint, HurtMap } from "./types";
 import { t } from "./i18n/index.ts";
 export interface Draft {
   entry: SavedMap;
@@ -398,12 +398,6 @@ export function editorAfterSave<E extends SavedMap>(
   };
 }
 
-function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
-  if (draft && stored && stampMs(draft.updated) > stampMs(stored.updated))
-    return draft;
-  return stored ?? draft;
-}
-
 // Equal note stamps keep the stored note, same as keepLandedResearch.
 function newerNote(
   draft: SavedMap | undefined,
@@ -419,6 +413,45 @@ function newerPoints(
 ): SavedMap | undefined {
   if (!draft || !stored) return draft ?? stored;
   return incomingPointsWin(stored, draft) ? draft : stored;
+}
+
+// Records ranked by updated, newest first. Equal stamps keep the earlier
+// argument first, so pass stored, then the saved draft, then the editor: a tie
+// keeps the persisted side (the #46 rule).
+function byUpdated(records: (SavedMap | undefined)[]): SavedMap[] {
+  return records
+    .filter((r): r is SavedMap => r !== undefined)
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => stampMs(b.r.updated) - stampMs(a.r.updated) || a.i - b.i)
+    .map(({ r }) => r);
+}
+
+const blank = (value: unknown) =>
+  value === undefined || value === null || value === "";
+
+// Map details have no stamp of their own. The newest record's value wins, and
+// a blank there is filled from the next newest, so a detail only one record
+// holds is kept. summary and regions follow the note and pins instead.
+function fillMap(ranked: SavedMap[]): HurtMap {
+  const map: Record<string, unknown> = { ...ranked[0].map };
+  for (const record of ranked.slice(1))
+    for (const [key, value] of Object.entries(record.map))
+      if (blank(map[key]) && !blank(value)) map[key] = value;
+  return map as unknown as HurtMap;
+}
+
+// Answers merge by question. The newest record's answer to a question wins;
+// a question only an older record answered is kept.
+function fillAnswers(ranked: SavedMap[]): SavedMap["answers"] {
+  const seen = new Set<string>();
+  const answers: SavedMap["answers"] = [];
+  for (const record of ranked)
+    for (const answer of record.answers ?? [])
+      if (!seen.has(answer.key) && !blank(answer.text)) {
+        seen.add(answer.key);
+        answers.push(answer);
+      }
+  return answers;
 }
 
 export const saveDraft = (draft: Draft) =>
@@ -475,8 +508,9 @@ export const removeEntry = (id: string) =>
     };
   });
 
-// editor is the open entry, when it is this one. It is newer than the stored
-// draft, which the autosave writes later, so the merge starts from it.
+// editor is the open entry, when it is this one. Another tab may have saved a
+// newer draft since, so the editor is one of three records merged field by
+// field: the stored row, the saved draft, and the editor.
 export async function saveResearch(
   entryId: string,
   research: NonNullable<SavedMap["research"]>,
@@ -501,12 +535,15 @@ export async function saveResearch(
       const savedDraft =
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
       const openEditor = editor?.id === entryId ? editor : undefined;
-      // Three candidates: the stored row, the saved draft (which another tab
-      // may have written later), and this tab's open editor. Each field goes
-      // to the newest by its own stamp. The saved draft is merged onto the row
-      // first, then the editor onto that, and a tie keeps the earlier side.
-      const base = newerEntry(savedDraft, stored);
-      const entry = newerEntry(openEditor, base);
+      // Three records: the stored row, the saved draft (which another tab may
+      // have written after this editor), and this tab's open editor. Note and
+      // pins each go to the newest by their own stamp, folding the draft onto
+      // the row and then the editor onto that; a tie keeps the earlier side.
+      // Other fields have no stamp, so the newest record by updated leads and
+      // nothing only one record holds is dropped: readings union by URL,
+      // answers merge by question, and blank map details are filled.
+      const ranked = byUpdated([stored, savedDraft, openEditor]);
+      const entry = ranked[0];
       if (!entry) return;
       const noteEntry =
         newerNote(openEditor, newerNote(savedDraft, stored)) ?? entry;
@@ -525,13 +562,19 @@ export async function saveResearch(
           ? pointsEntry.pointsUpdated
           : undefined;
       const stamped = { ...research, version: now };
-      const references = unionByUrl(stamped.references, entry.references);
+      const references = ranked.reduce<NonNullable<SavedMap["references"]>>(
+        (all, record) => unionByUrl(all, record.references),
+        stamped.references,
+      );
+      const ai = ranked.find((record) => record.ai !== undefined)?.ai;
       updated = {
         ...entry,
+        ...(ai !== undefined ? { ai } : {}),
+        answers: fillAnswers(ranked),
         note: noteEntry.note,
         points: pointsEntry.points,
         map: {
-          ...entry.map,
+          ...fillMap(ranked),
           summary: noteEntry.note,
           regions: pointsEntry.map.regions,
         },

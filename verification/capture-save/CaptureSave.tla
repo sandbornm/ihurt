@@ -1152,12 +1152,16 @@ Landed(h, late) ==
 \* holds must be on the row, then on the editor after the handback (which the
 \* autosave and the next save write back), then on the row after a later
 \* save or load of an older draft. One step: the handback's choices are
-\* existential, so the window adds no states beyond tabLost.
+\* existential, so the window adds no states beyond tabLost. The outcomes
+\* depend only on constants, so TLC computes TabOutcomes once at startup.
+TabOutcomes ==
+  {~(Kept(h, SearchRow(h)) /\ Kept(h, EditorAfter(h, keyed))
+      /\ Kept(h, Landed(h, late))) :
+     h \in TabHeld, keyed \in BOOLEAN, late \in BOOLEAN}
+
 SearchWithOlderEditor ==
   /\ tabDraft = "newer"
-  /\ \E h \in TabHeld, keyed \in BOOLEAN, late \in BOOLEAN :
-       tabLost' = ~(Kept(h, SearchRow(h)) /\ Kept(h, EditorAfter(h, keyed))
-                     /\ Kept(h, Landed(h, late)))
+  /\ tabLost' \in TabOutcomes
   /\ tabDraft' = IF MarkSearch THEN "searched" ELSE "idle"
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,

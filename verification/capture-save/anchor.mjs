@@ -355,8 +355,9 @@ assert.match(
 assert.match(spec, /IF late \/\\ LandIgnoresStamps/);
 assert.match(
   spec,
-  /tabLost' = ~\(Kept\(h, SearchRow\(h\)\) \/\\ Kept\(h, EditorAfter\(h, keyed\)\)\s*\/\\ Kept\(h, Landed\(h, late\)\)\)/,
+  /~\(Kept\(h, SearchRow\(h\)\) \/\\ Kept\(h, EditorAfter\(h, keyed\)\)\s*\/\\ Kept\(h, Landed\(h, late\)\)\) :\s*h \\in TabHeld, keyed \\in BOOLEAN, late \\in BOOLEAN\}/,
 );
+assert.match(spec, /tabLost' \\in TabOutcomes/);
 assert.match(
   spec,
   /THEN \/\\ storeOk' = FALSE\s*\/\\ e1' = "absent"\s*\/\\ e2' = "absent"[\s\S]*?\/\\ c1' = FALSE\s*\/\\ c2' = FALSE/,

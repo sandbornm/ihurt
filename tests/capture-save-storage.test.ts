@@ -1833,6 +1833,87 @@ test("saveResearch merges against the open editor, not only the stored row", asy
   );
 });
 
+test("a search in an older tab keeps the newer draft another tab saved", async () => {
+  // Tab A and tab B have the same entry open. Tab B autosaved a newer note
+  // and pin. Tab A's research lands with tab A's older editor.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("two-tab", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+      points: [pinAt("pin-1")],
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("two-tab", "tab B, newer", {
+        updated: T3,
+        noteUpdated: T3,
+        pointsUpdated: T3,
+        points: [pinAt("pin-1"), pinAt("pin-2")],
+        map: neckMap("tab B, newer", ["neck"]),
+      }),
+    ),
+  );
+  const tabA = entry("two-tab", "tab A, older", {
+    updated: T2,
+    noteUpdated: T2,
+    pointsUpdated: T2,
+    points: [pinAt("pin-1")],
+    map: neckMap("tab A, older", ["neck"]),
+  });
+  const after = await saveResearch("two-tab", research, tabA);
+  assert.equal(after?.note, "tab B, newer");
+  assert.equal(after?.noteUpdated, T3);
+  assert.deepEqual(
+    after?.points?.map((p) => p.id),
+    ["pin-1", "pin-2"],
+  );
+  const reloaded = await loadNotebook();
+  assert.equal(reloaded.draft?.entry.note, "tab B, newer");
+  assert.equal(reloaded.draft?.entry.points?.length, 2);
+  const row = reloaded.entries.find((e) => e.id === "two-tab");
+  assert.equal(row?.note, "tab B, newer");
+  assert.equal(row?.points?.length, 2);
+});
+
+test("a search takes each field from whichever of editor and saved draft is newer", async () => {
+  // The open editor has the newer note, the other tab's saved draft has the
+  // newer pins. Neither is dropped.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("mixed", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+      points: [],
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("mixed", "draft note", {
+        updated: T2,
+        noteUpdated: T1,
+        pointsUpdated: T3,
+        points: [pinAt("pin-9")],
+      }),
+    ),
+  );
+  const editor = entry("mixed", "editor note", {
+    updated: T3,
+    noteUpdated: T3,
+    pointsUpdated: T2,
+    points: [],
+  });
+  const after = await saveResearch("mixed", research, editor);
+  assert.equal(after?.note, "editor note");
+  assert.deepEqual(
+    after?.points?.map((p) => p.id),
+    ["pin-9"],
+  );
+});
+
 test("saveResearch with an unstamped editor still keeps stored on a tie", async () => {
   putLegacyRow(entry("live-tie", "stored note", { updated: T2 }));
   const editor = entry("live-tie", "editor note", { updated: T1 });

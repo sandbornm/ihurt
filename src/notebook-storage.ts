@@ -500,11 +500,18 @@ export async function saveResearch(
       const stored = saved.result as SavedMap | undefined;
       const savedDraft =
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
-      const draftEntry = editor?.id === entryId ? editor : savedDraft;
-      const entry = newerEntry(draftEntry, stored);
+      const openEditor = editor?.id === entryId ? editor : undefined;
+      // Three candidates: the stored row, the saved draft (which another tab
+      // may have written later), and this tab's open editor. Each field goes
+      // to the newest by its own stamp. The saved draft is merged onto the row
+      // first, then the editor onto that, and a tie keeps the earlier side.
+      const base = newerEntry(savedDraft, stored);
+      const entry = newerEntry(openEditor, base);
       if (!entry) return;
-      const noteEntry = newerNote(draftEntry, stored) ?? entry;
-      const pointsEntry = newerPoints(draftEntry, stored) ?? entry;
+      const noteEntry =
+        newerNote(openEditor, newerNote(savedDraft, stored)) ?? entry;
+      const pointsEntry =
+        newerPoints(openEditor, newerPoints(savedDraft, stored)) ?? entry;
       const now = new Date().toISOString();
       // A note with no stamp gets its row's updated time, never now. A search
       // stamped with now would outrank a note the user typed seconds earlier,

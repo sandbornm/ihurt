@@ -89,7 +89,7 @@ assert.equal(
 );
 assert.match(
   storage,
-  /const noteEntry = newerNote\(draftEntry, stored\) \?\? entry;/,
+  /newerNote\(openEditor, newerNote\(savedDraft, stored\)\) \?\? entry;/,
 );
 assert.match(storage, /note: noteEntry\.note/);
 assert.match(
@@ -126,10 +126,20 @@ assert.match(
   storage,
   /tx\.oncomplete = \(\) => resolve\(\{ entries: list, draft: result \}\);/,
 );
-// saveResearch merges against the open editor when it is this entry.
+// saveResearch merges the open editor when it is this entry, on top of the
+// saved draft, which another tab may have written later (TabDraftKept).
 assert.match(
   storage,
-  /const draftEntry = editor\?\.id === entryId \? editor : savedDraft;/,
+  /const openEditor = editor\?\.id === entryId \? editor : undefined;/,
+);
+assert.match(
+  storage,
+  /newerEntry\(openEditor, base\)[\s\S]{0,300}newerPoints\(openEditor, newerPoints\(savedDraft, stored\)\)/,
+);
+assert.equal(
+  /editor\?\.id === entryId \? editor : savedDraft/.test(storage),
+  false,
+  "the open editor must not replace the saved draft (SearchPrefersEditor)",
 );
 assert.match(notebook, /e\.id === entry\.id/);
 assert.match(notebook, /withStampedResearch\(e, entry\.id, updated\)/);
@@ -297,8 +307,9 @@ assert.match(
 );
 assert.match(
   spec,
-  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad ELSE Settled/,
+  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\s*ELSE IF TabWindow THEN SearchWithOlderEditor \\\/ TabDraftSettles\s*ELSE Settled/,
 );
+assert.match(spec, /tabLost' = SearchPrefersEditor/);
 assert.match(spec, /staleDraftWon' = LegacyResearchTakesDraft/);
 assert.match(spec, /\\\/ \(SkipPinsOnPinEdit \/\\ pinTouched\)/);
 const runner = read("verification/capture-save/run.sh");

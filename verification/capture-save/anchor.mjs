@@ -150,7 +150,18 @@ assert.match(
   /ranked\.reduce<[^>]*>>\(\s*\(all, record\) => unionByUrl\(all, record\.references\),\s*stamped\.references,/,
 );
 assert.match(storage, /answers: fillAnswers\(ranked\),/);
-assert.match(storage, /\.\.\.fillMap\(ranked\),/);
+assert.match(storage, /\.\.\.details\.map,/);
+// A stamped map detail wins even when blank (FillBlankDetails, c8b260d).
+assert.match(storage, /stampMs\(at\) > stampMs\(detailStamp\(winner, key\)\)/);
+assert.match(storage, /map\[key\] = winner\.map\[key\];/);
+// The editor takes the whole merge (HandBackNoteOnly, c8b260d).
+assert.match(
+  storage,
+  /const details = mergeMap\(\[stored, editor\], ranked\);[\s\S]{0,400}answers: fillAnswers\(ranked\),\s*references: unionByUrl\(stored\.references, editor\.references\),/,
+);
+// Edits stamp the map details they change.
+assert.match(notebook, /withMapDetails\(e, \{ \[field\]: value \}, now\)/);
+assert.match(notebook, /map \? withMapDetails\(e, map, now\) : e/);
 assert.equal(
   /unionByUrl\(stamped\.references, entry\.references\)/.test(storage),
   false,
@@ -217,13 +228,13 @@ assert.match(
 );
 assert.match(
   storage,
-  /if \(!storedNoteNewerThanEditor\(stored, editor\)\)\s*return \{ \.\.\.editor, \.\.\.pins, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*\.\.\.pins,\s*research: stored\.research,\s*note: stored\.note,/,
+  /const noteFrom = storedNoteNewerThanEditor\(stored, editor\) \? stored : editor;[\s\S]{0,700}research: stored\.research,\s*note: noteFrom\.note,/,
 );
 // The editor takes the row's pins after a save or search unless its own are
 // newer, so the next pin edit does not write a shorter list over the row.
 assert.match(
   storage,
-  /stampMs\(editor\.pointsUpdated\) > stampMs\(stored\.pointsUpdated\)\s*\? \{\}\s*: storedPins\(editor, stored\);/,
+  /stampMs\(editor\.pointsUpdated\) > stampMs\(stored\.pointsUpdated\)\s*\? undefined\s*: storedPins\(editor, stored\);/,
 );
 // A pin edit during the save is merged per pin onto the saved pins.
 assert.match(storage, /function mergePinEdits\(/);
@@ -311,7 +322,13 @@ assert.equal(
 // The model's corrupt-write branch clears the confirmed ids with the store,
 // and run.sh runs TLC deterministically.
 const spec = read("verification/capture-save/CaptureSave.tla");
-assert.match(spec, /WholeRecordByUpdated THEN newestRec ELSE UNION recs/);
+assert.match(spec, /WholeRecordByUpdated THEN newestRec ELSE merged/);
+assert.match(
+  spec,
+  /merged == IF FillBlankDetails THEN UNION recs ELSE UNION recs \\ Stale\(h\)/,
+);
+assert.match(spec, /IF HandBackNoteOnly[\s\S]{0,200}ELSE SearchRow\(h\)/);
+assert.match(spec, /tabLost' = \(tabLost \\\/ ~Kept\(h, EditorAfter\(h\)\)\)/);
 assert.match(
   spec,
   /THEN \/\\ storeOk' = FALSE\s*\/\\ e1' = "absent"\s*\/\\ e2' = "absent"[\s\S]*?\/\\ c1' = FALSE\s*\/\\ c2' = FALSE/,
@@ -328,12 +345,9 @@ assert.match(
 );
 assert.match(
   spec,
-  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\s*ELSE IF TabWindow THEN SearchWithOlderEditor \\\/ TabDraftSettles\s*ELSE Settled/,
+  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\s*ELSE IF TabWindow THEN SearchWithOlderEditor \\\/ EditorTakesSearch \\\/ TabDraftSettles\s*ELSE Settled/,
 );
-assert.match(
-  spec,
-  /tabLost' = ~\(\(DraftRec \\cup StoredRec\(h\) \\cup EditorRec\(h\)\) \\subseteq SearchRow\(h\)\)/,
-);
+assert.match(spec, /tabLost' = ~Kept\(h, SearchRow\(h\)\)/);
 assert.match(
   spec,
   /IF SearchPrefersEditor THEN \{StoredRec\(h\), EditorRec\(h\)\}/,

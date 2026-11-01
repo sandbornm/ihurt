@@ -67,6 +67,7 @@ import {
   editorAfterSave,
   withStampedResearch,
   entryReferences,
+  withMapDetails,
   type Draft,
 } from "./notebook-storage";
 import { activities, activityName, activityRegions } from "./activities";
@@ -227,22 +228,28 @@ export default function Notebook({
   };
   function change(patch: Partial<SavedMap>) {
     const now = new Date().toISOString();
-    setEntry((e) => ({
-      ...e,
-      ...patch,
-      updated: now,
-      ...(patch.note !== undefined ? { noteUpdated: now } : {}),
-    }));
+    setEntry((e) => {
+      const { map, ...rest } = patch;
+      const next = map ? withMapDetails(e, map, now) : e;
+      return {
+        ...next,
+        ...rest,
+        updated: now,
+        ...(patch.note !== undefined ? { noteUpdated: now } : {}),
+      };
+    });
   }
   function context(
     field: "title" | "quality" | "activity" | "duration" | "intensity",
     value: string | number | null,
   ) {
-    setEntry((e) => ({
-      ...e,
-      updated: new Date().toISOString(),
-      map: { ...e.map, [field]: value },
-    }));
+    setEntry((e) => {
+      const now = new Date().toISOString();
+      return {
+        ...withMapDetails(e, { [field]: value }, now),
+        updated: now,
+      };
+    });
   }
   useEffect(() => {
     let cancelled = false;

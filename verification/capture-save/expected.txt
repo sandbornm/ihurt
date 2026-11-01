@@ -53,3 +53,5 @@ cover_search_after_load.cfg FAIL CoverSearchAfterLoad
 mutant_search_prefers_editor.cfg FAIL TabDraftKept
 cover_two_tab_search.cfg FAIL CoverTwoTabSearch
 mutant_whole_record_by_updated.cfg FAIL TabDraftKept
+mutant_fill_blank_details.cfg FAIL TabDraftKept
+mutant_hand_back_note_only.cfg FAIL TabDraftKept

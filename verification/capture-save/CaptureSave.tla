@@ -10,7 +10,7 @@
 \* still deliver. A CONSTANT that is TRUE turns off one guard from the
 \* TypeScript. Those constants are FALSE for the real code.
 
-EXTENDS Integers
+EXTENDS Integers, Sequences
 
 CONSTANTS
   SkipGenerationGuard,   \* ignore extraction.current / recording generation
@@ -41,6 +41,8 @@ CONSTANTS
   LoadSkipsStamp,        \* load takes the draft but leaves it unstamped, so a later search reverts it
   SearchPrefersEditor,   \* 0db75f3 saveResearch: the open editor replaces the saved draft, so another tab's newer draft is lost
   WholeRecordByUpdated,  \* dc337c7 saveResearch: readings, answers and map details come only from the newest record by updated
+  FillBlankDetails,      \* c8b260d saveResearch: a blank map detail fills from an older record even when a newer stamp cleared it
+  HandBackNoteOnly,      \* c8b260d withStampedResearch: the editor gets only the merged note, pins and research, so the autosave drops the rest
   LoadStampsInMemoryOnly,\* 41347e7 load: stamps the draft in memory and leaves the stored draft to the autosave
   LegacyResearchTakesDraft, \* a search on an unstamped tie takes the draft over the stored row
   SkipPinsOnPinEdit,     \* old editorAfterSave: a pin edit during the save skips the merged pins
@@ -104,7 +106,7 @@ VARIABLES
   pinDropped,  \* a later save wrote empty points over a stored pin
   draftLost,   \* a legacy draft's added note text or pins were replaced by the stored row
   editorPinsStale,\* the editor holds older pins than the row after a save or search
-  tabDraft,    \* another tab's newer draft for this entry: "idle", "newer" (saved, not yet merged), "searched"
+  tabDraft,    \* another tab's newer draft for this entry: "idle", "newer" (saved, not yet merged), a Landed(h) tag (row written, editor not yet updated), "searched"
   tabLost,     \* a search dropped the other tab's newer note or pins for this tab's older editor
   loadStamp,   \* where a legacy load's stamp is, until the next search: "idle", "none", "memory", "stored", "searched"
   staleDraftWon, \* a search took an unstamped draft over the stored row
@@ -124,6 +126,22 @@ vars == <<
 \* Left unchanged by actions that do not assign them.
 noteVars == <<cardStale, owedExtra, extra, note, draftNote, best, laundered, rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, tabDraft, tabLost, staleDraftWon>>
 editorVars == <<editorNote, snapNote, touch, pending, newerKept, afterField, researchExtra, legacy, typed, pinTouched>>
+
+\* The data each record holds that no other record has. The other tab's draft
+\* is newest by updated and holds the newer note and pins. The stored row or
+\* the older editor may hold a reading, an answer, or a map detail (title,
+\* quality, activity, duration, intensity) that the draft lacks, or a "stale"
+\* map detail: an older value of a detail the draft cleared with a newer field
+\* stamp, which must not come back. h names that one item, or none. Checking
+\* one item at a time is enough: the merge treats each item on its own.
+TabFamilies == {"reading", "answer", "detail", "stale"}
+TabHeld == {<<"none", "none">>} \cup ({"stored", "editor"} \X TabFamilies)
+StoredRec(h) == IF h[1] = "stored" THEN {h} ELSE {}
+EditorRec(h) == IF h[1] = "editor" THEN {h} ELSE {}
+DraftRec == {<<"draft", "note">>, <<"draft", "pins">>}
+
+\* The row is written; this tab's editor has not taken it yet.
+Landed(h) == "landed-" \o h[1] \o "-" \o h[2]
 
 TypeOK ==
   /\ phase \in {"shut", "idle", "recording", "processing", "extracting", "ready", "error"}
@@ -152,7 +170,7 @@ TypeOK ==
   /\ summaryStale \in BOOLEAN /\ pinDropped \in BOOLEAN
   /\ draftLost \in BOOLEAN /\ editorPinsStale \in BOOLEAN
   /\ loadStamp \in {"idle", "none", "memory", "stored", "searched"}
-  /\ tabDraft \in {"idle", "newer", "searched"} /\ tabLost \in BOOLEAN /\ staleDraftWon \in BOOLEAN /\ pinTouched \in BOOLEAN
+  /\ tabDraft \in {"idle", "newer", "searched"} \cup {Landed(h) : h \in TabHeld} /\ tabLost \in BOOLEAN /\ staleDraftWon \in BOOLEAN /\ pinTouched \in BOOLEAN
 
 \* After save returns, that id is still in the store until the person deletes it.
 ConfirmedPresent ==
@@ -1075,37 +1093,57 @@ OtherTabSavesDraft ==
        rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
   /\ UNCHANGED editorVars
 
-\* The data each record holds that no other record has. The other tab's draft
-\* is newest by updated and holds the newer note and pins. The stored row or
-\* the older editor may hold a reading, an answer, or a map detail (title,
-\* quality, activity, duration, intensity) that the draft lacks. h names that
-\* one item, or none. Checking one item at a time is enough: the merge treats
-\* each item on its own.
-TabFamilies == {"reading", "answer", "detail"}
-TabHeld == {<<"none", "none">>} \cup ({"stored", "editor"} \X TabFamilies)
-StoredRec(h) == IF h[1] = "stored" THEN {h} ELSE {}
-EditorRec(h) == IF h[1] = "editor" THEN {h} ELSE {}
-DraftRec == {<<"draft", "note">>, <<"draft", "pins">>}
-
 \* The row saveResearch writes, as the set of items on it. Note and pins go by
 \* their own stamps, so the draft's newer ones win. Readings union by URL,
 \* answers merge by question, and blank map details fill from older records,
 \* so the row holds every record's items. WholeRecordByUpdated (dc337c7) takes
 \* readings, answers and details from the newest record only.
 \* SearchPrefersEditor (0db75f3) reads the editor in place of the saved draft.
+\* A stale detail loses to the draft's newer field stamp; FillBlankDetails
+\* (c8b260d) fills the draft's cleared blank from it.
+Stale(h) == {i \in StoredRec(h) \cup EditorRec(h) : i[2] = "stale"}
+Needed(h) == DraftRec \cup ((StoredRec(h) \cup EditorRec(h)) \ Stale(h))
+Kept(h, row) == Needed(h) \subseteq row /\ row \cap Stale(h) = {}
+
 SearchRow(h) ==
   LET recs == IF SearchPrefersEditor THEN {StoredRec(h), EditorRec(h)}
               ELSE {StoredRec(h), DraftRec, EditorRec(h)}
       newestRec == IF SearchPrefersEditor THEN EditorRec(h) ELSE DraftRec
       stamped == {i \in UNION recs : i[2] \in {"note", "pins"}}
-  IN stamped \cup (IF WholeRecordByUpdated THEN newestRec ELSE UNION recs)
+      merged == IF FillBlankDetails THEN UNION recs ELSE UNION recs \ Stale(h)
+  IN stamped \cup (IF WholeRecordByUpdated THEN newestRec ELSE merged)
+
+\* What withStampedResearch hands this tab's editor. It takes the whole row,
+\* so the editor holds every merged item and no stale detail. HandBackNoteOnly
+\* (c8b260d) takes only the note and pins and keeps the editor's own items.
+EditorAfter(h) ==
+  IF HandBackNoteOnly
+  THEN EditorRec(h) \cup {i \in SearchRow(h) : i[2] \in {"note", "pins"}}
+  ELSE SearchRow(h)
 
 \* This tab's research lands with its older editor. Every item any record
 \* holds must be on the row.
 SearchWithOlderEditor ==
   /\ tabDraft = "newer"
   /\ \E h \in TabHeld :
-       tabLost' = ~((DraftRec \cup StoredRec(h) \cup EditorRec(h)) \subseteq SearchRow(h))
+       /\ tabLost' = ~Kept(h, SearchRow(h))
+       /\ tabDraft' = Landed(h)
+  /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
+       snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
+       lateSeen, failSeen, undoSeen, retrySeen, draftStored, research, newest,
+       storedAt, owed, editorResearch, snapResearch, fresh, owedNote,
+       resurrected, lateDeleteSeen>>
+  /\ UNCHANGED <<cardStale, owedExtra, extra, note, draftNote, best, laundered,
+       rowLegacy, summaryStale, pinDropped, draftLost, editorPinsStale, loadStamp, staleDraftWon>>
+  /\ UNCHANGED editorVars
+
+\* The editor takes the search result, then the autosave writes the editor to
+\* the draft and the next save writes it over the row. Both hold what the
+\* editor holds, so every merged item must be on it.
+EditorTakesSearch ==
+  /\ \E h \in TabHeld :
+       /\ tabDraft = Landed(h)
+       /\ tabLost' = (tabLost \/ ~Kept(h, EditorAfter(h)))
   /\ tabDraft' = IF MarkSearch THEN "searched" ELSE "idle"
   /\ UNCHANGED <<phase, flightT, flightX, text, filled, revised, e1, e2, c1, c2,
        snap2, busy, undo, dropped, banned, clobber, storeOk, wrongWrite,
@@ -1132,7 +1170,7 @@ TabDraftSettles ==
 
 \* Like LoadWindow: only the search or the settle runs while the other tab's
 \* newer draft is pending, which keeps the state space near its old size.
-TabWindow == tabDraft = "newer"
+TabWindow == tabDraft \notin {"idle", "searched"}
 
 Settled ==
   \/ OpenVoice
@@ -1181,7 +1219,7 @@ Settled ==
 
 Next ==
   IF LoadWindow THEN SearchAfterLegacyLoad \/ AutosaveAfterLoad
-  ELSE IF TabWindow THEN SearchWithOlderEditor \/ TabDraftSettles
+  ELSE IF TabWindow THEN SearchWithOlderEditor \/ EditorTakesSearch \/ TabDraftSettles
   ELSE Settled
 
 \* Used only by cfg/chart.cfg so the picture stays readable.

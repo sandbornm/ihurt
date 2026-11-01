@@ -154,6 +154,12 @@ export function stringifyIhm(map: SavedMap) {
     2,
   );
 }
+export function entryForExport(
+  item: SavedMap,
+  open: SavedMap | undefined,
+): SavedMap {
+  return open && item.id === open.id ? open : item;
+}
 export function download(map: SavedMap, format: "svg" | "json" | "ihm") {
   const content = format === "svg" ? renderMapSvg(map) : stringifyIhm(map);
   return saveExport({

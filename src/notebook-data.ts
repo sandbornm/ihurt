@@ -136,6 +136,9 @@ export function exportNotebook(entries: SavedMap[]) {
       related_reading: entry.references ?? [],
       ...(entry.ai ? { ai_notes: entry.ai } : {}),
       ...(entry.research ? { research: entry.research } : {}),
+      ...(entry.pointsUpdated !== undefined
+        ? { pointsUpdated: entry.pointsUpdated }
+        : {}),
     })),
     notice: t("data.export.notice"),
   };
@@ -400,6 +403,8 @@ export function parseNotebook(content: string): SavedMap[] {
     }
     const ai = parseAI(e.ai_notes);
     if (ai) entry.ai = ai;
+    if (e.pointsUpdated !== undefined)
+      entry.pointsUpdated = date(e.pointsUpdated);
     return entry;
   });
   if (new Set(entries.map((e) => e.id)).size !== entries.length)

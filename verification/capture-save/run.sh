@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # One command for the capture-and-save check. Exit 0 means every config
-# matched expected.txt. TLC workers default to auto. Set TLC_WORKERS=2
-# when other model checks are already using this machine.
+# matched expected.txt. Configs expected to FAIL run one TLC worker with a
+# fixed fingerprint seed by default, so a FAIL line names the same invariant
+# on every run. Set TLC_WORKERS=auto for a faster local run. Configs expected
+# to PASS explore every state whatever the order, so they use every core
+# (TLC_PASS_WORKERS overrides).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -14,7 +17,8 @@ CACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/tlaplus"
 JAR="${CACHE}/tla2tools.jar"
 SHA="936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
 URL="https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar"
-WORKERS="${TLC_WORKERS:-auto}"
+WORKERS="${TLC_WORKERS:-1}"
+PASS_WORKERS="${TLC_PASS_WORKERS:-auto}"
 
 mkdir -p "${CACHE}"
 
@@ -38,11 +42,14 @@ node "${ROOT}/verification/capture-save/storage-behavior.mjs"
 fail=0
 while read -r cfg expect inv; do
   [[ -z "${cfg}" || "${cfg}" == \#* ]] && continue
+  workers="${WORKERS}"
+  [[ "${expect}" == "PASS" ]] && workers="${PASS_WORKERS}"
   meta="$(mktemp -d)"
   out="$(mktemp)"
   set +e
   java -XX:+UseParallelGC -cp "${JAR}" tlc2.TLC \
-    -workers "${WORKERS}" \
+    -workers "${workers}" \
+    -fp 0 \
     -config "cfg/${cfg}" \
     -metadir "${meta}" \
     -terse \

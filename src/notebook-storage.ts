@@ -1,4 +1,4 @@
-import type { SavedMap, RegionId } from "./types";
+import type { SavedMap, RegionId, PainPoint } from "./types";
 import { t } from "./i18n/index.ts";
 export interface Draft {
   entry: SavedMap;
@@ -40,11 +40,31 @@ export async function loadNotebook(): Promise<{
 }> {
   const db = await open();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(["entries", "settings"], "readonly");
+    // Read-write: a draft reconciled with its stored row is written back, with
+    // its stamps, in this transaction. The autosave runs later, and a search in
+    // between must not read the unstamped draft and keep the stored row.
+    const tx = db.transaction(["entries", "settings"], "readwrite");
+    const settings = tx.objectStore("settings");
     const entries = tx.objectStore("entries").getAll(),
-      draft = tx.objectStore("settings").get("draft");
-    tx.oncomplete = () =>
-      resolve({ entries: entries.result, draft: draft.result });
+      draft = settings.get("draft");
+    let list: SavedMap[] = [],
+      result: Draft | undefined,
+      done = 0;
+    const reconcile = () => {
+      if (++done !== 2) return;
+      list = (entries.result ?? []) as SavedMap[];
+      const raw = draft.result as Draft | undefined;
+      const stored = raw && list.find((item) => item.id === raw.entry.id);
+      result =
+        raw && stored
+          ? { ...raw, entry: keepLandedResearch(stored, raw.entry, "draft") }
+          : raw;
+      if (raw && result && JSON.stringify(result) !== JSON.stringify(raw))
+        settings.put(result, "draft");
+    };
+    entries.onsuccess = reconcile;
+    draft.onsuccess = reconcile;
+    tx.oncomplete = () => resolve({ entries: list, draft: result });
     tx.onabort = () => reject(tx.error);
     tx.onerror = () => reject(tx.error);
   });
@@ -78,10 +98,17 @@ function researchVersion(entry: SavedMap | undefined): string {
   return typeof version === "string" ? version : "";
 }
 
+// Missing or invalid is older than any valid stamp.
+function stampMs(value?: string): number {
+  if (typeof value !== "string" || value === "") return -Infinity;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : -Infinity;
+}
+
 function laterStamp(left?: string, right?: string): string | undefined {
   if (!left) return right;
   if (!right) return left;
-  return left > right ? left : right;
+  return stampMs(left) > stampMs(right) ? left : right;
 }
 
 // The note's own time. A missing stamp is older than any present stamp.
@@ -89,6 +116,56 @@ function laterStamp(left?: string, right?: string): string | undefined {
 function noteStamp(entry: SavedMap | undefined): string {
   if (!entry) return "";
   return typeof entry.noteUpdated === "string" ? entry.noteUpdated : "";
+}
+
+function pointsStamp(entry: SavedMap | undefined): string {
+  if (!entry) return "";
+  return typeof entry.pointsUpdated === "string" ? entry.pointsUpdated : "";
+}
+
+// Who wins when neither side has a stamp (rows and drafts from before the
+// stamps). A save or search keeps stored, so a search never overwrites what
+// was typed (#46). Loading a draft takes the draft: it exists only because of
+// unsaved work, and the editor is the latest intent.
+type UnstampedTie = "stored" | "draft";
+
+// Should the incoming side's field replace the stored one?
+// A stamp on either side decides it: a missing stamp is older, and a tie keeps
+// stored. Row updated is not used: a title edit can make an old note look new.
+function incomingWins(
+  stored: SavedMap,
+  incoming: SavedMap,
+  stamp: (entry: SavedMap) => string,
+  tie: UnstampedTie,
+) {
+  const storedAt = stamp(stored);
+  const incomingAt = stamp(incoming);
+  if (storedAt !== "" || incomingAt !== "")
+    return stampMs(incomingAt) > stampMs(storedAt);
+  return tie === "draft";
+}
+
+function incomingNoteWins(
+  stored: SavedMap,
+  incoming: SavedMap,
+  tie: UnstampedTie = "stored",
+) {
+  return incomingWins(stored, incoming, noteStamp, tie);
+}
+
+function incomingPointsWin(
+  stored: SavedMap,
+  incoming: SavedMap,
+  tie: UnstampedTie = "stored",
+) {
+  return incomingWins(stored, incoming, pointsStamp, tie);
+}
+
+function samePins(left: SavedMap, right: SavedMap) {
+  return (
+    JSON.stringify(left.points ?? []) === JSON.stringify(right.points ?? []) &&
+    JSON.stringify(left.map.regions) === JSON.stringify(right.map.regions)
+  );
 }
 
 function ensureNoteStamp(entry: SavedMap, fallback: string): SavedMap {
@@ -122,20 +199,49 @@ export function entryReferences(
 // A save can still hold an older search after a newer one has committed.
 // Keep the newer research. Readings union by URL, stored links first,
 // on the row and on that research list. The row time is the later stamp.
-// Equal note stamps keep the stored note, including two missing stamps.
+// Notes and pins each follow incomingWins: equal stamps keep stored.
 // saveResearch and editorAfterSave settle a tie the same way.
-function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
+function keepLandedResearch(
+  existing: SavedMap | undefined,
+  entry: SavedMap,
+  tie: UnstampedTie = "stored",
+) {
   const incomingNote = noteStamp(entry);
   const existingNote = noteStamp(existing);
   const kept =
-    existing !== undefined && existingNote >= incomingNote
+    existing !== undefined && !incomingNoteWins(existing, entry, tie)
       ? existing
       : undefined;
   const noteUpdated = kept ? existingNote : incomingNote;
+  const chosenNote = kept ? kept.note : entry.note;
+  const incomingPts = pointsStamp(entry);
+  const existingPts = pointsStamp(existing);
+  const keepPoints =
+    existing !== undefined && !incomingPointsWin(existing, entry, tie);
+  const points = keepPoints && existing ? existing.points : entry.points;
+  const regions =
+    keepPoints && existing ? existing.map.regions : entry.map.regions;
+  // A loaded draft whose pins won an unstamped tie gets a stamp, so the next
+  // search or save (stored wins a tie there) does not put the old pins back.
+  const loadedPins =
+    tie === "draft" &&
+    existing !== undefined &&
+    !keepPoints &&
+    incomingPts === "" &&
+    existingPts === "" &&
+    !samePins(existing, entry);
+  const pointsUpdated = keepPoints
+    ? existingPts
+    : loadedPins
+      ? (entry.updated ?? new Date().toISOString())
+      : incomingPts;
   const noted: SavedMap = {
     ...entry,
-    ...(kept ? { note: kept.note } : {}),
+    note: chosenNote,
+    points,
+    map: { ...entry.map, summary: chosenNote, regions },
     ...(noteUpdated ? { noteUpdated } : {}),
+    ...(pointsUpdated ? { pointsUpdated } : {}),
   };
   const updated = laterStamp(existing?.updated, entry.updated);
   const withTime =
@@ -145,7 +251,7 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   const existingNewer =
     existing?.research !== undefined &&
     (entry.research === undefined ||
-      researchVersion(existing) > researchVersion(entry));
+      stampMs(researchVersion(existing)) > stampMs(researchVersion(entry)));
   // A note with no stamp gets the updated time of the row it came from.
   // The later row time can be a title edit, which would rank the note too new.
   const stamped = ensureNoteStamp(
@@ -159,6 +265,7 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
   );
   return {
     ...stamped,
+    // description is the text sent to the source search. History, not the note.
     research: existing.research
       ? { ...existing.research, references }
       : existing.research,
@@ -173,11 +280,18 @@ function keepLandedResearch(existing: SavedMap | undefined, entry: SavedMap) {
 // A missing editor noteUpdated is older than a present stored noteUpdated.
 // If both are present, compare them. Never use updated for this.
 function storedNoteNewerThanEditor(stored: SavedMap, editor: SavedMap) {
-  const storedAt = stored.noteUpdated;
-  const editorAt = editor.noteUpdated;
-  if (typeof storedAt !== "string") return false;
-  if (typeof editorAt !== "string") return true;
-  return storedAt > editorAt;
+  return stampMs(stored.noteUpdated) > stampMs(editor.noteUpdated);
+}
+
+// The row's pins, for an editor that has not changed its own since.
+function storedPins(editor: SavedMap, stored: SavedMap) {
+  return {
+    points: stored.points ?? [],
+    map: { ...editor.map, regions: stored.map.regions },
+    ...(typeof stored.pointsUpdated === "string"
+      ? { pointsUpdated: stored.pointsUpdated }
+      : {}),
+  };
 }
 
 export function withStampedResearch<E extends SavedMap>(
@@ -186,16 +300,50 @@ export function withStampedResearch<E extends SavedMap>(
   stored: SavedMap,
 ): E {
   if (editor.id !== entryId || stored.research === undefined) return editor;
+  // saveResearch picked these pins. Keep the editor's only if they are newer,
+  // or the next pin edit writes an older, shorter list over the row.
+  const pins =
+    stampMs(editor.pointsUpdated) > stampMs(stored.pointsUpdated)
+      ? {}
+      : storedPins(editor, stored);
   if (!storedNoteNewerThanEditor(stored, editor))
-    return { ...editor, research: stored.research };
+    return { ...editor, ...pins, research: stored.research };
   return {
     ...editor,
+    ...pins,
     research: stored.research,
     note: stored.note,
     ...(typeof stored.noteUpdated === "string"
       ? { noteUpdated: stored.noteUpdated }
       : {}),
   };
+}
+
+// The user's pin edits made while a save was in flight, applied to the pins
+// the save landed: removals drop, moves and comment changes replace, new pins
+// append. Pins the merge kept from the stored row stay.
+function mergePinEdits(
+  snapshot: readonly PainPoint[],
+  editor: readonly PainPoint[],
+  saved: readonly PainPoint[],
+): PainPoint[] {
+  const before = new Map(snapshot.map((p) => [p.id, JSON.stringify(p)]));
+  const mine = new Map(editor.map((p) => [p.id, p]));
+  const removed = new Set(
+    snapshot.filter((p) => !mine.has(p.id)).map((p) => p.id),
+  );
+  const changed = new Map(
+    editor
+      .filter((p) => before.get(p.id) !== JSON.stringify(p))
+      .map((p) => [p.id, p]),
+  );
+  const landed = new Set(saved.map((p) => p.id));
+  return [
+    ...saved
+      .filter((p) => !removed.has(p.id))
+      .map((p) => changed.get(p.id) ?? p),
+    ...[...changed.values()].filter((p) => !landed.has(p.id)),
+  ];
 }
 
 // commit() snapshots the open entry, then waits on storeEntries.
@@ -210,16 +358,38 @@ export function editorAfterSave<E extends SavedMap>(
 ): E {
   if (editor.id !== saved.id) return editor;
   const noteEdited =
-    editor.note !== snapshot.note || editor.noteUpdated !== snapshot.noteUpdated;
+    editor.note !== snapshot.note ||
+    editor.noteUpdated !== snapshot.noteUpdated;
   const researchAndRefs = {
     ...(saved.research !== undefined ? { research: saved.research } : {}),
     ...(saved.references !== undefined ? { references: saved.references } : {}),
   };
-  if (noteEdited) return { ...editor, ...researchAndRefs };
+  // The merge can keep stored pins. Take them, plus any pin edit made during
+  // the wait, or the next save writes the editor's shorter list over the row.
+  const pinsEdited =
+    editor.pointsUpdated !== snapshot.pointsUpdated ||
+    JSON.stringify(editor.points ?? []) !==
+      JSON.stringify(snapshot.points ?? []);
+  const merged = mergePinEdits(
+    snapshot.points ?? [],
+    editor.points ?? [],
+    saved.points ?? [],
+  );
+  const pins = pinsEdited
+    ? {
+        points: merged,
+        map: {
+          ...editor.map,
+          regions: [...new Set(merged.map((p) => p.region))],
+        },
+      }
+    : storedPins(editor, saved);
+  if (noteEdited) return { ...editor, ...pins, ...researchAndRefs };
   const fieldsEdited = (editor.updated ?? "") !== (snapshot.updated ?? "");
   if (!fieldsEdited) return { ...editor, ...saved, id: editor.id };
   return {
     ...editor,
+    ...pins,
     note: saved.note,
     ...(typeof saved.noteUpdated === "string"
       ? { noteUpdated: saved.noteUpdated }
@@ -229,7 +399,7 @@ export function editorAfterSave<E extends SavedMap>(
 }
 
 function newerEntry(draft: SavedMap | undefined, stored: SavedMap | undefined) {
-  if (draft && stored && (draft.updated ?? "") > (stored.updated ?? ""))
+  if (draft && stored && stampMs(draft.updated) > stampMs(stored.updated))
     return draft;
   return stored ?? draft;
 }
@@ -239,8 +409,16 @@ function newerNote(
   draft: SavedMap | undefined,
   stored: SavedMap | undefined,
 ): SavedMap | undefined {
-  if (draft && (!stored || noteStamp(draft) > noteStamp(stored))) return draft;
-  return stored;
+  if (!draft || !stored) return draft ?? stored;
+  return incomingNoteWins(stored, draft) ? draft : stored;
+}
+
+function newerPoints(
+  draft: SavedMap | undefined,
+  stored: SavedMap | undefined,
+): SavedMap | undefined {
+  if (!draft || !stored) return draft ?? stored;
+  return incomingPointsWin(stored, draft) ? draft : stored;
 }
 
 export const saveDraft = (draft: Draft) =>
@@ -297,9 +475,12 @@ export const removeEntry = (id: string) =>
     };
   });
 
+// editor is the open entry, when it is this one. It is newer than the stored
+// draft, which the autosave writes later, so the merge starts from it.
 export async function saveResearch(
   entryId: string,
   research: NonNullable<SavedMap["research"]>,
+  editor?: SavedMap,
 ): Promise<SavedMap | undefined> {
   const db = await open();
   return new Promise((resolve, reject) => {
@@ -317,11 +498,13 @@ export async function saveResearch(
       if (deletedIds(tomb.result).includes(entryId)) return;
       const currentDraft = draft.result as Draft | undefined;
       const stored = saved.result as SavedMap | undefined;
-      const draftEntry =
+      const savedDraft =
         currentDraft?.entry.id === entryId ? currentDraft.entry : undefined;
+      const draftEntry = editor?.id === entryId ? editor : savedDraft;
       const entry = newerEntry(draftEntry, stored);
       if (!entry) return;
       const noteEntry = newerNote(draftEntry, stored) ?? entry;
+      const pointsEntry = newerPoints(draftEntry, stored) ?? entry;
       const now = new Date().toISOString();
       // A note with no stamp gets its row's updated time, never now. A search
       // stamped with now would outrank a note the user typed seconds earlier,
@@ -330,18 +513,29 @@ export async function saveResearch(
         typeof noteEntry.noteUpdated === "string"
           ? noteEntry.noteUpdated
           : noteEntry.updated;
+      const pointsAt =
+        typeof pointsEntry.pointsUpdated === "string"
+          ? pointsEntry.pointsUpdated
+          : undefined;
       const stamped = { ...research, version: now };
       const references = unionByUrl(stamped.references, entry.references);
       updated = {
         ...entry,
         note: noteEntry.note,
+        points: pointsEntry.points,
+        map: {
+          ...entry.map,
+          summary: noteEntry.note,
+          regions: pointsEntry.map.regions,
+        },
         ...(noteAt !== undefined ? { noteUpdated: noteAt } : {}),
+        ...(pointsAt !== undefined ? { pointsUpdated: pointsAt } : {}),
         research: stamped,
         references,
         updated: laterStamp(entry.updated, now) ?? now,
       };
       entries.put(updated);
-      if (draftEntry)
+      if (savedDraft && currentDraft)
         settings.put({ ...currentDraft, entry: updated }, "draft");
     };
     saved.onsuccess = merge;

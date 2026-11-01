@@ -2672,3 +2672,50 @@ test("a save that lands a stamped AI removal keeps the note out of the backup", 
   const parsed = parseNotebook(stringifyNotebook([exported]))[0];
   assert.equal(parsed.ai, undefined);
 });
+
+// Codex P2 on #48 (src/notebook-storage.ts:622): the user clears Quality,
+// Activity and Duration on a saved entry. Notebook.context() records each clear
+// through withMapDetails, in the editor and in the autosaved draft. A search
+// that finishes afterwards must not fill those blanks back from the older
+// stored row, in the row, the draft, the editor or an export.
+for (const legacy of [true, false]) {
+  test(`a search keeps quality, activity and duration the user cleared (${legacy ? "legacy" : "stamped"} stored row)`, async () => {
+    const id = `ctx-clear-${legacy ? "legacy" : "stamped"}`;
+    const stored = entry(id, "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      map: withContext("stored", {
+        quality: "sharp",
+        activity: "running",
+        duration: "3 days",
+      }),
+      ...(legacy
+        ? {}
+        : { mapUpdated: { quality: T1, activity: T1, duration: T1 } }),
+    });
+    await storeEntries([stored]);
+    // context("quality", "") and friends, one keystroke each.
+    let editor = { ...stored, mapUpdated: stored.mapUpdated } as typeof stored;
+    for (const field of ["quality", "activity", "duration"] as const)
+      editor = {
+        ...withMapDetails(editor, { [field]: "" }, T2),
+        updated: T2,
+      } as typeof stored;
+    assert.equal(editor.mapUpdated?.quality, T2);
+    await saveDraft(draftOf(editor));
+    const after = await saveResearch(id, research, editor);
+    const data = await loadNotebook();
+    const row = data.entries.find((e) => e.id === id);
+    const shown = withStampedResearch(editor, id, row!);
+    const exported = JSON.parse(stringifyNotebook([row!])).entries[0].context;
+    for (const r of [after, row, data.draft?.entry, shown]) {
+      assert.equal(r?.map.quality, "");
+      assert.equal(r?.map.activity, "");
+      assert.equal(r?.map.duration, "");
+    }
+    assert.equal(exported.quality, "");
+    assert.equal(exported.activity, "");
+    assert.equal(exported.duration, "");
+    assert.equal(row?.research?.description, "stiff");
+  });
+}

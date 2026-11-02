@@ -135,7 +135,7 @@ try {
     await touch.detach();
     await page.getByRole("button", { name: "Reset view", exact: true }).click();
     await page.getByRole("button", { name: "Quick tour", exact: true }).click();
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < 4; i++)
       await page.getByRole("button", { name: "Next", exact: true }).click();
     await page
       .getByRole("button", { name: "Start mapping", exact: true })

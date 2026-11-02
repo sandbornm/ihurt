@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { useI18n } from "./i18n/react";
 
-const steps = (["locate", "pin", "note", "share"] as const).map(
-  (picture, index) => ({ picture, n: (index + 1) as 1 | 2 | 3 | 4 }),
+const steps = (["locate", "pin", "note", "voice", "share"] as const).map(
+  (picture, index) => ({ picture, n: (index + 1) as 1 | 2 | 3 | 4 | 5 }),
 );
 
 export default function Tutorial({ onClose }: { onClose: () => void }) {

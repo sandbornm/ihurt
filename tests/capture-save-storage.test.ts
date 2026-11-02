@@ -203,6 +203,7 @@ const {
   editorAfterSave,
   withStampedResearch,
   entryReferences,
+  withMapDetails,
 } = await import("../src/notebook-storage.ts");
 const { stringifyNotebook, parseNotebook, blankEntry } =
   await import("../src/notebook-data.ts");
@@ -798,9 +799,11 @@ test("a search keeps a newer stored note on the editor", async () => {
   );
   const stored = await saveResearch("ws", research);
   assert.equal(stored?.note, "typed ahead");
+  // The title edit stamps its field, as Notebook context() does.
   const editor = entry("ws", "old editor", {
     updated: "2026-01-03T00:00:00.000Z",
     noteUpdated: "2026-01-01T00:00:00.000Z",
+    mapUpdated: { title: "2026-01-03T00:00:00.000Z" },
     map: {
       title: "kept title",
       summary: "old editor",
@@ -996,8 +999,10 @@ test("a search copies a stored note onto an editor that has no noteUpdated after
   );
   const stored = await saveResearch("ws-legacy", research);
   assert.equal(stored?.note, "typed ahead");
+  // The title edit stamps its field, as Notebook context() does.
   const editor = entry("ws-legacy", "old editor", {
     updated: "2026-01-03T00:00:00.000Z",
+    mapUpdated: { title: "2026-01-03T00:00:00.000Z" },
     map: {
       title: "kept title",
       summary: "old editor",
@@ -1833,6 +1838,660 @@ test("saveResearch merges against the open editor, not only the stored row", asy
   );
 });
 
+test("a search in an older tab keeps the newer draft another tab saved", async () => {
+  // Tab A and tab B have the same entry open. Tab B autosaved a newer note
+  // and pin. Tab A's research lands with tab A's older editor.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("two-tab", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+      points: [pinAt("pin-1")],
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("two-tab", "tab B, newer", {
+        updated: T3,
+        noteUpdated: T3,
+        pointsUpdated: T3,
+        points: [pinAt("pin-1"), pinAt("pin-2")],
+        map: neckMap("tab B, newer", ["neck"]),
+      }),
+    ),
+  );
+  const tabA = entry("two-tab", "tab A, older", {
+    updated: T2,
+    noteUpdated: T2,
+    pointsUpdated: T2,
+    points: [pinAt("pin-1")],
+    map: neckMap("tab A, older", ["neck"]),
+  });
+  const after = await saveResearch("two-tab", research, tabA);
+  assert.equal(after?.note, "tab B, newer");
+  assert.equal(after?.noteUpdated, T3);
+  assert.deepEqual(
+    after?.points?.map((p) => p.id),
+    ["pin-1", "pin-2"],
+  );
+  const reloaded = await loadNotebook();
+  assert.equal(reloaded.draft?.entry.note, "tab B, newer");
+  assert.equal(reloaded.draft?.entry.points?.length, 2);
+  const row = reloaded.entries.find((e) => e.id === "two-tab");
+  assert.equal(row?.note, "tab B, newer");
+  assert.equal(row?.points?.length, 2);
+});
+
+test("a search takes each field from whichever of editor and saved draft is newer", async () => {
+  // The open editor has the newer note, the other tab's saved draft has the
+  // newer pins. Neither is dropped.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("mixed", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+      points: [],
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("mixed", "draft note", {
+        updated: T2,
+        noteUpdated: T1,
+        pointsUpdated: T3,
+        points: [pinAt("pin-9")],
+      }),
+    ),
+  );
+  const editor = entry("mixed", "editor note", {
+    updated: T3,
+    noteUpdated: T3,
+    pointsUpdated: T2,
+    points: [],
+  });
+  const after = await saveResearch("mixed", research, editor);
+  assert.equal(after?.note, "editor note");
+  assert.deepEqual(
+    after?.points?.map((p) => p.id),
+    ["pin-9"],
+  );
+});
+
+const link = (url: string) => ({
+  title: url,
+  url: `https://example.test/${url}`,
+  publisher: "Example",
+  checked: T1,
+});
+const urls = (row: { references?: { url: string }[] } | undefined) =>
+  (row?.references ?? []).map((r) => r.url).sort();
+const withContext = (note: string, context: Record<string, unknown>) => ({
+  ...entry("x", note).map,
+  ...context,
+});
+
+test("a newer draft from another tab keeps the stored row's readings, answers and map details", async () => {
+  // Grok's repro on dc337c7: the stored row holds a link, an answer and a
+  // quality. The older editor holds another link and quality. The other tab's
+  // draft is newest by updated, with a newer note and none of those.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  const T4 = "2026-01-05T00:00:00.000Z";
+  await storeEntries([
+    entry("ctx-stored", "stored", {
+      updated: T3,
+      noteUpdated: T1,
+      references: [link("stored")],
+      answers: [{ key: "onset", text: "after a run" }],
+      map: withContext("stored", { title: "Stored title", quality: "sharp" }),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("ctx-stored", "draft, newest", {
+        updated: T4,
+        noteUpdated: T4,
+        references: [],
+        answers: [],
+        map: withContext("draft, newest", { title: "Draft title" }),
+      }),
+    ),
+  );
+  const editor = entry("ctx-stored", "editor, older", {
+    updated: T2,
+    noteUpdated: T2,
+    references: [link("editor")],
+    map: withContext("editor, older", { quality: "dull" }),
+  });
+  const after = await saveResearch("ctx-stored", research, editor);
+  for (const row of [
+    after,
+    (await loadNotebook()).entries.find((e) => e.id === "ctx-stored"),
+    (await loadNotebook()).draft?.entry,
+  ]) {
+    assert.equal(row?.note, "draft, newest");
+    assert.deepEqual(urls(row), [
+      "https://example.test/editor",
+      "https://example.test/knee",
+      "https://example.test/stored",
+    ]);
+    assert.deepEqual(row?.answers, [{ key: "onset", text: "after a run" }]);
+    // The newest record's own value wins; a blank there is filled from the
+    // next newest record (stored at T3 before the editor at T2).
+    assert.equal(row?.map.title, "Draft title");
+    assert.equal(row?.map.quality, "sharp");
+  }
+});
+
+test("a newer draft from another tab keeps the open editor's readings, answers and map details", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("ctx-editor", "stored", { updated: T1, noteUpdated: T1 }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("ctx-editor", "draft, newest", {
+        updated: T3,
+        noteUpdated: T3,
+        map: withContext("draft, newest", { title: "" }),
+      }),
+    ),
+  );
+  const editor = entry("ctx-editor", "editor, older", {
+    updated: T2,
+    noteUpdated: T2,
+    references: [link("editor")],
+    answers: [{ key: "onset", text: "lifting" }],
+    map: withContext("editor, older", {
+      title: "Lifting",
+      quality: "burning",
+      activity: "lifting",
+      duration: "2 days",
+      intensity: 6,
+    }),
+  });
+  const after = await saveResearch("ctx-editor", research, editor);
+  const row = (await loadNotebook()).entries.find((e) => e.id === "ctx-editor");
+  for (const r of [after, row]) {
+    assert.equal(r?.note, "draft, newest");
+    assert.deepEqual(urls(r), [
+      "https://example.test/editor",
+      "https://example.test/knee",
+    ]);
+    assert.deepEqual(r?.answers, [{ key: "onset", text: "lifting" }]);
+    assert.equal(r?.map.title, "Lifting");
+    assert.equal(r?.map.quality, "burning");
+    assert.equal(r?.map.activity, "lifting");
+    assert.equal(r?.map.duration, "2 days");
+    assert.equal(r?.map.intensity, 6);
+  }
+});
+
+test("a search keeps answers by question from every record, newest first", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("answers", "stored", {
+      updated: T1,
+      answers: [
+        { key: "onset", text: "stored onset" },
+        { key: "better", text: "rest" },
+      ],
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("answers", "draft", {
+        updated: T3,
+        answers: [{ key: "onset", text: "draft onset" }],
+      }),
+    ),
+  );
+  const editor = entry("answers", "editor", {
+    updated: T2,
+    answers: [{ key: "worse", text: "stairs" }],
+  });
+  const after = await saveResearch("answers", research, editor);
+  assert.deepEqual(after?.answers, [
+    { key: "onset", text: "draft onset" },
+    { key: "worse", text: "stairs" },
+    { key: "better", text: "rest" },
+  ]);
+});
+
+test("an editor and saved draft with equal stamps keep the saved draft, and blanks fill", async () => {
+  await storeEntries([
+    entry("equal", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("equal", "draft note", {
+        updated: T2,
+        noteUpdated: T2,
+        pointsUpdated: T2,
+        points: [pinAt("pin-d")],
+      }),
+    ),
+  );
+  const editor = entry("equal", "editor note", {
+    updated: T2,
+    noteUpdated: T2,
+    pointsUpdated: T2,
+    points: [pinAt("pin-e")],
+    references: [link("editor")],
+    map: withContext("editor note", { quality: "dull" }),
+  });
+  const after = await saveResearch("equal", research, editor);
+  assert.equal(after?.note, "draft note");
+  assert.deepEqual(
+    after?.points?.map((p) => p.id),
+    ["pin-d"],
+  );
+  assert.equal(after?.map.quality, "dull");
+  assert.deepEqual(urls(after), [
+    "https://example.test/editor",
+    "https://example.test/knee",
+  ]);
+});
+
+test("a map detail cleared in the newest record stays cleared after a search and reload", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("cleared", "stored", {
+      updated: T1,
+      map: withContext("stored", {
+        quality: "sharp",
+        safety_message: "See a doctor",
+      }),
+      mapUpdated: { quality: T1, safety_message: T1 },
+    }),
+  ]);
+  // The other tab cleared both details. The older editor still shows values.
+  await saveDraft(
+    draftOf(
+      entry("cleared", "draft", {
+        updated: T3,
+        map: withContext("draft", { quality: "", safety_message: null }),
+        mapUpdated: { quality: T3, safety_message: T3 },
+      }),
+    ),
+  );
+  const editor = entry("cleared", "editor", {
+    updated: T2,
+    map: withContext("editor", { quality: "dull", safety_message: "Call" }),
+  });
+  const after = await saveResearch("cleared", research, editor);
+  const data = await loadNotebook();
+  const row = data.entries.find((e) => e.id === "cleared");
+  for (const r of [after, row, data.draft?.entry]) {
+    assert.equal(r?.map.quality, "");
+    assert.equal(r?.map.safety_message, null);
+    assert.equal(r?.mapUpdated?.quality, T3);
+    assert.equal(r?.mapUpdated?.safety_message, T3);
+  }
+});
+
+test("an editor's cleared detail beats an older stamped value on a newer draft", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("clear-editor", "stored", {
+      updated: T1,
+      map: withContext("stored", { quality: "sharp" }),
+      mapUpdated: { quality: T1 },
+    }),
+  ]);
+  // The draft is newest by updated (a note edit) but its quality is from T1.
+  await saveDraft(
+    draftOf(
+      entry("clear-editor", "draft", {
+        updated: T3,
+        noteUpdated: T3,
+        map: withContext("draft", { quality: "sharp" }),
+        mapUpdated: { quality: T1 },
+      }),
+    ),
+  );
+  const editor = entry("clear-editor", "editor", {
+    updated: T2,
+    map: withContext("editor", { quality: "" }),
+    mapUpdated: { quality: T2 },
+  });
+  const after = await saveResearch("clear-editor", research, editor);
+  const row = (await loadNotebook()).entries.find(
+    (e) => e.id === "clear-editor",
+  );
+  for (const r of [after, row]) {
+    assert.equal(r?.note, "draft");
+    assert.equal(r?.map.quality, "");
+    assert.equal(r?.mapUpdated?.quality, T2);
+  }
+});
+
+test("a legacy unstamped blank is still filled next to a stamped clear", async () => {
+  const T3 = "2026-01-04T00:00:00.000Z";
+  putLegacyRow(
+    entry("legacy-fill", "stored", {
+      updated: T1,
+      map: withContext("stored", {
+        title: "Knee",
+        quality: "sharp",
+        duration: "a week",
+      }),
+    }),
+  );
+  await saveDraft(
+    draftOf(
+      entry("legacy-fill", "draft", {
+        updated: T3,
+        map: withContext("draft", { title: "", quality: "", duration: "" }),
+        mapUpdated: { quality: T3 },
+      }),
+    ),
+  );
+  const after = await saveResearch("legacy-fill", research);
+  const row = (await loadNotebook()).entries.find(
+    (e) => e.id === "legacy-fill",
+  );
+  for (const r of [after, row]) {
+    // No record stamps title or duration, so the stored values fill in.
+    assert.equal(r?.map.title, "Knee");
+    assert.equal(r?.map.duration, "a week");
+    // quality was cleared with a stamp, so it stays cleared.
+    assert.equal(r?.map.quality, "");
+    assert.deepEqual(r?.mapUpdated, { quality: T3 });
+  }
+});
+
+test("a search, the editor update and the next autosave and save keep every merged field", async () => {
+  // Grok's repro on c8b260d: withStampedResearch handed the editor only the
+  // note and research, so the autosave wrote the editor's older readings,
+  // answers and map details back.
+  const T3 = "2026-01-04T00:00:00.000Z";
+  await storeEntries([
+    entry("handback", "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      pointsUpdated: T1,
+      references: [link("stored")],
+      answers: [{ key: "onset", text: "stored onset" }],
+      map: withContext("stored", { title: "Knee", quality: "sharp" }),
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("handback", "draft", {
+        updated: T3,
+        noteUpdated: T3,
+        pointsUpdated: T3,
+        points: [pinAt("pin-d")],
+        answers: [{ key: "better", text: "rest" }],
+        map: withContext("draft", { title: "", safety_message: null }),
+        mapUpdated: { safety_message: T3 },
+      }),
+    ),
+  );
+  const editor = entry("handback", "editor", {
+    updated: T2,
+    noteUpdated: T2,
+    pointsUpdated: T2,
+    points: [pinAt("pin-e")],
+    references: [link("editor")],
+    answers: [{ key: "worse", text: "stairs" }],
+    map: withContext("editor", {
+      title: "",
+      duration: "2 days",
+      safety_message: "Call",
+    }),
+  });
+  const saved = await saveResearch("handback", research, editor);
+  const next = withStampedResearch(editor, "handback", saved!);
+  await saveDraft(draftOf(next));
+  await storeEntries([next]);
+  const data = await loadNotebook();
+  const row = data.entries.find((e) => e.id === "handback");
+  for (const r of [next, data.draft?.entry, row]) {
+    assert.equal(r?.note, "draft");
+    assert.equal(r?.map.summary, "draft");
+    assert.deepEqual(
+      r?.points?.map((p) => p.id),
+      ["pin-d"],
+    );
+    assert.deepEqual(urls(r), [
+      "https://example.test/editor",
+      "https://example.test/knee",
+      "https://example.test/stored",
+    ]);
+    assert.deepEqual(r?.answers.map((a) => a.key).sort(), [
+      "better",
+      "onset",
+      "worse",
+    ]);
+    assert.equal(r?.map.title, "Knee");
+    assert.equal(r?.map.quality, "sharp");
+    assert.equal(r?.map.duration, "2 days");
+    assert.equal(r?.map.safety_message, null);
+    assert.equal(r?.mapUpdated?.safety_message, T3);
+    assert.equal(r?.research?.description, research.description);
+  }
+});
+
+test("a removed AI note stays removed after a search, autosave, save and reload", async () => {
+  // Grok's repro on 1af0a35: the search took the first ranked record with an
+  // AI note, so a removal came back on the row, the editor and the draft.
+  const aiNote = {
+    provider: "demo",
+    created: T1,
+    based_on: "x",
+    map: withContext("ai", {}),
+    answers: [],
+  };
+  await storeEntries([
+    entry("ai-gone", "knee", { updated: T1, noteUpdated: T1, ai: aiNote }),
+  ]);
+  const editor = entry("ai-gone", "knee", {
+    updated: T2,
+    noteUpdated: T1,
+    aiUpdated: T2,
+  });
+  await saveDraft(draftOf(editor));
+  const saved = await saveResearch("ai-gone", research, editor);
+  assert.equal(saved?.ai, undefined);
+  const next = withStampedResearch(editor, "ai-gone", saved!, editor);
+  await saveDraft(draftOf(next));
+  await storeEntries([next]);
+  const data = await loadNotebook();
+  const row = data.entries.find((e) => e.id === "ai-gone");
+  for (const r of [saved, next, data.draft?.entry, row]) {
+    assert.equal(r?.ai, undefined);
+    assert.equal(r?.aiUpdated, T2);
+  }
+  // An older tab's save that still has the note does not bring it back.
+  await storeEntries([
+    entry("ai-gone", "knee", { updated: T2, noteUpdated: T1, ai: aiNote }),
+  ]);
+  const again = await loadNotebook();
+  assert.equal(again.entries.find((e) => e.id === "ai-gone")?.ai, undefined);
+});
+
+test("a newer AI note beats an older removal", async () => {
+  const aiNote = {
+    provider: "fresh",
+    created: T2,
+    based_on: "x",
+    map: withContext("ai", {}),
+    answers: [],
+  };
+  await storeEntries([
+    entry("ai-back", "knee", { updated: T1, noteUpdated: T1, aiUpdated: T1 }),
+  ]);
+  const editor = entry("ai-back", "knee", {
+    updated: T2,
+    noteUpdated: T1,
+    ai: aiNote,
+    aiUpdated: T2,
+  });
+  const saved = await saveResearch("ai-back", research, editor);
+  assert.equal(saved?.ai?.provider, "fresh");
+  const next = withStampedResearch(editor, "ai-back", saved!, editor);
+  assert.equal(next.ai?.provider, "fresh");
+});
+
+test("a cleared detail stays cleared when an older draft with the value is loaded later", async () => {
+  // Grok's repro on 1af0a35: loadNotebook and storeEntries took the draft's
+  // unstamped value over the row's stamped clear and dropped the stamp.
+  await storeEntries([
+    entry("late", "knee", {
+      updated: T2,
+      noteUpdated: T1,
+      map: withContext("knee", { quality: "" }),
+      mapUpdated: { quality: T2 },
+    }),
+  ]);
+  await saveDraft(
+    draftOf(
+      entry("late", "newer note", {
+        updated: "2026-01-05T00:00:00.000Z",
+        noteUpdated: "2026-01-05T00:00:00.000Z",
+        map: withContext("newer note", { quality: "dull" }),
+      }),
+    ),
+  );
+  const data = await loadNotebook();
+  assert.equal(data.draft?.entry.note, "newer note");
+  assert.equal(data.draft?.entry.map.quality, "");
+  assert.equal(data.draft?.entry.mapUpdated?.quality, T2);
+  await storeEntries([
+    entry("late", "newer note", {
+      updated: "2026-01-05T00:00:00.000Z",
+      noteUpdated: "2026-01-05T00:00:00.000Z",
+      map: withContext("newer note", { quality: "dull" }),
+    }),
+  ]);
+  const after = await loadNotebook();
+  const row = after.entries.find((e) => e.id === "late");
+  assert.equal(row?.note, "newer note");
+  assert.equal(row?.map.quality, "");
+  assert.equal(row?.mapUpdated?.quality, T2);
+});
+
+test("a newer stamped value still replaces a stamped clear on save", async () => {
+  await storeEntries([
+    entry("late2", "knee", {
+      updated: T1,
+      map: withContext("knee", { quality: "" }),
+      mapUpdated: { quality: T1 },
+    }),
+  ]);
+  await storeEntries([
+    entry("late2", "knee", {
+      updated: T2,
+      map: withContext("knee", { quality: "dull" }),
+      mapUpdated: { quality: T2 },
+    }),
+  ]);
+  const data = await loadNotebook();
+  assert.equal(data.entries.find((e) => e.id === "late2")?.map.quality, "dull");
+});
+
+test("typing just after a search saves does not let the editor override merged fields", async () => {
+  // Grok's repro on 1af0a35: a keystroke after saveResearch read now made the
+  // editor newest by updated, so its title, answers and summary won.
+  await saveDraft(
+    draftOf(
+      entry("typed", "draft note", {
+        updated: T2,
+        noteUpdated: T2,
+        answers: [{ key: "onset", text: "draft onset" }],
+        map: withContext("draft note", { title: "Draft title", quality: "" }),
+        mapUpdated: { quality: T2 },
+      }),
+    ),
+  );
+  await storeEntries([
+    entry("typed", "stored", { updated: T1, noteUpdated: T1 }),
+  ]);
+  const searched = entry("typed", "editor", {
+    updated: T1,
+    noteUpdated: T1,
+    answers: [{ key: "onset", text: "editor onset" }],
+    map: withContext("editor", { title: "Elbow", quality: "dull" }),
+  });
+  const saved = await saveResearch("typed", research, searched);
+  assert.equal(saved?.map.title, "Draft title");
+  // A keystroke lands after saveResearch read now, before the handback.
+  const typed = {
+    ...searched,
+    note: "typed during search",
+    updated: "2027-01-01T00:00:00.000Z",
+    noteUpdated: "2027-01-01T00:00:00.000Z",
+  };
+  const next = withStampedResearch(typed, "typed", saved!, searched);
+  assert.equal(next.note, "typed during search");
+  assert.equal(next.noteUpdated, "2027-01-01T00:00:00.000Z");
+  assert.equal(next.map.summary, "typed during search");
+  assert.equal(next.map.title, "Draft title");
+  assert.equal(next.map.quality, "");
+  assert.deepEqual(next.answers, [{ key: "onset", text: "draft onset" }]);
+});
+
+test("an unstamped answer edited during the search still wins in the handback", async () => {
+  await storeEntries([
+    entry("typed2", "n", {
+      updated: T1,
+      noteUpdated: T1,
+      answers: [
+        { key: "onset", text: "stored onset" },
+        { key: "worse", text: "stairs" },
+      ],
+    }),
+  ]);
+  const searched = entry("typed2", "n", {
+    updated: T1,
+    noteUpdated: T1,
+    answers: [
+      { key: "onset", text: "stored onset" },
+      { key: "worse", text: "stairs" },
+    ],
+  });
+  const saved = await saveResearch("typed2", research, searched);
+  const edited = {
+    ...searched,
+    updated: "2027-01-01T00:00:00.000Z",
+    answers: [
+      { key: "onset", text: "typed onset" },
+      { key: "worse", text: "stairs" },
+      { key: "better", text: "rest" },
+    ],
+  };
+  const next = withStampedResearch(edited, "typed2", saved!, searched);
+  assert.deepEqual(next.answers, [
+    { key: "onset", text: "typed onset" },
+    { key: "worse", text: "stairs" },
+    { key: "better", text: "rest" },
+  ]);
+});
+
+test("withMapDetails stamps only the details that changed, clears included", () => {
+  const base = entry("stamp", "n", {
+    map: withContext("n", { quality: "sharp", activity: "running" }),
+    mapUpdated: { activity: T1 },
+  });
+  const next = withMapDetails(
+    base,
+    { quality: "", activity: "running", summary: "n2" },
+    T2,
+  );
+  assert.equal(next.map.quality, "");
+  assert.equal(next.map.summary, "n2");
+  assert.deepEqual(next.mapUpdated, { activity: T1, quality: T2 });
+  const same = withMapDetails(base, { activity: "running" }, T2);
+  assert.deepEqual(same.mapUpdated, { activity: T1 });
+});
+
 test("saveResearch with an unstamped editor still keeps stored on a tie", async () => {
   putLegacyRow(entry("live-tie", "stored note", { updated: T2 }));
   const editor = entry("live-tie", "editor note", { updated: T1 });
@@ -1904,3 +2563,159 @@ test("a pin edit during a save does not let the next save drop a merged pin", as
     ["pin-1", "pin-2"],
   );
 });
+
+// Grok's finding on d124244: editorAfterSave spread the saved row over the
+// editor, so a removal (aiUpdated, no ai) left the editor's note in place,
+// and the backup exported it. The in-flight paths kept the editor's map
+// details and AI even when only another field changed during the write.
+const T3 = "2026-01-04T00:00:00.000Z";
+const staleAi = {
+  provider: "old",
+  created: T1,
+  based_on: "x",
+  map: withContext("ai", {}),
+  answers: [],
+};
+// The editor as commit() snapshots it: AI note and quality from T1.
+const easSnapshot = (id: string) =>
+  entry(id, "n", {
+    updated: T1,
+    noteUpdated: T1,
+    ai: staleAi,
+    aiUpdated: T1,
+    map: withContext("n", { quality: "sharp" }),
+    mapUpdated: { quality: T1 },
+  });
+// The merged row: another tab removed the AI note and cleared quality at T2.
+const easSaved = (id: string) =>
+  entry(id, "n", {
+    updated: T2,
+    noteUpdated: T1,
+    aiUpdated: T2,
+    map: withContext("n", { quality: "" }),
+    mapUpdated: { quality: T2 },
+  });
+
+test("editorAfterSave drops the AI note when the saved row removed it", () => {
+  const snapshot = easSnapshot("eas-ai-quiet");
+  const next = editorAfterSave(
+    { ...snapshot },
+    snapshot,
+    easSaved("eas-ai-quiet"),
+  );
+  assert.equal("ai" in next, false);
+  assert.equal(next.aiUpdated, T2);
+  assert.equal(next.map.quality, "");
+  assert.equal(next.mapUpdated?.quality, T2);
+});
+
+test("editorAfterSave takes the saved removal and clear after a note edit during the save", () => {
+  const snapshot = easSnapshot("eas-ai-note");
+  const editor = { ...snapshot, note: "typed", noteUpdated: T3, updated: T3 };
+  const next = editorAfterSave(editor, snapshot, easSaved("eas-ai-note"));
+  assert.equal(next.note, "typed");
+  assert.equal("ai" in next, false);
+  assert.equal(next.aiUpdated, T2);
+  assert.equal(next.map.quality, "");
+  assert.equal(next.mapUpdated?.quality, T2);
+});
+
+test("editorAfterSave takes the saved removal and clear after a title edit during the save", () => {
+  const snapshot = easSnapshot("eas-ai-field");
+  const editor = {
+    ...snapshot,
+    updated: T3,
+    map: { ...snapshot.map, title: "retitled" },
+  };
+  const next = editorAfterSave(editor, snapshot, easSaved("eas-ai-field"));
+  assert.equal(next.map.title, "retitled");
+  assert.equal("ai" in next, false);
+  assert.equal(next.aiUpdated, T2);
+  assert.equal(next.map.quality, "");
+  assert.equal(next.mapUpdated?.quality, T2);
+});
+
+test("editorAfterSave keeps an AI note and a detail the editor changed during the save", () => {
+  const snapshot = easSnapshot("eas-ai-mine");
+  const fresh = { ...staleAi, provider: "fresh", created: T3 };
+  const editor = {
+    ...snapshot,
+    updated: T3,
+    ai: fresh,
+    aiUpdated: T3,
+    map: { ...snapshot.map, quality: "dull" },
+    mapUpdated: { quality: T3 },
+  };
+  const next = editorAfterSave(editor, snapshot, easSaved("eas-ai-mine"));
+  assert.equal(next.ai?.provider, "fresh");
+  assert.equal(next.aiUpdated, T3);
+  assert.equal(next.map.quality, "dull");
+  assert.equal(next.mapUpdated?.quality, T3);
+});
+
+test("a save that lands a stamped AI removal keeps the note out of the backup", async () => {
+  const { entryForExport } = await import("../src/export.ts");
+  await storeEntries([
+    entry("eas-backup", "n", { updated: T2, noteUpdated: T1, aiUpdated: T2 }),
+  ]);
+  const snapshot = entry("eas-backup", "n", {
+    updated: T1,
+    noteUpdated: T1,
+    ai: staleAi,
+    aiUpdated: T1,
+  });
+  const [saved] = await storeEntries([snapshot]);
+  assert.equal(saved?.ai, undefined);
+  const open = editorAfterSave({ ...snapshot }, snapshot, saved!);
+  const exported = entryForExport(saved!, open);
+  assert.equal(exported.ai, undefined);
+  const parsed = parseNotebook(stringifyNotebook([exported]))[0];
+  assert.equal(parsed.ai, undefined);
+});
+
+// Codex P2 on #48 (src/notebook-storage.ts:622): the user clears Quality,
+// Activity and Duration on a saved entry. Notebook.context() records each clear
+// through withMapDetails, in the editor and in the autosaved draft. A search
+// that finishes afterwards must not fill those blanks back from the older
+// stored row, in the row, the draft, the editor or an export.
+for (const legacy of [true, false]) {
+  test(`a search keeps quality, activity and duration the user cleared (${legacy ? "legacy" : "stamped"} stored row)`, async () => {
+    const id = `ctx-clear-${legacy ? "legacy" : "stamped"}`;
+    const stored = entry(id, "stored", {
+      updated: T1,
+      noteUpdated: T1,
+      map: withContext("stored", {
+        quality: "sharp",
+        activity: "running",
+        duration: "3 days",
+      }),
+      ...(legacy
+        ? {}
+        : { mapUpdated: { quality: T1, activity: T1, duration: T1 } }),
+    });
+    await storeEntries([stored]);
+    // context("quality", "") and friends, one keystroke each.
+    let editor = { ...stored, mapUpdated: stored.mapUpdated } as typeof stored;
+    for (const field of ["quality", "activity", "duration"] as const)
+      editor = {
+        ...withMapDetails(editor, { [field]: "" }, T2),
+        updated: T2,
+      } as typeof stored;
+    assert.equal(editor.mapUpdated?.quality, T2);
+    await saveDraft(draftOf(editor));
+    const after = await saveResearch(id, research, editor);
+    const data = await loadNotebook();
+    const row = data.entries.find((e) => e.id === id);
+    const shown = withStampedResearch(editor, id, row!);
+    const exported = JSON.parse(stringifyNotebook([row!])).entries[0].context;
+    for (const r of [after, row, data.draft?.entry, shown]) {
+      assert.equal(r?.map.quality, "");
+      assert.equal(r?.map.activity, "");
+      assert.equal(r?.map.duration, "");
+    }
+    assert.equal(exported.quality, "");
+    assert.equal(exported.activity, "");
+    assert.equal(exported.duration, "");
+    assert.equal(row?.research?.description, "stiff");
+  });
+}

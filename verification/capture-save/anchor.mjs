@@ -29,7 +29,10 @@ assert.match(
 assert.match(storage, /version: now/);
 assert.match(storage, /laterStamp\(existing\?\.updated, entry\.updated\)/);
 assert.match(storage, /deleted-ids/);
-assert.match(storage, /stampMs\(draft\.updated\) > stampMs\(stored\.updated\)/);
+assert.match(
+  storage,
+  /stampMs\(b\.r\.updated\) - stampMs\(a\.r\.updated\) \|\| a\.i - b\.i/,
+);
 assert.match(
   storage,
   /if \(deletedIds\(tomb\.result\)\.includes\(entryId\)\) return;/,
@@ -89,7 +92,7 @@ assert.equal(
 );
 assert.match(
   storage,
-  /const noteEntry = newerNote\(draftEntry, stored\) \?\? entry;/,
+  /newerNote\(openEditor, newerNote\(savedDraft, stored\)\) \?\? entry;/,
 );
 assert.match(storage, /note: noteEntry\.note/);
 assert.match(
@@ -106,7 +109,7 @@ assert.match(notebook, /window\.addEventListener\("pagehide", flush\)/);
 assert.match(notebook, /applyVoiceDraft\(entry, draft\)/);
 assert.match(
   notebook,
-  /await saveResearch\(\s*entry\.id,\s*research,[\s\S]{0,300}?draftRef\.current\.entry,\s*\)/,
+  /await saveResearch\(\s*entry\.id,\s*research,\s*searched,\s*\)/,
 );
 // Load writes the draft it reconciled back in its own readwrite transaction,
 // so it resolves only after the stamped draft is stored.
@@ -126,13 +129,71 @@ assert.match(
   storage,
   /tx\.oncomplete = \(\) => resolve\(\{ entries: list, draft: result \}\);/,
 );
-// saveResearch merges against the open editor when it is this entry.
+// saveResearch merges the open editor when it is this entry, on top of the
+// saved draft, which another tab may have written later (TabDraftKept).
 assert.match(
   storage,
-  /const draftEntry = editor\?\.id === entryId \? editor : savedDraft;/,
+  /const openEditor = editor\?\.id === entryId \? editor : undefined;/,
+);
+assert.match(
+  storage,
+  /const entry = ranked\[0\];[\s\S]{0,300}newerPoints\(openEditor, newerPoints\(savedDraft, stored\)\)/,
+);
+// Fields with no stamp come from every record, not only the newest
+// (WholeRecordByUpdated, dc337c7).
+assert.match(
+  storage,
+  /const ranked = byUpdated\(\[stored, savedDraft, openEditor\]\);/,
+);
+assert.match(
+  storage,
+  /ranked\.reduce<[^>]*>>\(\s*\(all, record\) => unionByUrl\(all, record\.references\),\s*stamped\.references,/,
+);
+assert.match(storage, /answers: fillAnswers\(ranked\),/);
+assert.match(storage, /\.\.\.details\.map,/);
+// A stamped map detail wins even when blank (FillBlankDetails, c8b260d).
+assert.match(storage, /stampMs\(at\) > stampMs\(detailStamp\(winner, key\)\)/);
+assert.match(storage, /map\[key\] = winner\.map\[key\];/);
+// The editor takes the whole merge (HandBackNoteOnly, c8b260d), keeping a
+// field only if it changed it since the search read it, by field stamp or
+// against the searched snapshot, not by updated (HandBackByUpdated, 1af0a35).
+assert.match(
+  storage,
+  /const map: Record<string, unknown> = \{ \.\.\.stored\.map \};[\s\S]{0,500}\? stampMs\(editorAt\) > stampMs\(rowAt\)\s*: differs\(editor\.map\[key\], searched\.map\[key\]\);/,
+);
+assert.match(
+  storage,
+  /answers: answersAfterSearch\(stored, editor, searched\),\s*references: unionByUrl\(stored\.references, editor\.references\),/,
+);
+assert.match(storage, /summary: noteFrom\.note,/);
+// A removed AI note stays removed: the newest aiUpdated wins, removal
+// included (PickFirstAi, 1af0a35).
+assert.match(storage, /\.\.\.pickAi\(ordered, ranked\),/);
+assert.match(storage, /\.\.\.aiFields\(aiFrom\),/);
+assert.match(notebook, /"ai" in patch \? \{ aiUpdated: now \} : \{\}/);
+assert.match(notebook, /aiUpdated: now,/);
+// A later save or load of an older draft keeps the row's newer stamped
+// details and AI note (LandIgnoresStamps, 1af0a35).
+assert.match(storage, /const landed = landStamped\(existing, entry\);/);
+// Edits stamp the map details they change.
+assert.match(notebook, /withMapDetails\(e, \{ \[field\]: value \}, now\)/);
+assert.match(notebook, /map \? withMapDetails\(e, map, now\) : e/);
+assert.equal(
+  /unionByUrl\(stamped\.references, entry\.references\)/.test(storage),
+  false,
+  "readings must union across all records (WholeRecordByUpdated)",
+);
+assert.equal(
+  /editor\?\.id === entryId \? editor : savedDraft/.test(storage),
+  false,
+  "the open editor must not replace the saved draft (SearchPrefersEditor)",
 );
 assert.match(notebook, /e\.id === entry\.id/);
-assert.match(notebook, /withStampedResearch\(e, entry\.id, updated\)/);
+assert.match(notebook, /const searched = draftRef\.current\.entry;/);
+assert.match(
+  notebook,
+  /withStampedResearch\(e, entry\.id, updated, searched\)/,
+);
 assert.match(notebook, /const \[savedRow\] = await storeEntries\(\[item\]\);/);
 assert.match(notebook, /const saved = savedRow \?\? item;/);
 assert.match(notebook, /editorAfterSave\(current, item, saved\)/);
@@ -143,8 +204,23 @@ assert.match(
 );
 assert.match(
   storage,
-  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);\s*if \(!fieldsEdited\) return \{ \.\.\.editor, \.\.\.saved, id: editor\.id \};\s*return \{\s*\.\.\.editor,\s*\.\.\.pins,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+  /const fieldsEdited = \(editor\.updated \?\? ""\) !== \(snapshot\.updated \?\? ""\);/,
 );
+// SpreadSavedOverEditor: a quiet save strips the editor's AI note before the
+// saved row lands, and the in-flight paths take the saved details and AI.
+assert.match(
+  storage,
+  /if \(!noteEdited && !fieldsEdited\)\s*return \{ \.\.\.withoutAi\(editor\), \.\.\.saved, id: editor\.id \};/,
+);
+assert.match(
+  storage,
+  /const landed = savedUnlessEdited\(editor, snapshot, saved\);\s*const base = \{\s*\.\.\.withoutAi\(editor\),\s*\.\.\.pins,\s*\.\.\.landed\.ai,/,
+);
+assert.match(
+  storage,
+  /return \{\s*\.\.\.withDetails,\s*note: saved\.note,\s*\.\.\.\(typeof saved\.noteUpdated === "string"\s*\? \{ noteUpdated: saved\.noteUpdated \}\s*: \{\}\),/,
+);
+assert.match(storage, /ai: aiFields\(aiEdited \? editor : saved\),/);
 assert.equal(
   /noteEdited = noteStamp\(editor\) !== noteStamp\(snapshot\)/.test(storage),
   false,
@@ -187,13 +263,13 @@ assert.match(
 );
 assert.match(
   storage,
-  /if \(!storedNoteNewerThanEditor\(stored, editor\)\)\s*return \{ \.\.\.editor, \.\.\.pins, research: stored\.research \};\s*return \{\s*\.\.\.editor,\s*\.\.\.pins,\s*research: stored\.research,\s*note: stored\.note,/,
+  /const noteFrom = storedNoteNewerThanEditor\(stored, editor\) \? stored : editor;[\s\S]{0,1400}research: stored\.research,\s*note: noteFrom\.note,/,
 );
 // The editor takes the row's pins after a save or search unless its own are
 // newer, so the next pin edit does not write a shorter list over the row.
 assert.match(
   storage,
-  /stampMs\(editor\.pointsUpdated\) > stampMs\(stored\.pointsUpdated\)\s*\? \{\}\s*: storedPins\(editor, stored\);/,
+  /stampMs\(editor\.pointsUpdated\) > stampMs\(stored\.pointsUpdated\)\s*\? undefined\s*: storedPins\(editor, stored\);/,
 );
 // A pin edit during the save is merged per pin onto the saved pins.
 assert.match(storage, /function mergePinEdits\(/);
@@ -209,7 +285,7 @@ assert.equal(
 );
 assert.match(
   storage,
-  /if \(noteEdited\) return \{ \.\.\.editor, \.\.\.pins, \.\.\.researchAndRefs \};/,
+  /if \(noteEdited\)\s*return \{\s*\.\.\.withDetails,\s*map: \{ \.\.\.pins\.map, \.\.\.landed\.map, summary: editor\.map\.summary \},/,
 );
 assert.match(
   storage,
@@ -281,6 +357,22 @@ assert.equal(
 // The model's corrupt-write branch clears the confirmed ids with the store,
 // and run.sh runs TLC deterministically.
 const spec = read("verification/capture-save/CaptureSave.tla");
+assert.match(spec, /WholeRecordByUpdated THEN newestRec ELSE merged/);
+assert.match(
+  spec,
+  /IF FillBlankDetails THEN Superseded\(h, "stale"\) ELSE \{\}[\s\S]{0,120}IF PickFirstAi THEN Superseded\(h, "oldai"\) ELSE \{\}/,
+);
+assert.match(spec, /merged == UNION recs \\ gone/);
+assert.match(
+  spec,
+  /IF HandBackNoteOnly[\s\S]{0,200}ELSE IF HandBackByUpdated \/\\ keyed[\s\S]{0,200}ELSE SearchRow\(h\)/,
+);
+assert.match(spec, /IF late \/\\ LandIgnoresStamps/);
+assert.match(
+  spec,
+  /~\(Kept\(h, SearchRow\(h\)\) \/\\ Kept\(h, EditorAfter\(h, keyed\)\)\s*\/\\ Kept\(h, Landed\(h, late\)\)\) :\s*h \\in TabHeld, keyed \\in BOOLEAN, late \\in BOOLEAN\}/,
+);
+assert.match(spec, /tabLost' \\in TabOutcomes/);
 assert.match(
   spec,
   /THEN \/\\ storeOk' = FALSE\s*\/\\ e1' = "absent"\s*\/\\ e2' = "absent"[\s\S]*?\/\\ c1' = FALSE\s*\/\\ c2' = FALSE/,
@@ -297,7 +389,15 @@ assert.match(
 );
 assert.match(
   spec,
-  /Next ==\s*IF LoadWindow THEN SearchAfterLegacyLoad \\\/ AutosaveAfterLoad ELSE Settled/,
+  /Next ==\s*IF LoadWindow\s*THEN \(SearchAfterLegacyLoad \\\/ AutosaveAfterLoad\) \/\\ UNCHANGED editorAiStale\s*ELSE IF TabWindow\s*THEN \(SearchWithOlderEditor \\\/ TabDraftSettles\) \/\\ UNCHANGED editorAiStale\s*ELSE \(Settled \/\\ UNCHANGED editorAiStale\) \\\/ EditorAfterSave/,
+);
+assert.match(
+  spec,
+  /\\E rowCleared \\in BOOLEAN :\s*editorAiStale' = \(SpreadSavedOverEditor \/\\ rowCleared\)/,
+);
+assert.match(
+  spec,
+  /IF SearchPrefersEditor THEN \{StoredRec\(h\), EditorRec\(h\)\}/,
 );
 assert.match(spec, /staleDraftWon' = LegacyResearchTakesDraft/);
 assert.match(spec, /\\\/ \(SkipPinsOnPinEdit \/\\ pinTouched\)/);

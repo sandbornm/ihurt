@@ -1,6 +1,7 @@
 import {
   regionName,
   regions,
+  type MapDetail,
   type SavedMap,
   type RegionId,
   type PainPoint,
@@ -136,6 +137,13 @@ export function exportNotebook(entries: SavedMap[]) {
       related_reading: entry.references ?? [],
       ...(entry.ai ? { ai_notes: entry.ai } : {}),
       ...(entry.research ? { research: entry.research } : {}),
+      ...(entry.noteUpdated !== undefined
+        ? { noteUpdated: entry.noteUpdated }
+        : {}),
+      ...(entry.mapUpdated !== undefined
+        ? { mapUpdated: entry.mapUpdated }
+        : {}),
+      ...(entry.aiUpdated !== undefined ? { aiUpdated: entry.aiUpdated } : {}),
       ...(entry.pointsUpdated !== undefined
         ? { pointsUpdated: entry.pointsUpdated }
         : {}),
@@ -287,6 +295,28 @@ function parseReferences(v: unknown): NonNullable<SavedMap["references"]> {
     };
   });
 }
+const MAP_STAMP: Record<MapDetail, true> = {
+  title: true,
+  quality: true,
+  intensity: true,
+  activity: true,
+  duration: true,
+  question: true,
+  urgent: true,
+  safety_message: true,
+};
+
+function parseMapUpdated(value: unknown): SavedMap["mapUpdated"] {
+  const stamps = object(value);
+  const mapUpdated: NonNullable<SavedMap["mapUpdated"]> = {};
+  for (const key of Object.keys(stamps)) {
+    if (MAP_STAMP[key as MapDetail] !== true)
+      throw new Error(t("data.err.format"));
+    mapUpdated[key as MapDetail] = date(stamps[key]);
+  }
+  return Object.keys(mapUpdated).length > 0 ? mapUpdated : undefined;
+}
+
 function parseAI(v: unknown): SavedMap["ai"] {
   if (v === undefined) return;
   const a = object(v),
@@ -398,11 +428,20 @@ export function parseNotebook(content: string): SavedMap[] {
           : {}),
         regions: array(research.regions, 23).map(region),
         checked: date(research.checked),
+        ...(research.version !== undefined
+          ? { version: date(research.version) }
+          : {}),
         references: parseReferences(research.references),
       };
     }
     const ai = parseAI(e.ai_notes);
     if (ai) entry.ai = ai;
+    if (e.noteUpdated !== undefined) entry.noteUpdated = date(e.noteUpdated);
+    if (e.mapUpdated !== undefined) {
+      const mapUpdated = parseMapUpdated(e.mapUpdated);
+      if (mapUpdated) entry.mapUpdated = mapUpdated;
+    }
+    if (e.aiUpdated !== undefined) entry.aiUpdated = date(e.aiUpdated);
     if (e.pointsUpdated !== undefined)
       entry.pointsUpdated = date(e.pointsUpdated);
     return entry;

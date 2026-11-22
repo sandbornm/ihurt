@@ -24,7 +24,8 @@ This installs the locked Python dependencies with `uv` and creates a private
 `.env` with a generated session secret. It preserves an existing `.env`.
 The same server handles voice; another AI provider is optional.
 
-Open `.env` in your editor and set:
+Web transcription is off by default (`TRANSCRIPTION_PROVIDER=off`), so no audio
+leaves the server unless you opt in. To use ElevenLabs, open `.env` and set:
 
 ```dotenv
 TRANSCRIPTION_PROVIDER=elevenlabs
@@ -44,7 +45,7 @@ useful only when the server has a known, stable outbound address.
 
 Run `npm run dev:ai`, then open **http://127.0.0.1:5173**. Restart that command
 after changing `.env`. The notebook remains usable without this server.
-Set `TRANSCRIPTION_PROVIDER=off` to disable uploads.
+Set `TRANSCRIPTION_PROVIDER=off`, the default, to disable uploads.
 Existing OpenAI transcription is an explicit opt-in with
 `TRANSCRIPTION_PROVIDER=openai` and a server-side `OPENAI_API_KEY`.
 
@@ -105,6 +106,28 @@ The native adapter uses Apple speech when the device and language support
 on-device recognition. The first recording asks for microphone and speech
 permissions. Unsupported devices can still accept a typed transcript. The app
 does not fall back to a remote provider. See [iOS setup](IOS.md) for device testing.
+
+On iOS 26 or later with Apple Intelligence on, the app also reads the reviewed
+transcript with Apple's on-device model. It suggests quality, intensity, start
+date, activity, and one body area from the app's fixed list. It may ask one short
+question, shown and spoken, such as "Left or right?". It never places a pin:
+"Add to entry" adds the note and chosen fields, then a proposed pin appears on
+the body until you choose **Confirm pin** or **Dismiss**. Without Apple
+Intelligence, the transcript goes into the note as before. See
+[Apple Intelligence](IOS.md#apple-intelligence-suggestions).
+
+### How the suggestions are checked
+
+The model must quote the words it relies on. The app keeps a field only when the
+quote is in the transcript and passes checks for the side (a side counts only when
+it is attached to the part, so "turn left", "left side of the bed" and "I left"
+do not set one; "left and right knee" is both; "left or right knee" asks), denial,
+rating, and start date (a future date such as "tomorrow" is dropped). When a check
+fails, the app asks one short question or leaves the field empty. On a 60-note
+held-out set recorded on a Mac, the app filled the right fields in one shot for
+about 43% of notes and filled a wrong or unsupported field for about 18%. It is a
+suggestion you review, not a reading you can rely on. Details are in
+`tests/fixtures/extraction-eval/heldout/RESULTS.md`.
 
 ## Checks
 

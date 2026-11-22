@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useI18n } from "./i18n/react";
 
 type Theme = "light" | "dark";
 const key = "ihurt-theme";
@@ -14,6 +15,7 @@ document.documentElement.dataset.theme = preferred();
 
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(preferred);
+  const { t } = useI18n();
   useEffect(() => {
     const sync = () => {
       const next = preferred();
@@ -31,7 +33,7 @@ export default function ThemeToggle() {
   return (
     <button
       className="theme-toggle"
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      aria-label={theme === "dark" ? t("theme.toLight") : t("theme.toDark")}
       onClick={() => {
         const next = theme === "dark" ? "light" : "dark";
         document.documentElement.dataset.theme = next;
@@ -42,7 +44,7 @@ export default function ThemeToggle() {
       }}
     >
       {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
-      <span>{theme === "dark" ? "Light" : "Dark"}</span>
+      <span>{theme === "dark" ? t("theme.light") : t("theme.dark")}</span>
     </button>
   );
 }

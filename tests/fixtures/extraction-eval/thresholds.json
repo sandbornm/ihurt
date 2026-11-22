@@ -1,0 +1,8 @@
+{
+  "recorded": "v2-evidence",
+  "pipeline": "proposal",
+  "overall": {
+    "oneShot": 0.837,
+    "falseFillRate": 0.01
+  }
+}

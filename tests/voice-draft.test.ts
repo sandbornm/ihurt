@@ -64,3 +64,18 @@ test("applying a reviewed draft appends text and only changes chosen fields", ()
     /combined note/,
   );
 });
+
+test("a hedge like 'no mucho' does not drop the body part in the web fallback", () => {
+  assert.deepEqual(
+    suggestVoiceDraft("Me duele la rodilla izquierda no mucho").locations,
+    ["left_knee"],
+  );
+  assert.deepEqual(
+    suggestVoiceDraft("My left knee hurts, not too bad").locations,
+    ["left_knee"],
+  );
+  assert.deepEqual(
+    suggestVoiceDraft("Mi rodilla izquierda no duele").locations,
+    [],
+  );
+});

@@ -73,6 +73,8 @@ try {
     args: ["--enable-unsafe-swiftshader"],
   });
   const context = await browser.newContext({
+    // English UI regardless of the machine language.
+    locale: "en-US",
     serviceWorkers: "block",
   });
   const page = await context.newPage();

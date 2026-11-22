@@ -48,6 +48,8 @@ try {
     await mkdir(deviceOutput, { recursive: true });
     const profile = devices[device];
     const context = await browser.newContext({
+      // English UI regardless of the machine language.
+      locale: "en-US",
       ...profile,
       viewport: profile.screen ?? profile.viewport,
       reducedMotion: "reduce",

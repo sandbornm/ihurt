@@ -40,6 +40,8 @@ try {
     args: ["--enable-unsafe-swiftshader"],
   });
   const context = await browser.newContext({
+    // English UI regardless of the machine language.
+    locale: "en-US",
     viewport: { width: 1440, height: 1050 },
     reducedMotion: "reduce",
   });

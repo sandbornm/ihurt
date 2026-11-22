@@ -1,3 +1,5 @@
+import { t } from "../i18n/index.ts";
+
 export interface Recording {
   stop(): Promise<Blob>;
   cancel(): void;
@@ -9,9 +11,7 @@ export async function startRecording(
   onError: (message: string) => void,
 ): Promise<Recording> {
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)
-    throw new Error(
-      "Recording is unavailable here. Use your keyboard’s microphone or type below.",
-    );
+    throw new Error(t("rec.unavailable"));
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   let recorder: MediaRecorder;
   try {
@@ -37,18 +37,15 @@ export async function startRecording(
     if (!cancelled) {
       if (stopRequested)
         settle?.(new Blob(chunks, { type: recorder.mimeType }));
-      else onError("The microphone stopped. Try again or type below.");
+      else onError(t("rec.stopped"));
     }
   };
   recorder.onerror = () => {
     clearTimeout(timer);
     release();
     cancelled = true;
-    if (fail)
-      fail(
-        new Error("The microphone stopped. Please try again or type below."),
-      );
-    else onError("The microphone stopped. Try again or type below.");
+    if (fail) fail(new Error(t("rec.stopped")));
+    else onError(t("rec.stopped"));
   };
   try {
     recorder.start();
@@ -64,7 +61,7 @@ export async function startRecording(
         settle = resolve;
         fail = reject;
         if (recorder.state === "inactive")
-          reject(new Error("The recording ended before it could be read."));
+          reject(new Error(t("rec.endedEarly")));
         else recorder.stop();
       });
       return stopped;
@@ -88,7 +85,7 @@ export async function toWav(blob: Blob, maxSeconds: number): Promise<Blob> {
       maxSeconds * 16000,
       Math.ceil(buffer.duration * 16000),
     );
-    if (!length) throw new Error("The recording was empty.");
+    if (!length) throw new Error(t("rec.empty"));
     const offline = new OfflineAudioContext(1, length, 16000);
     const source = offline.createBufferSource();
     source.buffer = buffer;

@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { intensityColor } from "./anatomy/intensity";
+import { useI18n } from "./i18n/react";
 
 export default function IntensityDial({
   value,
@@ -8,10 +9,11 @@ export default function IntensityDial({
   value: number | null;
   onChange: (value: number | null) => void;
 }) {
+  const { t } = useI18n();
   return (
     <section
       className="intensity-control"
-      aria-label="Discomfort intensity"
+      aria-label={t("dial.label")}
       style={
         {
           "--intensity-color": intensityColor(value),
@@ -22,18 +24,20 @@ export default function IntensityDial({
       <div className="intensity-dial" aria-hidden="true">
         <strong>
           {value ?? "—"}
-          <small>{value === null ? "Unrated" : "out of 10"}</small>
+          <small>
+            {value === null ? t("dial.unrated") : t("dial.outOf10")}
+          </small>
         </strong>
       </div>
       <div className="intensity-adjust">
         <div>
-          <label htmlFor="intensity">How strong is it?</label>
+          <label htmlFor="intensity">{t("dial.howStrong")}</label>
           <button
             className="text-button"
             onClick={() => onChange(null)}
             disabled={value === null}
           >
-            Clear
+            {t("dial.clear")}
           </button>
         </div>
         <input
@@ -43,27 +47,23 @@ export default function IntensityDial({
           max="10"
           step="1"
           value={value ?? 0}
-          aria-label="Reported intensity"
+          aria-label={t("dial.reported")}
           aria-valuetext={
-            value === null ? "Not recorded" : `${value} out of 10`
+            value === null
+              ? t("dial.notRecorded")
+              : t("dial.valueText", { value })
           }
           onChange={(event) => onChange(Number(event.target.value))}
         />
         <div className="intensity-scale">
-          <button
-            onClick={() => onChange(0)}
-            aria-label="Set intensity to zero"
-          >
-            0 · None
+          <button onClick={() => onChange(0)} aria-label={t("dial.setZero")}>
+            {t("dial.none")}
           </button>
-          <button
-            onClick={() => onChange(10)}
-            aria-label="Set intensity to ten"
-          >
-            10 · Strongest
+          <button onClick={() => onChange(10)} aria-label={t("dial.setTen")}>
+            {t("dial.strongest")}
           </button>
         </div>
-        <small>Colors show intensity, not temperature.</small>
+        <small>{t("dial.colors")}</small>
       </div>
     </section>
   );

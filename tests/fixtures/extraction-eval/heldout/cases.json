@@ -1,0 +1,1429 @@
+[
+  {
+    "id": "ho-en-001",
+    "lang": "en",
+    "note": "um so my lower back is aching pretty bad, like a 6, it started this morning after sitting at my desk",
+    "tags": [
+      "plain",
+      "lower-back",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "lower_back",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 6,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "sitting at my desk",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-002",
+    "lang": "en",
+    "note": "my rite knee is sharp when I walk, about a 4 out of 10, since yesterday",
+    "tags": [
+      "plain",
+      "right-knee",
+      "typo",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_knee",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 4,
+      "quality": [
+        "sharp"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "walk",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-003",
+    "lang": "en",
+    "note": "left ankle is throbbing um like a 7 I twisted it running last night",
+    "tags": [
+      "plain",
+      "left-ankle",
+      "no-punct",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_ankle",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 7,
+      "quality": [
+        "throbbing"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "running",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-004",
+    "lang": "en",
+    "note": "neck is stiff and dull, started 3 days ago, no idea why",
+    "tags": [
+      "plain",
+      "neck",
+      "extra-number",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "neck",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "stiff",
+        "dull"
+      ],
+      "onset": {
+        "date": "2026-10-19"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-005",
+    "lang": "en",
+    "note": "so my sholder blade is burning, maybe an 8, been like that since last Monday",
+    "tags": [
+      "plain",
+      "upper-back",
+      "typo",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "upper_back",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 8,
+      "quality": [
+        "burning"
+      ],
+      "onset": {
+        "date": "2026-10-19"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-006",
+    "lang": "en",
+    "note": "my stomach is crampy um about a 5 out of 10, started this morning",
+    "tags": [
+      "plain",
+      "abdomen",
+      "no-punct",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "abdomen",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 5,
+      "quality": [
+        "crampy"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-007",
+    "lang": "en",
+    "note": "left shoulder is sore from swimming, like a 2, started yesterday",
+    "tags": [
+      "plain",
+      "left-shoulder",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_shoulder",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 2,
+      "quality": [
+        "sore"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "swimming",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-008",
+    "lang": "en",
+    "note": "right elbow is tender, kind of stabbing when I lift, noticed it two days ago",
+    "tags": [
+      "plain",
+      "right-elbow",
+      "extra-number",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_elbow",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [
+        "tender",
+        "stabbing"
+      ],
+      "onset": {
+        "date": "2026-10-20"
+      },
+      "activity": "lift",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-009",
+    "lang": "en",
+    "note": "um my lef hand is aching, the fingers too, like a 6, I was typing all day yesterday and I kinda ignored it",
+    "tags": [
+      "plain",
+      "left-wrist",
+      "typo",
+      "rambling",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_wrist",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 6,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "typing",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-010",
+    "lang": "en",
+    "note": "right hip is throbbing after the hike, um maybe a 5, started last night",
+    "tags": [
+      "plain",
+      "right-hip",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_hip",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 5,
+      "quality": [
+        "throbbing"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "hike",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-011",
+    "lang": "en",
+    "note": "so my left hamstring is tight and pulling, about a 4, from sprinting this morning",
+    "tags": [
+      "plain",
+      "left-thigh",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_thigh",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 4,
+      "quality": [
+        "tight",
+        "pulling"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "sprinting",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-012",
+    "lang": "en",
+    "note": "left knee is aching, a 7 out of 10, I knelt on it yesterday while gardening",
+    "tags": [
+      "plain",
+      "left-knee",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 7,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "gardening",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-013",
+    "lang": "en",
+    "note": "my right calf is cramping like really bad a 9 it started while I was running",
+    "tags": [
+      "plain",
+      "right-calf",
+      "no-punct"
+    ],
+    "expect": {
+      "location": "right_calf",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 9,
+      "quality": [
+        "cramping"
+      ],
+      "onset": null,
+      "activity": "running",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-014",
+    "lang": "en",
+    "note": "right ankel feels achy, um a 3, I rolled it playing soccer last Tuesday",
+    "tags": [
+      "plain",
+      "right-ankle",
+      "typo",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_ankle",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 3,
+      "quality": [
+        "achy"
+      ],
+      "onset": {
+        "date": "2026-10-20"
+      },
+      "activity": "playing soccer",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-015",
+    "lang": "en",
+    "note": "left elbow is burning a little, like a 1 out of 10, after tennis this morning",
+    "tags": [
+      "plain",
+      "left-elbow",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_elbow",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 1,
+      "quality": [
+        "burning"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "tennis",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-016",
+    "lang": "en",
+    "note": "so my right thumb is throbbing, maybe a 5, I jammed it yesterday",
+    "tags": [
+      "plain",
+      "right-wrist",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_wrist",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 5,
+      "quality": [
+        "throbbing"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-017",
+    "lang": "en",
+    "note": "um yeah my right shoulder, about a 6, it started Monday",
+    "tags": [
+      "plain",
+      "right-shoulder",
+      "no-quality",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_shoulder",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 6,
+      "quality": [],
+      "onset": {
+        "date": "2026-10-19"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-018",
+    "lang": "en",
+    "note": "um so yeah my upper bak its like knotted and sore you know, a 4 I guess, from lifting boxes yesterday and I didnt stretch or anything",
+    "tags": [
+      "plain",
+      "upper-back",
+      "typo",
+      "rambling",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "upper_back",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 4,
+      "quality": [
+        "knotted",
+        "sore"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "lifting boxes",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-019",
+    "lang": "en",
+    "note": "left calf is tight, like a 0 out of 10, barely there, after the bike ride this morning",
+    "tags": [
+      "plain",
+      "left-calf",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_calf",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 0,
+      "quality": [
+        "tight"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "bike ride",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-020",
+    "lang": "en",
+    "note": "my rite toes are stinging um a 10 out of 10 I stubbed them last night",
+    "tags": [
+      "plain",
+      "right-foot",
+      "typo",
+      "no-punct",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_foot",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 10,
+      "quality": [
+        "stinging"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-021",
+    "lang": "en",
+    "note": "left hip is dull and aching, about a 5, been bothering me since last Friday",
+    "tags": [
+      "plain",
+      "left-hip",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_hip",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 5,
+      "quality": [
+        "dull",
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-16"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-022",
+    "lang": "en",
+    "note": "so my right quad is sore, like a 6, from squats yesterday",
+    "tags": [
+      "plain",
+      "right-thigh",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_thigh",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 6,
+      "quality": [
+        "sore"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "squats",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-023",
+    "lang": "en",
+    "note": "um my left heel is sharp, about a 5, started this morning on my walk",
+    "tags": [
+      "plain",
+      "left-foot",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_foot",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 5,
+      "quality": [
+        "sharp"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "walk",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-024",
+    "lang": "en",
+    "note": "my chest feels tight, like a 3, I noticed it this morning",
+    "tags": [
+      "plain",
+      "chest",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "chest",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 3,
+      "quality": [
+        "tight"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-025",
+    "lang": "en",
+    "note": "um its not my knee its my right ankle, sharp, like a 6, since yesterday",
+    "tags": [
+      "tricky",
+      "denial",
+      "no-punct",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_ankle",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 6,
+      "quality": [
+        "sharp"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-026",
+    "lang": "en",
+    "note": "so I walked 4 miles and Im 42 and my left knee has been aching since yesterday, pain is maybe moderate",
+    "tags": [
+      "tricky",
+      "extra-number",
+      "no-rating",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "left_knee",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "walked",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-027",
+    "lang": "en",
+    "note": "I left work and right after that my neck started throbbing, um like a 4",
+    "tags": [
+      "tricky",
+      "stray-side"
+    ],
+    "expect": {
+      "location": "neck",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 4,
+      "quality": [
+        "throbbing"
+      ],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-028",
+    "lang": "en",
+    "note": "um left wrist no wait right wrist, its stabbing, a 7, started this morning while I was chopping",
+    "tags": [
+      "tricky",
+      "self-correction",
+      "no-punct",
+      "onset-date"
+    ],
+    "expect": {
+      "location": "right_wrist",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 7,
+      "quality": [
+        "stabbing"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "chopping",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-029",
+    "lang": "en",
+    "note": "both knees are aching, like a 5 out of 10, since I ran yesterday",
+    "tags": [
+      "tricky",
+      "both-sides",
+      "onset-date"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "both",
+      "side": "both",
+      "intensity": 5,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "ran",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-030",
+    "lang": "en",
+    "note": "my lower back and my right shoulder are both killing me, um sharp in the shoulder and aching in the back, started last night",
+    "tags": [
+      "tricky",
+      "ambiguous",
+      "onset-date"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "ambiguous",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "sharp",
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "ho-en-031",
+    "lang": "en",
+    "note": "um I just hurt, like everything is sore, a 6, since this morning, no specific spot",
+    "tags": [
+      "tricky",
+      "missing-location",
+      "onset-date"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": 6,
+      "quality": [
+        "sore"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "ho-en-032",
+    "lang": "en",
+    "note": "my right calf has been throbbing, maybe a 4, it started a few weeks ago after hiking",
+    "tags": [
+      "tricky",
+      "vague-onset"
+    ],
+    "expect": {
+      "location": "right_calf",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 4,
+      "quality": [
+        "throbbing"
+      ],
+      "onset": {
+        "phrase": "a few weeks ago"
+      },
+      "activity": "hiking",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-033",
+    "lang": "en",
+    "note": "um my left shin is burning, like a 5, from running yesterday",
+    "tags": [
+      "tricky",
+      "unmapped",
+      "shin",
+      "onset-date",
+      "label-fix"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "unmapped",
+      "side": null,
+      "intensity": 5,
+      "quality": [
+        "burning"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "running",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-en-034",
+    "lang": "en",
+    "note": "um I left the gym and my shoulder is aching, about an 8, I tweaked it squatting this morning",
+    "tags": [
+      "tricky",
+      "need-side",
+      "stray-side",
+      "onset-date"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "need-side",
+      "side": null,
+      "intensity": 8,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "squatting",
+      "followUp": "side"
+    }
+  },
+  {
+    "id": "ho-en-035",
+    "lang": "en",
+    "note": "um my forearm is aching, not like a score or anything, it started earlier this week I think from rock climbing 2 times",
+    "tags": [
+      "tricky",
+      "unmapped",
+      "forearm",
+      "extra-number",
+      "vague-onset"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "unmapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "aching"
+      ],
+      "onset": {
+        "phrase": "earlier this week"
+      },
+      "activity": "rock climbing",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-001",
+    "lang": "es",
+    "note": "pues este meduele el cuello un monton desde esta mañana es un dolor sordo",
+    "tags": [
+      "plain",
+      "cuello",
+      "onset"
+    ],
+    "expect": {
+      "location": "neck",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "sordo"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-002",
+    "lang": "es",
+    "note": "bueno ando con dolor en la espalda baja ayer despues de cargar cajas me quedo como un 6",
+    "tags": [
+      "plain",
+      "espalda-baja",
+      "intensidad",
+      "actividad"
+    ],
+    "expect": {
+      "location": "lower_back",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 6,
+      "quality": [],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": "cargar cajas",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-003",
+    "lang": "es",
+    "note": "o sea me duele la rodilla derecha re fuerte punzante como un 8 de 10",
+    "tags": [
+      "plain",
+      "rodilla",
+      "lado",
+      "intensidad"
+    ],
+    "expect": {
+      "location": "right_knee",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 8,
+      "quality": [
+        "punzante"
+      ],
+      "onset": null,
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-004",
+    "lang": "es",
+    "note": "eh el tobillo izquierdo me esta matando desde antier un ardor bien feo",
+    "tags": [
+      "plain",
+      "tobillo",
+      "antier"
+    ],
+    "expect": {
+      "location": "left_ankle",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [
+        "ardor"
+      ],
+      "onset": {
+        "date": "2026-10-20"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-005",
+    "lang": "es",
+    "note": "ay la panza me duele un dolorcito desde anoche son punzadas comi a las 11 y nada",
+    "tags": [
+      "plain",
+      "abdomen",
+      "numero-hora"
+    ],
+    "expect": {
+      "location": "abdomen",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "punzadas"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-006",
+    "lang": "es",
+    "note": "um me duele el hombro izquierdo como un cinco lo senti al cargar la mochila hoy",
+    "tags": [
+      "plain",
+      "hombro",
+      "intensidad"
+    ],
+    "expect": {
+      "location": "left_shoulder",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 5,
+      "quality": [],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "cargar la mochila",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-007",
+    "lang": "es",
+    "note": "el talon derecho me esta doliendo con un dolor agudo desde hace dos dias cuando camino",
+    "tags": [
+      "plain",
+      "talon",
+      "actividad"
+    ],
+    "expect": {
+      "location": "right_foot",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [
+        "agudo"
+      ],
+      "onset": {
+        "date": "2026-10-20"
+      },
+      "activity": "camino",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-008",
+    "lang": "es",
+    "note": "pues el omoplato me duele sordo desde el lunes osea la escapula esa de atras llevo todo el dia fastidiado",
+    "tags": [
+      "plain",
+      "espalda-alta",
+      "onset"
+    ],
+    "expect": {
+      "location": "upper_back",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "sordo"
+      ],
+      "onset": {
+        "date": "2026-10-19"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-009",
+    "lang": "es",
+    "note": "andale ando con un calambre en la chamorra derecha bien fuerte despues de jugar futbol",
+    "tags": [
+      "plain",
+      "pantorrilla",
+      "actividad"
+    ],
+    "expect": {
+      "location": "right_calf",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [
+        "calambre"
+      ],
+      "onset": null,
+      "activity": "jugar futbol",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-010",
+    "lang": "es",
+    "note": "me duele la cadera izquierda desde hace 3 dias como un 4 nada del otro mundo",
+    "tags": [
+      "plain",
+      "cadera",
+      "intensidad"
+    ],
+    "expect": {
+      "location": "left_hip",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 4,
+      "quality": [],
+      "onset": {
+        "date": "2026-10-19"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-011",
+    "lang": "es",
+    "note": "los dedos de la mano derecha me duelen este tipo un hormigueo raro llevo como 2 horas escribiendo y no se me quita",
+    "tags": [
+      "plain",
+      "mano",
+      "numero-horas"
+    ],
+    "expect": {
+      "location": "right_wrist",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [
+        "hormigueo"
+      ],
+      "onset": null,
+      "activity": "escribiendo",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-012",
+    "lang": "es",
+    "note": "el isquiotibial izquierdo me da un jalón desde ayer en la mañana bien molesto",
+    "tags": [
+      "plain",
+      "muslo",
+      "onset"
+    ],
+    "expect": {
+      "location": "left_thigh",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [
+        "jalón"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-013",
+    "lang": "es",
+    "note": "siento una opresión en el pecho como un 3 de 10 empezo hoy temprano",
+    "tags": [
+      "plain",
+      "pecho",
+      "intensidad"
+    ],
+    "expect": {
+      "location": "chest",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": 3,
+      "quality": [
+        "opresión"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-014",
+    "lang": "es",
+    "note": "el codo izquierdo con un ardor bien incomodo lo note al cargar pesas",
+    "tags": [
+      "plain",
+      "codo",
+      "actividad"
+    ],
+    "expect": {
+      "location": "left_elbow",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": null,
+      "quality": [
+        "ardor"
+      ],
+      "onset": null,
+      "activity": "cargar pesas",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-015",
+    "lang": "es",
+    "note": "joder tio me duele la rodilla derecha un huevo sali a correr 5 kilometros y ahora esta hinchada",
+    "tags": [
+      "plain",
+      "rodilla",
+      "numero-km"
+    ],
+    "expect": {
+      "location": "right_knee",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": "correr",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-016",
+    "lang": "es",
+    "note": "so tengo la cervical fastidiada desde ayer punzante cuando la giro",
+    "tags": [
+      "plain",
+      "cuello",
+      "onset"
+    ],
+    "expect": {
+      "location": "neck",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "punzante"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-017",
+    "lang": "es",
+    "note": "me duelen los dedos del pie izquierdo como un 7 despues de estar de pie todo el turno",
+    "tags": [
+      "plain",
+      "pie",
+      "intensidad"
+    ],
+    "expect": {
+      "location": "left_foot",
+      "locationStatus": "mapped",
+      "side": "left",
+      "intensity": 7,
+      "quality": [],
+      "onset": null,
+      "activity": "estar de pie",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-018",
+    "lang": "es",
+    "note": "a ver no es mi rodilla eh es el tobillo derecho el que me duele al bajar las escaleras como un 6",
+    "tags": [
+      "tricky",
+      "negacion",
+      "tobillo"
+    ],
+    "expect": {
+      "location": "right_ankle",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": 6,
+      "quality": [],
+      "onset": null,
+      "activity": "bajar las escaleras",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-019",
+    "lang": "es",
+    "note": "me duelen las dos rodillas este un dolor sordo desde anteayer",
+    "tags": [
+      "tricky",
+      "ambos-lados",
+      "rodillas"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "both",
+      "side": "both",
+      "intensity": null,
+      "quality": [
+        "sordo"
+      ],
+      "onset": {
+        "date": "2026-10-20"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-020",
+    "lang": "es",
+    "note": "me duele el cuello y tambien la espalda baja like no se cual es peor diria como un 5",
+    "tags": [
+      "tricky",
+      "ambiguo",
+      "dos-zonas"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "ambiguous",
+      "side": null,
+      "intensity": 5,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "ho-es-021",
+    "lang": "es",
+    "note": "pues ando con un dolor horrible um como un 9 empezo anoche y mira tengo 40 años y tome 2 pastillas",
+    "tags": [
+      "tricky",
+      "sin-lugar",
+      "numeros-extra"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "missing",
+      "side": null,
+      "intensity": 9,
+      "quality": [],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "location"
+    }
+  },
+  {
+    "id": "ho-es-022",
+    "lang": "es",
+    "note": "me duele la espinilla izquierda un dolor punzante fue corriendo esta mañana como 4 kilometros",
+    "tags": [
+      "tricky",
+      "no-mapeado",
+      "espinilla",
+      "label-fix"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "unmapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "punzante"
+      ],
+      "onset": {
+        "date": "2026-10-22"
+      },
+      "activity": "corriendo",
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-023",
+    "lang": "es",
+    "note": "me duele la muñeca izquierda no espera la derecha perdon me lie un dolor agudo desde ayer",
+    "tags": [
+      "tricky",
+      "autocorreccion",
+      "muneca"
+    ],
+    "expect": {
+      "location": "right_wrist",
+      "locationStatus": "mapped",
+      "side": "right",
+      "intensity": null,
+      "quality": [
+        "agudo"
+      ],
+      "onset": {
+        "date": "2026-10-21"
+      },
+      "activity": null,
+      "followUp": "none"
+    }
+  },
+  {
+    "id": "ho-es-024",
+    "lang": "es",
+    "note": "sali del trabajo y justo despues me empezo a doler la rodilla a la derecha de la tienda fue donde lo note",
+    "tags": [
+      "tricky",
+      "lado-estrano",
+      "falta-lado"
+    ],
+    "expect": {
+      "location": null,
+      "locationStatus": "need-side",
+      "side": null,
+      "intensity": null,
+      "quality": [],
+      "onset": null,
+      "activity": null,
+      "followUp": "side"
+    }
+  },
+  {
+    "id": "ho-es-025",
+    "lang": "es",
+    "note": "um hace unas semanas me empezo un ardor en la barriga sobre todo despues de comer",
+    "tags": [
+      "tricky",
+      "onset-vago",
+      "abdomen"
+    ],
+    "expect": {
+      "location": "abdomen",
+      "locationStatus": "mapped",
+      "side": null,
+      "intensity": null,
+      "quality": [
+        "ardor"
+      ],
+      "onset": {
+        "phrase": "hace unas semanas"
+      },
+      "activity": "comer",
+      "followUp": "none"
+    }
+  }
+]

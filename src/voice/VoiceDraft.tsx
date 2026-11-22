@@ -1,16 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Square, X } from "lucide-react";
 import { nativeSpeech } from "../platform/speech";
+import { ExtractionCancelled, onDeviceAI } from "../platform/on-device-ai";
 import { isNativeApp } from "../platform/files";
 import { regionName, type SavedMap } from "../types";
+import { useI18n } from "../i18n/react";
+import { formatNumber, speechLocale, type MessageKey } from "../i18n";
 import VisitorCheck from "../VisitorCheck";
 import type { VoiceClient, VoiceSession } from "./client";
 import {
   suggestVoiceDraft,
+  voiceNotice,
   type DraftFields,
   type VoiceDraftValue,
 } from "./draft";
+import {
+  anatomyList,
+  answerFollowUp,
+  buildProposal,
+  confirmProposal,
+  describeLocation,
+  localToday,
+  pinAfterAnswer,
+  proposedRegion,
+  seedSuggestedFields,
+  type PainProposal,
+} from "./extraction";
+import { createAvailabilityGate } from "./ai-gate";
 import { startRecording, toWav, type Recording } from "./recording";
+import { createSuggestOnce } from "./suggest-once";
 import "./voice.css";
 
 export interface VoiceDraftProps {
@@ -22,6 +40,10 @@ interface ReviewDraft {
   text: string;
   fields: Record<string, boolean>;
   region: string;
+  // Kept so reopening shows the same suggestion; it is used only while its
+  // transcript still matches the text, and the pin still needs "Add to entry".
+  proposal?: PainProposal | null;
+  pin?: boolean;
 }
 
 export default function VoiceDraft(
@@ -31,6 +53,7 @@ export default function VoiceDraft(
 }
 
 function EntryVoiceDraft(props: VoiceDraftProps & { client: VoiceClient }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<ReviewDraft>();
   return (
@@ -41,7 +64,7 @@ function EntryVoiceDraft(props: VoiceDraftProps & { client: VoiceClient }) {
         onClick={() => setOpen(true)}
       >
         <Mic size={15} />{" "}
-        {draft?.text.trim() ? "Review voice draft" : "Use voice"}
+        {draft?.text.trim() ? t("voice.reviewDraft") : t("voice.use")}
       </button>
       {open && (
         <VoiceEditor
@@ -70,6 +93,7 @@ function VoiceEditor({
   close(pending?: ReviewDraft): void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const { t, lang } = useI18n();
   const [text, setText] = useState(draft?.text ?? "");
   const [mode, setMode] = useState<
     "loading" | "idle" | "starting" | "recording" | "processing"
@@ -90,9 +114,24 @@ function VoiceEditor({
     },
   );
   const speech = useRef(nativeSpeech()).current;
+  const ai = useRef(onDeviceAI()).current;
+  const [aiReady, setAiReady] = useState(false);
+  const [aiNotice, setAiNotice] = useState("");
+  // The proposal stays in this panel's state. It is not autosaved and nothing
+  // from it reaches the entry until "Add to entry".
+  const [proposal, setProposal] = useState<PainProposal | null>(
+    draft?.proposal ?? null,
+  );
+  const [extracting, setExtracting] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const [pin, setPin] = useState(draft?.pin ?? true);
+  const extraction = useRef(0);
+  const extractAbort = useRef<AbortController | null>(null);
+  const gate = useRef(createAvailabilityGate()).current;
   const recording = useRef<Recording | null>(null);
   const upload = useRef<AbortController | null>(null);
   const generation = useRef(0);
+  const suggestOnce = useRef(createSuggestOnce()).current;
   const stopLatest = useRef(() => {});
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -103,10 +142,23 @@ function VoiceEditor({
     Math.max(1, session?.max_audio_seconds ?? 60),
   );
   const suggestions = useMemo(() => suggestVoiceDraft(text), [text]);
+  const live =
+    proposal && proposal.transcript === text.trim() ? proposal : null;
+  const shownFields = live ? live.fields : suggestions.fields;
+  const liveRegion = live ? proposedRegion(live) : null;
   const busy = ["starting", "recording", "processing"].includes(mode);
 
   function dismiss() {
-    close({ text: busy ? previousText.current : text, fields, region });
+    // Closing the panel stops the on-device read and any spoken question now,
+    // not only when the editor unmounts.
+    cancelCapture();
+    close({
+      text: busy ? previousText.current : text,
+      fields,
+      region,
+      proposal,
+      pin,
+    });
   }
 
   function cancelCapture() {
@@ -116,46 +168,70 @@ function VoiceEditor({
     upload.current?.abort();
     upload.current = null;
     void speech?.cancel().catch(() => {});
+    stopExtraction();
+    void ai?.stopSpeaking().catch(() => {});
+  }
+
+  function stopExtraction() {
+    extraction.current++;
+    extractAbort.current?.abort();
+    extractAbort.current = null;
+    gate.clear();
+    setExtracting(false);
   }
   useEffect(() => {
     dialog.current?.showModal();
     let active = true;
     const checkNative = async () => {
       if (!speech) return;
-      const state = await speech.availability();
+      const state = await speech.availability(speechLocale(lang));
       if (!active) return;
       setAvailable(state.available);
       setError(
         state.available
           ? ""
-          : (state.reason ??
-              "On-device speech is unavailable. Type or paste a transcript below."),
+          : (state.reason ?? t("voice.error.speechUnavailable")),
       );
     };
+    const checkAi = () => {
+      const check = gate.begin();
+      return ai!
+        .isAvailable(lang)
+        .then((state) => {
+          if (!active || check !== gate.latest) return;
+          const queued = gate.recheck(state.available, check);
+          setAiReady(state.available);
+          if (queued) void runExtraction(queued);
+          // Dictation still works when the model does not support the
+          // language. Say so instead of hiding the suggestions silently.
+          setAiNotice(
+            !state.available && state.code === "ai-locale-unsupported"
+              ? (state.reason ?? "")
+              : "",
+          );
+        })
+        .catch(() => {
+          if (!active || check !== gate.latest) return;
+          gate.recheck(false, check);
+          setAiReady(false);
+        });
+    };
+    if (ai && native) void checkAi();
+    else gate.settle(false);
     void (async () => {
       try {
         if (speech) {
           await checkNative();
         } else if (native) {
-          if (active)
-            setError(
-              "On-device speech is unavailable in this build. Type or paste a transcript below.",
-            );
+          if (active) setError(t("voice.error.speechMissing"));
         } else {
           const next = await client.session();
           if (!active) return;
           setSession(next);
           setAvailable(next.transcription_available);
-          if (!next.transcription_available)
-            setError(
-              "Voice transcription is not configured. Type or paste a transcript below.",
-            );
         }
       } catch {
-        if (active)
-          setError(
-            "Voice transcription is unavailable. Type or paste a transcript below.",
-          );
+        if (active) setError(t("voice.error.transcriptionUnavailable"));
       } finally {
         if (active) setMode("idle");
       }
@@ -167,13 +243,14 @@ function VoiceEditor({
       ) {
         cancelCapture();
         setMode("idle");
-        setError(
-          "Recording stopped when the app left the screen. Review the transcript before adding it.",
-        );
-      } else if (document.visibilityState === "visible" && speech) {
-        void checkNative().catch(() => {
-          if (active) setAvailable(false);
-        });
+        setError(t("voice.error.leftScreen"));
+      } else if (document.visibilityState === "visible") {
+        // Settings may have changed while the app was away.
+        if (speech)
+          void checkNative().catch(() => {
+            if (active) setAvailable(false);
+          });
+        if (ai && native) void checkAi();
       }
     };
     document.addEventListener("visibilitychange", hide);
@@ -193,6 +270,9 @@ function VoiceEditor({
     if (!available || busy) return;
     const current = ++generation.current;
     previousText.current = text;
+    stopExtraction();
+    setProposal(null);
+    void ai?.stopSpeaking().catch(() => {});
     setError("");
     setSeconds(0);
     setMode("starting");
@@ -203,12 +283,14 @@ function VoiceEditor({
           (value) => {
             if (generation.current === current) setText(value.slice(0, 3000));
           },
-          (message) => {
+          (message, final) => {
             ended = true;
             if (generation.current !== current) return;
             setMode("idle");
             if (message) setError(message);
+            else if (final !== undefined) suggestFinal(current, final);
           },
+          speechLocale(lang),
         );
         if (!ended && generation.current === current) setMode("recording");
       } else {
@@ -232,9 +314,7 @@ function VoiceEditor({
     } catch {
       if (generation.current === current) {
         setMode("idle");
-        setError(
-          "Recording could not start. Check microphone and speech permissions, or type below.",
-        );
+        setError(t("voice.error.couldNotStart"));
       }
     }
   }
@@ -244,8 +324,9 @@ function VoiceEditor({
     const current = generation.current;
     setMode("processing");
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let final: string | undefined;
     try {
-      if (speech) await speech.stop();
+      if (speech) final = await speech.stop();
       else if (recording.current) {
         const capture = recording.current;
         const blob = await capture.stop();
@@ -267,7 +348,7 @@ function VoiceEditor({
         setError(
           caught instanceof Error
             ? caught.message
-            : "Transcription stopped. Try again or type below.",
+            : t("voice.error.transcriptionStopped"),
         );
     } finally {
       clearTimeout(timeout);
@@ -277,14 +358,91 @@ function VoiceEditor({
         setMode("idle");
         setChallenge("");
         setNonce((value) => value + 1);
+        if (speech && final !== undefined) suggestFinal(current, final);
       }
     }
+  }
+
+  // Suggest once per recording, from the recognizer's final transcript rather
+  // than the text box, which may not have rendered the last words yet.
+  function suggestFinal(current: number, final: string) {
+    const value = suggestOnce.deliver(current, generation.current, final);
+    if (value) propose(value);
+  }
+
+  function propose(transcript: string) {
+    const value = transcript.trim();
+    if (!ai || !value) return;
+    const now = gate.request(value);
+    if (now) void runExtraction(now);
+  }
+
+  async function runExtraction(value: string) {
+    if (!ai) return;
+    extractAbort.current?.abort();
+    const controller = new AbortController();
+    extractAbort.current = controller;
+    const current = ++extraction.current;
+    setExtracting(true);
+    setProposal(null);
+    setAnswer("");
+    try {
+      const today = localToday();
+      const raw = await ai.extractPainEntry(
+        { transcript: value, anatomyList, today, language: lang },
+        { signal: controller.signal },
+      );
+      if (extraction.current !== current) return;
+      const next = buildProposal(raw, value, today, lang);
+      setProposal(next);
+      setFields((old) => seedSuggestedFields(old, {}, next.fields, entry.map));
+      setPin(next.location.status === "mapped");
+      if (next.followUp)
+        void ai.speak(next.followUp.question, lang).catch(() => {});
+    } catch (caught) {
+      if (caught instanceof ExtractionCancelled) return;
+      if (extraction.current === current)
+        setError(
+          caught instanceof Error ? caught.message : t("voice.error.aiFailed"),
+        );
+    } finally {
+      if (extraction.current === current) {
+        setExtracting(false);
+        extractAbort.current = null;
+      }
+    }
+  }
+
+  function submitAnswer(skip = false) {
+    if (!live) return;
+    void ai?.stopSpeaking().catch(() => {});
+    const next = answerFollowUp(live, skip ? "" : answer);
+    setProposal(next);
+    setFields((old) =>
+      seedSuggestedFields(old, live.fields, next.fields, entry.map),
+    );
+    setText(next.transcript);
+    setAnswer("");
+    setPin((current) => pinAfterAnswer(current, live.location, next.location));
   }
   stopLatest.current = () => {
     void stop();
   };
 
   function apply() {
+    if (live) {
+      try {
+        // "Add to entry" is the explicit confirmation of the proposal.
+        onApply(confirmProposal(live, { confirmed: true, fields, pin }));
+        void ai?.stopSpeaking().catch(() => {});
+        close();
+      } catch (caught) {
+        setError(
+          caught instanceof Error ? caught.message : t("voice.error.notAdded"),
+        );
+      }
+      return;
+    }
     const chosen: DraftFields = {};
     for (const key of Object.keys(suggestions.fields) as (keyof DraftFields)[])
       if (fields[key])
@@ -298,9 +456,7 @@ function VoiceEditor({
       close();
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "The draft could not be added.",
+        caught instanceof Error ? caught.message : t("voice.error.notAdded"),
       );
     }
   }
@@ -316,27 +472,31 @@ function VoiceEditor({
       }}
     >
       <div className="voice-heading">
-        <h2 id="voice-title">Speak, then review</h2>
-        <button type="button" onClick={dismiss} aria-label="Close voice draft">
+        <h2 id="voice-title">{t("voice.title")}</h2>
+        <button type="button" onClick={dismiss} aria-label={t("voice.close")}>
           <X size={18} />
         </button>
       </div>
       <p>
-        {native
-          ? "Apple speech recognition runs on your device. Review the words before adding them."
-          : `Stopping or reaching the ${maxSeconds}-second limit sends audio to ${session?.transcription_provider ?? "ElevenLabs"}. Its retention policy applies.`}
+        {voiceNotice({
+          native,
+          checking: mode === "loading",
+          provider: session?.transcription_provider,
+          available,
+          maxSeconds,
+        })}
       </p>
-      {!native && (
+      {!native && available && session?.transcription_provider && (
         <a
           href={
-            session?.transcription_provider === "OpenAI"
+            session.transcription_provider === "OpenAI"
               ? "https://openai.com/policies/privacy-policy/"
               : "https://elevenlabs.io/privacy-policy"
           }
           target="_blank"
           rel="noreferrer"
         >
-          Transcription privacy ↗
+          {t("voice.privacy")}
         </a>
       )}
       <div className="voice-actions">
@@ -347,7 +507,7 @@ function VoiceEditor({
             onClick={() => void stop()}
           >
             <Square size={14} />
-            {native ? "Stop" : "Stop & transcribe"} · {seconds}s
+            {native ? t("voice.stop") : t("voice.stopTranscribe")} · {seconds} s
           </button>
         ) : (
           <button
@@ -362,14 +522,14 @@ function VoiceEditor({
           >
             <Mic size={15} />
             {mode === "loading"
-              ? "Checking speech…"
+              ? t("voice.checking")
               : mode === "starting"
-                ? "Opening microphone…"
+                ? t("voice.opening")
                 : mode === "processing"
-                  ? "Transcribing…"
+                  ? t("voice.transcribing")
                   : text
-                    ? "Record again"
-                    : "Record"}
+                    ? t("voice.recordAgain")
+                    : t("voice.record")}
           </button>
         )}
         {busy && (
@@ -383,7 +543,9 @@ function VoiceEditor({
               setError("");
             }}
           >
-            {mode === "processing" ? "Discard result" : "Cancel recording"}
+            {mode === "processing"
+              ? t("voice.discardResult")
+              : t("voice.cancelRecording")}
           </button>
         )}
       </div>
@@ -394,7 +556,7 @@ function VoiceEditor({
           onToken={setChallenge}
         />
       )}
-      <label htmlFor="voice-transcript">Review transcript</label>
+      <label htmlFor="voice-transcript">{t("voice.reviewTranscript")}</label>
       <textarea
         id="voice-transcript"
         value={text}
@@ -402,12 +564,82 @@ function VoiceEditor({
         disabled={busy}
         maxLength={3000}
         rows={5}
-        placeholder="My left calf feels tight, four out of ten. Activity: running. Duration: since yesterday."
+        placeholder={t("voice.placeholder")}
       />
-      {Object.keys(suggestions.fields).length > 0 && (
+      {aiReady && (extracting || live || text.trim()) && (
+        <section className="voice-proposal" aria-live="polite">
+          <h3>{t("voice.suggested")}</h3>
+          {extracting ? (
+            <p>{t("voice.reading")}</p>
+          ) : live ? (
+            <>
+              <p>{describeLocation(live.location, lang)}</p>
+              {liveRegion && (
+                <label className="voice-field">
+                  <input
+                    type="checkbox"
+                    checked={pin}
+                    onChange={(event) => setPin(event.target.checked)}
+                  />{" "}
+                  <span>
+                    {t("voice.proposePin", { region: regionName(liveRegion) })}
+                  </span>
+                </label>
+              )}
+              {live.followUp && !live.asked && (
+                <div className="voice-follow-up">
+                  <label htmlFor="voice-follow-up">
+                    {live.followUp.question}
+                  </label>
+                  <input
+                    id="voice-follow-up"
+                    value={answer}
+                    maxLength={300}
+                    onChange={(event) => setAnswer(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && answer.trim()) {
+                        event.preventDefault();
+                        submitAnswer();
+                      }
+                    }}
+                  />
+                  <div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={!answer.trim()}
+                      onClick={() => submitAnswer()}
+                    >
+                      {t("voice.answer")}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => submitAnswer(true)}
+                    >
+                      {t("voice.skip")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || !text.trim()}
+              onClick={() => propose(text)}
+            >
+              {t("voice.suggestFields")}
+            </button>
+          )}
+          <p className="subtle">{t("voice.runsHere")}</p>
+        </section>
+      )}
+      {Object.keys(shownFields).length > 0 && (
         <fieldset>
-          <legend>Fill these fields</legend>
-          {Object.entries(suggestions.fields).map(([key, value]) => (
+          <legend>{t("voice.fillFields")}</legend>
+          {Object.entries(shownFields).map(([key, value]) => (
             <label className="voice-field" key={key}>
               <input
                 type="checkbox"
@@ -417,24 +649,27 @@ function VoiceEditor({
                 }
               />{" "}
               <span>
-                {key}: {String(value)}
+                {t(`voice.field.${key}` as MessageKey)}:{" "}
+                {typeof value === "number"
+                  ? formatNumber(value)
+                  : String(value)}
                 {key === "intensity" ? " / 10" : ""}
                 {entry.map[key as keyof DraftFields]
-                  ? " · replaces existing value"
+                  ? ` · ${t("voice.replaces")}`
                   : ""}
               </span>
             </label>
           ))}
         </fieldset>
       )}
-      {suggestions.locations.length > 0 && (
+      {!live && suggestions.locations.length > 0 && (
         <label>
-          Locate an area after adding the note
+          {t("voice.locateArea")}
           <select
             value={region}
             onChange={(event) => setRegion(event.target.value)}
           >
-            <option value="">Keep the current view</option>
+            <option value="">{t("voice.keepView")}</option>
             {suggestions.locations.map((id) => (
               <option key={id} value={id}>
                 {regionName(id)}
@@ -443,14 +678,9 @@ function VoiceEditor({
           </select>
         </label>
       )}
-      <p className="subtle">
-        The transcript appends to your note. Choose the exact surface on the
-        body to add a pin.
-      </p>
-      <p className="subtle">
-        Closing this panel keeps your draft while you stay in this view. Add it
-        to your entry to save it.
-      </p>
+      <p className="subtle">{t("voice.appends")}</p>
+      <p className="subtle">{t("voice.closingKeeps")}</p>
+      {aiNotice && <p className="subtle">{aiNotice}</p>}
       {error && (
         <p role="alert" className="error-notice">
           {error}
@@ -459,18 +689,21 @@ function VoiceEditor({
       <button
         type="button"
         className="primary"
-        disabled={!text.trim() || busy}
+        disabled={!text.trim() || busy || extracting}
         onClick={apply}
       >
-        Add to entry
+        {t("voice.addToEntry")}
       </button>
       <button
         type="button"
         className="text-button voice-discard"
         disabled={busy || !text.trim()}
-        onClick={() => close()}
+        onClick={() => {
+          cancelCapture();
+          close();
+        }}
       >
-        Discard draft
+        {t("voice.discardDraft")}
       </button>
     </dialog>
   );

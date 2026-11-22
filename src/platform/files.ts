@@ -1,3 +1,5 @@
+import { t } from "../i18n/index.ts";
+
 let nativeFiles: NativeFiles | undefined;
 export const isNativeApp = () => !!nativeFiles;
 
@@ -39,9 +41,9 @@ export async function saveNativeExport(
   try {
     await files.share(uri);
   } catch {
-    return "Saved in Files → iHurt → Reports. You can share it from there.";
+    return t("files.savedShare");
   }
-  return "Saved in Files → iHurt → Reports.";
+  return t("files.saved");
 }
 
 export async function saveExport(file: ExportFile): Promise<string> {
@@ -57,5 +59,5 @@ export async function saveExport(file: ExportFile): Promise<string> {
   link.download = file.name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return "Download started.";
+  return t("files.download");
 }

@@ -1,0 +1,821 @@
+{
+  "name": "trust-tuning",
+  "pipeline": "trust",
+  "recorded": "v2-evidence",
+  "metadata": {
+    "cases": 138,
+    "errorCount": 2,
+    "model": "SystemLanguageModel.default",
+    "modelVariant": "AFM 3 Core Advanced",
+    "name": "v2-evidence",
+    "osBuild": "26A434",
+    "osProduct": "27.0.1",
+    "osVersionString": "Version 27.0.1 (Build 26A434)",
+    "recordedAt": "2026-10-23T02:53:08Z",
+    "schema": "v2",
+    "supportedLanguages": [
+      "da",
+      "de",
+      "en",
+      "en-AU",
+      "en-GB",
+      "en-IN",
+      "es",
+      "es-419",
+      "es-US",
+      "fr",
+      "fr-CA",
+      "it",
+      "ja",
+      "ko",
+      "nb",
+      "nl",
+      "pt",
+      "pt-PT",
+      "sv",
+      "tr",
+      "vi",
+      "zh",
+      "zh-HK",
+      "zh-TW"
+    ],
+    "supportsEnglish": true,
+    "supportsSpanish": true,
+    "temperature": 0
+  },
+  "cases": 138,
+  "overall": {
+    "cases": 138,
+    "oneShot": {
+      "hit": 43,
+      "total": 113,
+      "rate": 0.3805309734513274
+    },
+    "falseFillCases": 48,
+    "falseFillRate": 0.34782608695652173,
+    "wrongValueFills": 0,
+    "followUpAsked": 38,
+    "followUpRate": 0.2753623188405797,
+    "followUpCorrect": 112,
+    "followUpAccuracy": 0.8115942028985508,
+    "fields": {
+      "location": {
+        "correct": 89,
+        "fills": 92,
+        "expected": 108,
+        "falseFill": 3,
+        "wrongValue": 0,
+        "precision": 0.967391304347826,
+        "recall": 0.8240740740740741
+      },
+      "intensity": {
+        "correct": 43,
+        "fills": 46,
+        "expected": 54,
+        "falseFill": 3,
+        "wrongValue": 0,
+        "precision": 0.9347826086956522,
+        "recall": 0.7962962962962963
+      },
+      "quality": {
+        "correct": 75,
+        "fills": 77,
+        "expected": 85,
+        "falseFill": 2,
+        "wrongValue": 0,
+        "precision": 0.974025974025974,
+        "recall": 0.8823529411764706
+      },
+      "onset": {
+        "correct": 71,
+        "fills": 73,
+        "expected": 74,
+        "falseFill": 2,
+        "wrongValue": 0,
+        "precision": 0.9726027397260274,
+        "recall": 0.9594594594594594
+      },
+      "activity": {
+        "correct": 20,
+        "fills": 60,
+        "expected": 24,
+        "falseFill": 40,
+        "wrongValue": 0,
+        "precision": 0.3333333333333333,
+        "recall": 0.8333333333333334
+      }
+    }
+  },
+  "byLang": {
+    "en": {
+      "cases": 80,
+      "oneShot": {
+        "hit": 19,
+        "total": 65,
+        "rate": 0.2923076923076923
+      },
+      "falseFillCases": 40,
+      "falseFillRate": 0.5,
+      "wrongValueFills": 0,
+      "followUpAsked": 15,
+      "followUpRate": 0.1875,
+      "followUpCorrect": 69,
+      "followUpAccuracy": 0.8625,
+      "fields": {
+        "location": {
+          "correct": 56,
+          "fills": 59,
+          "expected": 62,
+          "falseFill": 3,
+          "wrongValue": 0,
+          "precision": 0.9491525423728814,
+          "recall": 0.9032258064516129
+        },
+        "intensity": {
+          "correct": 30,
+          "fills": 31,
+          "expected": 34,
+          "falseFill": 1,
+          "wrongValue": 0,
+          "precision": 0.967741935483871,
+          "recall": 0.8823529411764706
+        },
+        "quality": {
+          "correct": 49,
+          "fills": 50,
+          "expected": 55,
+          "falseFill": 1,
+          "wrongValue": 0,
+          "precision": 0.98,
+          "recall": 0.8909090909090909
+        },
+        "onset": {
+          "correct": 42,
+          "fills": 42,
+          "expected": 44,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": 1,
+          "recall": 0.9545454545454546
+        },
+        "activity": {
+          "correct": 14,
+          "fills": 49,
+          "expected": 16,
+          "falseFill": 35,
+          "wrongValue": 0,
+          "precision": 0.2857142857142857,
+          "recall": 0.875
+        }
+      }
+    },
+    "es": {
+      "cases": 58,
+      "oneShot": {
+        "hit": 24,
+        "total": 48,
+        "rate": 0.5
+      },
+      "falseFillCases": 8,
+      "falseFillRate": 0.13793103448275862,
+      "wrongValueFills": 0,
+      "followUpAsked": 23,
+      "followUpRate": 0.39655172413793105,
+      "followUpCorrect": 43,
+      "followUpAccuracy": 0.7413793103448276,
+      "fields": {
+        "location": {
+          "correct": 33,
+          "fills": 33,
+          "expected": 46,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": 1,
+          "recall": 0.717391304347826
+        },
+        "intensity": {
+          "correct": 13,
+          "fills": 15,
+          "expected": 20,
+          "falseFill": 2,
+          "wrongValue": 0,
+          "precision": 0.8666666666666667,
+          "recall": 0.65
+        },
+        "quality": {
+          "correct": 26,
+          "fills": 27,
+          "expected": 30,
+          "falseFill": 1,
+          "wrongValue": 0,
+          "precision": 0.9629629629629629,
+          "recall": 0.8666666666666667
+        },
+        "onset": {
+          "correct": 29,
+          "fills": 31,
+          "expected": 30,
+          "falseFill": 2,
+          "wrongValue": 0,
+          "precision": 0.9354838709677419,
+          "recall": 0.9666666666666667
+        },
+        "activity": {
+          "correct": 6,
+          "fills": 11,
+          "expected": 8,
+          "falseFill": 5,
+          "wrongValue": 0,
+          "precision": 0.5454545454545454,
+          "recall": 0.75
+        }
+      }
+    }
+  },
+  "failures": [
+    {
+      "id": "en-001",
+      "reasons": [
+        "activity got my left knee, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-002",
+      "reasons": [
+        "activity got started this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-003",
+      "reasons": [
+        "activity got since last night, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-006",
+      "reasons": [
+        "activity got started, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-007",
+      "reasons": [
+        "quality got [], expected [sore]"
+      ]
+    },
+    {
+      "id": "en-008",
+      "reasons": [
+        "quality got [], expected [dull, ache]",
+        "activity got this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-010",
+      "reasons": [
+        "activity got started a week ago, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-011",
+      "reasons": [
+        "quality got [], expected [cramping]",
+        "activity got null, expected running"
+      ]
+    },
+    {
+      "id": "en-012",
+      "reasons": [
+        "activity got Abdomen, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-013",
+      "reasons": [
+        "activity got started, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-014",
+      "reasons": [
+        "activity got since this afternoon, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-015",
+      "reasons": [
+        "activity got since yesterday, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-017",
+      "reasons": [
+        "activity got since this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-018",
+      "reasons": [
+        "quality got [], expected [sore]"
+      ]
+    },
+    {
+      "id": "en-019",
+      "reasons": [
+        "activity got this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-020",
+      "reasons": [
+        "activity got started, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-021",
+      "reasons": [
+        "activity got since last night, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-024",
+      "reasons": [
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-025",
+      "reasons": [
+        "activity got my left hip, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-028",
+      "reasons": [
+        "activity got since last night, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-029",
+      "reasons": [
+        "activity got since this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-030",
+      "reasons": [
+        "activity got started, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-031",
+      "reasons": [
+        "activity got started earlier this week, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-034",
+      "reasons": [
+        "activity got since last Monday, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-035",
+      "reasons": [
+        "activity got started, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-036",
+      "reasons": [
+        "quality got [], expected [cramping]",
+        "activity got cramping, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-037",
+      "reasons": [
+        "intensity got null, expected 1",
+        "activity got Left foot bunion is sore since yesterday, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-038",
+      "reasons": [
+        "intensity got null, expected 0",
+        "activity got this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-042",
+      "reasons": [
+        "activity got 3 days ago, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-044",
+      "reasons": [
+        "activity got earlier this year, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-045",
+      "reasons": [
+        "activity got started hurting, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-046",
+      "reasons": [
+        "activity got not my ankle, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-049",
+      "reasons": [
+        "activity got no wait, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-053",
+      "reasons": [
+        "model error Response may contain sensitive or unsafe content",
+        "intensity got null, expected 4",
+        "quality got [], expected [aching]",
+        "onset got null, expected 2026-10-21",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-054",
+      "reasons": [
+        "location got null/unmapped/null, expected null/missing/null",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-055",
+      "reasons": [
+        "activity got this morning, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-056",
+      "reasons": [
+        "activity got since yesterday, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-057",
+      "reasons": [
+        "location got right_knee/mapped/right, expected null/need-side/null",
+        "follow-up got none, expected side",
+        "false fill location"
+      ]
+    },
+    {
+      "id": "en-058",
+      "reasons": [
+        "activity got both knees, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-059",
+      "reasons": [
+        "intensity got 10, expected null",
+        "false fill intensity"
+      ]
+    },
+    {
+      "id": "es-001",
+      "reasons": [
+        "location got null/need-side/null, expected left_knee/mapped/left",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-003",
+      "reasons": [
+        "intensity got null, expected 4"
+      ]
+    },
+    {
+      "id": "es-005",
+      "reasons": [
+        "intensity got null, expected 3",
+        "quality got [], expected [molestia]",
+        "activity got hace tres días, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-009",
+      "reasons": [
+        "location got null/missing/null, expected left_wrist/mapped/left",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "es-010",
+      "reasons": [
+        "location got null/need-side/null, expected right_foot/mapped/right",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-014",
+      "reasons": [
+        "location got null/need-side/null, expected right_thigh/mapped/right",
+        "intensity got null, expected 5",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-017",
+      "reasons": [
+        "location got null/need-side/null, expected right_foot/mapped/right",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-019",
+      "reasons": [
+        "quality got [], expected [pulsátil]",
+        "activity got esta mañana, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-020",
+      "reasons": [
+        "quality got [], expected [entumecido]",
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "es-021",
+      "reasons": [
+        "quality got [], expected [molestia]"
+      ]
+    },
+    {
+      "id": "es-022",
+      "reasons": [
+        "intensity got null, expected 5"
+      ]
+    },
+    {
+      "id": "es-025",
+      "reasons": [
+        "intensity got null, expected 7"
+      ]
+    },
+    {
+      "id": "es-026",
+      "reasons": [
+        "location got null/need-side/null, expected left_calf/mapped/left",
+        "intensity got null, expected 3",
+        "activity got null, expected corrí",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-027",
+      "reasons": [
+        "location got null/need-side/null, expected left_hip/mapped/left",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-029",
+      "reasons": [
+        "location got null/need-side/null, expected right_elbow/mapped/right",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-032",
+      "reasons": [
+        "location got null/need-side/null, expected left_knee/mapped/left",
+        "quality got [como], expected []",
+        "follow-up got side, expected none",
+        "false fill quality"
+      ]
+    },
+    {
+      "id": "es-033",
+      "reasons": [
+        "location got null/need-side/null, expected right_foot/mapped/right",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-035",
+      "reasons": [
+        "location got null/unmapped/null, expected null/missing/null",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "es-036",
+      "reasons": [
+        "activity got null, expected correr"
+      ]
+    },
+    {
+      "id": "es-037",
+      "reasons": [
+        "intensity got null, expected 4"
+      ]
+    },
+    {
+      "id": "es-038",
+      "reasons": [
+        "location got null/need-side/null, expected null/both/both",
+        "follow-up got side, expected none"
+      ]
+    },
+    {
+      "id": "es-039",
+      "reasons": [
+        "intensity got 5, expected null",
+        "onset got phrase ahora mismo, expected null",
+        "false fill intensity",
+        "false fill onset"
+      ]
+    },
+    {
+      "id": "es-040",
+      "reasons": [
+        "intensity got 10, expected null",
+        "false fill intensity"
+      ]
+    },
+    {
+      "id": "en-061",
+      "reasons": [
+        "model error Response may contain sensitive or unsafe content",
+        "location got null/missing/null, expected right_ankle/mapped/right",
+        "activity got null, expected chasing my son"
+      ]
+    },
+    {
+      "id": "en-062",
+      "reasons": [
+        "location got null/missing/null, expected neck/mapped/null",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "en-063",
+      "reasons": [
+        "location got null/missing/null, expected lower_back/mapped/null",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "en-064",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "en-065",
+      "reasons": [
+        "location got null/ambiguous/null, expected right_ankle/mapped/right",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "en-066",
+      "reasons": [
+        "location got left_knee/mapped/left, expected null/need-side/null",
+        "follow-up got none, expected side",
+        "false fill location"
+      ]
+    },
+    {
+      "id": "en-070",
+      "reasons": [
+        "intensity got null, expected 8"
+      ]
+    },
+    {
+      "id": "en-072",
+      "reasons": [
+        "activity got on the left, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-073",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left",
+        "follow-up got location, expected none"
+      ]
+    },
+    {
+      "id": "en-074",
+      "reasons": [
+        "location got null/need-side/null, expected null/missing/null",
+        "follow-up got side, expected location"
+      ]
+    },
+    {
+      "id": "en-075",
+      "reasons": [
+        "location got left_knee/mapped/left, expected null/need-side/null",
+        "follow-up got none, expected side",
+        "false fill location"
+      ]
+    },
+    {
+      "id": "en-076",
+      "reasons": [
+        "quality got [aches], expected []",
+        "false fill quality"
+      ]
+    },
+    {
+      "id": "en-078",
+      "reasons": [
+        "activity got left my knee brace at home, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "en-080",
+      "reasons": [
+        "activity got right knee, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-051",
+      "reasons": [
+        "activity got doblar la rodilla, expected null",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-053",
+      "reasons": [
+        "location got null/need-side/null, expected left_knee/mapped/left",
+        "activity got correr, expected null",
+        "follow-up got side, expected none",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-054",
+      "reasons": [
+        "location got null/need-side/null, expected right_shoulder/mapped/right",
+        "onset got 2026-10-21, expected null",
+        "activity got ir al gimnasio, expected null",
+        "follow-up got side, expected none",
+        "false fill onset",
+        "false fill activity"
+      ]
+    },
+    {
+      "id": "es-058",
+      "reasons": [
+        "location got null/need-side/null, expected right_elbow/mapped/right",
+        "follow-up got side, expected none"
+      ]
+    }
+  ]
+}

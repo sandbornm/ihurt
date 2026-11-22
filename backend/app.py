@@ -156,7 +156,7 @@ def create_app(settings: Settings | None = None, provider=None):
     async def transcribe(request: Request, audio: UploadFile = File(...), consent: bool = Form(False), request_id: str = Form(..., pattern=r"^[a-f0-9-]{36}$"), challenge_token: str = Form("", max_length=2048)):
         owner, ip = identity(request)
         if transcriber is None:
-            raise HTTPException(400, "Configure ELEVENLABS_API_KEY on the local server to transcribe recordings.")
+            raise HTTPException(400, "Voice transcription is off on this server. Type or paste a transcript instead.")
         if not consent:
             raise HTTPException(400, f"Please agree to send this recording to {transcription_name}.")
         raw = await audio.read(settings.max_audio_bytes + 1)

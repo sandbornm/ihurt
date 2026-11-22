@@ -1,3 +1,10 @@
+import {
+  language,
+  translate,
+  type Language,
+  type MessageKey,
+} from "./i18n/index.ts";
+
 export const regions = [
   { id: "neck", name: "Neck", group: "Head & torso", center: [0, 2.48, 0] },
   { id: "chest", name: "Chest", group: "Head & torso", center: [0, 1.96, 0.2] },
@@ -105,6 +112,9 @@ export interface PainPoint {
     mesh_name?: string;
   };
 }
+// Map fields with their own stamp in SavedMap.mapUpdated. summary follows
+// the note and regions follow the pins.
+export type MapDetail = Exclude<keyof HurtMap, "summary" | "regions">;
 export interface HurtMap {
   title: string;
   summary: string;
@@ -135,11 +145,22 @@ export interface SavedMap {
     description?: string;
     regions: RegionId[];
     checked: string;
+    version?: string;
     references: NonNullable<SavedMap["references"]>;
   };
   id: string;
   created: string;
   updated?: string;
+  // When the note text last changed. Missing on older rows. Not the research stamp.
+  noteUpdated?: string;
+  // When the pins last changed. Missing on older rows. A missing stamp is older.
+  pointsUpdated?: string;
+  // When each map detail last changed, by field. A field with no stamp is
+  // older than one with a stamp; a stamped blank is a deliberate clear.
+  mapUpdated?: Partial<Record<MapDetail, string>>;
+  // When the AI note was last saved or removed. A stamp with no ai is a
+  // deliberate removal. Missing is older than any stamp.
+  aiUpdated?: string;
   note: string;
   map: HurtMap;
   answers: Answer[];
@@ -161,7 +182,27 @@ export interface SavedMap {
     context_url?: string;
   }[];
 }
-export const regionName = (id: string) =>
-  regions
-    .find((r) => r.id === id)
-    ?.name.replace(/^\w/, (c) => c.toUpperCase()) ?? id;
+// Display names come from the dictionaries, keyed by the stable region id.
+// Stored data always keeps the id, never the translated name.
+export const regionNameIn = (lang: Language, id: string) =>
+  isRegionId(id) ? translate(lang, `region.${id}` as MessageKey) : id;
+export const regionName = (id: string) => regionNameIn(language(), id);
+const groupKeys: Record<string, MessageKey> = {
+  "Head & torso": "regionGroup.torso",
+  "Arms & shoulders": "regionGroup.arms",
+  "Hips & legs": "regionGroup.legs",
+};
+export const regionGroupName = (group: string, lang: Language = language()) =>
+  groupKeys[group] ? translate(lang, groupKeys[group]) : group;
+export const isRegionId = (id: string): id is RegionId =>
+  regions.some((r) => r.id === id);
+
+const fold = (value: string) =>
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+// Region search matches the name in English and Spanish, without accents.
+export const regionMatches = (id: RegionId, query: string) => {
+  const q = fold(query);
+  return (["en", "es"] as const).some((lang) =>
+    fold(regionNameIn(lang, id)).includes(q),
+  );
+};

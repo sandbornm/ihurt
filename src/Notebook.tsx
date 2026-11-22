@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import {
   regionName,
+  regionMatches,
   regions,
   type RegionId,
   type SavedMap,
@@ -43,9 +44,11 @@ import {
   downloadViewport,
   downloadReport,
   printMap,
+  entryForExport,
 } from "./export";
 import { isNativeApp } from "./platform/files";
 import { applyVoiceDraft } from "./voice/draft";
+import { proposedPinStep, type ProposedPinAction } from "./voice/extraction";
 import type { VoiceDraftProps } from "./voice/VoiceDraft";
 import type { ViewportCapture } from "./anatomy/capture";
 import {
@@ -61,9 +64,13 @@ import {
   saveResearch,
   storeEntries,
   removeEntry,
+  editorAfterSave,
+  withStampedResearch,
+  entryReferences,
+  withMapDetails,
   type Draft,
 } from "./notebook-storage";
-import { activities, activityRegions } from "./activities";
+import { activities, activityName, activityRegions } from "./activities";
 import { exampleEntry } from "./example";
 import { prepareOffline } from "./offline";
 import FeatureBoundary from "./FeatureBoundary";
@@ -78,6 +85,9 @@ import AnatomyCredits from "./AnatomyCredits";
 import { MarkHistory } from "./anatomy/history";
 import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
+import { useI18n } from "./i18n/react";
+import { formatDate, type MessageKey } from "./i18n";
+import LanguageSetting from "./i18n/LanguageSetting";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -103,6 +113,7 @@ export default function Notebook({
     onSave: (research: NonNullable<SavedMap["research"]>) => Promise<void>;
   }>;
 }) {
+  const { t } = useI18n();
   const [tutorial, setTutorial] = useState(false);
   const [advancedControls, setAdvancedControls] = useState(false);
   const [toolsMenu, setToolsMenu] = useState(false);
@@ -151,6 +162,8 @@ export default function Notebook({
     ),
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">(example ? "back" : "front");
+  // Unconfirmed pin proposed from voice. Kept out of the autosaved draft.
+  const [proposedPin, setProposedPin] = useState<RegionId | null>(null);
   const [command, setCommand] = useState({ type: "", id: 0 }),
     [landmarks, setLandmarks] = useState(false);
   const [readingSources, setReadingSources] = useState(recommendedSources);
@@ -159,7 +172,9 @@ export default function Notebook({
     [error, setError] = useState(""),
     [storageError, setStorageError] = useState("");
   const [busy, setBusy] = useState(false),
-    [draftStatus, setDraftStatus] = useState("Opening notebook…"),
+    [draftStatus, setDraftStatus] = useState<MessageKey>(
+      "notebook.status.opening",
+    ),
     [removed, setRemoved] = useState<SavedMap | null>(null);
   const draftRef = useRef<Draft>({
     entry,
@@ -201,26 +216,42 @@ export default function Notebook({
     if (remember) markHistory.current.record(points);
     setEntry((old) => {
       const next = updater(old.points ?? []);
+      const now = new Date().toISOString();
       return {
         ...old,
         points: next,
-        updated: new Date().toISOString(),
+        updated: now,
+        pointsUpdated: now,
         map: { ...old.map, regions: [...new Set(next.map((p) => p.region))] },
       };
     });
   };
   function change(patch: Partial<SavedMap>) {
-    setEntry((e) => ({ ...e, ...patch, updated: new Date().toISOString() }));
+    const now = new Date().toISOString();
+    setEntry((e) => {
+      const { map, ...rest } = patch;
+      const next = map ? withMapDetails(e, map, now) : e;
+      return {
+        ...next,
+        ...rest,
+        updated: now,
+        ...(patch.note !== undefined ? { noteUpdated: now } : {}),
+        // Removing the AI note stamps it, so a search or load keeps it gone.
+        ...("ai" in patch ? { aiUpdated: now } : {}),
+      };
+    });
   }
   function context(
     field: "title" | "quality" | "activity" | "duration" | "intensity",
     value: string | number | null,
   ) {
-    setEntry((e) => ({
-      ...e,
-      updated: new Date().toISOString(),
-      map: { ...e.map, [field]: value },
-    }));
+    setEntry((e) => {
+      const now = new Date().toISOString();
+      return {
+        ...withMapDetails(e, { [field]: value }, now),
+        updated: now,
+      };
+    });
   }
   useEffect(() => {
     let cancelled = false;
@@ -242,9 +273,7 @@ export default function Notebook({
       .catch(() => {
         if (!cancelled) {
           setHydrated(true);
-          setStorageError(
-            "Browser storage is unavailable. You can still write and export this entry.",
-          );
+          setStorageError(t("notebook.error.storageUnavailable"));
         }
       });
     return () => {
@@ -254,21 +283,19 @@ export default function Notebook({
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
-    setDraftStatus("Saving draft…");
+    setDraftStatus("notebook.status.saving");
     const persist = () =>
       saveDraft(draftRef.current)
         .then(() => {
           if (!cancelled) {
-            setDraftStatus("Draft saved on this device");
+            setDraftStatus("notebook.status.saved");
             setStorageError("");
           }
         })
         .catch(() => {
           if (!cancelled) {
-            setDraftStatus("Draft not saved");
-            setStorageError(
-              "This browser could not save your draft. Export JSON to keep it.",
-            );
+            setDraftStatus("notebook.status.notSaved");
+            setStorageError(t("notebook.error.draftNotSaved"));
           }
         });
     const timer = setTimeout(() => {
@@ -304,6 +331,18 @@ export default function Notebook({
     const id = setTimeout(() => setToast(""), 6000);
     return () => clearTimeout(id);
   }, [toast]);
+  function proposal(step: ProposedPinAction) {
+    const next = proposedPinStep(proposedPin, step);
+    setProposedPin(next.state);
+    if (next.command) action(next.command);
+  }
+  useEffect(() => {
+    setProposedPin(
+      (current) =>
+        proposedPinStep(current, { type: "select", region: selected }).state,
+    );
+  }, [selected]);
+  useEffect(() => setProposedPin(null), [entry.id]);
   function selectRegion(id: RegionId) {
     setSelected(id);
     setView(id.includes("back") ? "back" : "front");
@@ -316,23 +355,18 @@ export default function Notebook({
   }
   function currentEntry(): SavedMap {
     const item = finishEntry(entry);
-    return {
-      ...item,
-      references: [
-        ...(item.research?.references ?? []),
-        ...findReadings(
-          item.map.regions,
-          `${note} ${item.map.activity}`,
-          readingSources,
-        ).map((r) => ({
-          title: r.title,
-          kind: r.type === "Video" ? ("video" as const) : ("article" as const),
-          url: r.url,
-          publisher: sources.find((s) => s.id === r.source)!.name,
-          checked: r.checked,
-        })),
-      ].filter((r, i, all) => all.findIndex((v) => v.url === r.url) === i),
-    };
+    const readings = findReadings(
+      item.map.regions,
+      `${note} ${item.map.activity}`,
+      readingSources,
+    ).map((r) => ({
+      title: r.title,
+      kind: r.type === "Video" ? ("video" as const) : ("article" as const),
+      url: r.url,
+      publisher: sources.find((s) => s.id === r.source)!.name,
+      checked: r.checked,
+    }));
+    return { ...item, references: entryReferences(item, readings) };
   }
   async function commit() {
     if (!valid || busy) return false;
@@ -340,14 +374,14 @@ export default function Notebook({
     setBusy(true);
     setError("");
     try {
-      await storeEntries([item]);
-      setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
-      setToast("Entry saved on this device.");
+      const [savedRow] = await storeEntries([item]);
+      const saved = savedRow ?? item;
+      setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
+      setEntry((current) => editorAfterSave(current, item, saved));
+      setToast(t("notebook.toast.saved"));
       return true;
     } catch {
-      setError(
-        "The entry could not be saved here. Export JSON to keep a copy.",
-      );
+      setError(t("notebook.error.saveFailed"));
       return false;
     } finally {
       setBusy(false);
@@ -359,10 +393,11 @@ export default function Notebook({
       setBusy(true);
       const item = currentEntry();
       try {
-        await storeEntries([item]);
-        setSaved((old) => [...old.filter((e) => e.id !== item.id), item]);
+        const [savedRow] = await storeEntries([item]);
+        const saved = savedRow ?? item;
+        setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       } catch {
-        setError("Save or export this draft before starting another entry.");
+        setError(t("notebook.error.saveBeforeNew"));
         setBusy(false);
         return;
       }
@@ -393,17 +428,13 @@ export default function Notebook({
     try {
       if (valid && entry.id !== item.id) {
         const previous = currentEntry();
-        await storeEntries([previous]);
-        setSaved((old) => [
-          ...old.filter((e) => e.id !== previous.id),
-          previous,
-        ]);
+        const [savedRow] = await storeEntries([previous]);
+        const saved = savedRow ?? previous;
+        setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       }
       openEntry(item);
     } catch {
-      setError(
-        "Export or save your current draft before opening another entry.",
-      );
+      setError(t("notebook.error.saveBeforeOpen"));
     } finally {
       setBusy(false);
     }
@@ -415,13 +446,13 @@ export default function Notebook({
       await removeEntry(item.id);
       setSaved((old) => old.filter((e) => e.id !== item.id));
       setRemoved(item);
-      setToast("Entry deleted.");
+      setToast(t("notebook.toast.deleted"));
       if (entry.id === item.id) {
         setEntry(blankEntry());
         setSelected(null);
       }
     } catch {
-      setError("The entry could not be deleted.");
+      setError(t("notebook.error.deleteFailed"));
     } finally {
       setBusy(false);
     }
@@ -429,12 +460,13 @@ export default function Notebook({
   async function undoDelete() {
     if (!removed) return;
     try {
-      await storeEntries([removed]);
-      setSaved((old) => [...old.filter((e) => e.id !== removed.id), removed]);
+      const [savedRow] = await storeEntries([removed]);
+      const saved = savedRow ?? removed;
+      setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       setRemoved(null);
-      setToast("Entry restored.");
+      setToast(t("notebook.toast.restored"));
     } catch {
-      setError("The entry could not be restored.");
+      setError(t("notebook.error.restoreFailed"));
     }
   }
   async function importFile(file: File) {
@@ -442,7 +474,7 @@ export default function Notebook({
     setError("");
     try {
       if (file.size > 10 * 1024 * 1024)
-        throw new Error("Choose an export smaller than 10 MB.");
+        throw new Error(t("notebook.error.importTooLarge"));
       const incoming = parseNotebook(await file.text());
       const additions = incoming.flatMap((item) => {
         const existing = saved.find((e) => e.id === item.id);
@@ -456,14 +488,14 @@ export default function Notebook({
           },
         ];
       });
-      await storeEntries(additions);
-      setSaved((old) => [...old, ...additions]);
+      const stored = await storeEntries(additions);
+      setSaved((old) => [...old, ...stored]);
       setTab("journal");
-      setToast(
-        `Imported ${additions.length} ${additions.length === 1 ? "entry" : "entries"}.`,
-      );
+      setToast(t("notebook.toast.imported", { count: additions.length }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not import this file.");
+      setError(
+        e instanceof Error ? e.message : t("notebook.error.importFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -477,9 +509,7 @@ export default function Notebook({
     try {
       setToast(await work());
     } catch {
-      setError(
-        "The file could not be saved. Check available storage and try again.",
-      );
+      setError(t("notebook.error.fileSaveFailed"));
     }
   }
   return (
@@ -488,26 +518,31 @@ export default function Notebook({
       data-offline={offline ? "ready" : "preparing"}
     >
       <header className="topbar">
-        <a href={example ? "/" : "#"} className="brand" aria-label="iHurt home">
+        <a
+          href={example ? "/" : "#"}
+          className="brand"
+          aria-label={t("notebook.home")}
+        >
           <span className="brand-mark">
             <img src="/favicon.svg" width="34" height="34" alt="" />
           </span>
           iHurt<span className="brand-period">.</span>
         </a>
         <div className="top-actions">
+          <LanguageSetting />
           <ThemeToggle />
           <button
             className="privacy-link tour-button"
             onClick={() => setTutorial(true)}
           >
-            <CircleHelp size={18} /> Quick tour
+            <CircleHelp size={18} /> {t("notebook.quickTour")}
           </button>
           {example && (
             <a
               className="privacy-link"
               href="https://github.com/sandbornm/ihurt"
             >
-              Get the notebook ↗
+              {t("notebook.getNotebook")}
             </a>
           )}
           <button
@@ -515,15 +550,15 @@ export default function Notebook({
             onClick={() => infoDialog.current?.showModal()}
           >
             <CircleHelp size={17} />
-            <span>About & privacy</span>
+            <span>{t("notebook.aboutPrivacy")}</span>
           </button>
         </div>
       </header>
       <div className="workspace">
-        <nav className="rail" aria-label="Main navigation">
+        <nav className="rail" aria-label={t("notebook.mainNav")}>
           <button
             onClick={() => setTab("explore")}
-            aria-label="Anatomy explorer"
+            aria-label={t("notebook.anatomyExplorer")}
             className={tab === "explore" ? "active" : ""}
           >
             <Layers3 size={21} />
@@ -531,7 +566,7 @@ export default function Notebook({
           {
             <button
               onClick={() => setTab("journal")}
-              aria-label="Your notebook"
+              aria-label={t("notebook.yourNotebook")}
               className={tab === "journal" ? "active" : ""}
             >
               <BookOpen size={20} />
@@ -542,12 +577,13 @@ export default function Notebook({
           <div className="page-heading">
             <div>
               <div className="eyebrow">
-                {example ? "YOUR BROWSER NOTEBOOK" : "YOUR NOTEBOOK"}
+                {example ? t("notebook.eyebrowBrowser") : t("notebook.eyebrow")}
               </div>
               <h1>
-                Map how you feel<span>.</span>
+                {t("notebook.heading")}
+                <span>.</span>
               </h1>
-              <p>Pin the spots. Keep the context.</p>
+              <p>{t("notebook.tagline")}</p>
             </div>
             <button
               className="new-map-button"
@@ -555,7 +591,7 @@ export default function Notebook({
               disabled={busy || !hydrated}
             >
               <Plus size={17} />
-              New entry
+              {t("notebook.newEntry")}
             </button>
           </div>
           <div className="page-tabs">
@@ -564,7 +600,7 @@ export default function Notebook({
               onClick={() => setTab("explore")}
             >
               <Layers3 size={16} />
-              Body map
+              {t("notebook.bodyMap")}
             </button>
             {
               <button
@@ -572,12 +608,13 @@ export default function Notebook({
                 onClick={() => setTab("journal")}
               >
                 <BookOpen size={16} />
-                Notebook<span className="count">{saved.length}</span>
+                {t("notebook.notebookTab")}
+                <span className="count">{saved.length}</span>
               </button>
             }
             <span className="session-badge" role="status">
               <span />
-              {draftStatus}
+              {t(draftStatus)}
             </span>
           </div>
           {storageError && (
@@ -588,7 +625,10 @@ export default function Notebook({
           {error && (
             <div className="error-notice" role="alert">
               {error}
-              <button onClick={() => setError("")} aria-label="Dismiss error">
+              <button
+                onClick={() => setError("")}
+                aria-label={t("notebook.dismissError")}
+              >
                 <X size={14} />
               </button>
             </div>
@@ -596,11 +636,11 @@ export default function Notebook({
           {tab === "journal" ? (
             <section className="journal">
               <div className="journal-heading">
-                <h2>Your entries</h2>
+                <h2>{t("notebook.entries")}</h2>
                 <p>
                   {isNativeApp()
-                    ? "Saved on your device. Export a backup before uninstalling or changing devices."
-                    : "Saved in this browser. Export a backup before clearing browser data or changing devices."}
+                    ? t("notebook.savedNative")
+                    : t("notebook.savedBrowser")}
                 </p>
                 <div className="notebook-tools">
                   <button
@@ -609,7 +649,7 @@ export default function Notebook({
                     disabled={!saved.length && !valid}
                   >
                     <ArrowDownToLine size={16} />
-                    Export notebook
+                    {t("notebook.exportNotebook")}
                   </button>
                   <button
                     className="secondary"
@@ -617,7 +657,7 @@ export default function Notebook({
                     disabled={busy}
                   >
                     <Upload size={16} />
-                    Import map
+                    {t("notebook.importMap")}
                   </button>
                   <input
                     ref={importInput}
@@ -635,9 +675,9 @@ export default function Notebook({
               {!saved.length ? (
                 <div className="empty-journal">
                   <BookOpen size={40} />
-                  <h3>Your first entry starts with a spot.</h3>
+                  <h3>{t("notebook.emptyHeading")}</h3>
                   <button className="primary" onClick={() => setTab("explore")}>
-                    Open body map
+                    {t("notebook.openBodyMap")}
                     <ArrowRight size={16} />
                   </button>
                 </div>
@@ -649,9 +689,11 @@ export default function Notebook({
                       <article className="journal-card" key={item.id}>
                         <div className="card-overline">
                           <MapPin size={17} />
-                          {new Date(item.created).toLocaleDateString()}
+                          {formatDate(item.created)}
                           <button
-                            aria-label={`Delete ${item.map.title}`}
+                            aria-label={t("notebook.deleteEntry", {
+                              title: item.map.title,
+                            })}
                             disabled={busy}
                             onClick={() => void erase(item)}
                           >
@@ -670,16 +712,24 @@ export default function Notebook({
                           onClick={() => void openSaved(item)}
                           disabled={busy}
                         >
-                          Open entry
+                          {t("notebook.openEntry")}
                           <ArrowRight size={16} />
                         </button>
                         <button
                           className="text-button"
                           onClick={() =>
-                            void exportFile(() => download(item, "json"))
+                            void exportFile(() =>
+                              download(
+                                entryForExport(
+                                  item,
+                                  valid ? currentEntry() : undefined,
+                                ),
+                                "json",
+                              ),
+                            )
                           }
                         >
-                          Export JSON
+                          {t("notebook.exportJson")}
                           <ArrowDownToLine size={14} />
                         </button>
                       </article>
@@ -691,12 +741,14 @@ export default function Notebook({
             <div className="explorer-grid" inert={busy || !hydrated}>
               <section
                 className="body-workspace"
-                aria-label="Interactive body map"
+                aria-label={t("notebook.interactiveMap")}
               >
                 <div className="body-toolbar">
                   <div>
-                    <span className="small-label">EXPLORE YOUR ANATOMY</span>
-                    <h2>Body map</h2>
+                    <span className="small-label">
+                      {t("notebook.exploreEyebrow")}
+                    </span>
+                    <h2>{t("notebook.bodyMap")}</h2>
                   </div>
                   <div className="more-tools-wrap">
                     <button
@@ -714,7 +766,7 @@ export default function Notebook({
                         });
                       }}
                     >
-                      More tools <ChevronDown size={16} />
+                      {t("notebook.moreTools")} <ChevronDown size={16} />
                     </button>
                     <div
                       id="more-tools-menu"
@@ -727,7 +779,7 @@ export default function Notebook({
                         aria-pressed={landmarks}
                       >
                         <Crosshair size={14} />
-                        Landmarks
+                        {t("notebook.landmarks")}
                       </button>
                       <button
                         onClick={() => {
@@ -736,7 +788,7 @@ export default function Notebook({
                           setLandmarks(false);
                         }}
                       >
-                        Muscle list
+                        {t("notebook.muscleList")}
                       </button>
                       <button
                         onClick={() => {
@@ -745,7 +797,7 @@ export default function Notebook({
                           setLandmarks(false);
                         }}
                       >
-                        <Layers3 size={14} /> Layers
+                        <Layers3 size={14} /> {t("notebook.layers")}
                       </button>
                       <button
                         hidden={!allowCamera}
@@ -755,7 +807,7 @@ export default function Notebook({
                           setLandmarks(false);
                         }}
                       >
-                        Hands
+                        {t("notebook.hands")}
                       </button>
                       <button
                         onClick={() => {
@@ -764,7 +816,7 @@ export default function Notebook({
                           setLandmarks(false);
                         }}
                       >
-                        Body reference
+                        {t("notebook.bodyReference")}
                       </button>
                       <div className="layer-toggle">
                         <button
@@ -773,14 +825,14 @@ export default function Notebook({
                           onClick={() => setLayer("muscle")}
                         >
                           <Layers3 size={14} />
-                          Muscles
+                          {t("notebook.muscles")}
                         </button>
                         <button
                           className={layer === "bone" ? "active" : ""}
                           aria-pressed={layer === "bone"}
                           onClick={() => setLayer("bone")}
                         >
-                          Skeleton
+                          {t("notebook.skeleton")}
                         </button>
                       </div>
                       {layer === "muscle" && (
@@ -792,7 +844,7 @@ export default function Notebook({
                               setShowSkeleton(event.target.checked)
                             }
                           />{" "}
-                          Show bones
+                          {t("notebook.showBones")}
                         </label>
                       )}
                       {landmarks && (
@@ -804,7 +856,7 @@ export default function Notebook({
                                 action("reset");
                               }}
                             >
-                              Body
+                              {t("notebook.body")}
                             </button>
                             {selected && (
                               <>
@@ -822,7 +874,7 @@ export default function Notebook({
                                   action("focus");
                                 }}
                               >
-                                {a.name}
+                                {regionName(a.region)}
                                 <ChevronRight size={12} />
                               </button>
                             ))
@@ -830,10 +882,10 @@ export default function Notebook({
                             <>
                               <div className="surface-buttons">
                                 {[
-                                  ["anterior", "Front"],
-                                  ["posterior", "Back"],
-                                  ["superior", "Top"],
-                                  ["lateral", "Outer side"],
+                                  ["anterior", t("notebook.surface.front")],
+                                  ["posterior", t("notebook.surface.back")],
+                                  ["superior", t("notebook.surface.top")],
+                                  ["lateral", t("notebook.surface.outer")],
                                 ].map(([key, label]) => (
                                   <button
                                     key={key}
@@ -848,7 +900,9 @@ export default function Notebook({
                                   </button>
                                 ))}
                               </div>
-                              <span className="small-label">MUSCLE GROUPS</span>
+                              <span className="small-label">
+                                {t("notebook.muscleGroups")}
+                              </span>
                               {muscleGroups(selected).map((m) => (
                                 <button
                                   key={m.match}
@@ -871,7 +925,7 @@ export default function Notebook({
                                 className="show-context"
                                 onClick={() => action("context")}
                               >
-                                Show surrounding anatomy
+                                {t("notebook.showContext")}
                               </button>
                             </>
                           )}
@@ -885,14 +939,14 @@ export default function Notebook({
                   <div className="stage-intro">
                     <button onClick={openRegions}>
                       <Search size={14} />
-                      Find a region
+                      {t("notebook.findRegion")}
                     </button>
                   </div>
-                  <FeatureBoundary label="The 3D view">
+                  <FeatureBoundary label={t("notebook.view3d")}>
                     <Suspense
                       fallback={
                         <div className="canvas-loading">
-                          Loading anatomy…
+                          {t("notebook.loadingAnatomy")}
                           <span />
                         </div>
                       }
@@ -910,6 +964,7 @@ export default function Notebook({
                         view={view}
                         command={command}
                         onSelect={setSelected}
+                        proposed={proposedPin}
                         points={points}
                         onPoint={(point) => {
                           setPoints((old) => [...old, point]);
@@ -926,7 +981,10 @@ export default function Notebook({
                       />
                     </Suspense>
                   </FeatureBoundary>
-                  <div className="view-switch" aria-label="Body orientation">
+                  <div
+                    className="view-switch"
+                    aria-label={t("notebook.orientation")}
+                  >
                     <button
                       aria-pressed={orientation === "front"}
                       className={orientation === "front" ? "active" : ""}
@@ -935,7 +993,7 @@ export default function Notebook({
                         action("view");
                       }}
                     >
-                      Front
+                      {t("notebook.view.front")}
                     </button>
                     <button
                       aria-pressed={orientation === "back"}
@@ -945,68 +1003,95 @@ export default function Notebook({
                         action("view");
                       }}
                     >
-                      Back
+                      {t("notebook.view.back")}
                     </button>
                   </div>
                   <div className="canvas-controls">
                     <button
                       onClick={() => action("zoom-in")}
-                      aria-label="Zoom in"
+                      aria-label={t("notebook.zoomIn")}
                     >
                       <Plus size={18} />
                     </button>
                     <button
                       onClick={() => action("zoom-out")}
-                      aria-label="Zoom out"
+                      aria-label={t("notebook.zoomOut")}
                     >
                       <Minus size={18} />
                     </button>
                     <span />
                     <button
                       onClick={() => action("reset")}
-                      aria-label="Reset view"
+                      aria-label={t("notebook.resetView")}
                     >
                       <RotateCcw size={16} />
                     </button>
                   </div>
                   <div className="anatomy-bottom">
-                    <span>Reference body · your left and right</span>
+                    <span>{t("notebook.referenceBody")}</span>
                     <a
                       href="/models/ATTRIBUTION.md"
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Anatomy credits ↗
+                      {t("notebook.anatomyCredits")}
                     </a>
                   </div>
                 </div>
                 {selected && (
                   <div className="region-callout">
-                    <span className="callout-dot" />
+                    <span
+                      className={
+                        proposedPin === selected
+                          ? "callout-dot proposed"
+                          : "callout-dot"
+                      }
+                    />
                     <div>
                       <span>
-                        {result?.regions.includes(selected)
-                          ? "REPORTED REGION"
-                          : "SELECTED REGION"}
+                        {proposedPin === selected
+                          ? t("notebook.callout.proposed")
+                          : result?.regions.includes(selected)
+                            ? t("notebook.callout.reported")
+                            : t("notebook.callout.selected")}
                       </span>
                       <strong>{regionName(selected)}</strong>
                     </div>
+                    {proposedPin === selected ? (
+                      <>
+                        <button
+                          onClick={() => proposal({ type: "confirm" })}
+                          aria-label={t("notebook.confirmPinLabel")}
+                        >
+                          <Plus size={14} /> {t("notebook.confirmPin")}
+                        </button>
+                        <button
+                          onClick={() => proposal({ type: "dismiss" })}
+                          aria-label={t("notebook.dismissPinLabel")}
+                        >
+                          <span>{t("notebook.dismiss")}</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          title={t("notebook.focusTitle")}
+                          aria-label={t("notebook.focusLabel")}
+                          onClick={() => action("focus")}
+                        >
+                          <span>{t("notebook.focus")}</span>
+                        </button>
+                        <button
+                          onClick={() => action("pin-center")}
+                          aria-label={t("notebook.addPinLabel")}
+                        >
+                          <Plus size={14} /> {t("notebook.addPin")}
+                        </button>
+                      </>
+                    )}
                     <button
-                      title="Focus on region"
-                      aria-label="Focus on selected region"
-                      onClick={() => action("focus")}
-                    >
-                      <span>Focus</span>
-                    </button>
-                    <button
-                      onClick={() => action("pin-center")}
-                      aria-label="Add pin in selected region"
-                    >
-                      <Plus size={14} /> Add pin
-                    </button>
-                    <button
-                      title="Clear selection"
-                      aria-label="Clear selection"
+                      title={t("notebook.clearSelection")}
+                      aria-label={t("notebook.clearSelection")}
                       onClick={() => setSelected(null)}
                     >
                       <X size={14} />
@@ -1015,28 +1100,34 @@ export default function Notebook({
                 )}
                 <div className="body-footer">
                   {bodyReference && (
-                    <Suspense fallback={<span>Loading reference…</span>}>
+                    <Suspense
+                      fallback={<span>{t("notebook.loadingReference")}</span>}
+                    >
                       <BodyReference onClose={() => setBodyReference(false)} />
                     </Suspense>
                   )}
                   <div className="heat-legend">
                     <span>
                       {result?.intensity != null
-                        ? "Reported intensity"
-                        : "Reported area"}
+                        ? t("notebook.legend.intensity")
+                        : t("notebook.legend.area")}
                     </span>
                     <div />
                     <span>
-                      {result?.intensity != null ? "Mild" : "Location"}
+                      {result?.intensity != null
+                        ? t("notebook.legend.mild")
+                        : t("notebook.legend.location")}
                     </span>
                     <span>
-                      {result?.intensity != null ? "Strong" : "Unrated"}
+                      {result?.intensity != null
+                        ? t("notebook.legend.strong")
+                        : t("notebook.legend.unrated")}
                     </span>
                   </div>
                 </div>
                 {result && (
                   <details className="offline-reading">
-                    <summary>Offline reading</summary>
+                    <summary>{t("notebook.offlineReading")}</summary>
                     <Resources
                       region={selected ?? result?.regions[0] ?? null}
                       activity={`${note} ${result?.activity ?? ""}`}
@@ -1053,13 +1144,13 @@ export default function Notebook({
                     <BookOpen size={17} />
                   </span>
                   <div>
-                    <h2>Your entry</h2>
-                    <p>Your words, saved with your map.</p>
+                    <h2>{t("notebook.yourEntry")}</h2>
+                    <p>{t("notebook.yourWords")}</p>
                   </div>
                 </div>
                 <div className="intake-content">
                   <label className="field-label" htmlFor="entry-title">
-                    Title <span>optional</span>
+                    {t("notebook.title")} <span>{t("notebook.optional")}</span>
                   </label>
                   <input
                     className="notebook-input"
@@ -1070,7 +1161,8 @@ export default function Notebook({
                     onChange={(e) => context("title", e.target.value)}
                   />
                   <label className="field-label" htmlFor="activity">
-                    Sport or activity <span>optional</span>
+                    {t("notebook.activity")}{" "}
+                    <span>{t("notebook.optional")}</span>
                   </label>
                   <input
                     className="notebook-input"
@@ -1078,18 +1170,18 @@ export default function Notebook({
                     list="activity-list"
                     autoComplete="off"
                     value={entry.map.activity}
-                    placeholder="Search or type anything"
+                    placeholder={t("notebook.activityPlaceholder")}
                     maxLength={200}
                     onChange={(e) => context("activity", e.target.value)}
                   />
                   <datalist id="activity-list">
                     {activities.map((a) => (
-                      <option key={a.name} value={a.name} />
+                      <option key={a.name} value={activityName(a)} />
                     ))}
                   </datalist>
                   {!!activityRegions(entry.map.activity).length && (
                     <details className="activity-explore">
-                      <summary>Explore anatomy for this activity</summary>
+                      <summary>{t("notebook.exploreActivity")}</summary>
                       <div className="region-tags">
                         {activityRegions(entry.map.activity).map((id) => (
                           <button
@@ -1106,15 +1198,15 @@ export default function Notebook({
                     </details>
                   )}
                   <label className="field-label" htmlFor="pain-note">
-                    What do you notice?
+                    {t("notebook.notice")}
                   </label>
                   <div className="note-field">
                     <textarea
                       id="pain-note"
-                      aria-label="Describe your discomfort"
+                      aria-label={t("notebook.describe")}
                       value={note}
                       onChange={(e) => change({ note: e.target.value })}
-                      placeholder="Where it feels stiff, what brings it on, what changed…"
+                      placeholder={t("notebook.notePlaceholder")}
                       rows={5}
                       maxLength={3000}
                     />
@@ -1128,10 +1220,15 @@ export default function Notebook({
                             if (draft.region) {
                               selectRegion(draft.region);
                               action("focus");
+                              if (draft.proposePin)
+                                setProposedPin(
+                                  proposedPinStep(null, {
+                                    type: "propose",
+                                    region: draft.region,
+                                  }).state,
+                                );
                             }
-                            setToast(
-                              "Voice draft added. Review your entry, then save it.",
-                            );
+                            setToast(t("notebook.toast.voiceAdded"));
                           }}
                         />
                       )}
@@ -1142,33 +1239,36 @@ export default function Notebook({
                     value={entry.map.intensity}
                     onChange={(value) => context("intensity", value)}
                   />
-                  <div className="mark-history" aria-label="Undo map changes">
-                    <span>Pins & highlights</span>
+                  <div
+                    className="mark-history"
+                    aria-label={t("notebook.markHistory")}
+                  >
+                    <span>{t("notebook.pinsHighlights")}</span>
                     <button
                       disabled={!markHistory.current.canUndo}
-                      aria-label="Undo last mark"
+                      aria-label={t("notebook.undoMark")}
                       onClick={() => {
                         const restored = markHistory.current.undo(points);
                         setPoints(() => restored, false);
                       }}
                     >
-                      <Undo2 size={14} /> Undo
+                      <Undo2 size={14} /> {t("notebook.undo")}
                     </button>
                     <button
                       disabled={!markHistory.current.canRedo}
-                      aria-label="Redo last mark"
+                      aria-label={t("notebook.redoMark")}
                       onClick={() => {
                         const restored = markHistory.current.redo(points);
                         setPoints(() => restored, false);
                       }}
                     >
-                      <Redo2 size={14} /> Redo
+                      <Redo2 size={14} /> {t("notebook.redo")}
                     </button>
                   </div>
                   {points.length > 0 && (
                     <div className="pin-list">
                       <span className="small-label">
-                        PINNED SPOTS · {points.length}
+                        {t("notebook.pinnedSpots", { count: points.length })}
                       </span>
                       {points.map((point, i) => (
                         <div className="notebook-pin" key={point.id}>
@@ -1184,7 +1284,7 @@ export default function Notebook({
                           </button>
                           <button
                             className="pin-layers"
-                            aria-label={`Explore layers at spot ${i + 1}`}
+                            aria-label={t("notebook.spotLayers", { n: i + 1 })}
                             onClick={() => {
                               setSelected(point.region);
                               action("layers:" + point.id);
@@ -1199,7 +1299,7 @@ export default function Notebook({
                             <Layers3 size={14} />
                           </button>
                           <button
-                            aria-label={`Remove spot ${i + 1}`}
+                            aria-label={t("notebook.spotRemove", { n: i + 1 })}
                             onClick={() =>
                               setPoints((old) =>
                                 old.filter((p) => p.id !== point.id),
@@ -1209,8 +1309,8 @@ export default function Notebook({
                             <X size={13} />
                           </button>
                           <textarea
-                            aria-label={`Note for spot ${i + 1}`}
-                            placeholder="A note for this spot…"
+                            aria-label={t("notebook.spotNote", { n: i + 1 })}
+                            placeholder={t("notebook.spotPlaceholder")}
                             value={point.comment ?? ""}
                             maxLength={1000}
                             rows={2}
@@ -1232,27 +1332,28 @@ export default function Notebook({
                   )}
                   <details className="entry-context">
                     <summary>
-                      More context <span>optional</span>
+                      {t("notebook.moreContext")}{" "}
+                      <span>{t("notebook.optional")}</span>
                     </summary>
                     <label className="field-label" htmlFor="quality">
-                      Feeling
+                      {t("notebook.feeling")}
                     </label>
                     <input
                       className="notebook-input"
                       id="quality"
                       value={entry.map.quality}
-                      placeholder="Stiff, sore, tingling…"
+                      placeholder={t("notebook.feelingPlaceholder")}
                       maxLength={200}
                       onChange={(e) => context("quality", e.target.value)}
                     />
                     <label className="field-label" htmlFor="duration">
-                      Timing
+                      {t("notebook.timing")}
                     </label>
                     <input
                       className="notebook-input"
                       id="duration"
                       value={entry.map.duration}
-                      placeholder="Since yesterday, after 20 minutes…"
+                      placeholder={t("notebook.timingPlaceholder")}
                       maxLength={200}
                       onChange={(e) => context("duration", e.target.value)}
                     />
@@ -1263,19 +1364,19 @@ export default function Notebook({
                       entry={currentEntry()}
                       sources={readingSources}
                       onSave={async (research) => {
-                        const updated = await saveResearch(entry.id, research);
+                        // The latest editor, which the autosave has not
+                        // written yet. The search merges against it, and the
+                        // handback keeps only what changed since.
+                        const searched = draftRef.current.entry;
+                        const updated = await saveResearch(
+                          entry.id,
+                          research,
+                          searched,
+                        );
                         if (!updated)
-                          throw Error(
-                            "This entry was removed before the search finished.",
-                          );
+                          throw Error(t("notebook.error.removedDuringSearch"));
                         setEntry((e) =>
-                          e.id === entry.id
-                            ? {
-                                ...e,
-                                research,
-                                updated: new Date().toISOString(),
-                              }
-                            : e,
+                          withStampedResearch(e, entry.id, updated, searched),
                         );
                         setSaved((old) => [
                           ...old.filter((e) => e.id !== updated.id),
@@ -1291,7 +1392,7 @@ export default function Notebook({
                       disabled={!valid || busy}
                     >
                       <Check size={16} />
-                      Save entry
+                      {t("notebook.saveEntry")}
                       <ArrowRight size={16} />
                     </button>
                     <div className="export-pair">
@@ -1305,7 +1406,7 @@ export default function Notebook({
                         disabled={!valid}
                       >
                         <ArrowDownToLine size={16} />
-                        Export JSON
+                        {t("notebook.exportJson")}
                       </button>
                       <button
                         className="secondary"
@@ -1315,14 +1416,11 @@ export default function Notebook({
                             void exportFile(() =>
                               downloadViewport(image, entry.created),
                             );
-                          else
-                            setError(
-                              "The 3D view is not ready for a picture yet.",
-                            );
+                          else setError(t("notebook.error.viewNotReady"));
                         }}
                         disabled={!valid}
                       >
-                        Map image
+                        {t("notebook.mapImage")}
                         <ArrowDownToLine size={16} />
                       </button>
                     </div>
@@ -1347,7 +1445,7 @@ export default function Notebook({
                       }
                     >
                       <BookOpen size={15} />
-                      Offline reading
+                      {t("notebook.offlineReading")}
                       <ArrowRight size={14} />
                     </button>
                   </div>
@@ -1370,22 +1468,24 @@ export default function Notebook({
                           capture.current?.() ?? undefined,
                         )
                       )
-                        setError(
-                          "Allow the print window, or download the map image to print it.",
-                        );
+                        setError(t("notebook.error.printBlocked"));
                     }}
                   >
-                    {isNativeApp() ? "Save / share report" : "Print / Save PDF"}
+                    {isNativeApp()
+                      ? t("notebook.shareReport")
+                      : t("notebook.printPdf")}
                     <ArrowUpRight size={14} />
                   </button>
                   <ShareWithAI entry={currentEntry()} valid={valid} />
                   {entry.ai && (
                     <details className="saved-ai">
-                      <summary>Saved AI note · {entry.ai.provider}</summary>
+                      <summary>
+                        {t("notebook.savedAiNote", {
+                          provider: entry.ai.provider,
+                        })}
+                      </summary>
                       {entry.ai.based_on !== entryFingerprint(entry) && (
-                        <p className="subtle">
-                          This review was made before your latest edits.
-                        </p>
+                        <p className="subtle">{t("notebook.aiStale")}</p>
                       )}
                       <p>{entry.ai.map.summary}</p>
                       {entry.ai.map.safety_message && (
@@ -1395,19 +1495,27 @@ export default function Notebook({
                         className="text-button"
                         onClick={() => change({ ai: undefined })}
                       >
-                        Remove AI note
+                        {t("notebook.removeAiNote")}
                       </button>
                     </details>
                   )}
                   {Assistant && (
-                    <FeatureBoundary label="Optional AI tools">
+                    <FeatureBoundary label={t("notebook.aiTools")}>
                       <Assistant
                         key={entry.id}
                         entry={currentEntry()}
                         onSave={(ai) =>
                           setEntry((e) =>
                             e.id === entry.id
-                              ? { ...e, ai, updated: new Date().toISOString() }
+                              ? (() => {
+                                  const now = new Date().toISOString();
+                                  return {
+                                    ...e,
+                                    ai,
+                                    updated: now,
+                                    aiUpdated: now,
+                                  };
+                                })()
                               : e,
                           )
                         }
@@ -1417,9 +1525,7 @@ export default function Notebook({
                   )}
                   <div className="intake-footnote">
                     <LockKeyhole size={13} />
-                    <span>
-                      Stored on this device. Export a backup to keep elsewhere.
-                    </span>
+                    <span>{t("notebook.storedHere")}</span>
                   </div>
                 </div>
               </aside>
@@ -1428,10 +1534,11 @@ export default function Notebook({
           <footer className="page-footer">
             <Feedback />
             <span>
-              <ShieldCheck size={13} />A personal journal. Not medical advice.
+              <ShieldCheck size={13} />
+              {t("notebook.footerDisclaimer")}
             </span>
             <span className="creator-credit">
-              Made by{" "}
+              {t("notebook.madeBy")}{" "}
               <a
                 href="https://x.com/msxndborn"
                 target="_blank"
@@ -1441,7 +1548,7 @@ export default function Notebook({
               </a>
             </span>
             <button onClick={() => infoDialog.current?.showModal()}>
-              Privacy & limitations
+              {t("notebook.privacyLimitations")}
               <ArrowUpRight size={12} />
             </button>
           </footer>
@@ -1450,10 +1557,10 @@ export default function Notebook({
       {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
       <dialog ref={regionDialog} className="dialog region-dialog">
         <div className="dialog-heading">
-          <h2>Where do you feel it?</h2>
+          <h2>{t("notebook.regionDialog")}</h2>
           <button
             onClick={() => regionDialog.current?.close()}
-            aria-label="Close region picker"
+            aria-label={t("notebook.closeRegions")}
           >
             <X size={20} />
           </button>
@@ -1464,14 +1571,14 @@ export default function Notebook({
             ref={regionSearch}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search a body region"
-            aria-label="Search body regions"
+            placeholder={t("notebook.regionSearch")}
+            aria-label={t("notebook.regionSearchLabel")}
           />
         </div>
-        <p className="dialog-caption">Left and right refer to your own body.</p>
+        <p className="dialog-caption">{t("notebook.regionCaption")}</p>
         <div className="region-list">
           {regions
-            .filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
+            .filter((r) => regionMatches(r.id, search))
             .map((r) => (
               <button
                 key={r.id}
@@ -1493,55 +1600,34 @@ export default function Notebook({
         aria-labelledby="notebook-info-title"
       >
         <div className="dialog-heading">
-          <h2 id="notebook-info-title">Your notebook, your data</h2>
+          <h2 id="notebook-info-title">{t("notebook.info.title")}</h2>
           <button
             onClick={() => infoDialog.current?.close()}
-            aria-label="Close information"
+            aria-label={t("notebook.info.close")}
           >
             <X size={20} />
           </button>
         </div>
         <p>
           {isNativeApp()
-            ? "Entries and drafts stay in this app on your device. They survive normal relaunches. Uninstalling the app removes them. Export a notebook backup to keep a separate copy or move to another device. Your notebook does not sync automatically. The app does not add its own storage encryption."
-            : "Entries and drafts are stored in this browser on your device. They survive refreshes. Clearing browser data or using a private window can remove them; export backups you want to keep. The app does not encrypt browser storage."}
+            ? t("notebook.info.storageNative")
+            : t("notebook.info.storageBrowser")}
         </p>
-        <p>
-          Nothing is sent to an AI unless you choose to share or use the
-          optional tools. Downloads contain your notes and pins.
-        </p>
+        <p>{t("notebook.info.ai")}</p>
         {isNativeApp() && (
           <>
-            <p>
-              Hands processes camera frames on your device. Dictation uses
-              on-device Apple speech recognition. iHurt does not save audio or
-              send it to a speech server. If dictation is unavailable, you can
-              type your note.
-            </p>
-            <p>
-              Exports stay in Files → iHurt → Reports, even if you cancel
-              sharing. Delete unwanted copies in Files. Device backups follow
-              your iOS settings. iHurt has no accounts or analytics.
-            </p>
+            <p>{t("notebook.info.native")}</p>
+            <p>{t("notebook.info.exports")}</p>
           </>
         )}
-        <p>
-          iHurt is not medical advice whatsoever. It does not diagnose, treat,
-          cure, mitigate, or prevent any disease, injury, or condition. Anatomy
-          labels and highlights are approximate. Pins refer to a shared anatomy
-          model, not measurements of your body. Height and weight alone cannot
-          establish your proportions or the tissue causing discomfort.
-        </p>
-        <p>
-          Linked resources are published independently and may change. Inclusion
-          does not imply endorsement or a personal exercise recommendation.
-        </p>
+        <p>{t("notebook.info.medical")}</p>
+        <p>{t("notebook.info.resources")}</p>
         <a
           href="https://github.com/sandbornm/ihurt/blob/main/docs/SAFETY.md"
           target="_blank"
           rel="noreferrer"
         >
-          Privacy and limitations ↗
+          {t("notebook.info.safetyLink")}
         </a>
         <FeedbackLinks />
         <AnatomyCredits />
@@ -1551,7 +1637,9 @@ export default function Notebook({
           <Check size={16} />
           {toast}
           {removed && (
-            <button onClick={() => void undoDelete()}>Undo delete</button>
+            <button onClick={() => void undoDelete()}>
+              {t("notebook.undoDelete")}
+            </button>
           )}
         </div>
       )}

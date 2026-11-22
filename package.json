@@ -29,7 +29,9 @@
     "test:voice": "node scripts/voice-browser-check.mjs",
     "test:ios-speech": "node scripts/ios-speech-browser-check.mjs",
     "test:ios-native": "node scripts/ios-native-check.mjs",
-    "test:api-browser": "node scripts/api-browser-check.mjs"
+    "test:api-browser": "node scripts/api-browser-check.mjs",
+    "eval:extraction": "node --experimental-strip-types scripts/eval-extraction.ts",
+    "eval:record": "node --experimental-strip-types scripts/eval-record.ts"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",
@@ -55,7 +57,7 @@
     "playwright": "1.63.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.7"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -1,0 +1,1060 @@
+{
+  "name": "rules",
+  "pipeline": "rules",
+  "recorded": null,
+  "metadata": null,
+  "cases": 138,
+  "overall": {
+    "cases": 138,
+    "oneShot": {
+      "hit": 13,
+      "total": 113,
+      "rate": 0.11504424778761062
+    },
+    "falseFillCases": 0,
+    "falseFillRate": 0,
+    "wrongValueFills": 2,
+    "followUpAsked": 0,
+    "followUpRate": 0,
+    "followUpCorrect": 113,
+    "followUpAccuracy": 0.8188405797101449,
+    "fields": {
+      "location": {
+        "correct": 60,
+        "fills": 61,
+        "expected": 108,
+        "falseFill": 0,
+        "wrongValue": 1,
+        "precision": 0.9836065573770492,
+        "recall": 0.5555555555555556
+      },
+      "intensity": {
+        "correct": 7,
+        "fills": 7,
+        "expected": 54,
+        "falseFill": 0,
+        "wrongValue": 0,
+        "precision": 1,
+        "recall": 0.12962962962962962
+      },
+      "quality": {
+        "correct": 84,
+        "fills": 85,
+        "expected": 85,
+        "falseFill": 0,
+        "wrongValue": 1,
+        "precision": 0.9882352941176471,
+        "recall": 0.9882352941176471
+      },
+      "onset": {
+        "correct": 0,
+        "fills": 0,
+        "expected": 74,
+        "falseFill": 0,
+        "wrongValue": 0,
+        "precision": null,
+        "recall": 0
+      },
+      "activity": {
+        "correct": 0,
+        "fills": 0,
+        "expected": 24,
+        "falseFill": 0,
+        "wrongValue": 0,
+        "precision": null,
+        "recall": 0
+      }
+    }
+  },
+  "byLang": {
+    "en": {
+      "cases": 80,
+      "oneShot": {
+        "hit": 8,
+        "total": 65,
+        "rate": 0.12307692307692308
+      },
+      "falseFillCases": 0,
+      "falseFillRate": 0,
+      "wrongValueFills": 2,
+      "followUpAsked": 0,
+      "followUpRate": 0,
+      "followUpCorrect": 65,
+      "followUpAccuracy": 0.8125,
+      "fields": {
+        "location": {
+          "correct": 42,
+          "fills": 43,
+          "expected": 62,
+          "falseFill": 0,
+          "wrongValue": 1,
+          "precision": 0.9767441860465116,
+          "recall": 0.6774193548387096
+        },
+        "intensity": {
+          "correct": 4,
+          "fills": 4,
+          "expected": 34,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": 1,
+          "recall": 0.11764705882352941
+        },
+        "quality": {
+          "correct": 54,
+          "fills": 55,
+          "expected": 55,
+          "falseFill": 0,
+          "wrongValue": 1,
+          "precision": 0.9818181818181818,
+          "recall": 0.9818181818181818
+        },
+        "onset": {
+          "correct": 0,
+          "fills": 0,
+          "expected": 44,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": null,
+          "recall": 0
+        },
+        "activity": {
+          "correct": 0,
+          "fills": 0,
+          "expected": 16,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": null,
+          "recall": 0
+        }
+      }
+    },
+    "es": {
+      "cases": 58,
+      "oneShot": {
+        "hit": 5,
+        "total": 48,
+        "rate": 0.10416666666666667
+      },
+      "falseFillCases": 0,
+      "falseFillRate": 0,
+      "wrongValueFills": 0,
+      "followUpAsked": 0,
+      "followUpRate": 0,
+      "followUpCorrect": 48,
+      "followUpAccuracy": 0.8275862068965517,
+      "fields": {
+        "location": {
+          "correct": 18,
+          "fills": 18,
+          "expected": 46,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": 1,
+          "recall": 0.391304347826087
+        },
+        "intensity": {
+          "correct": 3,
+          "fills": 3,
+          "expected": 20,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": 1,
+          "recall": 0.15
+        },
+        "quality": {
+          "correct": 30,
+          "fills": 30,
+          "expected": 30,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": 1,
+          "recall": 1
+        },
+        "onset": {
+          "correct": 0,
+          "fills": 0,
+          "expected": 30,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": null,
+          "recall": 0
+        },
+        "activity": {
+          "correct": 0,
+          "fills": 0,
+          "expected": 8,
+          "falseFill": 0,
+          "wrongValue": 0,
+          "precision": null,
+          "recall": 0
+        }
+      }
+    }
+  },
+  "failures": [
+    {
+      "id": "en-001",
+      "reasons": [
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-002",
+      "reasons": [
+        "intensity got null, expected 6",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-003",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-004",
+      "reasons": [
+        "intensity got null, expected 3"
+      ]
+    },
+    {
+      "id": "en-005",
+      "reasons": [
+        "activity got null, expected sitting"
+      ]
+    },
+    {
+      "id": "en-006",
+      "reasons": [
+        "location got null/missing/null, expected left_foot/mapped/left",
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-007",
+      "reasons": [
+        "location got null/missing/null, expected right_foot/mapped/right",
+        "intensity got null, expected 2",
+        "activity got null, expected running"
+      ]
+    },
+    {
+      "id": "en-008",
+      "reasons": [
+        "intensity got null, expected 4",
+        "quality got [dull], expected [dull, ache]",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-009",
+      "reasons": [
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "en-010",
+      "reasons": [
+        "onset got null, expected 2026-10-15"
+      ]
+    },
+    {
+      "id": "en-011",
+      "reasons": [
+        "activity got null, expected running"
+      ]
+    },
+    {
+      "id": "en-012",
+      "reasons": [
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-19"
+      ]
+    },
+    {
+      "id": "en-013",
+      "reasons": [
+        "onset got null, expected 2026-10-19"
+      ]
+    },
+    {
+      "id": "en-014",
+      "reasons": [
+        "location got null/missing/null, expected right_wrist/mapped/right",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-015",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-016",
+      "reasons": [
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected walking"
+      ]
+    },
+    {
+      "id": "en-017",
+      "reasons": [
+        "location got right_shoulder/mapped/right, expected upper_back/mapped/null",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-018",
+      "reasons": [
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected tennis"
+      ]
+    },
+    {
+      "id": "en-019",
+      "reasons": [
+        "intensity got null, expected 2",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-020",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-021",
+      "reasons": [
+        "location got null/missing/null, expected left_wrist/mapped/left",
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-022",
+      "reasons": [
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected gardening"
+      ]
+    },
+    {
+      "id": "en-024",
+      "reasons": [
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-025",
+      "reasons": [
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "en-026",
+      "reasons": [
+        "onset got null, expected 2026-10-22",
+        "activity got null, expected typing"
+      ]
+    },
+    {
+      "id": "en-027",
+      "reasons": [
+        "intensity got null, expected 7",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected run"
+      ]
+    },
+    {
+      "id": "en-028",
+      "reasons": [
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-029",
+      "reasons": [
+        "location got null/missing/null, expected left_wrist/mapped/left",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-030",
+      "reasons": [
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "en-031",
+      "reasons": [
+        "onset got null, expected phrase earlier this week"
+      ]
+    },
+    {
+      "id": "en-032",
+      "reasons": [
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected swimming"
+      ]
+    },
+    {
+      "id": "en-034",
+      "reasons": [
+        "onset got null, expected 2026-10-19"
+      ]
+    },
+    {
+      "id": "en-035",
+      "reasons": [
+        "location got null/missing/null, expected left_foot/mapped/left",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-036",
+      "reasons": [
+        "intensity got null, expected 6",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-037",
+      "reasons": [
+        "intensity got null, expected 1",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-038",
+      "reasons": [
+        "location got null/missing/null, expected right_wrist/mapped/right",
+        "intensity got null, expected 0",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-039",
+      "reasons": [
+        "location got null/missing/null, expected null/unmapped/null"
+      ]
+    },
+    {
+      "id": "en-041",
+      "reasons": [
+        "intensity got null, expected 4"
+      ]
+    },
+    {
+      "id": "en-042",
+      "reasons": [
+        "location got null/missing/null, expected right_knee/mapped/right",
+        "intensity got null, expected 6",
+        "onset got null, expected 2026-10-19"
+      ]
+    },
+    {
+      "id": "en-043",
+      "reasons": [
+        "location got null/missing/null, expected left_calf/mapped/left",
+        "intensity got null, expected 3",
+        "activity got null, expected ran"
+      ]
+    },
+    {
+      "id": "en-044",
+      "reasons": [
+        "onset got null, expected phrase earlier this year"
+      ]
+    },
+    {
+      "id": "en-045",
+      "reasons": [
+        "location got null/missing/null, expected right_hip/mapped/right",
+        "onset got null, expected phrase a while ago"
+      ]
+    },
+    {
+      "id": "en-047",
+      "reasons": [
+        "location got null/missing/null, expected null/ambiguous/null",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-048",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-049",
+      "reasons": [
+        "intensity got null, expected 5"
+      ]
+    },
+    {
+      "id": "en-050",
+      "reasons": [
+        "location got null/missing/null, expected left_ankle/mapped/left",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-051",
+      "reasons": [
+        "location got null/missing/null, expected right_foot/mapped/right",
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected walking"
+      ]
+    },
+    {
+      "id": "en-052",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "onset got null, expected 2026-10-21",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "en-053",
+      "reasons": [
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-054",
+      "reasons": [
+        "activity got null, expected running",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-055",
+      "reasons": [
+        "location got null/missing/null, expected null/unmapped/null",
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "en-056",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "en-057",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "en-058",
+      "reasons": [
+        "location got null/missing/null, expected null/both/both",
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-060",
+      "reasons": [
+        "location got null/missing/null, expected right_ankle/mapped/right",
+        "intensity got null, expected 2",
+        "onset got null, expected 2026-10-19",
+        "activity got null, expected walked"
+      ]
+    },
+    {
+      "id": "es-001",
+      "reasons": [
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-002",
+      "reasons": [
+        "location got null/missing/null, expected right_ankle/mapped/right",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-003",
+      "reasons": [
+        "intensity got null, expected 4"
+      ]
+    },
+    {
+      "id": "es-004",
+      "reasons": [
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "es-005",
+      "reasons": [
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-19"
+      ]
+    },
+    {
+      "id": "es-006",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-007",
+      "reasons": [
+        "intensity got null, expected 2",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-008",
+      "reasons": [
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "es-009",
+      "reasons": [
+        "location got null/missing/null, expected left_wrist/mapped/left",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "es-010",
+      "reasons": [
+        "intensity got null, expected 6"
+      ]
+    },
+    {
+      "id": "es-011",
+      "reasons": [
+        "location got null/missing/null, expected left_calf/mapped/left",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected correr"
+      ]
+    },
+    {
+      "id": "es-012",
+      "reasons": [
+        "location got null/missing/null, expected left_foot/mapped/left",
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-013",
+      "reasons": [
+        "location got null/missing/null, expected abdomen/mapped/null",
+        "onset got null, expected 2026-10-19"
+      ]
+    },
+    {
+      "id": "es-014",
+      "reasons": [
+        "location got null/missing/null, expected right_thigh/mapped/right",
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-15"
+      ]
+    },
+    {
+      "id": "es-015",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-016",
+      "reasons": [
+        "location got null/missing/null, expected upper_back/mapped/null",
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "es-017",
+      "reasons": [
+        "location got null/missing/null, expected right_foot/mapped/right",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected caminar"
+      ]
+    },
+    {
+      "id": "es-018",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-019",
+      "reasons": [
+        "location got null/missing/null, expected right_knee/mapped/right",
+        "onset got null, expected 2026-10-22"
+      ]
+    },
+    {
+      "id": "es-020",
+      "reasons": [
+        "location got null/missing/null, expected left_foot/mapped/left",
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "es-021",
+      "reasons": [
+        "location got null/missing/null, expected abdomen/mapped/null",
+        "intensity got null, expected 3",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-022",
+      "reasons": [
+        "location got null/missing/null, expected right_wrist/mapped/right",
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-023",
+      "reasons": [
+        "location got null/missing/null, expected left_ankle/mapped/left"
+      ]
+    },
+    {
+      "id": "es-024",
+      "reasons": [
+        "location got null/missing/null, expected neck/mapped/null"
+      ]
+    },
+    {
+      "id": "es-025",
+      "reasons": [
+        "location got null/missing/null, expected right_knee/mapped/right",
+        "intensity got null, expected 7",
+        "onset got null, expected 2026-10-20"
+      ]
+    },
+    {
+      "id": "es-026",
+      "reasons": [
+        "location got null/missing/null, expected left_calf/mapped/left",
+        "intensity got null, expected 3",
+        "activity got null, expected corrí"
+      ]
+    },
+    {
+      "id": "es-027",
+      "reasons": [
+        "location got null/missing/null, expected left_hip/mapped/left",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-028",
+      "reasons": [
+        "location got null/missing/null, expected lower_back/mapped/null",
+        "onset got null, expected phrase desde el verano"
+      ]
+    },
+    {
+      "id": "es-029",
+      "reasons": [
+        "location got null/missing/null, expected right_elbow/mapped/right"
+      ]
+    },
+    {
+      "id": "es-030",
+      "reasons": [
+        "location got null/missing/null, expected null/ambiguous/null",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "es-031",
+      "reasons": [
+        "location got null/missing/null, expected right_wrist/mapped/right",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-032",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left",
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-033",
+      "reasons": [
+        "location got null/missing/null, expected right_foot/mapped/right",
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21",
+        "activity got null, expected pádel"
+      ]
+    },
+    {
+      "id": "es-034",
+      "reasons": [
+        "onset got null, expected 2026-10-19",
+        "activity got null, expected camine"
+      ]
+    },
+    {
+      "id": "es-035",
+      "reasons": [
+        "intensity got null, expected 5",
+        "onset got null, expected 2026-10-21",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "es-036",
+      "reasons": [
+        "activity got null, expected correr",
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "es-037",
+      "reasons": [
+        "location got null/missing/null, expected null/unmapped/null",
+        "intensity got null, expected 4",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-038",
+      "reasons": [
+        "location got null/missing/null, expected null/both/both",
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "es-039",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "en-061",
+      "reasons": [
+        "activity got null, expected chasing my son"
+      ]
+    },
+    {
+      "id": "en-062",
+      "reasons": [
+        "onset got null, expected 2026-10-21"
+      ]
+    },
+    {
+      "id": "en-064",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left"
+      ]
+    },
+    {
+      "id": "en-065",
+      "reasons": [
+        "location got null/missing/null, expected right_ankle/mapped/right"
+      ]
+    },
+    {
+      "id": "en-066",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "es-041",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "es-042",
+      "reasons": [
+        "location got null/missing/null, expected lower_back/mapped/null"
+      ]
+    },
+    {
+      "id": "es-043",
+      "reasons": [
+        "location got null/missing/null, expected right_knee/mapped/right"
+      ]
+    },
+    {
+      "id": "es-044",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "es-046",
+      "reasons": [
+        "location got null/missing/null, expected right_wrist/mapped/right"
+      ]
+    },
+    {
+      "id": "es-047",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "es-048",
+      "reasons": [
+        "location got null/missing/null, expected left_ankle/mapped/left",
+        "activity got null, expected pasear al perro"
+      ]
+    },
+    {
+      "id": "en-067",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-068",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-070",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left",
+        "intensity got null, expected 8"
+      ]
+    },
+    {
+      "id": "en-071",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left"
+      ]
+    },
+    {
+      "id": "en-072",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left"
+      ]
+    },
+    {
+      "id": "en-073",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left"
+      ]
+    },
+    {
+      "id": "en-074",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-075",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "activity got null, expected slept",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "en-076",
+      "reasons": [
+        "activity got null, expected played tennis"
+      ]
+    },
+    {
+      "id": "en-077",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "en-078",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "en-079",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "es-050",
+      "reasons": [
+        "location got null/missing/null, expected null/need-side/null",
+        "follow-up got none, expected side"
+      ]
+    },
+    {
+      "id": "es-051",
+      "reasons": [
+        "location got null/missing/null, expected right_knee/mapped/right"
+      ]
+    },
+    {
+      "id": "es-053",
+      "reasons": [
+        "location got null/missing/null, expected left_knee/mapped/left"
+      ]
+    },
+    {
+      "id": "es-055",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "es-056",
+      "reasons": [
+        "follow-up got none, expected location"
+      ]
+    },
+    {
+      "id": "es-057",
+      "reasons": [
+        "intensity got null, expected 7"
+      ]
+    },
+    {
+      "id": "es-058",
+      "reasons": [
+        "activity got null, expected pádel"
+      ]
+    }
+  ]
+}

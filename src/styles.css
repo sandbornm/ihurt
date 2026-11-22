@@ -857,6 +857,11 @@ h1 > span {
   border-radius: 50%;
   box-shadow: 0 0 0 4px #baf38b16;
 }
+.callout-dot.proposed {
+  background: transparent;
+  border: 2px dashed #7fb0ff;
+  box-shadow: 0 0 0 4px #7fb0ff1f;
+}
 .region-callout > div {
   display: grid;
   gap: 4px;
@@ -2912,4 +2917,36 @@ h1 > span {
 }
 .notebook-shell .body-workspace > .region-callout > div {
   margin-right: auto;
+}
+.language-setting {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a8b6a8;
+}
+.language-setting svg {
+  color: #a1c38a;
+  flex: none;
+}
+.language-setting select {
+  appearance: none;
+  max-width: 13em;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.language-setting select:focus-visible {
+  outline: 2px solid #a1c38a;
+  outline-offset: 2px;
+}
+@media (max-width: 800px) {
+  .language-setting select {
+    max-width: 6.5em;
+  }
 }

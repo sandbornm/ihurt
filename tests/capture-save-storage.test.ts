@@ -1442,6 +1442,44 @@ test("parseNotebook keeps pointsUpdated on a round trip", () => {
   assert.equal(parsed.points?.length, 1);
 });
 
+test("parseNotebook keeps merge clocks on a round trip", () => {
+  const source = entry("imp-clocks", "typed note", {
+    noteUpdated: "2026-01-04T00:00:00.000Z",
+    mapUpdated: {
+      title: "2026-01-03T00:00:00.000Z",
+      activity: "2026-01-05T00:00:00.000Z",
+    },
+    aiUpdated: "2026-01-06T00:00:00.000Z",
+    points: [samplePoint],
+    pointsUpdated: "2026-01-02T00:00:00.000Z",
+    map: neckMap("typed note", ["neck"]),
+    research: {
+      activity: "Walk",
+      regions: ["neck"],
+      checked: "2026-01-02T00:00:00.000Z",
+      version: "2026-01-07T00:00:00.000Z",
+      references: [],
+    },
+  });
+  const parsed = parseNotebook(stringifyNotebook([source]))[0];
+  assert.equal(parsed.noteUpdated, "2026-01-04T00:00:00.000Z");
+  assert.deepEqual(parsed.mapUpdated, source.mapUpdated);
+  assert.equal(parsed.aiUpdated, "2026-01-06T00:00:00.000Z");
+  assert.equal(parsed.research?.version, "2026-01-07T00:00:00.000Z");
+  assert.equal(parsed.pointsUpdated, "2026-01-02T00:00:00.000Z");
+  const older = JSON.parse(stringifyNotebook([source]));
+  delete older.entries[0].noteUpdated;
+  delete older.entries[0].mapUpdated;
+  delete older.entries[0].aiUpdated;
+  delete older.entries[0].research.version;
+  const legacy = parseNotebook(JSON.stringify(older))[0];
+  assert.equal(legacy.noteUpdated, undefined);
+  assert.equal(legacy.mapUpdated, undefined);
+  assert.equal(legacy.aiUpdated, undefined);
+  assert.equal(legacy.research?.version, undefined);
+  assert.equal(legacy.note, "typed note");
+});
+
 test("journal export uses the open editor when it is the same id", async () => {
   const { entryForExport } = await import("../src/export.ts");
   const saved = entry("ex", "saved");

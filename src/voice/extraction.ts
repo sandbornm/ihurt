@@ -6,6 +6,7 @@ import type {
 } from "../platform/on-device-ai.ts";
 import type { DraftFields, VoiceDraftValue } from "./draft.ts";
 import { verifyEvidence } from "./evidence.ts";
+import { skipsFollowUp } from "./follow-up-skip.ts";
 
 // The on-device model only quotes the note. Everything here is deterministic:
 // a field survives only when its words appear in what the person said, and a
@@ -55,7 +56,7 @@ const partWords: [Part, RegExp][] = [
   ],
   [
     "lower_back",
-    /\blower back\b|\blumbar\b|\bparte baja de la espalda\b|\bespalda baja\b|\bzona lumbar\b|\blumbares\b/,
+    /\blower back\b|\blumbar\b|\bparte baja de la espalda\b|\bespalda baja\b|\bespalda de abajo\b|\bcintura\b|\bzona lumbar\b|\blumbares\b/,
   ],
   [
     "foot",
@@ -68,7 +69,10 @@ const partWords: [Part, RegExp][] = [
     "thigh",
     /\bthighs?\b|\bhamstrings?\b|\bquads?\b|\bquadriceps\b|\b(?:muslos?|isquiotibiales|cuadriceps)\b/,
   ],
-  ["hip", /\bhips?\b|\bcaderas?\b/],
+  [
+    "hip",
+    /\bhips?\b|\bcaderas?\b|\b(?:buttocks?|glutes?|gluteus|gluteos?|nalgas?)\b/,
+  ],
   [
     "wrist",
     /\bwrists?\b|\bhands?\b|\bfingers?\b|\bthumbs?\b|\bpalms?\b|\b(?:munecas?|manos?|pulgar(?:es)?)\b|\bdedos? de la mano\b|\bdedos? gordos? de la mano\b|\bpalmas? de la mano\b/,
@@ -2116,6 +2120,8 @@ function followUpFor(
 ): FollowUp | null {
   // At most one question, and only about where. Optional fields stay blank.
   if (location.status === "both") return null;
+  // "All over", or "both" for a side question.
+  if (skipsFollowUp(location, transcript)) return null;
   if (location.status === "missing")
     return {
       key: "location",

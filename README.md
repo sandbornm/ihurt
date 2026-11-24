@@ -21,17 +21,13 @@ The notebook works offline after its first complete load. Notes and drafts stay 
 
 The development build brings the notebook closer to the moments you want to remember:
 
-- **Today and History.** See a day’s pins together, with a timeline of moments. Add a quick entry, switch days, and search earlier notes and activities.
 - **Quick pin editing.** Adjust intensity with a dial, add a nearby note, compare overlapping anatomy surfaces, and undo a removed pin.
 - **On-device dictation.** Speak a note, review the words, then add them to your entry. Typing is always available; Apple speech support depends on the device and language.
 - **Movement recording.** Use either camera to record a short, silent exercise clip. Review estimated body and hand positions, choose a moment, then mark where you felt discomfort. Pose estimates do not detect pain or place pins for you.
-- **Optional Apple Health context.** Display workouts and daily steps beside your day’s notes. Access is read-only; Health results stay outside journal exports and AI sharing.
 
-<img src="docs/media/ios-today.png" width="300" alt="iHurt development preview: Today’s body map, two example moments, and Today and History navigation" />
+_Anatomy by Z-Anatomy and BodyParts3D — [credits and licenses](public/models/ATTRIBUTION.md)._
 
-*Development preview using example entries. Anatomy by Z-Anatomy and BodyParts3D — [credits and licenses](public/models/ATTRIBUTION.md).*
-
-The native target supports iOS and iPadOS 16.4 or later. Movement recording requires 18 or later; Health availability is checked on the device. Builds can be installed through Xcode while distribution is being prepared. [Setup and signing](docs/IOS.md) · [Recorded testing and remaining device checks](docs/IOS-VALIDATION.md).
+The native target supports iOS and iPadOS 16.4 or later. Movement recording requires 18 or later. Builds can be installed through Xcode while distribution is being prepared. [Setup and signing](docs/IOS.md) · [Recorded testing and remaining device checks](docs/IOS-VALIDATION.md).
 
 ## Try an example
 
@@ -39,7 +35,7 @@ The native target supports iOS and iPadOS 16.4 or later. Movement recording requ
 
 **A stiff neck after sleep and tennis.** This earlier browser walkthrough maps the left upper trap and high neck, including discomfort when looking down or turning left. [Watch the walkthrough](docs/media/neck-tennis-case-study.mp4).
 
-*Recorded in demo mode; no live AI response. The current interface differs. Anatomy credits and licenses apply to both previews.*
+_Recorded in demo mode; no live AI response. The current interface differs. Anatomy credits and licenses apply to both previews._
 
 [Example report (PDF)](docs/examples/neck-tennis.pdf) · [Example journal (JSON)](docs/examples/neck-tennis.json) · [Fictional desk, running, and gaming examples](docs/media/README.md#fictional-notebook-examples)
 
@@ -53,7 +49,7 @@ Pins describe locations on a shared reference model. They do not measure your bo
 
 ## Build and contribute
 
-React, TypeScript, Three.js/WebGL, and WebAssembly provide the shared notebook. The iPhone/iPad app uses Capacitor with Swift services for camera capture, Apple Vision, speech, and HealthKit. Optional local AI tools use a Python backend.
+React, TypeScript, Three.js/WebGL, and WebAssembly provide the shared notebook. The iPhone/iPad app uses Capacitor with Swift services for camera capture, Apple Vision, and speech. Optional local AI tools use a Python backend.
 
 [Development and tests](docs/DEVELOPMENT.md) · [iOS/iPadOS quality record](docs/IOS-VALIDATION.md) · [Usage and sources](docs/GUIDE.md) · [Optional AI tools](docs/PROVIDERS.md) · [Voice setup](docs/VOICE.md) · [MCP integration](docs/MCP.md) · [MIT code license](LICENSE)
 

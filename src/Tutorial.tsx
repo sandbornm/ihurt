@@ -13,7 +13,18 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
-  }, []);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" && step < steps.length - 1) {
+        e.preventDefault();
+        setStep((s) => s + 1);
+      } else if (e.key === "ArrowLeft" && step > 0) {
+        e.preventDefault();
+        setStep((s) => s - 1);
+      }
+    };
+    dialog.current?.addEventListener("keydown", handleKeyDown);
+    return () => dialog.current?.removeEventListener("keydown", handleKeyDown);
+  }, [step]);
   useEffect(() => {
     heading.current?.focus();
   }, [step]);
@@ -65,7 +76,14 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         {t(`tour.${item.n}.title`)}
       </h2>
       <p>{t(`tour.${item.n}.text`)}</p>
-      {step === 0 && <p className="tutorial-limit">{t("tour.limit")}</p>}
+      {step === 0 && (
+        <>
+          <p className="tutorial-limit">{t("tour.limit")}</p>
+          <p className="tutorial-hint" style={{ fontSize: "11px", color: "var(--muted)", marginTop: "8px" }}>
+            💡 Use ← → arrow keys to navigate
+          </p>
+        </>
+      )}
       <div className="tutorial-actions">
         <button
           className="secondary"

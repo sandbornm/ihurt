@@ -16,7 +16,6 @@
     "setup:ios": "node scripts/setup.mjs --ios",
     "check": "npm run build && npm run test:unit && npm test",
     "format": "prettier --write src scripts assembly *.json *.ts .github",
-    "build:analyze": "ANALYZE=1 npm run build && echo 'Bundle analysis saved to dist/stats.html'",
     "test:unit": "node --experimental-strip-types --test tests/*.test.ts",
     "test:browser": "node scripts/browser-check.mjs",
     "dev:ai": "uv run scripts/fetch_mediapipe.py && concurrently -k -n web,api \"vite --host 127.0.0.1\" \"uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload --reload-include .env --no-proxy-headers\"",
@@ -57,10 +56,8 @@
     "concurrently": "^9.2.5",
     "playwright": "1.63.0",
     "prettier": "^3.9.6",
-    "rollup-plugin-visualizer": "^7.3.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.7",
-    "vite-plugin-compression": "^0.5.1"
+    "vite": "^7.3.7"
   },
   "engines": {
     "node": ">=22.12.0"

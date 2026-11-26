@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#101716" />
+    <meta name="theme-color" content="#101513" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f4f6f0" media="(prefers-color-scheme: light)" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+    />
     <meta
       name="description"
       content="Pin discomfort on a 3D body, keep notes about your day, and look back through your entries. An offline visual notebook. Not medical advice."

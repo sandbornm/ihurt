@@ -115,6 +115,7 @@ export const es: Messages = {
   "notebook.anatomyCredits": "Créditos de anatomía ↗",
   "notebook.callout.proposed": "PIN PROPUESTO · SIN COLOCAR",
   "notebook.callout.reported": "REGIÓN INDICADA",
+  "notebook.callout.suggested": "SUGERENCIA DE IA",
   "notebook.callout.selected": "REGIÓN SELECCIONADA",
   "notebook.confirmPinLabel": "Confirmar pin propuesto",
   "notebook.confirmPin": "Confirmar pin",

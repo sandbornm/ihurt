@@ -113,6 +113,7 @@ export const en = {
   "notebook.anatomyCredits": "Anatomy credits ↗",
   "notebook.callout.proposed": "PROPOSED PIN · NOT PLACED",
   "notebook.callout.reported": "REPORTED REGION",
+  "notebook.callout.suggested": "AI SUGGESTION",
   "notebook.callout.selected": "SELECTED REGION",
   "notebook.confirmPinLabel": "Confirm proposed pin",
   "notebook.confirmPin": "Confirm pin",

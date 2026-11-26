@@ -91,6 +91,7 @@ export function liveSpeech(): NativeSpeech | null {
     async stop() {
       stopped = true;
       recognition?.stop();
+      return undefined;
     },
     async cancel() {
       stopped = true;

@@ -16,7 +16,6 @@
     "setup:ios": "node scripts/setup.mjs --ios",
     "check": "npm run build && npm run test:unit && npm test",
     "format": "prettier --write src scripts assembly *.json *.ts .github",
-    "audit:security": "npm audit --audit-level=moderate && echo '\n✓ No moderate or higher vulnerabilities found'",
     "test:unit": "node --experimental-strip-types --test tests/*.test.ts",
     "test:browser": "node scripts/browser-check.mjs",
     "dev:ai": "uv run scripts/fetch_mediapipe.py && concurrently -k -n web,api \"vite --host 127.0.0.1\" \"uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload --reload-include .env --no-proxy-headers\"",

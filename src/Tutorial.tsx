@@ -76,14 +76,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         {t(`tour.${item.n}.title`)}
       </h2>
       <p>{t(`tour.${item.n}.text`)}</p>
-      {step === 0 && (
-        <>
-          <p className="tutorial-limit">{t("tour.limit")}</p>
-          <p className="tutorial-hint" style={{ fontSize: "11px", color: "var(--muted)", marginTop: "8px" }}>
-            💡 Use ← → arrow keys to navigate
-          </p>
-        </>
-      )}
+      {step === 0 && <p className="tutorial-limit">{t("tour.limit")}</p>}
       <div className="tutorial-actions">
         <button
           className="secondary"

@@ -80,7 +80,12 @@ export function idsDeletedOnServer<T extends BackupEntry>(
 ): string[] {
   const named = new Set(namedDeleted);
   const localById = new Map(local.map((entry) => [entry.id, entry]));
-  return synced.filter((id) => {
+  // A named delete applies to a row this device has, including one it only
+  // downloaded. Leaving it out of the next replacement is what keeps a
+  // conflict retry from putting the row back.
+  const candidates = new Set<string>(synced);
+  for (const entry of local) candidates.add(entry.id);
+  return [...candidates].filter((id) => {
     if (!named.has(id) || deleted.has(id)) return false;
     const entry = localById.get(id);
     return entry !== undefined && withinBackupWindow(entry, now, days);

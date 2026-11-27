@@ -2,6 +2,8 @@ import {
   createAccountApi,
   AccountApiError,
   assertSyncEntryLimit,
+  isBackupConflict,
+  SYNC_UPLOAD_ATTEMPTS,
   type AccountApi,
 } from "./api.ts";
 import { createAnalytics, type AccountAnalytics } from "./analytics.ts";
@@ -257,52 +259,36 @@ export async function enableBackup(
   try {
     const token = await session.getIdToken();
     await api.enableSync(token);
-    const sync = await api.getEntries(token);
-    const remote = sync.entries;
-    if (
-      state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch ||
-      accountDeleting(browserStore(), session.uid)
-    ) {
-      setState({ ...state, busy: false });
-      return;
-    }
-    const revived = removedIdsFor(browserStore(), session.uid).filter((id) =>
-      remote.some((entry) => entry.id === id),
-    );
-    // The account marker can go. A user delete made while this pull was
-    // running stays in the notebook tombstone list.
-    if (revived.length > 0)
-      releaseRemoteDeletes(browserStore(), revived, session.uid);
-    const merged = await onMerge(remote);
-    if (Array.isArray(merged)) {
-      rememberSeenEntries(
-        browserStore(),
-        session.uid,
-        merged.map((entry) => entry.id),
-      );
-      rememberDownloaded(
-        browserStore(),
-        merged.map((entry) => entry.id),
-        session.uid,
-      );
-    }
-    if (
-      state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch ||
-      accountDeleting(browserStore(), session.uid)
-    ) {
-      setState({ ...state, busy: false });
-      return;
-    }
-    if (!Array.isArray(merged)) {
-      setState({ ...state, busy: false, error: "error" });
-      return;
-    }
-    return await withUploadLock(async () => {
-      if (!api) {
-        setState({ ...state, busy: false, error: "no-api" });
+    for (let attempt = 0; attempt < SYNC_UPLOAD_ATTEMPTS; attempt++) {
+      const sync = await api.getEntries(token);
+      const remote = sync.entries;
+      if (
+        state.session?.uid !== session.uid ||
+        backupEpoch(browserStore()) !== epoch ||
+        accountDeleting(browserStore(), session.uid)
+      ) {
+        setState({ ...state, busy: false });
         return;
+      }
+      const revived = removedIdsFor(browserStore(), session.uid).filter((id) =>
+        remote.some((entry) => entry.id === id),
+      );
+      // The account marker can go. A user delete made while this pull was
+      // running stays in the notebook tombstone list.
+      if (revived.length > 0)
+        releaseRemoteDeletes(browserStore(), revived, session.uid);
+      const merged = await onMerge(remote);
+      if (Array.isArray(merged)) {
+        rememberSeenEntries(
+          browserStore(),
+          session.uid,
+          merged.map((entry) => entry.id),
+        );
+        rememberDownloaded(
+          browserStore(),
+          merged.map((entry) => entry.id),
+          session.uid,
+        );
       }
       if (
         state.session?.uid !== session.uid ||
@@ -312,95 +298,126 @@ export async function enableBackup(
         setState({ ...state, busy: false });
         return;
       }
-      // Another tab can claim these rows while this enable waited on the lock.
-      // Read the journal and the ownership again before the upload.
-      const snapshot = await readBackupSnapshot();
-      const deletedNow = new Set(snapshot.deletedIds);
-      const kept = snapshot.entries.filter(
-        (entry) => !deletedNow.has(entry.id),
-      );
-      const priorRemoved = new Set(removedIdsFor(browserStore(), session.uid));
-      releaseRemoteDeletes(
-        browserStore(),
-        [...priorRemoved].filter((id) => kept.some((entry) => entry.id === id)),
-        session.uid,
-      );
-      const clock = backupClock(Date.now(), remote);
-      const gone = idsDeletedOnServer(
-        syncedIdsFor(browserStore(), session.uid),
-        kept,
-        sync.deleted,
-        deletedNow,
-        clock,
-      ).filter((id) => !priorRemoved.has(id));
-      const goneIds = new Set(gone);
-      const owned = withoutOtherAccountEntries(
-        kept.filter((entry) => !goneIds.has(entry.id)),
-        browserStore(),
-        session.uid,
-      );
-      const localIds = entriesForBackup(owned, clock, BACKUP_DAYS).map(
-        (entry) => entry.id,
-      );
-      // The download can finish after another tab saved a row. That row was
-      // not in the count the user confirmed, so the upload waits.
-      if (backupEnableDecision(confirmedIds, localIds) === "refresh") {
-        setState({ ...state, busy: false });
-        return { status: "refresh", ids: localIds };
+      if (!Array.isArray(merged)) {
+        setState({ ...state, busy: false, error: "error" });
+        return;
       }
-      rememberRemoteDeletes(browserStore(), gone, session.uid);
-      const windowed = entriesForBackup(
-        owned,
-        clock,
-        BACKUP_DAYS,
-        new Set(remote.map((entry) => entry.id)),
-      );
       try {
-        assertSyncEntryLimit(windowed.length);
+        return await withUploadLock(async () => {
+          if (!api) {
+            setState({ ...state, busy: false, error: "no-api" });
+            return;
+          }
+          if (
+            state.session?.uid !== session.uid ||
+            backupEpoch(browserStore()) !== epoch ||
+            accountDeleting(browserStore(), session.uid)
+          ) {
+            setState({ ...state, busy: false });
+            return;
+          }
+          // Another tab can claim these rows while this enable waited on the lock.
+          // Read the journal and the ownership again before the upload.
+          const snapshot = await readBackupSnapshot();
+          const deletedNow = new Set(snapshot.deletedIds);
+          const kept = snapshot.entries.filter(
+            (entry) => !deletedNow.has(entry.id),
+          );
+          const priorRemoved = new Set(
+            removedIdsFor(browserStore(), session.uid),
+          );
+          releaseRemoteDeletes(
+            browserStore(),
+            [...priorRemoved].filter((id) =>
+              kept.some((entry) => entry.id === id),
+            ),
+            session.uid,
+          );
+          const clock = backupClock(Date.now(), remote);
+          const gone = idsDeletedOnServer(
+            syncedIdsFor(browserStore(), session.uid),
+            kept,
+            sync.deleted,
+            deletedNow,
+            clock,
+          ).filter((id) => !priorRemoved.has(id));
+          const goneIds = new Set(gone);
+          const owned = withoutOtherAccountEntries(
+            kept.filter((entry) => !goneIds.has(entry.id)),
+            browserStore(),
+            session.uid,
+          );
+          const localIds = entriesForBackup(owned, clock, BACKUP_DAYS).map(
+            (entry) => entry.id,
+          );
+          // The download can finish after another tab saved a row. That row was
+          // not in the count the user confirmed, so the upload waits.
+          if (backupEnableDecision(confirmedIds, localIds) === "refresh") {
+            setState({ ...state, busy: false });
+            return { status: "refresh", ids: localIds };
+          }
+          rememberRemoteDeletes(browserStore(), gone, session.uid);
+          const windowed = entriesForBackup(
+            owned,
+            clock,
+            BACKUP_DAYS,
+            new Set(remote.map((entry) => entry.id)),
+          );
+          try {
+            assertSyncEntryLimit(windowed.length);
+          } catch (error) {
+            if (error instanceof AccountApiError && error.code === "too-many") {
+              setState({ ...state, busy: false, error: "too-many" });
+              return { status: "limited" };
+            }
+            throw error;
+          }
+          const upload = await claimUpload(browserStore(), session.uid);
+          try {
+            if (
+              state.session?.uid !== session.uid ||
+              backupEpoch(browserStore()) !== epoch ||
+              accountDeleting(browserStore(), session.uid)
+            ) {
+              setState({ ...state, busy: false });
+              return;
+            }
+            await api.putEntries(token, windowed, sync.revision);
+            rememberSeenEntries(
+              browserStore(),
+              session.uid,
+              windowed.map((entry) => entry.id),
+            );
+            rememberSynced(
+              browserStore(),
+              windowed.map((entry) => entry.id),
+              session.uid,
+            );
+            if (gone.length > 0) await onRemove?.(gone);
+            if (
+              state.session?.uid !== session.uid ||
+              backupEpoch(browserStore()) !== epoch ||
+              accountDeleting(browserStore(), session.uid)
+            ) {
+              setState({ ...state, busy: false });
+              return;
+            }
+            grantOptIn(browserStore(), session.uid);
+            analytics.record("sync_on");
+            setState({ ...state, busy: false, optedIn: true });
+          } finally {
+            await releaseUpload(browserStore(), session.uid, upload);
+          }
+        });
       } catch (error) {
-        if (error instanceof AccountApiError && error.code === "too-many") {
-          setState({ ...state, busy: false, error: "too-many" });
-          return { status: "limited" };
-        }
+        // The snapshot changed after this device read it. Pull and merge again
+        // before opting in, so this list does not replace the newer one.
+        if (isBackupConflict(error) && attempt + 1 < SYNC_UPLOAD_ATTEMPTS)
+          continue;
         throw error;
       }
-      const upload = await claimUpload(browserStore(), session.uid);
-      try {
-        if (
-          state.session?.uid !== session.uid ||
-          backupEpoch(browserStore()) !== epoch ||
-          accountDeleting(browserStore(), session.uid)
-        ) {
-          setState({ ...state, busy: false });
-          return;
-        }
-        await api.putEntries(token, windowed);
-        rememberSeenEntries(
-          browserStore(),
-          session.uid,
-          windowed.map((entry) => entry.id),
-        );
-        rememberSynced(
-          browserStore(),
-          windowed.map((entry) => entry.id),
-          session.uid,
-        );
-        if (gone.length > 0) await onRemove?.(gone);
-        if (
-          state.session?.uid !== session.uid ||
-          backupEpoch(browserStore()) !== epoch ||
-          accountDeleting(browserStore(), session.uid)
-        ) {
-          setState({ ...state, busy: false });
-          return;
-        }
-        grantOptIn(browserStore(), session.uid);
-        analytics.record("sync_on");
-        setState({ ...state, busy: false, optedIn: true });
-      } finally {
-        await releaseUpload(browserStore(), session.uid, upload);
-      }
-    });
+    }
+    throw new AccountApiError(409, "conflict");
   } catch (error) {
     const code =
       error instanceof AccountAuthError || error instanceof AccountApiError
@@ -489,7 +506,8 @@ export function pushBackupEntries(
           await onMerge?.(remote);
           return sync;
         },
-        put: (next, rows) => current.putEntries(next, rows),
+        put: (next, rows, revision) =>
+          current.putEntries(next, rows, revision ?? ""),
         forget: onRemove,
       });
     })

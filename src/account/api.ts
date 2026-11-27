@@ -30,10 +30,16 @@ export interface AccountStatus {
 export interface AccountApi {
   getAccount(token: string): Promise<AccountStatus>;
   enableSync(token: string): Promise<void>;
-  putEntries(token: string, entries: readonly BackupEntry[]): Promise<void>;
-  getEntries(
+  putEntries(
     token: string,
-  ): Promise<{ entries: SavedMap[]; deleted: readonly string[] }>;
+    entries: readonly BackupEntry[],
+    revision: string,
+  ): Promise<void>;
+  getEntries(token: string): Promise<{
+    entries: SavedMap[];
+    deleted: readonly string[];
+    revision: string;
+  }>;
   deleteAccount(token: string): Promise<void>;
   useSearch(token: string): Promise<{ remaining: number }>;
 }
@@ -58,6 +64,24 @@ export function accountApiOrigin(value: string): string | null {
 // Same byte cap as an .ihm import. The entry cap matches that import's list cap.
 export const ACCOUNT_RESPONSE_BYTES = 10 * 1024 * 1024;
 export const SYNC_ENTRY_LIMIT = 500;
+// One upload, then two pulls after a stale snapshot is rejected.
+export const SYNC_UPLOAD_ATTEMPTS = 3;
+const SYNC_REVISION_LIMIT = 200;
+
+export function isBackupConflict(error: unknown): boolean {
+  return error instanceof AccountApiError && error.code === "conflict";
+}
+
+function requireRevision(value: unknown, status: number): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > SYNC_REVISION_LIMIT ||
+    value.trim() !== value
+  )
+    throw new AccountApiError(status, "invalid");
+  return value;
+}
 
 // A download above this limit is rejected. The upload has to stop at the same
 // limit, or the next pull cannot be stored.
@@ -91,13 +115,22 @@ export function remoteEntries(value: unknown): SavedMap[] {
 
 // A missing `deleted` list is not a delete. Another device's full snapshot can
 // omit a note this device uploaded. Only ids the server names are deletions.
+// `revision` is the snapshot this list was read from. The next replacement
+// must send it. Omitting an entry in that replacement deletes it, so a list
+// from an older snapshot cannot be written. The server rejects that write
+// with 409 and code `conflict`.
 export function remoteSync(value: unknown): {
   entries: SavedMap[];
   deleted: readonly string[];
+  revision: string;
 } {
   const entries = remoteEntries(value);
   const named = (value as { deleted?: unknown }).deleted;
-  if (named === undefined) return { entries, deleted: [] };
+  const revision = requireRevision(
+    (value as { revision?: unknown }).revision,
+    200,
+  );
+  if (named === undefined) return { entries, deleted: [], revision };
   if (!Array.isArray(named) || named.length > SYNC_ENTRY_LIMIT)
     throw new AccountApiError(200, "invalid");
   const present = new Set(entries.map((entry) => entry.id));
@@ -112,7 +145,7 @@ export function remoteSync(value: unknown): {
       throw new AccountApiError(200, "invalid");
     deleted.push(id);
   }
-  return { entries, deleted };
+  return { entries, deleted, revision };
 }
 
 function statusFrom(value: unknown): AccountStatus {
@@ -280,9 +313,10 @@ export function createAccountApi(
     async enableSync(token) {
       await request("/v1/account/sync", token, "POST", { optIn: true });
     },
-    async putEntries(token, entries) {
+    async putEntries(token, entries, revision) {
       assertSyncEntryLimit(entries.length);
       await request("/v1/sync", token, "PUT", {
+        revision: requireRevision(revision, 0),
         entries: entries.map((entry) => toBackupPayload(entry)),
       });
     },

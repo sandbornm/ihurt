@@ -1538,7 +1538,7 @@ test("a backup of more than 500 entries is refused before upload", async () => {
   });
   assert.ok(api);
   await assert.rejects(
-    () => api.putEntries("token", tooMany),
+    () => api.putEntries("token", tooMany, "rev"),
     (error: unknown) =>
       error instanceof AccountApiError && error.code === "too-many",
   );
@@ -1557,8 +1557,24 @@ test("a backup of more than 500 entries is refused before upload", async () => {
     Array.from({ length: SYNC_ENTRY_LIMIT }, (_, index) =>
       entry(`fit-${index}`, 1),
     ),
+    "rev",
   );
   assert.deepEqual(fitCalls, ["PUT"]);
+  const bareCalls: string[] = [];
+  const bare = createAccountApi(
+    "https://ihurt-api.test",
+    async (_url, init) => {
+      bareCalls.push(init?.method ?? "GET");
+      return new Response("{}", { status: 200 });
+    },
+  );
+  assert.ok(bare);
+  await assert.rejects(
+    () => bare.putEntries("token", [entry("keep", 1)], ""),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+  assert.deepEqual(bareCalls, []);
   const store = memory();
   grantOptIn(store, "user-a");
   const sent: string[][] = [];
@@ -1780,7 +1796,8 @@ test("backup upload sends notes and pins only", async () => {
     body = String(init?.body ?? "");
     return new Response("{}", { status: 200 });
   });
-  await api?.putEntries("token", [entry]);
+  await api?.putEntries("token", [entry], "rev-1");
+  assert.equal(JSON.parse(body).revision, "rev-1");
   assert.equal(
     body.includes("note-marker") || body.includes("Stiff after a walk."),
     true,
@@ -1805,7 +1822,8 @@ test("a backup payload replaces a private provider", async () => {
     body = String(init?.body ?? "");
     return new Response("{}", { status: 200 });
   });
-  await api?.putEntries("token", [entry]);
+  await api?.putEntries("token", [entry], "rev-1");
+  assert.equal(JSON.parse(body).revision, "rev-1");
   assert.equal(body.includes("provider-marker"), false);
   const incoming = storedEntry(validMap);
   incoming.provider = "server-provider-marker";
@@ -2527,11 +2545,131 @@ test("a delete on another device is not uploaded again", async () => {
     ),
     ["gone"],
   );
-  assert.deepEqual(remoteSync({ entries: [] }), { entries: [], deleted: [] });
+  assert.deepEqual(remoteSync({ entries: [], revision: "1" }), {
+    entries: [],
+    deleted: [],
+    revision: "1",
+  });
   assert.throws(
-    () => remoteSync({ entries: [], deleted: ["gone", "gone"] }),
+    () => remoteSync({ entries: [] }),
     (error: unknown) =>
       error instanceof AccountApiError && error.code === "invalid",
+  );
+  assert.throws(
+    () => remoteSync({ entries: [], deleted: ["gone", "gone"], revision: "1" }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+});
+
+test("a stale snapshot does not replace a newer upload", async () => {
+  let revision = "1";
+  let cloud = [entry("keep", 1)];
+  const start = {
+    entries: [entry("keep", 1)],
+    deleted: [] as string[],
+    revision: "1",
+  };
+  const accepted: string[][] = [];
+  const rejected: string[] = [];
+  const commit = (sent: string | undefined, rows: { id: string }[]) => {
+    if (sent !== undefined && sent !== revision) {
+      rejected.push(sent);
+      throw new AccountApiError(409, "conflict");
+    }
+    const nextIds = new Set(rows.map((row) => row.id));
+    const removed = cloud
+      .filter((row) => !nextIds.has(row.id))
+      .map((row) => row.id);
+    cloud = rows.map((row) => entry(row.id, 1));
+    if (sent !== undefined) {
+      revision = String(Number(revision) + 1);
+      start.deleted = removed;
+    }
+    accepted.push(cloud.map((row) => row.id).sort());
+  };
+  const device = () => {
+    const store = memory();
+    grantOptIn(store, "user-a");
+    return store;
+  };
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("keep", 1), entry("from-a", 1)],
+    now: NOW,
+    store: device(),
+    pull: async () => start,
+    put: async (_token, rows, sent) => commit(sent, rows),
+  });
+  let pulls = 0;
+  await pushBackup({
+    uid: "user-a",
+    token: "token-b",
+    entries: [entry("keep", 1), entry("from-b", 1)],
+    now: NOW,
+    store: device(),
+    pull: async () => {
+      pulls += 1;
+      if (pulls === 1) return start;
+      return {
+        entries: cloud.map((row) => entry(row.id, 1)),
+        deleted: [...start.deleted],
+        revision,
+      };
+    },
+    put: async (_token, rows, sent) => commit(sent, rows),
+  });
+  assert.deepEqual(cloud.map((row) => row.id).sort(), [
+    "from-a",
+    "from-b",
+    "keep",
+  ]);
+  assert.deepEqual(rejected, ["1"]);
+  assert.deepEqual(accepted, [
+    ["from-a", "keep"],
+    ["from-a", "from-b", "keep"],
+  ]);
+
+  revision = "1";
+  cloud = [entry("keep", 1), entry("extra", 1)];
+  start.deleted = [];
+  const opened = {
+    entries: [entry("keep", 1), entry("extra", 1)],
+    deleted: [] as string[],
+    revision: "1",
+  };
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("keep", 1)],
+    now: NOW,
+    store: device(),
+    deletedIds: ["extra"],
+    pull: async () => opened,
+    put: async (_token, rows, sent) => commit(sent, rows),
+  });
+  pulls = 0;
+  await pushBackup({
+    uid: "user-a",
+    token: "token-b",
+    entries: [entry("keep", 1), entry("extra", 1)],
+    now: NOW,
+    store: device(),
+    pull: async () => {
+      pulls += 1;
+      if (pulls === 1) return opened;
+      return {
+        entries: cloud.map((row) => entry(row.id, 1)),
+        deleted: [...start.deleted],
+        revision,
+      };
+    },
+    put: async (_token, rows, sent) => commit(sent, rows),
+  });
+  assert.deepEqual(
+    cloud.map((row) => row.id),
+    ["keep"],
   );
 });
 
@@ -2988,7 +3126,10 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.ok(turnOn > 0 && backupGate >= 0 && backupGate < turnOn);
   const sync = readFileSync(new URL("src/account/sync.ts", root), "utf8");
   const push = sync.indexOf("export async function pushBackup");
-  const uploaded = sync.indexOf("await input.put(input.token, windowed)", push);
+  const uploaded = sync.indexOf(
+    "await input.put(input.token, windowed, pulled.revision)",
+    push,
+  );
   const claimedAfter = sync.indexOf("rememberSeenEntries(", uploaded);
   assert.ok(push > 0 && uploaded > push && claimedAfter > uploaded);
   const beforeUpload = sync.slice(push, uploaded);
@@ -3013,7 +3154,10 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(storedBody.includes("backupOptInFromStorage("), true);
   assert.equal(storedBody.includes("optedIn: next"), true);
   assert.equal(enableBody.includes("sync.deleted"), true);
-  const put = store.indexOf("await api.putEntries(token, windowed)", enable);
+  const put = store.indexOf(
+    "await api.putEntries(token, windowed, sync.revision)",
+    enable,
+  );
   const claimed = store.indexOf("rememberSeenEntries(", put);
   assert.ok(enable > 0 && put > enable && claimed > put);
   const beforePut = store.slice(enable, put);

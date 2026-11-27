@@ -233,7 +233,7 @@ async function runFlow(name, contextOptions, limitCode) {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ entries: cloudEntries }),
+          body: JSON.stringify({ entries: cloudEntries, revision: "browser-1" }),
         });
       }
       if (url.pathname === "/v1/sync" && method === "PUT") {
@@ -369,6 +369,7 @@ async function runFlow(name, contextOptions, limitCode) {
     assert.equal(put.body.includes("alpha-marker"), false);
     assert.equal(put.body.includes("@"), false);
     const payload = JSON.parse(put.body);
+    assert.equal(payload.revision, "browser-1");
     assert.equal(payload.entries.length, 1);
     assert.equal(payload.entries[0].map.title, "");
     assert.equal("email" in payload, false);

@@ -1,4 +1,9 @@
-import { assertSyncEntryLimit } from "./api.ts";
+import {
+  AccountApiError,
+  assertSyncEntryLimit,
+  isBackupConflict,
+  SYNC_UPLOAD_ATTEMPTS,
+} from "./api.ts";
 import {
   backupClock,
   entriesForBackup,
@@ -524,18 +529,30 @@ async function snapshotOf<T>(
 }
 
 function pulledWindow<T extends { id: string }>(
-  value: readonly T[] | { entries: readonly T[]; deleted?: readonly string[] },
-): { entries: readonly T[]; deleted: readonly string[] } {
-  if (Array.isArray(value)) return { entries: value, deleted: [] };
+  value:
+    | readonly T[]
+    | {
+        entries: readonly T[];
+        deleted?: readonly string[];
+        revision?: string;
+      },
+): { entries: readonly T[]; deleted: readonly string[]; revision?: string } {
+  if (Array.isArray(value))
+    return { entries: value, deleted: [], revision: undefined };
   const window = value as {
     entries: readonly T[];
     deleted?: readonly string[];
+    revision?: unknown;
   };
   return {
     entries: window.entries,
     deleted: (window.deleted ?? []).filter(
       (id) => typeof id === "string" && id,
     ),
+    revision:
+      typeof window.revision === "string" && window.revision
+        ? window.revision
+        : undefined,
   };
 }
 
@@ -545,11 +562,14 @@ export async function pushBackup<T extends BackupEntry>(input: {
   entries: Snapshot<T>;
   now: number;
   store: KeyValueStore;
-  put: (token: string, entries: T[]) => Promise<void>;
-  pull?: (
-    token: string,
-  ) => Promise<
-    readonly T[] | { entries: readonly T[]; deleted?: readonly string[] }
+  put: (token: string, entries: T[], revision?: string) => Promise<void>;
+  pull?: (token: string) => Promise<
+    | readonly T[]
+    | {
+        entries: readonly T[];
+        deleted?: readonly string[];
+        revision?: string;
+      }
   >;
   deletedIds?: Snapshot<string>;
   epoch?: number;
@@ -566,102 +586,113 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // delete check, and the PUT stay in one lock, so the later PUT includes
   // the entry the earlier tab already uploaded.
   return withUploadLock(async () => {
-    if (!current()) return [];
-    const pulled = input.pull
-      ? pulledWindow(await input.pull(input.token))
-      : { entries: [] as T[], deleted: [] as string[] };
-    const remote = pulled.entries;
-    // The pull can store these rows before this check. Sign-out during that
-    // write still leaves them on the device, so they stay with this account.
-    if (input.pull) {
-      rememberSeenEntries(
-        input.store,
-        input.uid,
-        remote.map((entry) => entry.id),
-      );
-      rememberDownloaded(
-        input.store,
-        remote.map((entry) => entry.id),
-        input.uid,
-      );
-    }
-    if (!current()) return [];
-    // The list and the tombstones passed in may be from before this pull.
-    // Read them again so a delete during the fetch is not uploaded.
-    const entries = withoutOtherAccountEntries(
-      await snapshotOf(input.entries),
-      input.store,
-      input.uid,
-    );
-    const deleted = new Set(await snapshotOf(input.deletedIds));
-    if (!current()) return [];
-    const priorRemoved = removedIdsFor(input.store, input.uid);
-    const pulledIds = new Set(remote.map((entry) => entry.id));
-    // A pull that returns the id, or a local row whose tombstone is gone, is a
-    // restore. An id still tombstoned stays deleted.
-    const revived = priorRemoved.filter(
-      (id) =>
-        pulledIds.has(id) ||
-        (entries.some((entry) => entry.id === id) && !deleted.has(id)),
-    );
-    releaseRemoteDeletes(input.store, revived, input.uid);
-    const alreadyRemoved = new Set(priorRemoved);
-    // An empty 200 is not a generation. A note missing from that list is not
-    // a delete either: the other device may have uploaded an older snapshot.
-    // Only an id named in `deleted` is removed. The clock follows the newest
-    // stamp in the pull, so a slow device does not treat an aged-out note as
-    // one the server deleted.
-    const clock = backupClock(input.now, remote);
-    const remoteGone = input.pull
-      ? idsDeletedOnServer(
-          syncedIdsFor(input.store, input.uid),
-          entries,
-          pulled.deleted,
-          deleted,
-          clock,
-        ).filter((id) => !alreadyRemoved.has(id))
-      : [];
-    rememberRemoteDeletes(input.store, remoteGone, input.uid);
-    const drop = [
-      ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
-    ].filter((id) => entries.some((entry) => entry.id === id));
-    for (const id of drop) deleted.add(id);
-    if (drop.length > 0) await input.forget?.(drop);
-    if (!current()) return [];
-    const windowed = input.pull
-      ? mergeBackupWindow(entries, remote, deleted, clock)
-      : entriesForBackup(entries, input.now);
-    const localIds = new Set(entries.map((entry) => entry.id));
-    const remoteIds = new Set(remote.map((entry) => entry.id));
-    const omitted = syncedIdsFor(input.store, input.uid).filter((id) => {
-      if (deleted.has(id) || localIds.has(id) || remoteIds.has(id))
-        return false;
-      // A completed pull is the cloud window. An id on neither side is already gone.
-      return !input.pull;
-    });
-    // A list from before the pull is missing account rows and is not a delete.
-    // An entry still on this device but older than the backup window is not missing.
-    if (omitted.length > 0) return [];
-    if (!current()) return [];
-    assertSyncEntryLimit(windowed.length);
-    const upload = await claimUpload(input.store, input.uid);
-    try {
+    for (let attempt = 0; attempt < SYNC_UPLOAD_ATTEMPTS; attempt++) {
       if (!current()) return [];
-      await input.put(input.token, windowed);
-      rememberSeenEntries(
+      const pulled = input.pull
+        ? pulledWindow(await input.pull(input.token))
+        : { entries: [] as T[], deleted: [] as string[], revision: undefined };
+      const remote = pulled.entries;
+      // The pull can store these rows before this check. Sign-out during that
+      // write still leaves them on the device, so they stay with this account.
+      if (input.pull) {
+        rememberSeenEntries(
+          input.store,
+          input.uid,
+          remote.map((entry) => entry.id),
+        );
+        rememberDownloaded(
+          input.store,
+          remote.map((entry) => entry.id),
+          input.uid,
+        );
+      }
+      if (!current()) return [];
+      // The list and the tombstones passed in may be from before this pull.
+      // Read them again so a delete during the fetch is not uploaded.
+      const entries = withoutOtherAccountEntries(
+        await snapshotOf(input.entries),
         input.store,
         input.uid,
-        windowed.map((entry) => entry.id),
       );
-      retainSynced(
-        input.store,
-        windowed.map((entry) => entry.id),
-        input.uid,
+      const deleted = new Set(await snapshotOf(input.deletedIds));
+      if (!current()) return [];
+      const priorRemoved = removedIdsFor(input.store, input.uid);
+      const pulledIds = new Set(remote.map((entry) => entry.id));
+      // A pull that returns the id, or a local row whose tombstone is gone, is a
+      // restore. An id still tombstoned stays deleted.
+      const revived = priorRemoved.filter(
+        (id) =>
+          pulledIds.has(id) ||
+          (entries.some((entry) => entry.id === id) && !deleted.has(id)),
       );
-      return windowed;
-    } finally {
-      await releaseUpload(input.store, input.uid, upload);
+      releaseRemoteDeletes(input.store, revived, input.uid);
+      const alreadyRemoved = new Set(priorRemoved);
+      // An empty 200 is not a generation. A note missing from that list is not
+      // a delete either: the other device may have uploaded an older snapshot.
+      // Only an id named in `deleted` is removed. The clock follows the newest
+      // stamp in the pull, so a slow device does not treat an aged-out note as
+      // one the server deleted.
+      const clock = backupClock(input.now, remote);
+      const remoteGone = input.pull
+        ? idsDeletedOnServer(
+            syncedIdsFor(input.store, input.uid),
+            entries,
+            pulled.deleted,
+            deleted,
+            clock,
+          ).filter((id) => !alreadyRemoved.has(id))
+        : [];
+      rememberRemoteDeletes(input.store, remoteGone, input.uid);
+      const drop = [
+        ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
+      ].filter((id) => entries.some((entry) => entry.id === id));
+      for (const id of drop) deleted.add(id);
+      if (drop.length > 0) await input.forget?.(drop);
+      if (!current()) return [];
+      const windowed = input.pull
+        ? mergeBackupWindow(entries, remote, deleted, clock)
+        : entriesForBackup(entries, input.now);
+      const localIds = new Set(entries.map((entry) => entry.id));
+      const remoteIds = new Set(remote.map((entry) => entry.id));
+      const omitted = syncedIdsFor(input.store, input.uid).filter((id) => {
+        if (deleted.has(id) || localIds.has(id) || remoteIds.has(id))
+          return false;
+        // A completed pull is the cloud window. An id on neither side is already gone.
+        return !input.pull;
+      });
+      // A list from before the pull is missing account rows and is not a delete.
+      // An entry still on this device but older than the backup window is not missing.
+      if (omitted.length > 0) return [];
+      if (!current()) return [];
+      assertSyncEntryLimit(windowed.length);
+      const upload = await claimUpload(input.store, input.uid);
+      try {
+        if (!current()) return [];
+        try {
+          await input.put(input.token, windowed, pulled.revision);
+        } catch (error) {
+          // The other device wrote this snapshot first. Pull that list and
+          // merge again. The rejected body is not the cloud copy.
+          if (isBackupConflict(error) && attempt + 1 < SYNC_UPLOAD_ATTEMPTS)
+            continue;
+          throw error;
+        }
+        rememberSeenEntries(
+          input.store,
+          input.uid,
+          windowed.map((entry) => entry.id),
+        );
+        retainSynced(
+          input.store,
+          windowed.map((entry) => entry.id),
+          input.uid,
+        );
+        return windowed;
+      } finally {
+        await releaseUpload(input.store, input.uid, upload);
+      }
     }
+    throw new AccountApiError(409, "conflict");
   });
 }
 

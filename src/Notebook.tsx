@@ -90,6 +90,7 @@ import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
 import AccountButton from "./account/AccountButton";
+import { withLocalPrivateFields } from "./account/backup.ts";
 import { guardSourceSearch } from "./account/store.ts";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
@@ -540,7 +541,10 @@ export default function Notebook({
               const deleted = new Set(await readDeletedIds());
               const fresh = incoming.filter((entry) => !deleted.has(entry.id));
               if (fresh.length === 0) return;
-              const stored = await storeEntries(fresh);
+              const local = new Map(saved.map((item) => [item.id, item]));
+              const stored = await storeEntries(
+                fresh.map((entry) => withLocalPrivateFields(local.get(entry.id), entry)),
+              );
               setSaved((old) => {
                 const map = new Map(old.map((item) => [item.id, item]));
                 for (const row of stored) map.set(row.id, row);

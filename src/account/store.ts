@@ -16,8 +16,8 @@ import {
   grantOptIn,
   optedIn,
   pushBackup,
-  readSyncedIds,
   rememberSynced,
+  syncedIdsFor,
   type KeyValueStore,
 } from "./sync.ts";
 
@@ -340,5 +340,7 @@ export async function guardSourceSearch(): Promise<boolean> {
 }
 
 export function syncedIds(): string[] {
-  return readSyncedIds(browserStore());
+  const uid = state.session?.uid;
+  if (!uid) return [];
+  return syncedIdsFor(browserStore(), uid);
 }

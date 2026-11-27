@@ -1,6 +1,6 @@
 import { acceptStoredEntry } from "../notebook-data.ts";
 import type { SavedMap } from "../types.ts";
-import type { BackupEntry } from "./backup.ts";
+import { toBackupPayload, type BackupEntry } from "./backup.ts";
 
 export class AccountApiError extends Error {
   readonly status: number;
@@ -140,7 +140,9 @@ export function createAccountApi(
       await request("/v1/account/sync", token, "POST", { optIn: true });
     },
     async putEntries(token, entries) {
-      await request("/v1/sync", token, "PUT", { entries });
+      await request("/v1/sync", token, "PUT", {
+        entries: entries.map((entry) => toBackupPayload(entry)),
+      });
     },
     async getEntries(token) {
       return remoteEntries(await request("/v1/sync", token, "GET"));

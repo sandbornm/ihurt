@@ -904,9 +904,9 @@ export const en = {
   "account.turnOff": "Turn off backup",
   "account.confirmBackupTitle": "Copy entries to this account?",
   "account.confirmBackup": {
-    one: "This copies {count} entry from the last 90 days on this device to this account. Notes and pins are included. Recordings stay on this device.",
+    one: "This copies {count} entry from the last 90 days on this device to this account. Notes and pins are included. Pin comments, source searches, and AI notes stay on this device. Recordings stay on this device.",
     other:
-      "This copies {count} entries from the last 90 days on this device to this account. Notes and pins are included. Recordings stay on this device.",
+      "This copies {count} entries from the last 90 days on this device to this account. Notes and pins are included. Pin comments, source searches, and AI notes stay on this device. Recordings stay on this device.",
   },
   "account.confirmBackupAction": "Copy to this account",
   "account.cancel": "Cancel",

@@ -17,6 +17,8 @@ import {
   backupUploadSet,
   entriesForBackup,
   FREE_SEARCHES,
+  toBackupPayload,
+  withLocalPrivateFields,
   withinBackupWindow,
 } from "../src/account/backup.ts";
 import { readAccountConfig, testRuntimeAllowed } from "../src/account/config.ts";
@@ -37,6 +39,7 @@ import {
   pushBackup,
   readSyncedIds,
   rememberSynced,
+  syncedIdsFor,
   type KeyValueStore,
 } from "../src/account/sync.ts";
 
@@ -248,6 +251,39 @@ test("delete calls the API before wiping local synced entries", async () => {
   assert.equal(optedIn(store, "user-a"), false);
 });
 
+test("each account keeps its own synced ids", async () => {
+  const store = memory();
+  rememberSynced(store, ["from-a"], "user-a");
+  rememberSynced(store, ["from-b"], "user-b");
+  assert.deepEqual(syncedIdsFor(store, "user-a"), ["from-a"]);
+  assert.deepEqual(syncedIdsFor(store, "user-b"), ["from-b"]);
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-b",
+    token: "token-b",
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, ["from-b"]);
+  assert.deepEqual(syncedIdsFor(store, "user-a"), ["from-a"]);
+  const wipedAgain: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wipedAgain.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wipedAgain, ["from-a"]);
+});
+
 test("delete without a backup API keeps the sign-in", async () => {
   const store = memory();
   rememberSynced(store, ["synced"], "user-a");
@@ -416,6 +452,64 @@ test("a backup entry with an empty map is not stored", () => {
   });
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.id, "entry-1");
+});
+
+test("backup upload sends notes and pins only", async () => {
+  const entry = storedEntry({
+    ...validMap,
+    quality: "quality-marker",
+    activity: "activity-marker",
+  });
+  entry.points = [
+    {
+      id: "pin-1",
+      region: "neck",
+      structure: "Sternum",
+      position: [0, 1, 0],
+      comment: "comment-marker",
+    },
+  ];
+  entry.answers = [{ key: "quality", text: "answer-marker" }];
+  entry.ai = {
+    provider: "grok",
+    created: "2026-11-27T00:00:00.000Z",
+    based_on: "fp",
+    map: { ...validMap, summary: "ai-marker" },
+    answers: [],
+  };
+  entry.research = {
+    activity: "Walking",
+    description: "research-marker",
+    regions: ["neck"],
+    checked: "2026-11-27T00:00:00.000Z",
+    references: [],
+  };
+  entry.references = [
+    {
+      title: "ref-marker",
+      url: "https://example.org/reading",
+      publisher: "Publisher",
+    },
+  ];
+  const payload = toBackupPayload(entry);
+  const kept = withLocalPrivateFields(entry, payload);
+  assert.equal(kept.points?.[0]?.comment, "comment-marker");
+  assert.equal(kept.answers[0]?.text, "answer-marker");
+  assert.equal(kept.research?.description, "research-marker");
+  assert.equal(kept.ai?.map.summary, "ai-marker");
+  let body = "";
+  const api = createAccountApi("https://api.ihurt.app", async (_url, init) => {
+    body = String(init?.body ?? "");
+    return new Response("{}", { status: 200 });
+  });
+  await api?.putEntries("token", [entry]);
+  assert.equal(body.includes("note-marker") || body.includes("Stiff after a walk."), true);
+  assert.equal(body.includes("comment-marker"), false);
+  assert.equal(body.includes("ai-marker"), false);
+  assert.equal(body.includes("research-marker"), false);
+  assert.equal(body.includes("answer-marker"), false);
+  assert.equal(body.includes("ref-marker"), false);
+  assert.equal(body.includes("quality-marker"), false);
 });
 
 test("map review does not spend a source search", () => {

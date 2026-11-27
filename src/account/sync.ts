@@ -11,14 +11,35 @@ export interface KeyValueStore {
   removeItem(key: string): void;
 }
 
-export function readSyncedIds(store: KeyValueStore): string[] {
+function idsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is string => typeof id === "string");
+}
+
+// One list per account. An older build stored a single list plus a uid.
+function readBook(store: KeyValueStore): Record<string, string[]> {
   try {
-    const parsed = JSON.parse(store.getItem(SYNCED_IDS_KEY) || "[]") as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is string => typeof id === "string");
+    const parsed = JSON.parse(store.getItem(SYNCED_IDS_KEY) || "{}") as unknown;
+    if (Array.isArray(parsed)) {
+      const uid = store.getItem(SYNCED_UID_KEY);
+      return uid ? { [uid]: idsOf(parsed) } : {};
+    }
+    if (!parsed || typeof parsed !== "object") return {};
+    const book: Record<string, string[]> = {};
+    for (const [uid, ids] of Object.entries(parsed)) book[uid] = idsOf(ids);
+    return book;
   } catch {
-    return [];
+    return {};
   }
+}
+
+function writeBook(store: KeyValueStore, book: Record<string, string[]>) {
+  store.setItem(SYNCED_IDS_KEY, JSON.stringify(book));
+  store.removeItem(SYNCED_UID_KEY);
+}
+
+export function readSyncedIds(store: KeyValueStore): string[] {
+  return [...new Set(Object.values(readBook(store)).flat())];
 }
 
 export function optedIn(store: KeyValueStore, uid: string): boolean {
@@ -38,8 +59,7 @@ export function clearOptIn(store: KeyValueStore) {
 }
 
 export function syncedIdsFor(store: KeyValueStore, uid: string): string[] {
-  if (store.getItem(SYNCED_UID_KEY) !== uid) return [];
-  return readSyncedIds(store);
+  return readBook(store)[uid] ?? [];
 }
 
 export function rememberSynced(
@@ -47,16 +67,21 @@ export function rememberSynced(
   ids: readonly string[],
   uid: string,
 ) {
-  const owned =
-    store.getItem(SYNCED_UID_KEY) === uid ? readSyncedIds(store) : [];
-  store.setItem(SYNCED_UID_KEY, uid);
-  store.setItem(SYNCED_IDS_KEY, JSON.stringify([...new Set([...owned, ...ids])]));
+  const book = readBook(store);
+  book[uid] = [...new Set([...(book[uid] ?? []), ...ids])];
+  writeBook(store, book);
 }
 
 export function clearSynced(store: KeyValueStore, uid?: string) {
-  if (uid && store.getItem(SYNCED_UID_KEY) !== uid) return;
-  store.removeItem(SYNCED_IDS_KEY);
-  store.removeItem(SYNCED_UID_KEY);
+  if (!uid) {
+    store.removeItem(SYNCED_IDS_KEY);
+    store.removeItem(SYNCED_UID_KEY);
+    return;
+  }
+  const book = readBook(store);
+  if (!(uid in book)) return;
+  delete book[uid];
+  writeBook(store, book);
 }
 
 export async function pushBackup<T extends BackupEntry>(input: {

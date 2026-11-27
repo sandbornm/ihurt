@@ -939,9 +939,9 @@ export const es: Messages = {
   "account.turnOff": "Desactivar copia",
   "account.confirmBackupTitle": "¿Copiar las entradas a esta cuenta?",
   "account.confirmBackup": {
-    one: "Esto copia {count} entrada de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen notas y pines. Las grabaciones se quedan en este dispositivo.",
+    one: "Esto copia {count} entrada de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen las notas y los pines. Los comentarios de los pines, las búsquedas de fuentes y las notas de la IA se quedan en este dispositivo. Las grabaciones se quedan en este dispositivo.",
     other:
-      "Esto copia {count} entradas de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen notas y pines. Las grabaciones se quedan en este dispositivo.",
+      "Esto copia {count} entradas de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen las notas y los pines. Los comentarios de los pines, las búsquedas de fuentes y las notas de la IA se quedan en este dispositivo. Las grabaciones se quedan en este dispositivo.",
   },
   "account.confirmBackupAction": "Copiar a esta cuenta",
   "account.cancel": "Cancelar",

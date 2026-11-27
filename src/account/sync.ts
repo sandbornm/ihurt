@@ -463,73 +463,77 @@ export async function pushBackup<T extends BackupEntry>(input: {
     sameEpoch() &&
     !accountDeleting(input.store, input.uid);
   if (!current()) return [];
-  const remote = input.pull ? await input.pull(input.token) : [];
-  // The pull can store these rows before this check. Sign-out during that
-  // write still leaves them on the device, so they stay with this account.
-  if (input.pull) {
-    rememberSeenEntries(
-      input.store,
-      input.uid,
-      remote.map((entry) => entry.id),
-    );
-    rememberDownloaded(
-      input.store,
-      remote.map((entry) => entry.id),
-      input.uid,
-    );
-  }
-  if (!current()) return [];
-  // The list and the tombstones passed in may be from before this pull.
-  // Read them again so a delete during the fetch is not uploaded.
-  const entries = withoutOtherAccountEntries(
-    await snapshotOf(input.entries),
-    input.store,
-    input.uid,
-  );
-  const deleted = new Set(await snapshotOf(input.deletedIds));
-  if (!current()) return [];
-  const priorRemoved = removedIdsFor(input.store, input.uid);
-  const pulledIds = new Set(remote.map((entry) => entry.id));
-  // A pull that returns the id, or a local row whose tombstone is gone, is a
-  // restore. An id still tombstoned stays deleted.
-  const revived = priorRemoved.filter(
-    (id) =>
-      pulledIds.has(id) ||
-      (entries.some((entry) => entry.id === id) && !deleted.has(id)),
-  );
-  releaseRemoteDeletes(input.store, revived, input.uid);
-  const alreadyRemoved = new Set(priorRemoved);
-  const remoteGone = input.pull
-    ? idsDeletedOnServer(
-        syncedIdsFor(input.store, input.uid),
-        entries,
-        remote,
-        deleted,
-        input.now,
-      ).filter((id) => !alreadyRemoved.has(id))
-    : [];
-  rememberRemoteDeletes(input.store, remoteGone, input.uid);
-  const drop = [
-    ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
-  ].filter((id) => entries.some((entry) => entry.id === id));
-  for (const id of drop) deleted.add(id);
-  if (drop.length > 0) await input.forget?.(drop);
-  if (!current()) return [];
-  const windowed = input.pull
-    ? mergeBackupWindow(entries, remote, deleted, input.now)
-    : entriesForBackup(entries, input.now);
-  const localIds = new Set(entries.map((entry) => entry.id));
-  const remoteIds = new Set(remote.map((entry) => entry.id));
-  const omitted = syncedIdsFor(input.store, input.uid).filter((id) => {
-    if (deleted.has(id) || localIds.has(id) || remoteIds.has(id)) return false;
-    // A completed pull is the cloud window. An id on neither side is already gone.
-    return !input.pull;
-  });
-  // A list from before the pull is missing account rows and is not a delete.
-  // An entry still on this device but older than the backup window is not missing.
-  if (omitted.length > 0) return [];
-  if (!current()) return [];
+  // Another tab can save while this one is still reading. The pull, the
+  // delete check, and the PUT stay in one lock, so the later PUT includes
+  // the entry the earlier tab already uploaded.
   return withUploadLock(async () => {
+    if (!current()) return [];
+    const remote = input.pull ? await input.pull(input.token) : [];
+    // The pull can store these rows before this check. Sign-out during that
+    // write still leaves them on the device, so they stay with this account.
+    if (input.pull) {
+      rememberSeenEntries(
+        input.store,
+        input.uid,
+        remote.map((entry) => entry.id),
+      );
+      rememberDownloaded(
+        input.store,
+        remote.map((entry) => entry.id),
+        input.uid,
+      );
+    }
+    if (!current()) return [];
+    // The list and the tombstones passed in may be from before this pull.
+    // Read them again so a delete during the fetch is not uploaded.
+    const entries = withoutOtherAccountEntries(
+      await snapshotOf(input.entries),
+      input.store,
+      input.uid,
+    );
+    const deleted = new Set(await snapshotOf(input.deletedIds));
+    if (!current()) return [];
+    const priorRemoved = removedIdsFor(input.store, input.uid);
+    const pulledIds = new Set(remote.map((entry) => entry.id));
+    // A pull that returns the id, or a local row whose tombstone is gone, is a
+    // restore. An id still tombstoned stays deleted.
+    const revived = priorRemoved.filter(
+      (id) =>
+        pulledIds.has(id) ||
+        (entries.some((entry) => entry.id === id) && !deleted.has(id)),
+    );
+    releaseRemoteDeletes(input.store, revived, input.uid);
+    const alreadyRemoved = new Set(priorRemoved);
+    const remoteGone = input.pull
+      ? idsDeletedOnServer(
+          syncedIdsFor(input.store, input.uid),
+          entries,
+          remote,
+          deleted,
+          input.now,
+        ).filter((id) => !alreadyRemoved.has(id))
+      : [];
+    rememberRemoteDeletes(input.store, remoteGone, input.uid);
+    const drop = [
+      ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
+    ].filter((id) => entries.some((entry) => entry.id === id));
+    for (const id of drop) deleted.add(id);
+    if (drop.length > 0) await input.forget?.(drop);
+    if (!current()) return [];
+    const windowed = input.pull
+      ? mergeBackupWindow(entries, remote, deleted, input.now)
+      : entriesForBackup(entries, input.now);
+    const localIds = new Set(entries.map((entry) => entry.id));
+    const remoteIds = new Set(remote.map((entry) => entry.id));
+    const omitted = syncedIdsFor(input.store, input.uid).filter((id) => {
+      if (deleted.has(id) || localIds.has(id) || remoteIds.has(id))
+        return false;
+      // A completed pull is the cloud window. An id on neither side is already gone.
+      return !input.pull;
+    });
+    // A list from before the pull is missing account rows and is not a delete.
+    // An entry still on this device but older than the backup window is not missing.
+    if (omitted.length > 0) return [];
     if (!current()) return [];
     const upload = await claimUpload(input.store, input.uid);
     try {

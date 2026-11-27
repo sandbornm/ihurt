@@ -1537,6 +1537,110 @@ test("a delete blocks an upload that starts after the wait", async () => {
   assert.equal(optedIn(store, "user-a"), false);
 });
 
+test("the privacy manifest lists backup notes and the account id", () => {
+  const root = new URL("../", import.meta.url);
+  const plist = readFileSync(
+    new URL("ios/App/App/PrivacyInfo.xcprivacy", root),
+    "utf8",
+  );
+  for (const type of [
+    "NSPrivacyCollectedDataTypeHealth",
+    "NSPrivacyCollectedDataTypeUserID",
+  ]) {
+    const at = plist.indexOf(type);
+    assert.ok(at > 0);
+    const block = plist.slice(at, plist.indexOf("</dict>", at));
+    assert.equal(
+      block.includes(
+        "<key>NSPrivacyCollectedDataTypeLinked</key>\n      <true/>",
+      ),
+      true,
+    );
+    assert.equal(
+      block.includes(
+        "<key>NSPrivacyCollectedDataTypeTracking</key>\n      <false/>",
+      ),
+      true,
+    );
+    assert.equal(
+      block.includes("NSPrivacyCollectedDataTypePurposeAppFunctionality"),
+      true,
+    );
+  }
+});
+
+test("a second tab keeps the entry the first tab uploaded", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const epoch = backupEpoch(store);
+  let server = [];
+  const puts = [];
+  let releaseFirst = () => {};
+  const gate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  let firstPutStarted = false;
+  const first = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("from-b", 1)],
+    now: NOW,
+    store,
+    epoch,
+    pull: async () => server.map((row) => ({ ...row })),
+    put: async (_token, rows) => {
+      firstPutStarted = true;
+      await gate;
+      server = rows.map((row) => ({ ...row }));
+      puts.push(rows.map((row) => row.id).sort());
+    },
+  });
+  for (let attempt = 0; attempt < 20 && !firstPutStarted; attempt += 1)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(firstPutStarted, true);
+  const forgotten = [];
+  const second = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("from-a", 1)],
+    now: NOW,
+    store,
+    epoch,
+    pull: async () => server.map((row) => ({ ...row })),
+    put: async (_token, rows) => {
+      server = rows.map((row) => ({ ...row }));
+      puts.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(...ids);
+    },
+  });
+  for (let attempt = 0; attempt < 5; attempt += 1)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  releaseFirst();
+  await first;
+  await second;
+  assert.deepEqual(puts.at(-1), ["from-a", "from-b"]);
+  const again = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("from-a", 1), entry("from-b", 1)],
+    now: NOW,
+    store,
+    epoch,
+    pull: async () => server.map((row) => ({ ...row })),
+    put: async (_token, rows) => {
+      again.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(...ids);
+    },
+  });
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(again, [["from-a", "from-b"]]);
+});
+
 test("a backup still blocks deletion after the upload lease", async () => {
   const store = memory();
   grantOptIn(store, "user-a");

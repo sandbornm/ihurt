@@ -107,13 +107,28 @@ function browserStore(): KeyValueStore {
   return localStorage;
 }
 
+// A token refresh for the same account keeps the search count. A different
+// account starts blank, including when that account's status request fails.
+export function remainingForSession(
+  previousUid: string | null,
+  previousRemaining: number | null,
+  nextUid: string | null,
+): number | null {
+  if (nextUid === null || nextUid !== previousUid) return null;
+  return previousRemaining;
+}
+
 function applySession(session: AccountSession | null) {
   setState({
     ...state,
     status: "ready",
     session,
     optedIn: session ? optedIn(browserStore(), session.uid) : false,
-    remaining: session ? state.remaining : null,
+    remaining: remainingForSession(
+      state.session?.uid ?? null,
+      state.remaining,
+      session?.uid ?? null,
+    ),
     busy: false,
   });
   if (session && api) void refreshAccount();

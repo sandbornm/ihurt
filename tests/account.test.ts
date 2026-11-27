@@ -12,6 +12,7 @@ import {
 } from "../src/account/api.ts";
 import { accountEventBody, createAnalytics } from "../src/account/analytics.ts";
 import { readTestRuntime } from "../src/account/auth.ts";
+import { remainingForSession } from "../src/account/store.ts";
 import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
   BACKUP_DAYS,
@@ -2631,6 +2632,26 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(auth.includes("REFRESH_KEY"), false);
   assert.equal(auth.includes("passkeySignIn"), false);
   assert.equal(auth.includes("passkeyEnrollment"), false);
+});
+
+test("another account does not keep the previous search allowance", () => {
+  assert.equal(remainingForSession("user-a", 4, "user-a"), 4);
+  assert.equal(remainingForSession("user-a", 4, "user-b"), null);
+  assert.equal(remainingForSession("user-a", 4, null), null);
+  assert.equal(remainingForSession(null, null, "user-b"), null);
+  const root = new URL("../", import.meta.url);
+  const store = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const refresh = store.slice(
+    store.indexOf("export async function refreshAccount"),
+    store.indexOf("export async function signIn"),
+  );
+  const failed = refresh.slice(refresh.indexOf("} catch"));
+  assert.equal(failed.includes("remaining"), false);
+  const apply = store.slice(
+    store.indexOf("function applySession"),
+    store.indexOf("function wire"),
+  );
+  assert.equal(apply.includes("remainingForSession("), true);
 });
 
 test("map review does not spend a source search", () => {

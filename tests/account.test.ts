@@ -766,6 +766,42 @@ test("a backup started before sign-out does not upload after the same account re
   assert.equal(optedIn(store, "user-a"), true);
 });
 
+test("a delete during the pull is left out of the upload", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  let entries = [entry("keep", 1), entry("gone", 1)];
+  let deleted: string[] = [];
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent: string[][] = [];
+  const pending = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: () => entries,
+    now: NOW,
+    store,
+    deletedIds: () => deleted,
+    pull: async () => {
+      await gate;
+      return [entry("keep", 1), entry("gone", 1)];
+    },
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  entries = [entry("keep", 1)];
+  deleted = ["gone"];
+  release();
+  const pushed = await pending;
+  assert.deepEqual(
+    pushed.map((row) => row.id),
+    ["keep"],
+  );
+  assert.deepEqual(sent, [["keep"]]);
+});
+
 test("turning backup off during the pull skips the upload", async () => {
   const store = memory();
   grantOptIn(store, "user-a");

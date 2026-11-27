@@ -137,27 +137,39 @@ export function clearSynced(store: KeyValueStore, uid?: string) {
   writeBook(store, book);
 }
 
+type Snapshot<T> = readonly T[] | (() => readonly T[] | Promise<readonly T[]>);
+
+async function snapshotOf<T>(value: Snapshot<T> | undefined): Promise<readonly T[]> {
+  if (typeof value === "function") return await value();
+  return value ?? [];
+}
+
 export async function pushBackup<T extends BackupEntry>(input: {
   uid: string;
   token: string;
-  entries: readonly T[];
+  entries: Snapshot<T>;
   now: number;
   store: KeyValueStore;
   put: (token: string, entries: T[]) => Promise<void>;
   pull?: (token: string) => Promise<readonly T[]>;
-  deletedIds?: readonly string[];
+  deletedIds?: Snapshot<string>;
   epoch?: number;
 }): Promise<T[]> {
   const sameEpoch = () =>
     input.epoch === undefined || backupEpoch(input.store) === input.epoch;
-  if (!optedIn(input.store, input.uid) || !sameEpoch()) return [];
-  const deleted = new Set(input.deletedIds ?? []);
+  const current = () => optedIn(input.store, input.uid) && sameEpoch();
+  if (!current()) return [];
   const remote = input.pull ? await input.pull(input.token) : [];
-  if (!optedIn(input.store, input.uid) || !sameEpoch()) return [];
+  if (!current()) return [];
+  // The list and the tombstones passed in may be from before this pull.
+  // Read them again so a delete during the fetch is not uploaded.
+  const entries = await snapshotOf(input.entries);
+  const deleted = new Set(await snapshotOf(input.deletedIds));
+  if (!current()) return [];
   const windowed = input.pull
-    ? mergeBackupWindow(input.entries, remote, deleted, input.now)
-    : entriesForBackup(input.entries, input.now);
-  const localIds = new Set(input.entries.map((entry) => entry.id));
+    ? mergeBackupWindow(entries, remote, deleted, input.now)
+    : entriesForBackup(entries, input.now);
+  const localIds = new Set(entries.map((entry) => entry.id));
   const remoteIds = new Set(remote.map((entry) => entry.id));
   const omitted = syncedIdsFor(input.store, input.uid).filter((id) => {
     if (deleted.has(id) || localIds.has(id) || remoteIds.has(id)) return false;
@@ -167,7 +179,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // A list from before the pull is missing account rows and is not a delete.
   // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
-  if (!optedIn(input.store, input.uid) || !sameEpoch()) return [];
+  if (!current()) return [];
   await input.put(input.token, windowed);
   retainSynced(
     input.store,

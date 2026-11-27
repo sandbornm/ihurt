@@ -8,6 +8,7 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
+import { readDeletedIds } from "../notebook-storage.ts";
 import { BACKUP_DAYS, entriesForBackup, type BackupEntry } from "./backup.ts";
 import { readAccountConfig, testRuntimeAllowed, type AccountConfig } from "./config.ts";
 import {
@@ -56,6 +57,8 @@ let analytics: AccountAnalytics = createAnalytics("");
 const listeners = new Set<() => void>();
 let started = false;
 let pushChain: Promise<void> = Promise.resolve();
+let latestEntries: readonly BackupEntry[] = [];
+let latestDeleted: readonly string[] = [];
 
 function emit() {
   for (const listener of listeners) listener();
@@ -267,6 +270,8 @@ export function pushBackupEntries(
 ) {
   const session = state.session;
   if (!session || !api || !optedIn(browserStore(), session.uid)) return;
+  latestEntries = entries;
+  latestDeleted = deletedIds;
   const uid = session.uid;
   const current = api;
   const epoch = backupEpoch(browserStore());
@@ -280,10 +285,13 @@ export function pushBackupEntries(
       await pushBackup({
         uid,
         token,
-        entries,
+        entries: () => latestEntries,
         now: Date.now(),
         store: browserStore(),
-        deletedIds,
+        deletedIds: async () => {
+          const stored = await readDeletedIds();
+          return [...new Set([...latestDeleted, ...stored])];
+        },
         epoch,
         pull: (next) => current.getEntries(next),
         put: (next, rows) => current.putEntries(next, rows),

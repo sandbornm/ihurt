@@ -238,6 +238,18 @@ export async function enableBackup(
       await clearDeletedIds(revived);
     }
     const merged = await onMerge(remote);
+    if (Array.isArray(merged)) {
+      rememberSeenEntries(
+        browserStore(),
+        session.uid,
+        merged.map((entry) => entry.id),
+      );
+      rememberDownloaded(
+        browserStore(),
+        merged.map((entry) => entry.id),
+        session.uid,
+      );
+    }
     if (
       state.session?.uid !== session.uid ||
       backupEpoch(browserStore()) !== epoch
@@ -249,16 +261,6 @@ export async function enableBackup(
       setState({ ...state, busy: false, error: "error" });
       return;
     }
-    rememberSeenEntries(
-      browserStore(),
-      session.uid,
-      merged.map((entry) => entry.id),
-    );
-    rememberDownloaded(
-      browserStore(),
-      merged.map((entry) => entry.id),
-      session.uid,
-    );
     const snapshot = await readBackupSnapshot();
     const deletedNow = new Set(snapshot.deletedIds);
     const kept = snapshot.entries.filter((entry) => !deletedNow.has(entry.id));

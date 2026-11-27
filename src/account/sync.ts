@@ -311,7 +311,8 @@ export async function pushBackup<T extends BackupEntry>(input: {
   const current = () => optedIn(input.store, input.uid) && sameEpoch();
   if (!current()) return [];
   const remote = input.pull ? await input.pull(input.token) : [];
-  if (!current()) return [];
+  // The pull can store these rows before this check. Sign-out during that
+  // write still leaves them on the device, so they stay with this account.
   if (input.pull) {
     rememberSeenEntries(
       input.store,
@@ -324,6 +325,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
       input.uid,
     );
   }
+  if (!current()) return [];
   // The list and the tombstones passed in may be from before this pull.
   // Read them again so a delete during the fetch is not uploaded.
   const entries = withoutOtherAccountEntries(

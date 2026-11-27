@@ -870,6 +870,51 @@ test("turning backup off during the pull skips the upload", async () => {
   assert.deepEqual(sent, []);
 });
 
+test("a note stored from a pull stays with that account after sign-out", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const epoch = backupEpoch(store);
+  const cloud = entry("from-a", 1);
+  const local = entry("local-only", 1);
+  const pending = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [local],
+    now: NOW,
+    store,
+    epoch,
+    pull: async () => {
+      nextBackupEpoch(store);
+      clearOptIn(store);
+      return [cloud];
+    },
+    put: async () => {
+      throw new Error("should not upload");
+    },
+  });
+  assert.deepEqual(await pending, []);
+  assert.deepEqual(
+    withoutOtherAccountEntries([cloud, local], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["local-only"],
+  );
+  grantOptIn(store, "user-b");
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [cloud, local],
+    now: NOW,
+    store,
+    pull: async () => [],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["local-only"]]);
+});
+
 function storedEntry(map: unknown) {
   return {
     id: "entry-1",
@@ -1908,6 +1953,10 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(beforeUpload.includes("rememberSeenEntries("), true);
   assert.equal(beforeUpload.includes("rememberDownloaded("), true);
   assert.equal(beforeUpload.includes("remote.map((entry) => entry.id)"), true);
+  const pullAt = beforeUpload.indexOf("await input.pull");
+  const claimedAt = beforeUpload.indexOf("rememberSeenEntries(");
+  const abortAt = beforeUpload.indexOf("if (!current()) return []", pullAt);
+  assert.ok(pullAt >= 0 && claimedAt > pullAt && abortAt > claimedAt);
   const enable = store.indexOf("export async function enableBackup");
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
   const claimed = store.indexOf("rememberSeenEntries(", put);
@@ -1916,6 +1965,15 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(beforePut.includes("rememberSeenEntries("), true);
   assert.equal(beforePut.includes("rememberDownloaded("), true);
   assert.equal(beforePut.includes("merged.map((entry) => entry.id)"), true);
+  const mergedAt = beforePut.indexOf("const merged = await onMerge(remote)");
+  const afterMerge = beforePut.slice(mergedAt);
+  const claimedMerge = afterMerge.indexOf("rememberSeenEntries(");
+  const epochAfterMerge = afterMerge.indexOf(
+    "backupEpoch(browserStore()) !== epoch",
+  );
+  assert.ok(
+    mergedAt >= 0 && claimedMerge > 0 && epochAfterMerge > claimedMerge,
+  );
   assert.equal(store.includes("await onMerge?.(remote)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);
   assert.equal(store.includes("rememberRemoteDeletes("), true);

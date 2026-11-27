@@ -366,6 +366,18 @@ export function entryKeptAfterRemoteDelete(
   return { ...open, id: nextId };
 }
 
+// Account deletion removes the backed entry. A remote delete can keep a newer
+// local edit under a new id. Deletion must not.
+export function entryKeptAfterRemove(
+  open: SavedMap,
+  prior: SavedMap | undefined,
+  nextId: string,
+  reason: "remote" | "account",
+): SavedMap | null {
+  if (reason === "account") return null;
+  return entryKeptAfterRemoteDelete(open, prior, nextId);
+}
+
 // A later backup pull replaces the journal row. Skip the update when the
 // visible fields are unchanged, so the save effect does not upload again.
 export function savedAfterBackupPull(

@@ -21,6 +21,7 @@ import {
   idsDeletedOnServer,
   mergeBackupWindow,
   entryKeptAfterRemoteDelete,
+  entryKeptAfterRemove,
   remoteDeleteClosesEditor,
   savedAfterBackupPull,
   toBackupPayload,
@@ -1460,13 +1461,13 @@ test("a remote delete closes the entry opened while the pull was in flight", () 
   );
   const root = new URL("../", import.meta.url);
   const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
-  const start = notebook.indexOf("onRemove={async (ids)");
+  const start = notebook.indexOf("onRemove={async (ids, reason)");
   assert.ok(start > 0);
   const block = notebook.slice(start, notebook.indexOf("/>", start));
   assert.equal(block.includes("entryRef.current.id"), true);
   assert.equal(block.includes("entry.id"), false);
-  assert.equal(block.includes("entryKeptAfterRemoteDelete("), true);
-  const keptAt = block.indexOf("entryKeptAfterRemoteDelete(");
+  assert.equal(block.includes("entryKeptAfterRemove("), true);
+  const keptAt = block.indexOf("entryKeptAfterRemove(");
   const blankAt = block.indexOf("blankEntry()", keptAt);
   assert.ok(keptAt > 0 && blankAt > keptAt);
 });
@@ -1507,6 +1508,44 @@ test("typing during a remote delete keeps the draft as a new entry", () => {
     entryKeptAfterRemoteDelete({ ...prior, note: "" }, undefined, "unused"),
     null,
   );
+  assert.equal(
+    entryKeptAfterRemove(typed, prior, "kept-copy", "remote")?.note,
+    "typed while the pull was open",
+  );
+});
+
+test("account deletion does not keep an edited open entry", () => {
+  const prior = {
+    id: "open",
+    created: new Date(NOW).toISOString(),
+    updated: new Date(NOW).toISOString(),
+    note: "backed",
+    provider: "notes",
+    answers: [],
+    points: [],
+    map: {
+      title: "",
+      summary: "backed",
+      regions: [],
+      quality: "",
+      activity: "",
+      duration: "",
+      intensity: null,
+      question: null,
+      urgent: false,
+      safety_message: null,
+    },
+  };
+  const typed = {
+    ...prior,
+    note: "edited while deleting",
+    noteUpdated: new Date(NOW + 1000).toISOString(),
+  };
+  assert.equal(entryKeptAfterRemove(typed, prior, "copy", "account"), null);
+  assert.equal(
+    entryKeptAfterRemove(typed, prior, "copy", "remote")?.id,
+    "copy",
+  );
 });
 
 test("a backup pull reads private fields from the stored row", () => {
@@ -1543,7 +1582,13 @@ test("a later save applies the downloaded note before the next upload", () => {
     "utf8",
   );
   assert.equal(
-    button.includes("pushBackupEntries(entries, deleted, onMerge, onRemove)"),
+    button.includes(
+      'pushBackupEntries(entries, deleted, onMerge, (ids) =>\n          onRemove(ids, "remote"),',
+    ),
+    true,
+  );
+  assert.equal(
+    button.includes('deleteAccount((ids) => onRemove(ids, "account"))'),
     true,
   );
   assert.equal(button.includes("rememberSeenEntries("), true);

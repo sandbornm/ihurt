@@ -47,7 +47,7 @@ export default function AccountButton({
   entries: readonly BackupEntry[];
   ready: boolean;
   onMerge: (entries: SavedMap[]) => Promise<readonly SavedMap[] | void>;
-  onRemove: (ids: string[]) => Promise<void>;
+  onRemove: (ids: string[], reason: "remote" | "account") => Promise<void>;
 }) {
   useEffect(() => {
     startAccount();
@@ -75,7 +75,10 @@ export default function AccountButton({
       );
     }
     void readDeletedIds().then((deleted) => {
-      if (!cancel) pushBackupEntries(entries, deleted, onMerge, onRemove);
+      if (!cancel)
+        pushBackupEntries(entries, deleted, onMerge, (ids) =>
+          onRemove(ids, "remote"),
+        );
     });
     return () => {
       cancel = true;
@@ -183,13 +186,16 @@ export default function AccountButton({
               disabled={snapshot.busy}
               onClick={() =>
                 void run(async () => {
-                  await enableBackup(async (remote) => {
-                    const deleted = new Set(await readDeletedIds());
-                    const kept = remote.filter(
-                      (entry) => !deleted.has(entry.id),
-                    );
-                    return (await onMerge(kept)) ?? [];
-                  }, onRemove);
+                  await enableBackup(
+                    async (remote) => {
+                      const deleted = new Set(await readDeletedIds());
+                      const kept = remote.filter(
+                        (entry) => !deleted.has(entry.id),
+                      );
+                      return (await onMerge(kept)) ?? [];
+                    },
+                    (ids) => onRemove(ids, "remote"),
+                  );
                   setStep("home");
                 })
               }
@@ -214,7 +220,7 @@ export default function AccountButton({
               disabled={snapshot.busy}
               onClick={() =>
                 void run(async () => {
-                  await deleteAccount(onRemove);
+                  await deleteAccount((ids) => onRemove(ids, "account"));
                   setStep("home");
                   setOpen(false);
                 })

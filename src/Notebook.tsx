@@ -92,7 +92,7 @@ import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
 import AccountButton from "./account/AccountButton";
 import {
-  entryKeptAfterRemoteDelete,
+  entryKeptAfterRemove,
   journalSignature,
   remoteDeleteClosesEditor,
   savedAfterBackupPull,
@@ -577,14 +577,15 @@ export default function Notebook({
               }
               return stored;
             }}
-            onRemove={async (ids) => {
+            onRemove={async (ids, reason) => {
               for (const id of ids) await removeEntry(id);
               setSaved((old) => old.filter((item) => !ids.includes(item.id)));
               if (!remoteDeleteClosesEditor(entryRef.current.id, ids)) return;
-              const kept = entryKeptAfterRemoteDelete(
+              const kept = entryKeptAfterRemove(
                 entryRef.current,
                 saved.find((item) => item.id === entryRef.current.id),
                 crypto.randomUUID(),
+                reason,
               );
               if (kept) {
                 const [row] = await storeEntries([kept]);

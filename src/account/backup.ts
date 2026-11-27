@@ -90,6 +90,16 @@ export function idsDeletedOnServer<T extends BackupEntry>(
 // The confirm screen and the upload have to name the same rows. A row saved
 // in another tab changes the snapshot, so the first click shows that count
 // again instead of sending it.
+// The confirm screen belongs to the account that was signed in when it opened.
+// Another tab signing in as someone else has to start that confirmation again.
+export function confirmAccountDecision(
+  confirmedUid: string | null,
+  currentUid: string | null,
+): "proceed" | "refresh" {
+  if (confirmedUid === null || confirmedUid !== currentUid) return "refresh";
+  return "proceed";
+}
+
 export function backupConfirmDecision(
   shownIds: readonly string[],
   snapshotIds: readonly string[],

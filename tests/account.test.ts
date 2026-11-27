@@ -22,6 +22,7 @@ import {
   backupClock,
   backupConfirmDecision,
   backupEnableDecision,
+  confirmAccountDecision,
   backupRowsAfterMerge,
   backupUploadSet,
   entriesForBackup,
@@ -1012,6 +1013,43 @@ test("a backup confirm waits when another tab saved a row", () => {
   const enableAt = confirm.indexOf("enableBackup(");
   assert.ok(readAt > 0 && decisionAt > readAt && enableAt > decisionAt);
   assert.equal(confirm.includes('"refresh"'), true);
+});
+
+test("a confirmation opened for one account does not run for another", () => {
+  assert.equal(confirmAccountDecision("user-a", "user-a"), "proceed");
+  assert.equal(confirmAccountDecision("user-a", "user-b"), "refresh");
+  assert.equal(confirmAccountDecision("user-a", null), "refresh");
+  const root = new URL("../", import.meta.url);
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  const backup = button.slice(
+    button.indexOf('step === "confirm-backup" &&'),
+    button.indexOf('step === "confirm-delete" &&'),
+  );
+  const accountAt = backup.indexOf("confirmAccountDecision(");
+  const enableAt = backup.indexOf("enableBackup(");
+  assert.ok(accountAt > 0 && enableAt > accountAt);
+  assert.equal(backup.slice(accountAt, enableAt).includes('"refresh"'), true);
+  const deletion = button.slice(button.indexOf('step === "confirm-delete" &&'));
+  const deleteAccountAt = deletion.indexOf("deleteAccount(");
+  const deleteDecision = deletion.indexOf("confirmAccountDecision(");
+  assert.ok(deleteDecision > 0 && deleteAccountAt > deleteDecision);
+  assert.equal(
+    deletion.slice(deleteDecision, deleteAccountAt).includes('"refresh"'),
+    true,
+  );
+  const turnOn = button.slice(
+    button.indexOf('t("account.turnOn")') - 400,
+    button.indexOf('t("account.turnOn")'),
+  );
+  assert.equal(turnOn.includes("setConfirmUid("), true);
+  const deleteOpen = button.slice(
+    button.indexOf('t("account.delete")') - 400,
+    button.indexOf('t("account.delete")'),
+  );
+  assert.equal(deleteOpen.includes("setConfirmUid("), true);
 });
 
 test("a backup enable waits when a row is saved during the download", () => {

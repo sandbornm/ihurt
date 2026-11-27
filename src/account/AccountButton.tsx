@@ -5,6 +5,7 @@ import { readBackupSnapshot, readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
 import {
   backupConfirmDecision,
+  confirmAccountDecision,
   entriesForBackup,
   type BackupEntry,
 } from "./backup.ts";
@@ -58,6 +59,7 @@ export default function AccountButton({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [backupPreview, setBackupPreview] = useState<string[] | null>(null);
+  const [confirmUid, setConfirmUid] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("home");
   const [email, setEmail] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
@@ -180,6 +182,13 @@ export default function AccountButton({
                 void run(async () => {
                   const session = snapshot.session;
                   if (!session) return;
+                  if (
+                    confirmAccountDecision(confirmUid, session.uid) ===
+                    "refresh"
+                  ) {
+                    setStep("home");
+                    return;
+                  }
                   const fresh = await readBackupSnapshot();
                   const deleted = new Set(fresh.deletedIds);
                   const snapshotIds = entriesForBackup(
@@ -236,6 +245,15 @@ export default function AccountButton({
               disabled={snapshot.busy}
               onClick={() =>
                 void run(async () => {
+                  if (
+                    confirmAccountDecision(
+                      confirmUid,
+                      snapshot.session?.uid ?? null,
+                    ) === "refresh"
+                  ) {
+                    setStep("home");
+                    return;
+                  }
                   await deleteAccount((ids) => onRemove(ids, "account"));
                   setStep("home");
                   setOpen(false);
@@ -355,6 +373,7 @@ export default function AccountButton({
                     disabled={snapshot.busy}
                     onClick={() => {
                       setBackupPreview(null);
+                      setConfirmUid(snapshot.session?.uid ?? null);
                       setStep("confirm-backup");
                     }}
                   >
@@ -376,7 +395,10 @@ export default function AccountButton({
                     type="button"
                     className="secondary"
                     disabled={snapshot.busy}
-                    onClick={() => setStep("confirm-delete")}
+                    onClick={() => {
+                      setConfirmUid(snapshot.session?.uid ?? null);
+                      setStep("confirm-delete");
+                    }}
                   >
                     {t("account.delete")}
                   </button>

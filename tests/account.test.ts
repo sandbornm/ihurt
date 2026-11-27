@@ -1253,6 +1253,27 @@ test("a remote delete closes the entry opened while the pull was in flight", () 
   assert.equal(block.includes("entry.id"), false);
 });
 
+test("a backup pull reads private fields from the stored row", () => {
+  const root = new URL("../", import.meta.url);
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  const start = notebook.indexOf("onMerge={async (incoming)");
+  assert.ok(start > 0);
+  const block = notebook.slice(
+    start,
+    notebook.indexOf("onRemove={async", start),
+  );
+  assert.equal(block.includes("saved.map"), false);
+  assert.equal(block.includes("withLocalPrivateFields"), false);
+  const storage = readFileSync(
+    new URL("src/notebook-storage.ts", root),
+    "utf8",
+  );
+  assert.equal(
+    storage.includes("withLocalPrivateFields(existing, entry)"),
+    true,
+  );
+});
+
 test("a later save applies the downloaded note before the next upload", () => {
   const root = new URL("../", import.meta.url);
   const button = readFileSync(

@@ -95,7 +95,6 @@ import {
   journalSignature,
   remoteDeleteClosesEditor,
   savedAfterBackupPull,
-  withLocalPrivateFields,
 } from "./account/backup.ts";
 import { guardSourceSearch } from "./account/store.ts";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
@@ -550,12 +549,7 @@ export default function Notebook({
               const deleted = new Set(await readDeletedIds());
               const fresh = incoming.filter((row) => !deleted.has(row.id));
               if (fresh.length === 0) return [];
-              const local = new Map(saved.map((item) => [item.id, item]));
-              const stored = await restoreBackupEntries(
-                fresh.map((row) =>
-                  withLocalPrivateFields(local.get(row.id), row),
-                ),
-              );
+              const stored = await restoreBackupEntries(fresh);
               const kept = new Set(stored.map((row) => row.id));
               setSaved((old) => savedAfterBackupPull(old, fresh, stored));
               const restored = stored.find((row) => row.id === snapshot.id);

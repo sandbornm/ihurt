@@ -2751,6 +2751,44 @@ test("a backup restore leaves a deleted entry deleted", async () => {
   assert.equal(await saveResearch("backup-tomb", research), undefined);
 });
 
+test("a backup restore keeps answers saved while the pull was in flight", async () => {
+  const id = "answers-during-pull";
+  await storeEntries([
+    entry(id, "local note", {
+      updated: "2026-01-02T00:00:00.000Z",
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+      answers: [{ key: "quality", text: "saved-during-pull" }],
+    }),
+  ]);
+  const cloud = entry(id, "cloud note", {
+    updated: "2026-01-03T00:00:00.000Z",
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+    answers: [{ key: "quality", text: "from-the-server" }],
+  });
+  const stale = entry(id, "local note", {
+    answers: [{ key: "quality", text: "before-the-pull" }],
+  });
+  const restored = await restoreBackupEntries([
+    { ...cloud, answers: stale.answers },
+    entry("new-from-cloud", "cloud only", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+      answers: [{ key: "quality", text: "from-the-server" }],
+    }),
+  ]);
+  const kept = restored.find((row) => row.id === id);
+  assert.equal(kept?.answers[0]?.text, "saved-during-pull");
+  assert.equal(kept?.note, "cloud note");
+  assert.equal(
+    restored.find((row) => row.id === "new-from-cloud")?.answers.length,
+    0,
+  );
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.find((row) => row.id === id)?.answers[0]?.text,
+    "saved-during-pull",
+  );
+});
+
 test("a restored cloud note replaces the open editor unless it changed during the pull", () => {
   const snapshot = entry("open", "local note", {
     noteUpdated: "2026-01-02T00:00:00.000Z",

@@ -6,6 +6,7 @@ import type {
   MapDetail,
 } from "./types";
 import { t } from "./i18n/index.ts";
+import { withLocalPrivateFields } from "./account/backup.ts";
 export interface Draft {
   entry: SavedMap;
   selected: RegionId | null;
@@ -765,7 +766,13 @@ export function restoreBackupEntries(entries: SavedMap[]): Promise<SavedMap[]> {
               const current = store.get(entry.id);
               current.onsuccess = () => {
                 const existing = current.result as SavedMap | undefined;
-                const row = keepLandedResearch(existing, entry);
+                // Answers have no stamp. Read them from the stored row in
+                // this transaction, so a save made while the pull was in
+                // flight is not replaced by the list the pull started with.
+                const row = keepLandedResearch(
+                  existing,
+                  withLocalPrivateFields(existing, entry),
+                );
                 merged.push(row);
                 store.put(row);
               };

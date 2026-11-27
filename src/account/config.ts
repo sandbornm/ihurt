@@ -76,8 +76,14 @@ export function emailContinueUrl(pageUrl: string, authDomain: string): string {
 }
 
 // The packaged iOS shell is capacitor://localhost. An email link cannot
-// return there. Apple and Google stay available.
+// return there. Apple stays available.
 export function emailSignInAllowed(protocol: string): boolean {
+  return protocol !== "capacitor:";
+}
+
+// The iOS shell has no Google credential handoff. The web popup cannot
+// finish in that web view, including the sign-in asked for before deletion.
+export function googleSignInAllowed(protocol: string): boolean {
   return protocol !== "capacitor:";
 }
 

@@ -27,6 +27,7 @@ import {
 import {
   emailContinueUrl,
   emailSignInAllowed,
+  googleSignInAllowed,
   passkeySignInAllowed,
   readAccountConfig,
   testRuntimeAllowed,
@@ -40,6 +41,8 @@ import {
   publicKeyCredentialToJSON,
 } from "../src/account/passkey.ts";
 import {
+  backupEpoch,
+  nextBackupEpoch,
   accountDeleteKeepsDevice,
   accountDeleteStage,
   backedIdsFor,
@@ -707,6 +710,62 @@ test("a slow clock does not drop cloud entries dated ahead of this device", asyn
   assert.deepEqual(sent[0]?.sort(), ["ahead", "recent"]);
 });
 
+test("a fast clock does not drop a cloud entry the server still returned", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const remote = {
+    id: "cloud",
+    created: new Date(NOW - 88 * DAY).toISOString(),
+    note: "still-in-window",
+  };
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("recent", 1)],
+    now: NOW + 5 * DAY,
+    store,
+    pull: async () => [remote],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent[0]?.sort(), ["cloud", "recent"]);
+});
+
+test("a backup started before sign-out does not upload after the same account returns", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const epoch = backupEpoch(store);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent: string[] = [];
+  const pending = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("deleted-later", 1)],
+    now: NOW,
+    store,
+    epoch,
+    pull: async () => {
+      await gate;
+      return [];
+    },
+    put: async () => {
+      sent.push("put");
+    },
+  });
+  nextBackupEpoch(store);
+  clearOptIn(store);
+  grantOptIn(store, "user-a");
+  release();
+  assert.deepEqual(await pending, []);
+  assert.deepEqual(sent, []);
+  assert.equal(optedIn(store, "user-a"), true);
+});
+
 test("turning backup off during the pull skips the upload", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -1099,6 +1158,8 @@ test("config comes from env and the test runtime stays on loopback", async () =>
   assert.equal(emailSignInAllowed("capacitor:"), false);
   assert.equal(passkeySignInAllowed("https:"), true);
   assert.equal(passkeySignInAllowed("capacitor:"), false);
+  assert.equal(googleSignInAllowed("https:"), true);
+  assert.equal(googleSignInAllowed("capacitor:"), false);
   assert.equal(
     emailContinueUrl("https://ihurt.app/notebook", "ihurt.app"),
     "https://ihurt.app/?emailLink=1",

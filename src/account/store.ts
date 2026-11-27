@@ -8,12 +8,14 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
-import { entriesForBackup, type BackupEntry } from "./backup.ts";
+import { BACKUP_DAYS, entriesForBackup, type BackupEntry } from "./backup.ts";
 import { readAccountConfig, testRuntimeAllowed, type AccountConfig } from "./config.ts";
 import {
+  backupEpoch,
   clearOptIn,
   deleteSignedInAccount,
   grantOptIn,
+  nextBackupEpoch,
   optedIn,
   pushBackup,
   rememberSynced,
@@ -163,8 +165,9 @@ export async function signIn(
 }
 
 export async function signOut() {
-  if (!client) return;
+  nextBackupEpoch(browserStore());
   clearOptIn(browserStore());
+  if (!client) return;
   await client.signOut();
   analytics.record("sign_out");
   setState({
@@ -183,17 +186,18 @@ export async function enableBackup(
   const session = state.session;
   if (!session || !client) throw new AccountAuthError("unconfigured");
   if (!api) throw new AccountAuthError("no-api");
+  const epoch = backupEpoch(browserStore());
   setState({ ...state, busy: true, error: "" });
   try {
     const token = await session.getIdToken();
     await api.enableSync(token);
     const remote = await api.getEntries(token);
-    if (state.session?.uid !== session.uid) {
+    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
       setState({ ...state, busy: false });
       return;
     }
     const kept = await onMerge(remote);
-    if (state.session?.uid !== session.uid) {
+    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
       setState({ ...state, busy: false });
       return;
     }
@@ -201,9 +205,18 @@ export async function enableBackup(
       setState({ ...state, busy: false, error: "error" });
       return;
     }
-    const windowed = entriesForBackup(kept, Date.now());
+    const windowed = entriesForBackup(
+      kept,
+      Date.now(),
+      BACKUP_DAYS,
+      new Set(remote.map((entry) => entry.id)),
+    );
+    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
+      setState({ ...state, busy: false });
+      return;
+    }
     await api.putEntries(token, windowed);
-    if (state.session?.uid !== session.uid) {
+    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
       setState({ ...state, busy: false });
       return;
     }
@@ -240,6 +253,7 @@ export async function enrollPasskey() {
 }
 
 export async function disableBackup() {
+  nextBackupEpoch(browserStore());
   const session = state.session;
   if (!session) return;
   clearOptIn(browserStore());
@@ -255,11 +269,14 @@ export function pushBackupEntries(
   if (!session || !api || !optedIn(browserStore(), session.uid)) return;
   const uid = session.uid;
   const current = api;
+  const epoch = backupEpoch(browserStore());
   pushChain = pushChain
     .then(async () => {
       if (state.session?.uid !== uid || !optedIn(browserStore(), uid)) return;
+      if (backupEpoch(browserStore()) !== epoch) return;
       const token = await session.getIdToken();
       if (state.session?.uid !== uid || !optedIn(browserStore(), uid)) return;
+      if (backupEpoch(browserStore()) !== epoch) return;
       await pushBackup({
         uid,
         token,
@@ -267,6 +284,7 @@ export function pushBackupEntries(
         now: Date.now(),
         store: browserStore(),
         deletedIds,
+        epoch,
         pull: (next) => current.getEntries(next),
         put: (next, rows) => current.putEntries(next, rows),
       });
@@ -277,6 +295,7 @@ export function pushBackupEntries(
 }
 
 export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) {
+  nextBackupEpoch(browserStore());
   const session = state.session;
   if (!session || !client) return;
   setState({ ...state, busy: true, error: "" });

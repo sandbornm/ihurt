@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { emailSignInAllowed, passkeySignInAllowed } from "./config.ts";
+import {
+  emailSignInAllowed,
+  googleSignInAllowed,
+  passkeySignInAllowed,
+} from "./config.ts";
 import { useI18n } from "../i18n/react";
 import { readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
@@ -111,6 +115,7 @@ export default function AccountButton({
   const backupCount = entriesForBackup(entries, Date.now()).length;
   const protocol = typeof location === "undefined" ? "https:" : location.protocol;
   const showEmail = emailSignInAllowed(protocol);
+  const showGoogle = googleSignInAllowed(protocol);
   const showPasskey = passkeySignInAllowed(protocol);
   const title =
     step === "confirm-backup"
@@ -245,14 +250,16 @@ export default function AccountButton({
                 >
                   {t("account.apple")}
                 </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={snapshot.busy || snapshot.status !== "ready"}
-                  onClick={() => void run(() => signIn("google"))}
-                >
-                  {t("account.google")}
-                </button>
+                {showGoogle && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={snapshot.busy || snapshot.status !== "ready"}
+                    onClick={() => void run(() => signIn("google"))}
+                  >
+                    {t("account.google")}
+                  </button>
+                )}
                 {showEmail && (
                 <form
                   onSubmit={(event) => {

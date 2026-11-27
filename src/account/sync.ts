@@ -4,6 +4,7 @@ export const OPT_IN_KEY = "ihurt-sync-opt-in";
 export const OPT_IN_UID_KEY = "ihurt-sync-uid";
 export const SYNCED_IDS_KEY = "ihurt-synced-ids";
 export const SYNCED_UID_KEY = "ihurt-synced-uid";
+const BACKUP_EPOCH_KEY = "ihurt-backup-epoch";
 
 export interface KeyValueStore {
   getItem(key: string): string | null;
@@ -79,6 +80,17 @@ export function clearOptIn(store: KeyValueStore) {
   store.removeItem(OPT_IN_UID_KEY);
 }
 
+export function backupEpoch(store: KeyValueStore): number {
+  const value = Number(store.getItem(BACKUP_EPOCH_KEY));
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+export function nextBackupEpoch(store: KeyValueStore): number {
+  const next = backupEpoch(store) + 1;
+  store.setItem(BACKUP_EPOCH_KEY, String(next));
+  return next;
+}
+
 export function syncedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.window ?? [];
 }
@@ -134,11 +146,14 @@ export async function pushBackup<T extends BackupEntry>(input: {
   put: (token: string, entries: T[]) => Promise<void>;
   pull?: (token: string) => Promise<readonly T[]>;
   deletedIds?: readonly string[];
+  epoch?: number;
 }): Promise<T[]> {
-  if (!optedIn(input.store, input.uid)) return [];
+  const sameEpoch = () =>
+    input.epoch === undefined || backupEpoch(input.store) === input.epoch;
+  if (!optedIn(input.store, input.uid) || !sameEpoch()) return [];
   const deleted = new Set(input.deletedIds ?? []);
   const remote = input.pull ? await input.pull(input.token) : [];
-  if (!optedIn(input.store, input.uid)) return [];
+  if (!optedIn(input.store, input.uid) || !sameEpoch()) return [];
   const windowed = input.pull
     ? mergeBackupWindow(input.entries, remote, deleted, input.now)
     : entriesForBackup(input.entries, input.now);
@@ -152,7 +167,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // A list from before the pull is missing account rows and is not a delete.
   // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
-  if (!optedIn(input.store, input.uid)) return [];
+  if (!optedIn(input.store, input.uid) || !sameEpoch()) return [];
   await input.put(input.token, windowed);
   retainSynced(
     input.store,

@@ -27,8 +27,11 @@ export function entriesForBackup<T extends BackupEntry>(
   entries: readonly T[],
   now: number,
   days = BACKUP_DAYS,
+  keep: ReadonlySet<string> = new Set(),
 ): T[] {
-  return entries.filter((entry) => withinBackupWindow(entry, now, days));
+  return entries.filter(
+    (entry) => keep.has(entry.id) || withinBackupWindow(entry, now, days),
+  );
 }
 
 function stampMs(value: string | undefined): number {
@@ -86,14 +89,15 @@ export function mergeBackupWindow<T extends BackupEntry>(
   days = BACKUP_DAYS,
 ): T[] {
   const byId = new Map<string, T>();
+  // The pull is the server's window. This device's clock does not expire a
+  // row the server still returned.
   for (const entry of remote) {
-    if (!deleted.has(entry.id) && withinBackupWindow(entry, now, days)) {
-      byId.set(entry.id, entry);
-    }
+    if (!deleted.has(entry.id)) byId.set(entry.id, entry);
   }
   for (const entry of local) {
-    if (deleted.has(entry.id) || !withinBackupWindow(entry, now, days)) continue;
+    if (deleted.has(entry.id)) continue;
     const previous = byId.get(entry.id);
+    if (!previous && !withinBackupWindow(entry, now, days)) continue;
     byId.set(entry.id, previous ? mergeBackupRow(entry, previous) : entry);
   }
   return [...byId.values()];

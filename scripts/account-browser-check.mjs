@@ -220,15 +220,16 @@ async function runFlow(name, contextOptions, limitCode) {
   for (const put of puts) {
     assert.equal(put.authorization, "Bearer test-id-token");
     assert.equal(put.body.includes("alpha-marker"), true);
-    assert.equal(put.body.includes("person@example.com"), false);
+    assert.equal(put.body.includes("@"), false);
     const payload = JSON.parse(put.body);
     assert.equal(payload.entries.length, 1);
+    assert.equal("email" in payload, false);
   }
   for (const body of analytics) {
     const parsed = JSON.parse(body);
     assert.deepEqual(Object.keys(parsed), ["event"]);
     assert.equal(body.includes("alpha-marker"), false);
-    assert.equal(body.includes("person@example.com"), false);
+    assert.equal(body.includes("@"), false);
     assert.equal(body.includes("uid-1"), false);
   }
   assert.ok(analytics.some((body) => body === '{"event":"sign_in"}'));
@@ -250,6 +251,9 @@ async function runFlow(name, contextOptions, limitCode) {
   await account.getByRole("button", { name: "Close account" }).click();
   await account.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "New entry", exact: true }).click();
+  await page.waitForFunction(
+    () => document.querySelector("#pain-note")?.value === "",
+  );
   await note.fill("beta-marker after a rest.");
   await page.locator("#entry-title").fill("beta-marker");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();

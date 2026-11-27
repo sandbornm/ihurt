@@ -212,7 +212,7 @@ test("account events are an action name and nothing else", async () => {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     assert.deepEqual(Object.keys(parsed), ["event"]);
     assert.equal(body.includes("shoulder"), false);
-    assert.equal(body.includes("example.com"), false);
+    assert.equal(String(parsed.event).includes("@"), false);
   }
 });
 

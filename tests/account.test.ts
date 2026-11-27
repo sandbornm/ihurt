@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  ACCOUNT_RESPONSE_BYTES,
   AccountApiError,
   accountApiOrigin,
   createAccountApi,
   remoteEntries,
+  SYNC_ENTRY_LIMIT,
 } from "../src/account/api.ts";
 import { accountEventBody, createAnalytics } from "../src/account/analytics.ts";
 import { readTestRuntime } from "../src/account/auth.ts";
@@ -33,7 +35,7 @@ import {
   readAccountConfig,
   testRuntimeAllowed,
 } from "../src/account/config.ts";
-import { acceptStoredEntry } from "../src/notebook-data.ts";
+import { acceptStoredEntry, STORED_PIN_LIMIT } from "../src/notebook-data.ts";
 import {
   passkeyRpId,
   passkeySignIn,
@@ -911,6 +913,50 @@ test("a mixed sync response is rejected before upload", async () => {
       error instanceof AccountApiError && error.code === "invalid",
   );
   assert.deepEqual(calls, ["GET"]);
+});
+
+test("an oversized sync response is rejected before upload", async () => {
+  const calls: string[] = [];
+  const api = createAccountApi("https://ihurt-api.test", async (_url, init) => {
+    calls.push(init?.method ?? "GET");
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(ACCOUNT_RESPONSE_BYTES + 1));
+        controller.close();
+      },
+    });
+    return new Response(stream, { status: 200 });
+  });
+  assert.ok(api);
+  await assert.rejects(
+    () => api.getEntries("token"),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+  assert.deepEqual(calls, ["GET"]);
+  assert.throws(
+    () =>
+      remoteEntries({
+        entries: Array.from({ length: SYNC_ENTRY_LIMIT + 1 }, (_, index) => ({
+          ...storedEntry(validMap),
+          id: `row-${index}`,
+        })),
+      }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+  const crowded = storedEntry(validMap);
+  crowded.points = Array.from({ length: STORED_PIN_LIMIT + 1 }, (_, index) => ({
+    id: `pin-${index}`,
+    region: "neck",
+    structure: "Sternum",
+    position: [0, 1, 0],
+  }));
+  assert.throws(
+    () => remoteEntries({ entries: [crowded] }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
 });
 
 test("a backup row with more pins than 500 still syncs", () => {

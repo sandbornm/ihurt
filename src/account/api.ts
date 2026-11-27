@@ -52,11 +52,16 @@ export function accountApiOrigin(value: string): string | null {
   return null;
 }
 
+// Same byte cap as an .ihm import. The entry cap matches that import's list cap.
+export const ACCOUNT_RESPONSE_BYTES = 10 * 1024 * 1024;
+export const SYNC_ENTRY_LIMIT = 500;
+
 export function remoteEntries(value: unknown): SavedMap[] {
   if (!value || typeof value !== "object")
     throw new AccountApiError(200, "invalid");
   const entries = (value as { entries?: unknown }).entries;
-  if (!Array.isArray(entries)) throw new AccountApiError(200, "invalid");
+  if (!Array.isArray(entries) || entries.length > SYNC_ENTRY_LIMIT)
+    throw new AccountApiError(200, "invalid");
   const rows = entries.map((entry) => {
     const accepted = acceptStoredEntry(entry);
     if (!accepted) throw new AccountApiError(200, "invalid");
@@ -97,6 +102,43 @@ function statusFrom(value: unknown): AccountStatus {
   };
 }
 
+async function readLimited(response: Response): Promise<string> {
+  const declared = response.headers.get("content-length");
+  if (declared !== null) {
+    const size = Number(declared);
+    if (!Number.isFinite(size) || size < 0 || size > ACCOUNT_RESPONSE_BYTES)
+      throw new AccountApiError(response.status, "invalid");
+  }
+  const body = response.body;
+  if (!body) return "";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+      if (total + value.byteLength > ACCOUNT_RESPONSE_BYTES)
+        throw new AccountApiError(response.status, "invalid");
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
+  }
+  reader.releaseLock();
+  if (total === 0) return "";
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 export function createAccountApi(
   base: string,
   fetchImpl: typeof fetch = fetch,
@@ -124,7 +166,7 @@ export function createAccountApi(
     } catch {
       throw new AccountApiError(0, "network");
     }
-    const text = await response.text();
+    const text = await readLimited(response);
     let data: unknown = {};
     if (text) {
       try {

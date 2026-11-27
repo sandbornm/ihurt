@@ -224,6 +224,7 @@ async function runFlow(name, contextOptions, limitCode) {
     assert.equal(put.body.includes("@"), false);
     const payload = JSON.parse(put.body);
     assert.equal(payload.entries.length, 1);
+    assert.equal(payload.entries[0].map.title, "");
     assert.equal("email" in payload, false);
   }
   for (const body of analytics) {

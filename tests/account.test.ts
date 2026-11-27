@@ -35,6 +35,7 @@ import {
   passkeySignIn,
   prepareCreationOptions,
   prepareRequestOptions,
+  publicKeyCredentialToJSON,
 } from "../src/account/passkey.ts";
 import {
   accountDeleteKeepsDevice,
@@ -795,8 +796,11 @@ test("backup upload sends notes and pins only", async () => {
       publisher: "Publisher",
     },
   ];
+  entry.map = { ...validMap, title: "title-marker" };
   const payload = toBackupPayload(entry);
   const kept = withLocalPrivateFields(entry, payload);
+  assert.equal(payload.map.title, "");
+  assert.equal(kept.map.title, "title-marker");
   assert.equal(kept.points?.[0]?.comment, "comment-marker");
   assert.equal(kept.answers[0]?.text, "answer-marker");
   assert.equal(kept.research?.description, "research-marker");
@@ -814,6 +818,7 @@ test("backup upload sends notes and pins only", async () => {
   assert.equal(body.includes("answer-marker"), false);
   assert.equal(body.includes("ref-marker"), false);
   assert.equal(body.includes("quality-marker"), false);
+  assert.equal(body.includes("title-marker"), false);
 });
 
 test("map review does not spend a source search", () => {
@@ -940,11 +945,20 @@ test("passkey relying party is ihurt.app on the public host", async () => {
         );
       }
       const body = JSON.parse(String(init?.body)) as {
-        authenticatorAuthenticationResponse: { id: string };
+        authenticatorAuthenticationResponse: {
+          id: string;
+          rawId: string;
+          response: { clientDataJSON: string; authenticatorData: string; signature: string };
+        };
         name: string;
         sessionId?: string;
       };
-      assert.equal(typeof body.authenticatorAuthenticationResponse.id, "string");
+      assert.equal(body.authenticatorAuthenticationResponse.rawId, "-_8");
+      assert.equal(body.authenticatorAuthenticationResponse.response.clientDataJSON, "-_8");
+      assert.equal(body.authenticatorAuthenticationResponse.response.signature, "-_8");
+      assert.equal(body.authenticatorAuthenticationResponse.rawId.includes("+"), false);
+      assert.equal(body.authenticatorAuthenticationResponse.rawId.includes("/"), false);
+      assert.equal(body.authenticatorAuthenticationResponse.rawId.includes("="), false);
       assert.equal(body.name, "iHurt");
       assert.equal(body.sessionId, "session-1");
       return new Response(
@@ -958,7 +972,7 @@ test("passkey relying party is ihurt.app on the public host", async () => {
     credentials: {
       async get(request) {
         seenRp = request.publicKey?.rpId ?? "";
-        const raw = new Uint8Array([1, 2, 3]).buffer;
+        const raw = new Uint8Array([251, 255]).buffer;
         return {
           id: "cred",
           type: "public-key",
@@ -975,6 +989,44 @@ test("passkey relying party is ihurt.app on the public host", async () => {
   });
   assert.equal(seenRp, "ihurt.app");
   assert.equal(tokens.localId, "uid-pass");
+});
+
+test("passkey bytes that need base64url are unpadded", () => {
+  const raw = new Uint8Array([251, 255]).buffer;
+  const assertion = publicKeyCredentialToJSON({
+    id: "cred",
+    type: "public-key",
+    rawId: raw,
+    response: {
+      clientDataJSON: raw,
+      authenticatorData: raw,
+      signature: raw,
+      userHandle: raw,
+    },
+  } as PublicKeyCredential) as {
+    rawId: string;
+    response: Record<string, string>;
+  };
+  assert.equal(assertion.rawId, "-_8");
+  assert.equal(assertion.response.authenticatorData, "-_8");
+  assert.equal(assertion.response.userHandle, "-_8");
+  assert.equal(assertion.rawId.includes("+"), false);
+  assert.equal(assertion.rawId.includes("="), false);
+  const registered = publicKeyCredentialToJSON({
+    id: "cred",
+    type: "public-key",
+    rawId: raw,
+    response: { clientDataJSON: raw, attestationObject: raw },
+  } as PublicKeyCredential) as { response: { attestationObject: string } };
+  assert.equal(registered.response.attestationObject, "-_8");
+  const fromJson = publicKeyCredentialToJSON({
+    id: "cred",
+    type: "public-key",
+    rawId: raw,
+    response: { clientDataJSON: raw },
+    toJSON: () => ({ id: "from-json", rawId: "-_8" }),
+  } as PublicKeyCredential) as { id: string };
+  assert.equal(fromJson.id, "from-json");
 });
 
 test("config comes from env and the test runtime stays on loopback", async () => {

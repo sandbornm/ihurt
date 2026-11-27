@@ -141,8 +141,8 @@ export function backupUploadSet<T extends BackupEntry>(
   return entriesForBackup([...byId.values()], now, days);
 }
 
-// The confirmation names notes and pins. Pin comments, answers, readings,
-// and the AI note stay on the device.
+// The confirmation names notes and pins. The optional title, pin comments,
+// answers, readings, and the AI note stay on the device.
 export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMap {
   const points = (entry.points ?? []).map((point) => backupPin(point));
   return {
@@ -155,7 +155,7 @@ export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMa
     provider: typeof entry.provider === "string" ? entry.provider : "Your notes",
     answers: [],
     map: {
-      title: entry.map?.title ?? "",
+      title: "",
       summary: typeof entry.note === "string" ? entry.note : "",
       regions: entry.map?.regions ?? [],
       quality: "",
@@ -213,6 +213,7 @@ export function withLocalPrivateFields(
       : {}),
     map: {
       ...incoming.map,
+      title: local.map.title || incoming.map.title,
       quality: incoming.map.quality || local.map.quality,
       activity: incoming.map.activity || local.map.activity,
       duration: incoming.map.duration || local.map.duration,

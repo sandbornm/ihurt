@@ -20,11 +20,11 @@ export function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-function bufferToBase64(buffer: ArrayBuffer): string {
+function bufferToBase64Url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
 }
 
 function credentialIds(value: unknown) {
@@ -94,36 +94,41 @@ export function prepareCreationOptions(
 }
 
 export function publicKeyCredentialToJSON(credential: PublicKeyCredential) {
+  const encoded = credential as PublicKeyCredential & { toJSON?: () => unknown };
+  if (typeof encoded.toJSON === "function") {
+    const json = encoded.toJSON();
+    if (json && typeof json === "object") return json;
+  }
   const response = credential.response as AuthenticatorResponse & {
     attestationObject?: ArrayBuffer;
     authenticatorData?: ArrayBuffer;
     signature?: ArrayBuffer;
     userHandle?: ArrayBuffer | null;
   };
-  const clientDataJSON = bufferToBase64(response.clientDataJSON);
+  const clientDataJSON = bufferToBase64Url(response.clientDataJSON);
   if (response.attestationObject) {
     return {
       id: credential.id,
       type: credential.type,
-      rawId: bufferToBase64(credential.rawId),
+      rawId: bufferToBase64Url(credential.rawId),
       response: {
         clientDataJSON,
-        attestationObject: bufferToBase64(response.attestationObject),
+        attestationObject: bufferToBase64Url(response.attestationObject),
       },
     };
   }
   return {
     id: credential.id,
     type: credential.type,
-    rawId: bufferToBase64(credential.rawId),
+    rawId: bufferToBase64Url(credential.rawId),
     response: {
       clientDataJSON,
-      authenticatorData: bufferToBase64(
+      authenticatorData: bufferToBase64Url(
         response.authenticatorData ?? new ArrayBuffer(0),
       ),
-      signature: bufferToBase64(response.signature ?? new ArrayBuffer(0)),
+      signature: bufferToBase64Url(response.signature ?? new ArrayBuffer(0)),
       userHandle: response.userHandle
-        ? bufferToBase64(response.userHandle)
+        ? bufferToBase64Url(response.userHandle)
         : undefined,
     },
   };

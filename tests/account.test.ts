@@ -19,6 +19,7 @@ import {
   backupUploadSet,
   entriesForBackup,
   FREE_SEARCHES,
+  mergeBackupWindow,
   toBackupPayload,
   withLocalPrivateFields,
   withinBackupWindow,
@@ -26,6 +27,7 @@ import {
 import {
   emailContinueUrl,
   emailSignInAllowed,
+  passkeySignInAllowed,
   readAccountConfig,
   testRuntimeAllowed,
 } from "../src/account/config.ts";
@@ -86,10 +88,10 @@ test("backup window keeps 90 days and drops older entries", () => {
   assert.equal(withinBackupWindow(recent, NOW), true);
   assert.equal(withinBackupWindow(edge, NOW), true);
   assert.equal(withinBackupWindow(old, NOW), false);
-  assert.equal(withinBackupWindow(future, NOW), false);
+  assert.equal(withinBackupWindow(future, NOW), true);
   assert.deepEqual(
     entriesForBackup([recent, edge, old, future], NOW).map((row) => row.id),
-    ["recent", "edge"],
+    ["recent", "edge", "future"],
   );
   const edited = {
     id: "edited",
@@ -646,6 +648,65 @@ test("a later save keeps another device's newer note and new entry", async () =>
   assert.deepEqual(blocked, []);
 });
 
+test("clearing every pin does not upload pins with an empty region list", () => {
+  const created = new Date(NOW - DAY).toISOString();
+  const local = {
+    id: "a",
+    created,
+    note: "note",
+    noteUpdated: new Date(NOW - DAY).toISOString(),
+    pointsUpdated: new Date(NOW - DAY).toISOString(),
+    points: [
+      {
+        id: "pin-1",
+        region: "neck",
+        structure: "Sternum",
+        position: [0, 1, 0] as [number, number, number],
+      },
+    ],
+    map: { regions: ["neck"], title: "keep-title", summary: "note" },
+  };
+  const cleared = {
+    id: "a",
+    created,
+    note: "note",
+    noteUpdated: local.noteUpdated,
+    pointsUpdated: new Date(NOW).toISOString(),
+    map: { regions: [] as string[], title: "", summary: "note" },
+  };
+  const [merged] = mergeBackupWindow([local], [cleared], new Set(), NOW);
+  assert.deepEqual(merged?.points, []);
+  assert.deepEqual(merged?.map?.regions, []);
+  assert.equal(merged?.map?.title, "keep-title");
+  const payload = toBackupPayload(merged!);
+  assert.deepEqual(payload.points, []);
+  assert.deepEqual(payload.map.regions, []);
+  assert.equal(acceptStoredEntry(payload)?.id, "a");
+});
+
+test("a slow clock does not drop cloud entries dated ahead of this device", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const ahead = {
+    id: "ahead",
+    created: new Date(NOW + 2 * DAY).toISOString(),
+    note: "today-elsewhere",
+  };
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("recent", 1)],
+    now: NOW,
+    store,
+    pull: async () => [ahead],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent[0]?.sort(), ["ahead", "recent"]);
+});
+
 test("turning backup off during the pull skips the upload", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -1036,6 +1097,8 @@ test("config comes from env and the test runtime stays on loopback", async () =>
   assert.equal(testRuntimeAllowed("localhost", "capacitor:"), false);
   assert.equal(emailSignInAllowed("https:"), true);
   assert.equal(emailSignInAllowed("capacitor:"), false);
+  assert.equal(passkeySignInAllowed("https:"), true);
+  assert.equal(passkeySignInAllowed("capacitor:"), false);
   assert.equal(
     emailContinueUrl("https://ihurt.app/notebook", "ihurt.app"),
     "https://ihurt.app/?emailLink=1",

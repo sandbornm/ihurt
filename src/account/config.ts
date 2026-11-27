@@ -75,8 +75,14 @@ export function emailContinueUrl(pageUrl: string, authDomain: string): string {
   return `https://${domain}/?emailLink=1`;
 }
 
-// The packaged iOS shell cannot receive the email link. Apple, Google, and
-// passkeys stay available there.
+// The packaged iOS shell is capacitor://localhost. An email link cannot
+// return there. Apple and Google stay available.
 export function emailSignInAllowed(protocol: string): boolean {
+  return protocol !== "capacitor:";
+}
+
+// A passkey for ihurt.app cannot be created on capacitor://localhost, and one
+// created for localhost would not match the web account.
+export function passkeySignInAllowed(protocol: string): boolean {
   return protocol !== "capacitor:";
 }

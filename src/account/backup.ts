@@ -18,7 +18,9 @@ export function withinBackupWindow(
 ): boolean {
   const stamp = Date.parse(entry.created);
   if (!Number.isFinite(stamp)) return false;
-  return stamp >= now - days * DAY_MS && stamp <= now + DAY_MS;
+  // The free window is the past bound only. A device clock that is behind
+  // must not treat today's cloud entries as future and delete them on upload.
+  return stamp >= now - days * DAY_MS;
 }
 
 export function entriesForBackup<T extends BackupEntry>(
@@ -105,17 +107,25 @@ function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
     note?: string;
     points?: unknown;
     pointsUpdated?: string;
-    map?: { regions?: unknown; summary?: string };
+    map?: { regions?: unknown; summary?: string; title?: string };
   };
   const pins = (pinsFromRemote ? remote : local) as typeof row;
   const note = readNote(noteFromRemote ? remote : local);
-  if ("points" in pins) row.points = pins.points;
+  const title = noteFromRemote ? remoteMapTitle(remote) : remoteMapTitle(local);
+  // A newer pin revision with no points array is a clear. Leaving the key
+  // off used to keep the other device's pins under an empty region list.
+  if (pinsFromRemote || "points" in pins) {
+    row.points = "points" in pins ? pins.points : [];
+  }
   if (pins.pointsUpdated) row.pointsUpdated = pins.pointsUpdated;
   else delete row.pointsUpdated;
-  if (row.map || pins.map) {
+  const regions = regionsForPins(row.points);
+  if (row.map || pins.map || regions !== null) {
     row.map = {
       ...(row.map ?? {}),
       ...(pins.map ?? {}),
+      ...(regions !== null ? { regions } : {}),
+      ...(title !== undefined ? { title } : {}),
       ...(note !== undefined ? { summary: note } : {}),
     };
   }
@@ -154,10 +164,11 @@ export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMa
     note: typeof entry.note === "string" ? entry.note : "",
     provider: typeof entry.provider === "string" ? entry.provider : "Your notes",
     answers: [],
+    points,
     map: {
       title: "",
       summary: typeof entry.note === "string" ? entry.note : "",
-      regions: entry.map?.regions ?? [],
+      regions: regionsForUpload(entry.map?.regions ?? [], points),
       quality: "",
       activity: "",
       duration: "",
@@ -166,8 +177,32 @@ export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMa
       urgent: false,
       safety_message: null,
     },
-    ...(points.length ? { points } : {}),
   };
+}
+
+function regionsForUpload(listed: readonly string[], points: readonly PainPoint[]): string[] {
+  const regions = [...listed];
+  for (const point of points) {
+    if (!regions.includes(point.region)) regions.push(point.region);
+  }
+  return regions;
+}
+
+function remoteMapTitle(entry: BackupEntry): string | undefined {
+  const map = (entry as BackupEntry & { map?: { title?: unknown } }).map;
+  return typeof map?.title === "string" ? map.title : undefined;
+}
+
+function regionsForPins(points: unknown): string[] | null {
+  if (!Array.isArray(points)) return null;
+  const regions: string[] = [];
+  for (const point of points) {
+    if (!point || typeof point !== "object") return null;
+    const region = (point as { region?: unknown }).region;
+    if (typeof region !== "string" || !region) return null;
+    if (!regions.includes(region)) regions.push(region);
+  }
+  return regions;
 }
 
 function backupPin(point: PainPoint): PainPoint {

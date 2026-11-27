@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { emailSignInAllowed } from "./config.ts";
+import { emailSignInAllowed, passkeySignInAllowed } from "./config.ts";
 import { useI18n } from "../i18n/react";
 import { readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
@@ -109,8 +109,9 @@ export default function AccountButton({
       )
     : "";
   const backupCount = entriesForBackup(entries, Date.now()).length;
-  const hostedSignIn =
-    typeof location === "undefined" || emailSignInAllowed(location.protocol);
+  const protocol = typeof location === "undefined" ? "https:" : location.protocol;
+  const showEmail = emailSignInAllowed(protocol);
+  const showPasskey = passkeySignInAllowed(protocol);
   const title =
     step === "confirm-backup"
       ? t("account.confirmBackupTitle")
@@ -252,7 +253,7 @@ export default function AccountButton({
                 >
                   {t("account.google")}
                 </button>
-                {hostedSignIn && (
+                {showEmail && (
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -279,7 +280,7 @@ export default function AccountButton({
                   </button>
                 </form>
                 )}
-                {hostedSignIn && (
+                {showPasskey && (
                   <button
                     type="button"
                     className="secondary"
@@ -325,7 +326,7 @@ export default function AccountButton({
                     {t("account.turnOn")}
                   </button>
                 )}
-                {hostedSignIn && (
+                {showPasskey && (
                   <button
                     type="button"
                     className="secondary"

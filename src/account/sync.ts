@@ -72,6 +72,12 @@ export function rememberSynced(
   writeBook(store, book);
 }
 
+function retainSynced(store: KeyValueStore, ids: readonly string[], uid: string) {
+  const book = readBook(store);
+  book[uid] = [...new Set(ids)];
+  writeBook(store, book);
+}
+
 export function clearSynced(store: KeyValueStore, uid?: string) {
   if (!uid) {
     store.removeItem(SYNCED_IDS_KEY);
@@ -96,14 +102,15 @@ export async function pushBackup<T extends BackupEntry>(input: {
   if (!optedIn(input.store, input.uid)) return [];
   const windowed = entriesForBackup(input.entries, input.now);
   const deleted = new Set(input.deletedIds ?? []);
-  const present = new Set(windowed.map((entry) => entry.id));
+  const localIds = new Set(input.entries.map((entry) => entry.id));
   const omitted = syncedIdsFor(input.store, input.uid).filter(
-    (id) => !present.has(id) && !deleted.has(id),
+    (id) => !localIds.has(id) && !deleted.has(id),
   );
   // A list from before the pull is missing account rows and is not a delete.
+  // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
   await input.put(input.token, windowed);
-  rememberSynced(
+  retainSynced(
     input.store,
     windowed.map((entry) => entry.id),
     input.uid,

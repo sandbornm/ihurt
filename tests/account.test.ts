@@ -178,6 +178,48 @@ test("sync waits for opt-in and does not follow a different account", async () =
     ["recent"],
   );
   assert.deepEqual(stale, [["recent"]]);
+  assert.deepEqual(syncedIdsFor(store, "user-a"), ["recent"]);
+});
+
+test("an entry aging out of the window does not block the next backup", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const sent: string[][] = [];
+  const put = async (_token: string, rows: { id: string }[]) => {
+    sent.push(rows.map((row) => row.id));
+  };
+  const aging = entry("aging", 89);
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [aging],
+    now: NOW,
+    store,
+    put,
+  });
+  assert.deepEqual(sent, [["aging"]]);
+  assert.deepEqual(syncedIdsFor(store, "user-a"), ["aging"]);
+
+  const later = NOW + 2 * DAY;
+  const fresh = {
+    id: "fresh",
+    created: new Date(later).toISOString(),
+    note: "fresh",
+  };
+  const saved = await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [aging, fresh],
+    now: later,
+    store,
+    put,
+  });
+  assert.deepEqual(
+    saved.map((row) => row.id),
+    ["fresh"],
+  );
+  assert.deepEqual(sent, [["aging"], ["fresh"]]);
+  assert.deepEqual(syncedIdsFor(store, "user-a"), ["fresh"]);
 });
 
 test("delete calls the API before wiping local synced entries", async () => {

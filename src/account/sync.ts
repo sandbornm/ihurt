@@ -127,8 +127,9 @@ function seenBook(store: KeyValueStore): Record<string, string[]> {
   }
 }
 
-// A successful upload claims an entry for this account. Sign-in and a failed
-// upload do not. A later account can still see it, and does not upload it.
+// A downloaded row is claimed when the pull succeeds. A local row is claimed
+// only after its upload succeeds. A later account can still see either one,
+// and does not upload it.
 export function rememberSeenEntries(
   store: KeyValueStore,
   uid: string,
@@ -286,6 +287,13 @@ export async function pushBackup<T extends BackupEntry>(input: {
   if (!current()) return [];
   const remote = input.pull ? await input.pull(input.token) : [];
   if (!current()) return [];
+  if (input.pull) {
+    rememberSeenEntries(
+      input.store,
+      input.uid,
+      remote.map((entry) => entry.id),
+    );
+  }
   // The list and the tombstones passed in may be from before this pull.
   // Read them again so a delete during the fetch is not uploaded.
   const entries = withoutOtherAccountEntries(

@@ -248,6 +248,11 @@ export async function enableBackup(
       setState({ ...state, busy: false, error: "error" });
       return;
     }
+    rememberSeenEntries(
+      browserStore(),
+      session.uid,
+      merged.map((entry) => entry.id),
+    );
     const snapshot = await readBackupSnapshot();
     const deletedNow = new Set(snapshot.deletedIds);
     const kept = snapshot.entries.filter((entry) => !deletedNow.has(entry.id));

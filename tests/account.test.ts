@@ -1496,6 +1496,32 @@ test("a failed upload does not claim the entry for the next account", async () =
   );
 });
 
+test("a restored cloud row stays with that account when the upload fails", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const cloud = entry("from-a", 1);
+  const local = entry("local-only", 1);
+  await assert.rejects(() =>
+    pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [local],
+      now: NOW,
+      store,
+      pull: async () => [cloud],
+      put: async () => {
+        throw new Error("down");
+      },
+    }),
+  );
+  assert.deepEqual(
+    withoutOtherAccountEntries([cloud, local], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["local-only"],
+  );
+});
+
 test("the next account does not upload the previous account's entries", async () => {
   const store = memory();
   rememberSeenEntries(store, "user-a", ["from-a"]);
@@ -1704,18 +1730,16 @@ test("a later save applies the downloaded note before the next upload", () => {
   const uploaded = sync.indexOf("await input.put(input.token, windowed)", push);
   const claimedAfter = sync.indexOf("rememberSeenEntries(", uploaded);
   assert.ok(push > 0 && uploaded > push && claimedAfter > uploaded);
-  assert.equal(
-    sync.slice(push, uploaded).includes("rememberSeenEntries("),
-    false,
-  );
+  const beforeUpload = sync.slice(push, uploaded);
+  assert.equal(beforeUpload.includes("rememberSeenEntries("), true);
+  assert.equal(beforeUpload.includes("remote.map((entry) => entry.id)"), true);
   const enable = store.indexOf("export async function enableBackup");
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
   const claimed = store.indexOf("rememberSeenEntries(", put);
   assert.ok(enable > 0 && put > enable && claimed > put);
-  assert.equal(
-    store.slice(enable, put).includes("rememberSeenEntries("),
-    false,
-  );
+  const beforePut = store.slice(enable, put);
+  assert.equal(beforePut.includes("rememberSeenEntries("), true);
+  assert.equal(beforePut.includes("merged.map((entry) => entry.id)"), true);
   assert.equal(store.includes("await onMerge?.(remote)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);
   assert.equal(store.includes("rememberRemoteDeletes("), true);

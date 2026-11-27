@@ -79,7 +79,7 @@ export default function AccountButton({
       );
     }
     void readDeletedIds().then((deleted) => {
-      if (!cancel) pushBackupEntries(entries, deleted, onMerge);
+      if (!cancel) pushBackupEntries(entries, deleted, onMerge, onRemove);
     });
     return () => {
       cancel = true;
@@ -194,7 +194,7 @@ export default function AccountButton({
                     );
                     const merged = (await onMerge(kept)) ?? [];
                     return backupRowsAfterMerge(entries, merged, deleted);
-                  });
+                  }, onRemove);
                   setStep("home");
                 })
               }

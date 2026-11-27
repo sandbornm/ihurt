@@ -9,7 +9,12 @@ import {
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
 import { readDeletedIds } from "../notebook-storage.ts";
-import { BACKUP_DAYS, entriesForBackup, type BackupEntry } from "./backup.ts";
+import {
+  BACKUP_DAYS,
+  entriesForBackup,
+  idsDeletedOnServer,
+  type BackupEntry,
+} from "./backup.ts";
 import {
   readAccountConfig,
   testRuntimeAllowed,
@@ -23,6 +28,7 @@ import {
   nextBackupEpoch,
   optedIn,
   pushBackup,
+  rememberRemoteDeletes,
   rememberSeenEntries,
   rememberSynced,
   syncedIdsFor,
@@ -143,9 +149,13 @@ export function startAccount() {
 export async function refreshAccount() {
   const session = state.session;
   if (!session || !api) return;
-  const status = await api.getAccount(await session.getIdToken());
-  if (state.session?.uid !== session.uid) return;
-  setState({ ...state, remaining: status.searchesRemaining });
+  try {
+    const status = await api.getAccount(await session.getIdToken());
+    if (state.session?.uid !== session.uid) return;
+    setState({ ...state, remaining: status.searchesRemaining });
+  } catch {
+    // The account service can be down. Sign-in and the journal stay usable.
+  }
 }
 
 export async function signIn(
@@ -195,6 +205,7 @@ export async function signOut() {
 
 export async function enableBackup(
   onMerge: (entries: SavedMap[]) => Promise<readonly BackupEntry[] | void>,
+  onRemove?: (ids: string[]) => Promise<void>,
 ) {
   const session = state.session;
   if (!session || !client) throw new AccountAuthError("unconfigured");
@@ -229,8 +240,21 @@ export async function enableBackup(
       session.uid,
       kept.map((entry) => entry.id),
     );
+    const gone = idsDeletedOnServer(
+      syncedIdsFor(browserStore(), session.uid),
+      kept,
+      remote,
+      new Set(),
+      Date.now(),
+    );
+    rememberRemoteDeletes(browserStore(), gone, session.uid);
+    const goneIds = new Set(gone);
     const windowed = entriesForBackup(
-      withoutOtherAccountEntries(kept, browserStore(), session.uid),
+      withoutOtherAccountEntries(
+        kept.filter((entry) => !goneIds.has(entry.id)),
+        browserStore(),
+        session.uid,
+      ),
       Date.now(),
       BACKUP_DAYS,
       new Set(remote.map((entry) => entry.id)),
@@ -243,6 +267,7 @@ export async function enableBackup(
       return;
     }
     await api.putEntries(token, windowed);
+    if (gone.length > 0) await onRemove?.(gone);
     if (
       state.session?.uid !== session.uid ||
       backupEpoch(browserStore()) !== epoch
@@ -296,6 +321,7 @@ export function pushBackupEntries(
   entries: readonly BackupEntry[],
   deletedIds: readonly string[] = [],
   onMerge?: (entries: SavedMap[]) => Promise<readonly BackupEntry[] | void>,
+  onRemove?: (ids: string[]) => Promise<void>,
 ) {
   const session = state.session;
   if (!session || !api || !optedIn(browserStore(), session.uid)) return;
@@ -331,6 +357,7 @@ export function pushBackupEntries(
           return remote;
         },
         put: (next, rows) => current.putEntries(next, rows),
+        forget: onRemove,
       });
     })
     .catch(() => {

@@ -23,6 +23,27 @@ export function withinBackupWindow(
   return stamp >= now - days * DAY_MS;
 }
 
+// A successful pull is the cloud window. An id this device last uploaded, that
+// is still inside the window and missing from that pull, was deleted on
+// another device. A new local row was never uploaded, so it is not in `synced`.
+// A row older than the window is absent because it aged out, and stays local.
+export function idsDeletedOnServer<T extends BackupEntry>(
+  synced: readonly string[],
+  local: readonly T[],
+  remote: readonly { id: string }[],
+  deleted: ReadonlySet<string>,
+  now: number,
+  days = BACKUP_DAYS,
+): string[] {
+  const remoteIds = new Set(remote.map((entry) => entry.id));
+  const localById = new Map(local.map((entry) => [entry.id, entry]));
+  return synced.filter((id) => {
+    if (deleted.has(id) || remoteIds.has(id)) return false;
+    const entry = localById.get(id);
+    return entry !== undefined && withinBackupWindow(entry, now, days);
+  });
+}
+
 export function entriesForBackup<T extends BackupEntry>(
   entries: readonly T[],
   now: number,

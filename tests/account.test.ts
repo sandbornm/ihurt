@@ -16,6 +16,7 @@ import {
   backupUploadSet,
   entriesForBackup,
   FREE_SEARCHES,
+  idsDeletedOnServer,
   mergeBackupWindow,
   savedAfterBackupPull,
   toBackupPayload,
@@ -52,6 +53,7 @@ import {
   readSyncedIds,
   rememberSeenEntries,
   rememberSynced,
+  removedIdsFor,
   syncedIdsFor,
   withoutOtherAccountEntries,
   type KeyValueStore,
@@ -1088,6 +1090,65 @@ test("account delete waits for an in-flight upload", async () => {
   assert.deepEqual(order, ["put-start", "put-done", "delete"]);
 });
 
+test("a delete on another device is not uploaded again", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["gone", "keep"], "user-a");
+  const sent: string[][] = [];
+  const forgotten: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("gone", 1), entry("keep", 1), entry("fresh", 1)],
+    now: NOW,
+    store,
+    pull: async () => [entry("keep", 1)],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(sent, [["fresh", "keep"]]);
+  assert.deepEqual(forgotten, [["gone"]]);
+  assert.deepEqual(removedIdsFor(store, "user-a"), ["gone"]);
+  const again: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("gone", 1), entry("keep", 1)],
+    now: NOW,
+    store,
+    pull: async () => [entry("keep", 1)],
+    put: async (_token, rows) => {
+      again.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(again, [["keep"]]);
+  assert.deepEqual(
+    mergeBackupWindow(
+      [entry("gone", 1), entry("keep", 1)],
+      [entry("keep", 1)],
+      new Set(),
+      NOW,
+    )
+      .map((row) => row.id)
+      .sort(),
+    ["gone", "keep"],
+  );
+  assert.deepEqual(
+    idsDeletedOnServer(
+      ["gone", "keep", "old"],
+      [entry("gone", 1), entry("keep", 1), entry("old", 91)],
+      [entry("keep", 1)],
+      new Set(),
+      NOW,
+    ),
+    ["gone"],
+  );
+});
+
 test("the next account does not upload the previous account's entries", async () => {
   const store = memory();
   rememberSeenEntries(store, "user-a", ["from-a"]);
@@ -1129,17 +1190,13 @@ test("a later save applies the downloaded note before the next upload", () => {
     "utf8",
   );
   assert.equal(
-    button.includes("pushBackupEntries(entries, deleted, onMerge)"),
+    button.includes("pushBackupEntries(entries, deleted, onMerge, onRemove)"),
     true,
   );
   assert.equal(button.includes("rememberSeenEntries("), true);
   assert.equal(store.includes("await onMerge?.(remote)"), true);
-  assert.equal(
-    store.includes(
-      "withoutOtherAccountEntries(kept, browserStore(), session.uid)",
-    ),
-    true,
-  );
+  assert.equal(store.includes("idsDeletedOnServer("), true);
+  assert.equal(store.includes("rememberRemoteDeletes("), true);
   assert.equal(store.includes("settleUploads: () => pushChain"), true);
   assert.equal(notebook.includes("savedAfterBackupPull"), true);
   assert.equal(auth.includes("storage()?.setItem(REFRESH_KEY"), false);

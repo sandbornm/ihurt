@@ -1,5 +1,6 @@
 import {
   entriesForBackup,
+  idsDeletedOnServer,
   mergeBackupWindow,
   type BackupEntry,
 } from "./backup.ts";
@@ -25,19 +26,29 @@ function idsOf(value: unknown): string[] {
 interface SyncedAccount {
   window: string[];
   backed: string[];
+  removed: string[];
+}
+
+function emptyAccount(): SyncedAccount {
+  return { window: [], backed: [], removed: [] };
 }
 
 function accountOf(value: unknown): SyncedAccount {
   if (Array.isArray(value)) {
     const ids = idsOf(value);
-    return { window: [...ids], backed: [...ids] };
+    return { window: [...ids], backed: [...ids], removed: [] };
   }
-  if (!value || typeof value !== "object") return { window: [], backed: [] };
-  const row = value as { window?: unknown; backed?: unknown };
+  if (!value || typeof value !== "object") return emptyAccount();
+  const row = value as {
+    window?: unknown;
+    backed?: unknown;
+    removed?: unknown;
+  };
   const window = idsOf(row.window);
   return {
     window,
     backed: [...new Set([...idsOf(row.backed), ...window])],
+    removed: idsOf(row.removed),
   };
 }
 
@@ -162,17 +173,36 @@ export function backedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.backed ?? [];
 }
 
+export function removedIdsFor(store: KeyValueStore, uid: string): string[] {
+  return readBook(store)[uid]?.removed ?? [];
+}
+
+export function rememberRemoteDeletes(
+  store: KeyValueStore,
+  ids: readonly string[],
+  uid: string,
+) {
+  if (ids.length === 0) return;
+  const book = readBook(store);
+  const current = book[uid] ?? emptyAccount();
+  const removed = [...new Set([...current.removed, ...ids])];
+  if (removed.length === current.removed.length) return;
+  book[uid] = { ...current, removed };
+  writeBook(store, book);
+}
+
 export function rememberSynced(
   store: KeyValueStore,
   ids: readonly string[],
   uid: string,
 ) {
   const book = readBook(store);
-  const current = book[uid] ?? { window: [], backed: [] };
+  const current = book[uid] ?? emptyAccount();
   const window = [...new Set([...current.window, ...ids])];
   book[uid] = {
     window,
     backed: [...new Set([...current.backed, ...window])],
+    removed: current.removed,
   };
   writeBook(store, book);
 }
@@ -183,11 +213,12 @@ function retainSynced(
   uid: string,
 ) {
   const book = readBook(store);
-  const current = book[uid] ?? { window: [], backed: [] };
+  const current = book[uid] ?? emptyAccount();
   const window = [...new Set(ids)];
   book[uid] = {
     window,
     backed: [...new Set([...current.backed, ...window])],
+    removed: current.removed,
   };
   writeBook(store, book);
 }
@@ -223,6 +254,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
   pull?: (token: string) => Promise<readonly T[]>;
   deletedIds?: Snapshot<string>;
   epoch?: number;
+  forget?: (ids: string[]) => Promise<void>;
 }): Promise<T[]> {
   const sameEpoch = () =>
     input.epoch === undefined || backupEpoch(input.store) === input.epoch;
@@ -238,6 +270,22 @@ export async function pushBackup<T extends BackupEntry>(input: {
     input.uid,
   );
   const deleted = new Set(await snapshotOf(input.deletedIds));
+  if (!current()) return [];
+  const remoteGone = input.pull
+    ? idsDeletedOnServer(
+        syncedIdsFor(input.store, input.uid),
+        entries,
+        remote,
+        deleted,
+        input.now,
+      )
+    : [];
+  rememberRemoteDeletes(input.store, remoteGone, input.uid);
+  const drop = [
+    ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
+  ].filter((id) => entries.some((entry) => entry.id === id));
+  for (const id of drop) deleted.add(id);
+  if (drop.length > 0) await input.forget?.(drop);
   if (!current()) return [];
   const windowed = input.pull
     ? mergeBackupWindow(entries, remote, deleted, input.now)

@@ -1,0 +1,362 @@
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useI18n } from "../i18n/react";
+import { readDeletedIds } from "../notebook-storage.ts";
+import type { SavedMap } from "../types.ts";
+import { entriesForBackup, type BackupEntry } from "./backup.ts";
+import { AccountAuthError } from "./auth.ts";
+import {
+  closeUpgrade,
+  deleteAccount,
+  disableBackup,
+  enableBackup,
+  enrollPasskey,
+  getAccountSnapshot,
+  pushBackupEntries,
+  signIn,
+  signOut,
+  startAccount,
+  subscribeAccount,
+} from "./store.ts";
+
+type Step = "home" | "confirm-backup" | "confirm-delete";
+
+function messageKey(code: string) {
+  if (code === "email-sent") return "account.emailSent" as const;
+  if (code === "passkey-unavailable") return "account.passkeyUnavailable" as const;
+  if (code === "unconfigured") return "account.notConfigured" as const;
+  if (code === "no-api") return "account.noApi" as const;
+  if (code === "deleted") return "account.deleted" as const;
+  return "account.error" as const;
+}
+
+export default function AccountButton({
+  entries,
+  ready,
+  onMerge,
+  onRemove,
+}: {
+  entries: readonly BackupEntry[];
+  ready: boolean;
+  onMerge: (entries: SavedMap[]) => Promise<void>;
+  onRemove: (ids: string[]) => Promise<void>;
+}) {
+  useEffect(() => {
+    startAccount();
+  }, []);
+  const snapshot = useSyncExternalStore(
+    subscribeAccount,
+    getAccountSnapshot,
+    getAccountSnapshot,
+  );
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>("home");
+  const [email, setEmail] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
+  const upgrade = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (!ready) return;
+    pushBackupEntries(entries);
+  }, [entries, ready, snapshot.optedIn, snapshot.session?.uid]);
+
+  useEffect(() => {
+    const node = dialog.current;
+    if (!node) return;
+    if (open && !node.open) node.showModal();
+    if (!open && node.open) node.close();
+  }, [open]);
+
+  useEffect(() => {
+    const node = upgrade.current;
+    if (!node) return;
+    if (snapshot.upgrade && !node.open) node.showModal();
+    if (!snapshot.upgrade && node.open) node.close();
+  }, [snapshot.upgrade]);
+
+  async function run(action: () => Promise<void>) {
+    try {
+      await action();
+    } catch (error) {
+      if (error instanceof AccountAuthError && error.code === "cancelled") return;
+    }
+  }
+
+  const provider = snapshot.session
+    ? t(
+        snapshot.session.provider === "apple"
+          ? "account.provider.apple"
+          : snapshot.session.provider === "google"
+            ? "account.provider.google"
+            : snapshot.session.provider === "email"
+              ? "account.provider.email"
+              : snapshot.session.provider === "passkey"
+                ? "account.provider.passkey"
+                : "account.provider.unknown",
+      )
+    : "";
+  const backupCount = entriesForBackup(entries, Date.now()).length;
+  const title =
+    step === "confirm-backup"
+      ? t("account.confirmBackupTitle")
+      : step === "confirm-delete"
+        ? t("account.confirmDeleteTitle")
+        : t("account.title");
+
+  return (
+    <>
+      <button
+        type="button"
+        className="account-button"
+        onClick={() => {
+          setStep("home");
+          setOpen(true);
+        }}
+      >
+        {t("account.title")}
+      </button>
+      <dialog
+        ref={dialog}
+        className="dialog account-dialog"
+        aria-labelledby="account-title"
+        onClose={() => setOpen(false)}
+        onCancel={(event) => {
+          event.preventDefault();
+          setStep("home");
+          setOpen(false);
+        }}
+      >
+        <div className="dialog-heading">
+          <h2 id="account-title">{title}</h2>
+          <button
+            type="button"
+            aria-label={t("account.close")}
+            onClick={() => {
+              setStep("home");
+              setOpen(false);
+            }}
+          >
+            ×
+          </button>
+        </div>
+        {step === "confirm-backup" && (
+          <div className="account-actions">
+            <p className="account-copy">
+              {t("account.confirmBackup", { count: backupCount })}
+            </p>
+            <button
+              type="button"
+              className="primary"
+              disabled={snapshot.busy}
+              onClick={() =>
+                void run(async () => {
+                  await enableBackup(entries, async (remote) => {
+                    const deleted = new Set(await readDeletedIds());
+                    await onMerge(
+                      remote.filter((entry) => !deleted.has(entry.id)),
+                    );
+                  });
+                  setStep("home");
+                })
+              }
+            >
+              {t("account.confirmBackupAction")}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setStep("home")}
+            >
+              {t("account.cancel")}
+            </button>
+          </div>
+        )}
+        {step === "confirm-delete" && (
+          <div className="account-actions">
+            <p className="account-copy">
+              {snapshot.canBackup
+                ? t("account.confirmDelete")
+                : t("account.confirmDeleteLocal")}
+            </p>
+            <button
+              type="button"
+              className="primary"
+              disabled={snapshot.busy}
+              onClick={() =>
+                void run(async () => {
+                  await deleteAccount(onRemove);
+                  setStep("home");
+                  setOpen(false);
+                })
+              }
+            >
+              {t("account.confirmDeleteAction")}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setStep("home")}
+            >
+              {t("account.cancel")}
+            </button>
+          </div>
+        )}
+        {step === "home" && (
+          <div className="account-actions">
+            <p className="account-copy">{t("account.optional")}</p>
+            <p className="account-copy">{t("account.free")}</p>
+            {snapshot.status === "unconfigured" && (
+              <p className="account-copy">{t("account.notConfigured")}</p>
+            )}
+            {snapshot.busy && (
+              <p role="status" className="account-copy">
+                {t("account.working")}
+              </p>
+            )}
+            {snapshot.notice && (
+              <p role="status" className="account-copy">
+                {t(messageKey(snapshot.notice))}
+              </p>
+            )}
+            {snapshot.error && (
+              <p role="alert" className="account-copy">
+                {t(messageKey(snapshot.error))}
+              </p>
+            )}
+            {!snapshot.session && (
+              <>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={snapshot.busy || snapshot.status !== "ready"}
+                  onClick={() => void run(() => signIn("apple"))}
+                >
+                  {t("account.apple")}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={snapshot.busy || snapshot.status !== "ready"}
+                  onClick={() => void run(() => signIn("google"))}
+                >
+                  {t("account.google")}
+                </button>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void run(() => signIn("email", email));
+                  }}
+                >
+                  <label>
+                    {t("account.emailLabel")}
+                    <input
+                      type="email"
+                      name="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="secondary"
+                    disabled={snapshot.busy || snapshot.status !== "ready"}
+                  >
+                    {t("account.email")}
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={snapshot.busy || snapshot.status !== "ready"}
+                  onClick={() => void run(() => signIn("passkey"))}
+                >
+                  {t("account.passkey")}
+                </button>
+              </>
+            )}
+            {snapshot.session && (
+              <>
+                <p className="account-copy">
+                  {t("account.signedIn")} · {provider}
+                </p>
+                {snapshot.remaining !== null && (
+                  <p className="account-copy">
+                    {t("account.searchesLeft", { count: snapshot.remaining })}
+                  </p>
+                )}
+                <h3>{t("account.backup")}</h3>
+                <p className="account-copy">
+                  {snapshot.optedIn
+                    ? t("account.backupOn")
+                    : t("account.backupOff")}
+                </p>
+                {snapshot.optedIn ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => void run(disableBackup)}
+                  >
+                    {t("account.turnOff")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={snapshot.busy}
+                    onClick={() => setStep("confirm-backup")}
+                  >
+                    {t("account.turnOn")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={snapshot.busy}
+                  onClick={() => void run(enrollPasskey)}
+                >
+                  {t("account.passkeyAdd")}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={snapshot.busy}
+                  onClick={() => void run(signOut)}
+                >
+                  {t("account.signOut")}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={snapshot.busy}
+                  onClick={() => setStep("confirm-delete")}
+                >
+                  {t("account.delete")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </dialog>
+      <dialog
+        ref={upgrade}
+        className="dialog account-dialog"
+        aria-labelledby="upgrade-title"
+        onClose={closeUpgrade}
+        onCancel={(event) => {
+          event.preventDefault();
+          closeUpgrade();
+        }}
+      >
+        <div className="dialog-heading">
+          <h2 id="upgrade-title">{t("account.upgradeTitle")}</h2>
+        </div>
+        <p className="account-copy">{t("account.upgradeBody")}</p>
+        <button type="button" className="primary" onClick={closeUpgrade}>
+          {t("account.upgradeClose")}
+        </button>
+      </dialog>
+    </>
+  );
+}

@@ -199,7 +199,7 @@ export const es: Messages = {
   "notebook.info.native":
     "Manos procesa las imágenes de la cámara en tu dispositivo. El dictado usa el reconocimiento de voz de Apple en el dispositivo. iHurt no guarda el audio ni lo envía a un servidor de voz. Si el dictado no está disponible, puedes escribir tu nota.",
   "notebook.info.exports":
-    "Los archivos exportados se quedan en Archivos → iHurt → Reports, aunque canceles el envío. Borra en Archivos las copias que no quieras. Las copias de seguridad del dispositivo siguen tu configuración de iOS. iHurt no tiene cuentas ni analíticas.",
+    "Los archivos exportados se quedan en Archivos → iHurt → Reports, aunque canceles el envío. Borra en Archivos las copias que no quieras. Las copias de seguridad del dispositivo siguen tu configuración de iOS. El inicio de sesión es opcional. El cuaderno se queda en este dispositivo hasta que activas la copia de seguridad. Los eventos opcionales de la cuenta registran solo el nombre de la acción, sin notas, pines, nombre ni correo.",
   "notebook.info.medical":
     "iHurt no es consejo médico de ningún tipo. No diagnostica, trata, cura, mitiga ni previene ninguna enfermedad, lesión o afección. Las etiquetas y los resaltados anatómicos son aproximados. Los pines se refieren a un modelo anatómico compartido, no a medidas de tu cuerpo. La estatura y el peso por sí solos no pueden determinar tus proporciones ni el tejido que causa la molestia.",
   "notebook.info.resources":
@@ -895,4 +895,66 @@ export const es: Messages = {
   "theme.dark": "Oscuro",
   "rec.noTranscript":
     "No se recibió una transcripción útil. Vuelve a intentarlo o escribe abajo.",
+  "account.title": "Cuenta",
+  "account.close": "Cerrar cuenta",
+  "account.optional":
+    "El inicio de sesión es opcional. Tu cuaderno se queda en este dispositivo.",
+  "account.notConfigured":
+    "El inicio de sesión no está configurado en esta versión. Tu cuaderno sigue funcionando en este dispositivo.",
+  "account.working": "Trabajando…",
+  "account.emailSent": "Revisa tu correo para ver el enlace de acceso.",
+  "account.passkeyUnavailable":
+    "Las llaves de acceso no están disponibles en este navegador.",
+  "account.noApi":
+    "La copia en la nube no está configurada en esta versión. El diario en este dispositivo sigue funcionando.",
+  "account.deleted":
+    "Cuenta eliminada. Las entradas que nunca se copiaron se quedan en este dispositivo.",
+  "account.error": "Algo salió mal. Tu cuaderno sigue en este dispositivo.",
+  "account.searchFailed":
+    "El servicio de la cuenta no pudo revisar las búsquedas de fuentes. La búsqueda no se envió.",
+  "account.apple": "Iniciar sesión con Apple",
+  "account.google": "Iniciar sesión con Google",
+  "account.emailLabel": "Correo",
+  "account.email": "Enviarme un enlace de acceso",
+  "account.passkey": "Iniciar sesión con una llave de acceso",
+  "account.passkeyAdd": "Agregar una llave de acceso",
+  "account.signedIn": "Sesión iniciada",
+  "account.provider.apple": "Apple",
+  "account.provider.google": "Google",
+  "account.provider.email": "Enlace de correo",
+  "account.provider.passkey": "Llave de acceso",
+  "account.provider.unknown": "Cuenta",
+  "account.searchesLeft": {
+    one: "Queda {count} búsqueda de fuentes este mes.",
+    other: "Quedan {count} búsquedas de fuentes este mes.",
+  },
+  "account.free":
+    "El plan gratuito incluye un diario sin límite en este dispositivo, copia en la nube de los últimos 90 días y 5 búsquedas de fuentes al mes.",
+  "account.backup": "Copia en la nube",
+  "account.backupOff":
+    "La copia está desactivada. Las entradas se quedan en este dispositivo.",
+  "account.backupOn":
+    "La copia está activa para esta cuenta. Las entradas de los últimos 90 días se copian cuando guardas.",
+  "account.turnOn": "Activar copia",
+  "account.turnOff": "Desactivar copia",
+  "account.confirmBackupTitle": "¿Copiar las entradas a esta cuenta?",
+  "account.confirmBackup": {
+    one: "Esto copia {count} entrada de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen notas y pines. Las grabaciones se quedan en este dispositivo.",
+    other:
+      "Esto copia {count} entradas de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen notas y pines. Las grabaciones se quedan en este dispositivo.",
+  },
+  "account.confirmBackupAction": "Copiar a esta cuenta",
+  "account.cancel": "Cancelar",
+  "account.signOut": "Cerrar sesión",
+  "account.delete": "Eliminar cuenta",
+  "account.confirmDeleteTitle": "¿Eliminar esta cuenta?",
+  "account.confirmDelete":
+    "Esto elimina la cuenta en la nube y las entradas copiadas desde este dispositivo. Las entradas que nunca se copiaron se quedan en este dispositivo.",
+  "account.confirmDeleteLocal":
+    "Esto elimina el inicio de sesión en este dispositivo. Las entradas de este dispositivo se quedan aquí.",
+  "account.confirmDeleteAction": "Eliminar cuenta",
+  "account.upgradeTitle": "Pro: la mejora llega pronto",
+  "account.upgradeBody":
+    "El plan gratuito incluye un diario sin límite en este dispositivo, copia en la nube de los últimos 90 días y 5 búsquedas de fuentes al mes. Pro costará unos $4.99 al mes o $39.99 al año. La compra llega más adelante.",
+  "account.upgradeClose": "Cerrar",
 };

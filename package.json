@@ -30,6 +30,7 @@
     "test:ios-speech": "node scripts/ios-speech-browser-check.mjs",
     "test:ios-native": "node scripts/ios-native-check.mjs",
     "test:api-browser": "node scripts/api-browser-check.mjs",
+    "test:account": "node scripts/account-browser-check.mjs",
     "eval:extraction": "node --experimental-strip-types scripts/eval-extraction.ts",
     "eval:record": "node --experimental-strip-types scripts/eval-record.ts"
   },
@@ -40,6 +41,7 @@
     "@capacitor/share": "8.0.2",
     "@fontsource-variable/dm-sans": "^5.2.8",
     "@mediapipe/tasks-vision": "^0.10.32",
+    "firebase": "^11.10.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

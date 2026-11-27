@@ -255,12 +255,14 @@ The packaged iOS app rejects calls through this local web client before any
 network request. Apple Speech and Files exports use native adapters, and the
 shared voice form can accept a web client's implementation from its host.
 
-No native API endpoint is needed for this MVP. A future hosted iOS API needs an
-explicit HTTPS service and native authentication design; adding
-`capacitor://localhost` to the Python server's origin list is not that design.
-Keep provider keys on the server and preserve all global and visitor limits.
-The local Python API remains loopback-only. Shared notebook/`.ihm` schemas and
-anatomy coordinates remain compatible across web and iOS.
+The packaged app does not send the journal through the local `/api/` client.
+Optional cloud backup uses a separate ihurt-api origin (`VITE_IHURT_API_BASE`)
+and a Firebase ID token, and only after the user turns backup on. That client
+is not the loopback Python server. Adding `capacitor://localhost` to the
+Python server's origin list is not the hosted API. Keep provider keys on the
+server and preserve all global and visitor limits. The local Python API
+remains loopback-only. Shared notebook/`.ihm` schemas and anatomy coordinates
+remain compatible across web and iOS.
 
 ### Before a Metal or Vision implementation
 

@@ -195,7 +195,7 @@ export const en = {
   "notebook.info.native":
     "Hands processes camera frames on your device. Dictation uses on-device Apple speech recognition. iHurt does not save audio or send it to a speech server. If dictation is unavailable, you can type your note.",
   "notebook.info.exports":
-    "Exports stay in Files → iHurt → Reports, even if you cancel sharing. Delete unwanted copies in Files. Device backups follow your iOS settings. iHurt has no accounts or analytics.",
+    "Exports stay in Files → iHurt → Reports, even if you cancel sharing. Delete unwanted copies in Files. Device backups follow your iOS settings. Sign-in is optional. The journal stays on this device until you turn on backup. Optional account events record only the action name, with no notes, pins, name, or email.",
   "notebook.info.medical":
     "iHurt is not medical advice whatsoever. It does not diagnose, treat, cure, mitigate, or prevent any disease, injury, or condition. Anatomy labels and highlights are approximate. Pins refer to a shared anatomy model, not measurements of your body. Height and weight alone cannot establish your proportions or the tissue causing discomfort.",
   "notebook.info.resources":
@@ -862,6 +862,66 @@ export const en = {
   "theme.dark": "Dark",
   "rec.noTranscript":
     "No usable transcript was returned. Try again or type below.",
+  "account.title": "Account",
+  "account.close": "Close account",
+  "account.optional":
+    "Sign-in is optional. Your journal stays on this device.",
+  "account.notConfigured":
+    "Sign-in is not set up in this build. Your journal still works on this device.",
+  "account.working": "Working…",
+  "account.emailSent": "Check your email for the sign-in link.",
+  "account.passkeyUnavailable": "Passkeys are unavailable in this browser.",
+  "account.noApi":
+    "Cloud backup is not set up in this build. Journaling on this device still works.",
+  "account.deleted":
+    "Account deleted. Entries that were never backed up stay on this device.",
+  "account.error": "Something went wrong. Your journal is still on this device.",
+  "account.searchFailed":
+    "The account service could not check source searches. The search was not sent.",
+  "account.apple": "Sign in with Apple",
+  "account.google": "Sign in with Google",
+  "account.emailLabel": "Email",
+  "account.email": "Email me a sign-in link",
+  "account.passkey": "Sign in with a passkey",
+  "account.passkeyAdd": "Add a passkey",
+  "account.signedIn": "Signed in",
+  "account.provider.apple": "Apple",
+  "account.provider.google": "Google",
+  "account.provider.email": "Email link",
+  "account.provider.passkey": "Passkey",
+  "account.provider.unknown": "Account",
+  "account.searchesLeft": {
+    one: "{count} source search left this month.",
+    other: "{count} source searches left this month.",
+  },
+  "account.free":
+    "Free includes unlimited journaling on this device, cloud backup of the last 90 days, and 5 source searches a month.",
+  "account.backup": "Cloud backup",
+  "account.backupOff": "Backup is off. Entries stay on this device.",
+  "account.backupOn":
+    "Backup is on for this account. Entries from the last 90 days are copied when you save.",
+  "account.turnOn": "Turn on backup",
+  "account.turnOff": "Turn off backup",
+  "account.confirmBackupTitle": "Copy entries to this account?",
+  "account.confirmBackup": {
+    one: "This copies {count} entry from the last 90 days on this device to this account. Notes and pins are included. Recordings stay on this device.",
+    other:
+      "This copies {count} entries from the last 90 days on this device to this account. Notes and pins are included. Recordings stay on this device.",
+  },
+  "account.confirmBackupAction": "Copy to this account",
+  "account.cancel": "Cancel",
+  "account.signOut": "Sign out",
+  "account.delete": "Delete account",
+  "account.confirmDeleteTitle": "Delete this account?",
+  "account.confirmDelete":
+    "This removes the cloud account and the entries backed up from this device. Entries that were never backed up stay on this device.",
+  "account.confirmDeleteLocal":
+    "This removes the sign-in on this device. Entries on this device stay here.",
+  "account.confirmDeleteAction": "Delete account",
+  "account.upgradeTitle": "Pro: upgrade coming soon",
+  "account.upgradeBody":
+    "Free includes unlimited journaling on this device, cloud backup of the last 90 days, and 5 source searches a month. Pro will be about $4.99 a month or $39.99 a year. Buying it comes later.",
+  "account.upgradeClose": "Close",
 } satisfies Record<string, Message>;
 
 export type MessageKey = keyof typeof en;

@@ -1,10 +1,15 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { Sparkles, LoaderCircle, ArrowRight } from "lucide-react";
 import { api, ApiError } from "./api";
 import type { Answer, HurtMap, ProviderId, SavedMap, Session } from "./types";
 import { entryFingerprint } from "./notebook-data";
 import VisitorCheck from "./VisitorCheck";
 import { useI18n } from "./i18n/react";
+import {
+  getAccountSnapshot,
+  guardSourceSearch,
+  subscribeAccount,
+} from "./account/store.ts";
 export interface AssistantProps {
   entry: SavedMap;
   onSave: (analysis: NonNullable<SavedMap["ai"]>) => void;
@@ -24,6 +29,11 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
     [token, setToken] = useState(""),
     [nonce, setNonce] = useState(0);
   const { t } = useI18n();
+  const accountRemaining = useSyncExternalStore(
+    subscribeAccount,
+    () => getAccountSnapshot().remaining,
+    () => null,
+  );
   const submitted = useRef(false),
     snapshot = useRef("");
   const tooManyPins = (entry.points?.length ?? 0) > 10;
@@ -66,6 +76,14 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
     setError("");
     const fingerprint = entryFingerprint(entry);
     try {
+      let allowed = true;
+      try {
+        allowed = await guardSourceSearch();
+      } catch {
+        setError(t("account.searchFailed"));
+        return;
+      }
+      if (!allowed) return;
       const response = await api<{
         activity_id: string;
         map: HurtMap;
@@ -179,6 +197,11 @@ export default function AIOptions({ entry, onSave }: AssistantProps) {
                 {provider === "local" ? t("ai.local") : t("ai.cloud")}{" "}
                 {t("ai.remaining", { count: session.remaining })}
               </p>
+              {accountRemaining !== null && (
+                <p className="subtle">
+                  {t("account.searchesLeft", { count: accountRemaining })}
+                </p>
+              )}
               {tooManyPins && <p role="status">{t("ai.tooManyPins")}</p>}
               {live && (
                 <label className="consent">

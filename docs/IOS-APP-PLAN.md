@@ -50,7 +50,7 @@ Ship a **TestFlight / App Store “notebook”** that matches what the Capacitor
 4. Optional Hands camera gestures with clear permission recovery
 5. Optional on-device Apple dictation for drafts
 6. Strong “not medical advice” copy, offline credits, and App Store privacy answers based on actual data flows; review [PrivacyInfo.xcprivacy](../ios/App/App/PrivacyInfo.xcprivacy) separately for required-reason APIs and SDK declarations
-7. No accounts, no analytics SDK, no in-app AI server, no cloud sync
+7. Optional sign-in and backup. No analytics SDK, no in-app purchase, and the journal works on device without an account
 
 **Explicitly out of MVP:** SwiftUI rewrite, native Metal renderer, cloud backup, in-app subscriptions, native PDF, Android, App Clip, HealthKit, Clinical / FDA pathway.
 

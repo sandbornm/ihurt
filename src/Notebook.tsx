@@ -64,6 +64,7 @@ import {
   saveResearch,
   storeEntries,
   removeEntry,
+  readDeletedIds,
   editorAfterSave,
   withStampedResearch,
   entryReferences,
@@ -88,6 +89,7 @@ import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
+import AccountButton from "./account/AccountButton";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -529,6 +531,29 @@ export default function Notebook({
           iHurt<span className="brand-period">.</span>
         </a>
         <div className="top-actions">
+          <AccountButton
+            entries={saved}
+            ready={hydrated}
+            onMerge={async (incoming) => {
+              const deleted = new Set(await readDeletedIds());
+              const fresh = incoming.filter((entry) => !deleted.has(entry.id));
+              if (fresh.length === 0) return;
+              const stored = await storeEntries(fresh);
+              setSaved((old) => {
+                const map = new Map(old.map((item) => [item.id, item]));
+                for (const row of stored) map.set(row.id, row);
+                return [...map.values()];
+              });
+            }}
+            onRemove={async (ids) => {
+              for (const id of ids) await removeEntry(id);
+              setSaved((old) => old.filter((item) => !ids.includes(item.id)));
+              if (ids.includes(entry.id)) {
+                setEntry(blankEntry());
+                setSelected(null);
+              }
+            }}
+          />
           <LanguageSetting />
           <ThemeToggle />
           <button

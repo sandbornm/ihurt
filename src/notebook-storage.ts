@@ -98,6 +98,19 @@ function deletedIds(value: unknown): string[] {
     : [];
 }
 
+// Ids the user deleted on this device. Sync must not restore them.
+export function readDeletedIds(): Promise<string[]> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction("settings", "readonly");
+        const request = tx.objectStore("settings").get(DELETED_IDS);
+        request.onsuccess = () => resolve(deletedIds(request.result));
+        request.onerror = () => reject(request.error);
+      }),
+  );
+}
+
 // Missing on rows saved before versions existed. Older than any stamped search.
 function researchVersion(entry: SavedMap | undefined): string {
   const version = entry?.research?.version;

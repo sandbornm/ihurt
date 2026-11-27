@@ -91,7 +91,11 @@ import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
 import AccountButton from "./account/AccountButton";
-import { withLocalPrivateFields } from "./account/backup.ts";
+import {
+  journalSignature,
+  savedAfterBackupPull,
+  withLocalPrivateFields,
+} from "./account/backup.ts";
 import { guardSourceSearch } from "./account/store.ts";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
@@ -547,24 +551,27 @@ export default function Notebook({
               if (fresh.length === 0) return [];
               const local = new Map(saved.map((item) => [item.id, item]));
               const stored = await restoreBackupEntries(
-                fresh.map((row) => withLocalPrivateFields(local.get(row.id), row)),
+                fresh.map((row) =>
+                  withLocalPrivateFields(local.get(row.id), row),
+                ),
               );
               const kept = new Set(stored.map((row) => row.id));
-              setSaved((old) => {
-                const map = new Map(old.map((item) => [item.id, item]));
-                for (const row of fresh) {
-                  if (!kept.has(row.id)) map.delete(row.id);
-                }
-                for (const row of stored) map.set(row.id, row);
-                return [...map.values()];
-              });
+              setSaved((old) => savedAfterBackupPull(old, fresh, stored));
               const restored = stored.find((row) => row.id === snapshot.id);
               if (restored) {
-                const next = editorAfterSave(entryRef.current, snapshot, restored);
-                entryRef.current = next;
-                draftRef.current = { ...draftRef.current, entry: next };
-                setEntry(next);
-                await saveDraft(draftRef.current);
+                const next = editorAfterSave(
+                  entryRef.current,
+                  snapshot,
+                  restored,
+                );
+                if (
+                  journalSignature(next) !== journalSignature(entryRef.current)
+                ) {
+                  entryRef.current = next;
+                  draftRef.current = { ...draftRef.current, entry: next };
+                  setEntry(next);
+                  await saveDraft(draftRef.current);
+                }
               } else if (
                 !kept.has(snapshot.id) &&
                 fresh.some((row) => row.id === snapshot.id)

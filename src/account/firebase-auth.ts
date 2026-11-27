@@ -38,7 +38,10 @@ function providerOf(user: FirebaseUser): SignInProvider {
   return "unknown";
 }
 
-function toSession(user: FirebaseUser, provider?: SignInProvider): AccountSession {
+function toSession(
+  user: FirebaseUser,
+  provider?: SignInProvider,
+): AccountSession {
   return {
     uid: user.uid,
     email: user.email,
@@ -67,7 +70,9 @@ function isMissingPlugin(error: unknown): boolean {
 function authTimeMs(idToken: string): number {
   try {
     const segment = idToken.split(".")[1] ?? "";
-    const payload = JSON.parse(new TextDecoder().decode(decodeBase64(segment))) as {
+    const payload = JSON.parse(
+      new TextDecoder().decode(decodeBase64(segment)),
+    ) as {
       auth_time?: unknown;
     };
     return typeof payload.auth_time === "number" ? payload.auth_time * 1000 : 0;
@@ -109,6 +114,29 @@ function storage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function sessionStorageOrNull(): Storage | null {
+  try {
+    return sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readPasskeyRefresh(): string | null {
+  storage()?.removeItem(REFRESH_KEY);
+  return sessionStorageOrNull()?.getItem(REFRESH_KEY) ?? null;
+}
+
+function writePasskeyRefresh(token: string) {
+  storage()?.removeItem(REFRESH_KEY);
+  sessionStorageOrNull()?.setItem(REFRESH_KEY, token);
+}
+
+function clearPasskeyRefresh() {
+  storage()?.removeItem(REFRESH_KEY);
+  sessionStorageOrNull()?.removeItem(REFRESH_KEY);
 }
 
 export async function createFirebaseAuth(
@@ -159,17 +187,21 @@ export async function createFirebaseAuth(
   ): AccountSession {
     let currentId = idToken;
     let currentRefresh = refreshToken;
-    storage()?.setItem(REFRESH_KEY, currentRefresh);
+    writePasskeyRefresh(currentRefresh);
     const session: AccountSession = {
       uid: localId,
       email: null,
       provider: "passkey",
       async getIdToken() {
         if (tokenExpiryMs(currentId) - Date.now() > 60_000) return currentId;
-        const next = await refreshIdToken(config.apiKey, currentRefresh, fetchImpl);
+        const next = await refreshIdToken(
+          config.apiKey,
+          currentRefresh,
+          fetchImpl,
+        );
         currentId = next.idToken;
         currentRefresh = next.refreshToken;
-        storage()?.setItem(REFRESH_KEY, currentRefresh);
+        writePasskeyRefresh(currentRefresh);
         return currentId;
       },
     };
@@ -196,13 +228,13 @@ export async function createFirebaseAuth(
       history.replaceState(null, "", `${location.origin}${location.pathname}`),
   });
   if (!continued && !auth.currentUser) {
-    const refresh = storage()?.getItem(REFRESH_KEY);
+    const refresh = readPasskeyRefresh();
     if (refresh) {
       try {
         const next = await refreshIdToken(config.apiKey, refresh, fetchImpl);
         adoptPasskey(next.idToken, next.refreshToken, next.localId);
       } catch {
-        storage()?.removeItem(REFRESH_KEY);
+        clearPasskeyRefresh();
       }
     }
   }
@@ -262,7 +294,11 @@ export async function createFirebaseAuth(
             location.href,
           );
           storage()?.removeItem(EMAIL_KEY);
-          history.replaceState(null, "", `${location.origin}${location.pathname}`);
+          history.replaceState(
+            null,
+            "",
+            `${location.origin}${location.pathname}`,
+          );
           return toSession(result.user as FirebaseUser, "email");
         }
         await authMod.sendSignInLinkToEmail(auth, address, {
@@ -279,7 +315,10 @@ export async function createFirebaseAuth(
           name: string,
         ) => Promise<{ user: FirebaseUser }>;
       };
-      if (typeof exported.signInWithPasskey === "function" && rpId === location.hostname) {
+      if (
+        typeof exported.signInWithPasskey === "function" &&
+        rpId === location.hostname
+      ) {
         try {
           const result = await exported.signInWithPasskey(auth, "iHurt");
           return toSession(result.user, "passkey");
@@ -293,7 +332,11 @@ export async function createFirebaseAuth(
           rpId,
           fetchImpl,
         });
-        return adoptPasskey(tokens.idToken, tokens.refreshToken, tokens.localId);
+        return adoptPasskey(
+          tokens.idToken,
+          tokens.refreshToken,
+          tokens.localId,
+        );
       } catch (error) {
         if (error instanceof AccountAuthError) throw error;
         throw new AccountAuthError("passkey-unavailable");
@@ -301,7 +344,7 @@ export async function createFirebaseAuth(
     },
     async signOut() {
       passkeySession = null;
-      storage()?.removeItem(REFRESH_KEY);
+      clearPasskeyRefresh();
       await authMod.signOut(auth);
       emit(null);
     },
@@ -384,7 +427,7 @@ export async function createFirebaseAuth(
       if (user) {
         await user.delete();
         passkeySession = null;
-        storage()?.removeItem(REFRESH_KEY);
+        clearPasskeyRefresh();
         return;
       }
       if (passkeySession) {
@@ -399,7 +442,7 @@ export async function createFirebaseAuth(
         );
         if (!response.ok) throw new AccountAuthError("delete-failed");
         passkeySession = null;
-        storage()?.removeItem(REFRESH_KEY);
+        clearPasskeyRefresh();
         emit(null);
       }
     },

@@ -10,7 +10,11 @@ import {
 import type { SavedMap } from "../types.ts";
 import { readDeletedIds } from "../notebook-storage.ts";
 import { BACKUP_DAYS, entriesForBackup, type BackupEntry } from "./backup.ts";
-import { readAccountConfig, testRuntimeAllowed, type AccountConfig } from "./config.ts";
+import {
+  readAccountConfig,
+  testRuntimeAllowed,
+  type AccountConfig,
+} from "./config.ts";
 import {
   backupEpoch,
   clearOptIn,
@@ -19,8 +23,10 @@ import {
   nextBackupEpoch,
   optedIn,
   pushBackup,
+  rememberSeenEntries,
   rememberSynced,
   syncedIdsFor,
+  withoutOtherAccountEntries,
   type KeyValueStore,
 } from "./sync.ts";
 
@@ -162,7 +168,11 @@ export async function signIn(
     setState({ ...state, busy: false, error: "" });
   } catch (error) {
     const code = error instanceof AccountAuthError ? error.code : "error";
-    setState({ ...state, busy: false, error: code === "cancelled" ? "" : code });
+    setState({
+      ...state,
+      busy: false,
+      error: code === "cancelled" ? "" : code,
+    });
     if (code !== "cancelled") throw error;
   }
 }
@@ -195,12 +205,18 @@ export async function enableBackup(
     const token = await session.getIdToken();
     await api.enableSync(token);
     const remote = await api.getEntries(token);
-    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
+    if (
+      state.session?.uid !== session.uid ||
+      backupEpoch(browserStore()) !== epoch
+    ) {
       setState({ ...state, busy: false });
       return;
     }
     const kept = await onMerge(remote);
-    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
+    if (
+      state.session?.uid !== session.uid ||
+      backupEpoch(browserStore()) !== epoch
+    ) {
       setState({ ...state, busy: false });
       return;
     }
@@ -208,18 +224,29 @@ export async function enableBackup(
       setState({ ...state, busy: false, error: "error" });
       return;
     }
+    rememberSeenEntries(
+      browserStore(),
+      session.uid,
+      kept.map((entry) => entry.id),
+    );
     const windowed = entriesForBackup(
-      kept,
+      withoutOtherAccountEntries(kept, browserStore(), session.uid),
       Date.now(),
       BACKUP_DAYS,
       new Set(remote.map((entry) => entry.id)),
     );
-    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
+    if (
+      state.session?.uid !== session.uid ||
+      backupEpoch(browserStore()) !== epoch
+    ) {
       setState({ ...state, busy: false });
       return;
     }
     await api.putEntries(token, windowed);
-    if (state.session?.uid !== session.uid || backupEpoch(browserStore()) !== epoch) {
+    if (
+      state.session?.uid !== session.uid ||
+      backupEpoch(browserStore()) !== epoch
+    ) {
       setState({ ...state, busy: false });
       return;
     }
@@ -245,7 +272,8 @@ export async function enrollPasskey() {
     await client.enrollPasskey();
     setState({ ...state, busy: false });
   } catch (error) {
-    const code = error instanceof AccountAuthError ? error.code : "passkey-unavailable";
+    const code =
+      error instanceof AccountAuthError ? error.code : "passkey-unavailable";
     setState({
       ...state,
       busy: false,
@@ -267,6 +295,7 @@ export async function disableBackup() {
 export function pushBackupEntries(
   entries: readonly BackupEntry[],
   deletedIds: readonly string[] = [],
+  onMerge?: (entries: SavedMap[]) => Promise<readonly BackupEntry[] | void>,
 ) {
   const session = state.session;
   if (!session || !api || !optedIn(browserStore(), session.uid)) return;
@@ -293,7 +322,14 @@ export function pushBackupEntries(
           return [...new Set([...latestDeleted, ...stored])];
         },
         epoch,
-        pull: (next) => current.getEntries(next),
+        pull: async (next) => {
+          const remote = await current.getEntries(next);
+          if (backupEpoch(browserStore()) !== epoch) return remote;
+          if (state.session?.uid !== uid || !optedIn(browserStore(), uid))
+            return remote;
+          await onMerge?.(remote);
+          return remote;
+        },
         put: (next, rows) => current.putEntries(next, rows),
       });
     })
@@ -302,7 +338,9 @@ export function pushBackupEntries(
     });
 }
 
-export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) {
+export async function deleteAccount(
+  onRemove: (ids: string[]) => Promise<void>,
+) {
   nextBackupEpoch(browserStore());
   const session = state.session;
   if (!session || !client) return;
@@ -316,6 +354,7 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
       removeLocal: onRemove,
       confirmRecentLogin: () => auth.reauthenticate(),
       deleteAuth: () => auth.deleteUser(),
+      settleUploads: () => pushChain,
       store: browserStore(),
     });
     analytics.record("account_delete");

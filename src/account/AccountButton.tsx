@@ -12,6 +12,7 @@ import {
   entriesForBackup,
   type BackupEntry,
 } from "./backup.ts";
+import { rememberSeenEntries, withoutOtherAccountEntries } from "./sync.ts";
 import { AccountAuthError } from "./auth.ts";
 import {
   closeUpgrade,
@@ -31,7 +32,8 @@ type Step = "home" | "confirm-backup" | "confirm-delete";
 
 function messageKey(code: string) {
   if (code === "email-sent") return "account.emailSent" as const;
-  if (code === "passkey-unavailable") return "account.passkeyUnavailable" as const;
+  if (code === "passkey-unavailable")
+    return "account.passkeyUnavailable" as const;
   if (code === "unconfigured") return "account.notConfigured" as const;
   if (code === "no-api") return "account.noApi" as const;
   if (code === "recent-login") return "account.recentLogin" as const;
@@ -69,8 +71,15 @@ export default function AccountButton({
   useEffect(() => {
     if (!ready) return;
     let cancel = false;
+    if (snapshot.session) {
+      rememberSeenEntries(
+        localStorage,
+        snapshot.session.uid,
+        entries.map((item) => item.id),
+      );
+    }
     void readDeletedIds().then((deleted) => {
-      if (!cancel) pushBackupEntries(entries, deleted);
+      if (!cancel) pushBackupEntries(entries, deleted, onMerge);
     });
     return () => {
       cancel = true;
@@ -95,7 +104,8 @@ export default function AccountButton({
     try {
       await action();
     } catch (error) {
-      if (error instanceof AccountAuthError && error.code === "cancelled") return;
+      if (error instanceof AccountAuthError && error.code === "cancelled")
+        return;
     }
   }
 
@@ -112,8 +122,14 @@ export default function AccountButton({
                 : "account.provider.unknown",
       )
     : "";
-  const backupCount = entriesForBackup(entries, Date.now()).length;
-  const protocol = typeof location === "undefined" ? "https:" : location.protocol;
+  const backupCount = entriesForBackup(
+    snapshot.session
+      ? withoutOtherAccountEntries(entries, localStorage, snapshot.session.uid)
+      : entries,
+    Date.now(),
+  ).length;
+  const protocol =
+    typeof location === "undefined" ? "https:" : location.protocol;
   const showEmail = emailSignInAllowed(protocol);
   const showGoogle = googleSignInAllowed(protocol);
   const showPasskey = passkeySignInAllowed(protocol);
@@ -173,7 +189,9 @@ export default function AccountButton({
                 void run(async () => {
                   await enableBackup(async (remote) => {
                     const deleted = new Set(await readDeletedIds());
-                    const kept = remote.filter((entry) => !deleted.has(entry.id));
+                    const kept = remote.filter(
+                      (entry) => !deleted.has(entry.id),
+                    );
                     const merged = (await onMerge(kept)) ?? [];
                     return backupRowsAfterMerge(entries, merged, deleted);
                   });
@@ -261,31 +279,31 @@ export default function AccountButton({
                   </button>
                 )}
                 {showEmail && (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void run(() => signIn("email", email));
-                  }}
-                >
-                  <label>
-                    {t("account.emailLabel")}
-                    <input
-                      type="email"
-                      name="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    className="secondary"
-                    disabled={snapshot.busy || snapshot.status !== "ready"}
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void run(() => signIn("email", email));
+                    }}
                   >
-                    {t("account.email")}
-                  </button>
-                </form>
+                    <label>
+                      {t("account.emailLabel")}
+                      <input
+                        type="email"
+                        name="email"
+                        autoComplete="email"
+                        required
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="secondary"
+                      disabled={snapshot.busy || snapshot.status !== "ready"}
+                    >
+                      {t("account.email")}
+                    </button>
+                  </form>
                 )}
                 {showPasskey && (
                   <button
@@ -361,7 +379,9 @@ export default function AccountButton({
                     {t("account.delete")}
                   </button>
                 ) : (
-                  <p className="account-copy">{t("account.deleteNeedsService")}</p>
+                  <p className="account-copy">
+                    {t("account.deleteNeedsService")}
+                  </p>
                 )}
               </>
             )}

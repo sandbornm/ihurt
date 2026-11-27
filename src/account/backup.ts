@@ -70,7 +70,8 @@ export function backupRowsAfterMerge<T extends BackupEntry>(
 }
 
 function readStamp(entry: BackupEntry): string | undefined {
-  const value = (entry as BackupEntry & { pointsUpdated?: unknown }).pointsUpdated;
+  const value = (entry as BackupEntry & { pointsUpdated?: unknown })
+    .pointsUpdated;
   return typeof value === "string" ? value : undefined;
 }
 
@@ -104,9 +105,9 @@ export function mergeBackupWindow<T extends BackupEntry>(
 }
 
 function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
-  const noteFromRemote = stampMs(remote.noteUpdated) > stampMs(local.noteUpdated);
-  const pinsFromRemote =
-    stampMs(readStamp(remote)) > stampMs(readStamp(local));
+  const noteFromRemote =
+    stampMs(remote.noteUpdated) > stampMs(local.noteUpdated);
+  const pinsFromRemote = stampMs(readStamp(remote)) > stampMs(readStamp(local));
   const row = { ...(noteFromRemote ? remote : local) } as T & {
     note?: string;
     points?: unknown;
@@ -135,7 +136,9 @@ function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
   }
   if (note !== undefined) row.note = note;
   const updated =
-    stampMs(remote.updated) > stampMs(local.updated) ? remote.updated : local.updated;
+    stampMs(remote.updated) > stampMs(local.updated)
+      ? remote.updated
+      : local.updated;
   if (updated) row.updated = updated;
   return row;
 }
@@ -157,7 +160,9 @@ export function backupUploadSet<T extends BackupEntry>(
 
 // The confirmation names notes and pins. The optional title, pin comments,
 // answers, readings, and the AI note stay on the device.
-export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMap {
+export function toBackupPayload(
+  entry: BackupEntry & Partial<SavedMap>,
+): SavedMap {
   const points = (entry.points ?? []).map((point) => backupPin(point));
   return {
     id: entry.id,
@@ -166,7 +171,8 @@ export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMa
     ...(entry.noteUpdated ? { noteUpdated: entry.noteUpdated } : {}),
     ...(entry.pointsUpdated ? { pointsUpdated: entry.pointsUpdated } : {}),
     note: typeof entry.note === "string" ? entry.note : "",
-    provider: typeof entry.provider === "string" ? entry.provider : "Your notes",
+    provider:
+      typeof entry.provider === "string" ? entry.provider : "Your notes",
     answers: [],
     points,
     map: {
@@ -184,7 +190,10 @@ export function toBackupPayload(entry: BackupEntry & Partial<SavedMap>): SavedMa
   };
 }
 
-function regionsForUpload(listed: readonly string[], points: readonly PainPoint[]): string[] {
+function regionsForUpload(
+  listed: readonly string[],
+  points: readonly PainPoint[],
+): string[] {
   const regions = [...listed];
   for (const point of points) {
     if (!regions.includes(point.region)) regions.push(point.region);
@@ -220,36 +229,124 @@ function backupPin(point: PainPoint): PainPoint {
   };
 }
 
+function dropKeys<T extends object, K extends keyof T>(
+  value: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...value };
+  for (const key of keys) delete next[key];
+  return next;
+}
+
+function withoutServerPrivateFields(entry: SavedMap): SavedMap {
+  const points = entry.points?.map((point) => dropKeys(point, ["comment"]));
+  const rest = dropKeys(entry, ["ai", "aiUpdated", "research", "references"]);
+  return { ...rest, answers: [], ...(points ? { points } : {}) };
+}
+
+export function journalSignature(entry: SavedMap): string {
+  const map = entry.map;
+  return JSON.stringify([
+    entry.id,
+    entry.note,
+    entry.noteUpdated ?? null,
+    entry.pointsUpdated ?? null,
+    entry.updated ?? null,
+    map.title,
+    map.summary,
+    map.regions,
+    map.quality,
+    map.activity,
+    map.duration,
+    map.intensity,
+    map.question,
+    map.urgent,
+    map.safety_message,
+    (entry.points ?? []).map((point) => [
+      point.id,
+      point.region,
+      point.structure,
+      point.position,
+      point.comment ?? null,
+      point.area ?? null,
+      point.source ?? null,
+    ]),
+    entry.answers.map((answer) => [answer.key, answer.text]),
+    entry.ai
+      ? [
+          entry.ai.provider,
+          entry.ai.created,
+          entry.ai.based_on,
+          entry.ai.map.summary,
+        ]
+      : null,
+    entry.aiUpdated ?? null,
+    entry.research
+      ? [
+          entry.research.activity,
+          entry.research.description ?? null,
+          entry.research.checked,
+        ]
+      : null,
+    (entry.references ?? []).map((reference) => [
+      reference.title,
+      reference.url,
+    ]),
+  ]);
+}
+
+// A later backup pull replaces the journal row. Skip the update when the
+// visible fields are unchanged, so the save effect does not upload again.
+export function savedAfterBackupPull(
+  old: SavedMap[],
+  fresh: readonly SavedMap[],
+  stored: readonly SavedMap[],
+): SavedMap[] {
+  const kept = new Set(stored.map((row) => row.id));
+  const map = new Map(old.map((item) => [item.id, item]));
+  for (const row of fresh) {
+    if (!kept.has(row.id)) map.delete(row.id);
+  }
+  for (const row of stored) map.set(row.id, row);
+  const next = [...map.values()];
+  const previous = new Map(
+    old.map((item) => [item.id, journalSignature(item)]),
+  );
+  if (
+    next.length === old.length &&
+    next.every((row) => previous.get(row.id) === journalSignature(row))
+  ) {
+    return old;
+  }
+  return next;
+}
+
 // A pulled backup has no private fields. Put the device's copies back before
-// the notebook merge so a restore does not clear them.
+// the notebook merge so a restore does not clear them. A server copy of a
+// comment, answer, search, or AI note is not stored.
 export function withLocalPrivateFields(
   local: SavedMap | undefined,
   incoming: SavedMap,
 ): SavedMap {
-  if (!local) return incoming;
+  const cleaned = withoutServerPrivateFields(incoming);
+  if (!local) return cleaned;
   const comments = new Map(
     (local.points ?? []).flatMap((point) =>
       point.comment ? [[point.id, point.comment] as const] : [],
     ),
   );
-  const points = incoming.points?.map((point) => {
+  const points = cleaned.points?.map((point) => {
     const comment = comments.get(point.id);
     return comment ? { ...point, comment } : point;
   });
   return {
-    ...incoming,
+    ...cleaned,
     ...(points ? { points } : {}),
-    answers: incoming.answers.length > 0 ? incoming.answers : local.answers,
-    ...(local.ai && !incoming.ai
-      ? {
-          ai: local.ai,
-          ...(local.aiUpdated ? { aiUpdated: local.aiUpdated } : {}),
-        }
-      : {}),
-    ...(local.research && !incoming.research ? { research: local.research } : {}),
-    ...(local.references && !incoming.references
-      ? { references: local.references }
-      : {}),
+    answers: local.answers,
+    ...(local.ai ? { ai: local.ai } : {}),
+    ...(local.aiUpdated ? { aiUpdated: local.aiUpdated } : {}),
+    ...(local.research ? { research: local.research } : {}),
+    ...(local.references ? { references: local.references } : {}),
     map: {
       ...incoming.map,
       title: local.map.title || incoming.map.title,

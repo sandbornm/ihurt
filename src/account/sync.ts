@@ -1,10 +1,15 @@
-import { entriesForBackup, mergeBackupWindow, type BackupEntry } from "./backup.ts";
+import {
+  entriesForBackup,
+  mergeBackupWindow,
+  type BackupEntry,
+} from "./backup.ts";
 
 export const OPT_IN_KEY = "ihurt-sync-opt-in";
 export const OPT_IN_UID_KEY = "ihurt-sync-uid";
 export const SYNCED_IDS_KEY = "ihurt-synced-ids";
 export const SYNCED_UID_KEY = "ihurt-synced-uid";
 const BACKUP_EPOCH_KEY = "ihurt-backup-epoch";
+const SEEN_ENTRIES_KEY = "ihurt-seen-entries";
 
 export interface KeyValueStore {
   getItem(key: string): string | null;
@@ -61,7 +66,9 @@ function writeBook(store: KeyValueStore, book: Record<string, SyncedAccount>) {
 }
 
 export function readSyncedIds(store: KeyValueStore): string[] {
-  return [...new Set(Object.values(readBook(store)).flatMap((row) => row.window))];
+  return [
+    ...new Set(Object.values(readBook(store)).flatMap((row) => row.window)),
+  ];
 }
 
 export function optedIn(store: KeyValueStore, uid: string): boolean {
@@ -91,6 +98,62 @@ export function nextBackupEpoch(store: KeyValueStore): number {
   return next;
 }
 
+function seenBook(store: KeyValueStore): Record<string, string[]> {
+  try {
+    const parsed = JSON.parse(
+      store.getItem(SEEN_ENTRIES_KEY) ?? "{}",
+    ) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
+    const book: Record<string, string[]> = {};
+    for (const [uid, ids] of Object.entries(parsed)) {
+      if (!Array.isArray(ids)) continue;
+      book[uid] = ids.filter((id): id is string => typeof id === "string");
+    }
+    return book;
+  } catch {
+    return {};
+  }
+}
+
+// The first signed-in account to have an entry on this device keeps it.
+// A later account can still see it, and does not upload it.
+export function rememberSeenEntries(
+  store: KeyValueStore,
+  uid: string,
+  ids: readonly string[],
+) {
+  const book = seenBook(store);
+  const owned = new Set<string>();
+  for (const [account, list] of Object.entries(book)) {
+    if (account !== uid) for (const id of list) owned.add(id);
+  }
+  const mine = new Set(book[uid] ?? []);
+  let changed = false;
+  for (const id of ids) {
+    if (owned.has(id) || mine.has(id)) continue;
+    mine.add(id);
+    changed = true;
+  }
+  if (!changed) return;
+  book[uid] = [...mine];
+  store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
+}
+
+export function withoutOtherAccountEntries<T extends { id: string }>(
+  entries: readonly T[],
+  store: KeyValueStore,
+  uid: string,
+): T[] {
+  const owned = new Set<string>();
+  for (const [account, list] of Object.entries(seenBook(store))) {
+    if (account === uid) continue;
+    for (const id of list) owned.add(id);
+  }
+  if (owned.size === 0) return [...entries];
+  return entries.filter((entry) => !owned.has(entry.id));
+}
+
 export function syncedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.window ?? [];
 }
@@ -114,7 +177,11 @@ export function rememberSynced(
   writeBook(store, book);
 }
 
-function retainSynced(store: KeyValueStore, ids: readonly string[], uid: string) {
+function retainSynced(
+  store: KeyValueStore,
+  ids: readonly string[],
+  uid: string,
+) {
   const book = readBook(store);
   const current = book[uid] ?? { window: [], backed: [] };
   const window = [...new Set(ids)];
@@ -139,7 +206,9 @@ export function clearSynced(store: KeyValueStore, uid?: string) {
 
 type Snapshot<T> = readonly T[] | (() => readonly T[] | Promise<readonly T[]>);
 
-async function snapshotOf<T>(value: Snapshot<T> | undefined): Promise<readonly T[]> {
+async function snapshotOf<T>(
+  value: Snapshot<T> | undefined,
+): Promise<readonly T[]> {
   if (typeof value === "function") return await value();
   return value ?? [];
 }
@@ -163,7 +232,11 @@ export async function pushBackup<T extends BackupEntry>(input: {
   if (!current()) return [];
   // The list and the tombstones passed in may be from before this pull.
   // Read them again so a delete during the fetch is not uploaded.
-  const entries = await snapshotOf(input.entries);
+  const entries = withoutOtherAccountEntries(
+    await snapshotOf(input.entries),
+    input.store,
+    input.uid,
+  );
   const deleted = new Set(await snapshotOf(input.deletedIds));
   if (!current()) return [];
   const windowed = input.pull
@@ -193,7 +266,9 @@ export type AccountDeleteStage = "api" | "local" | "auth";
 
 export function accountDeleteStage(error: unknown): AccountDeleteStage | null {
   const stage = (error as { stage?: unknown } | null)?.stage;
-  return stage === "api" || stage === "local" || stage === "auth" ? stage : null;
+  return stage === "api" || stage === "local" || stage === "auth"
+    ? stage
+    : null;
 }
 
 // A failed delete keeps the sign-in. The cloud account, the local wipe, or the
@@ -226,6 +301,7 @@ export async function deleteSignedInAccount(input: {
   removeLocal: (ids: string[]) => Promise<void>;
   deleteAuth: () => Promise<void>;
   confirmRecentLogin?: () => Promise<void>;
+  settleUploads?: () => Promise<void>;
   store: KeyValueStore;
 }): Promise<void> {
   if (!input.api) {
@@ -240,11 +316,13 @@ export async function deleteSignedInAccount(input: {
   }
   const ids = backedIdsFor(input.store, input.uid);
   try {
+    await input.settleUploads?.();
     await input.api.deleteAccount(input.token);
   } catch (error) {
     const status = (error as { status?: unknown } | null)?.status;
     const code = (error as { code?: unknown } | null)?.code;
-    if (!(status === 404 && code === "not_found")) throw tagDeleteError(error, "api");
+    if (!(status === 404 && code === "not_found"))
+      throw tagDeleteError(error, "api");
   }
   try {
     await input.removeLocal(ids);

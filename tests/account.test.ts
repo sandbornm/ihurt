@@ -7,10 +7,7 @@ import {
   createAccountApi,
   remoteEntries,
 } from "../src/account/api.ts";
-import {
-  accountEventBody,
-  createAnalytics,
-} from "../src/account/analytics.ts";
+import { accountEventBody, createAnalytics } from "../src/account/analytics.ts";
 import { readTestRuntime } from "../src/account/auth.ts";
 import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
@@ -20,6 +17,7 @@ import {
   entriesForBackup,
   FREE_SEARCHES,
   mergeBackupWindow,
+  savedAfterBackupPull,
   toBackupPayload,
   withLocalPrivateFields,
   withinBackupWindow,
@@ -52,8 +50,10 @@ import {
   optedIn,
   pushBackup,
   readSyncedIds,
+  rememberSeenEntries,
   rememberSynced,
   syncedIdsFor,
+  withoutOtherAccountEntries,
   type KeyValueStore,
 } from "../src/account/sync.ts";
 
@@ -147,10 +147,9 @@ test("backup window keeps 90 days and drops older entries", () => {
     [merged],
     new Set(["gone"]),
   );
-  assert.deepEqual(
-    rows.find((row) => row.id === "same")?.points,
-    [{ id: "pin-new" }],
-  );
+  assert.deepEqual(rows.find((row) => row.id === "same")?.points, [
+    { id: "pin-new" },
+  ]);
   assert.equal(rows.find((row) => row.id === "local-only")?.note, "only-here");
 });
 
@@ -883,7 +882,8 @@ test("a backup entry with an empty map is not stored", () => {
       remoteEntries({
         entries: [valid, storedEntry({}), { id: "nope" }],
       }),
-    (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
   );
   assert.deepEqual(remoteEntries({ entries: [] }), []);
 });
@@ -902,7 +902,8 @@ test("a mixed sync response is rejected before upload", async () => {
   assert.ok(api);
   await assert.rejects(
     () => api.getEntries("token"),
-    (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
   );
   assert.deepEqual(calls, ["GET"]);
 });
@@ -911,7 +912,8 @@ test("duplicate sync ids are rejected before upload", () => {
   const row = storedEntry(validMap);
   assert.throws(
     () => remoteEntries({ entries: [row, { ...row, note: "other note" }] }),
-    (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
   );
 });
 
@@ -967,7 +969,10 @@ test("backup upload sends notes and pins only", async () => {
     return new Response("{}", { status: 200 });
   });
   await api?.putEntries("token", [entry]);
-  assert.equal(body.includes("note-marker") || body.includes("Stiff after a walk."), true);
+  assert.equal(
+    body.includes("note-marker") || body.includes("Stiff after a walk."),
+    true,
+  );
   assert.equal(body.includes("comment-marker"), false);
   assert.equal(body.includes("ai-marker"), false);
   assert.equal(body.includes("research-marker"), false);
@@ -975,6 +980,174 @@ test("backup upload sends notes and pins only", async () => {
   assert.equal(body.includes("ref-marker"), false);
   assert.equal(body.includes("quality-marker"), false);
   assert.equal(body.includes("title-marker"), false);
+});
+
+test("a downloaded backup does not keep server comments, answers, or AI notes", () => {
+  const local = storedEntry(validMap);
+  local.points = [
+    {
+      id: "pin-1",
+      region: "neck",
+      structure: "Sternum",
+      position: [0, 1, 0],
+      comment: "local-comment",
+    },
+  ];
+  local.answers = [{ key: "quality", text: "local-answer" }];
+  local.ai = {
+    provider: "grok",
+    created: "2026-11-27T00:00:00.000Z",
+    based_on: "fp",
+    map: { ...validMap, summary: "local-ai" },
+    answers: [],
+  };
+  const incoming = storedEntry(validMap);
+  incoming.points = [
+    {
+      id: "pin-1",
+      region: "neck",
+      structure: "Sternum",
+      position: [0, 1, 0],
+      comment: "server-comment",
+    },
+  ];
+  incoming.answers = [{ key: "quality", text: "server-answer" }];
+  incoming.ai = {
+    provider: "grok",
+    created: "2026-11-27T00:00:00.000Z",
+    based_on: "fp",
+    map: { ...validMap, summary: "server-ai" },
+    answers: [],
+  };
+  incoming.research = {
+    activity: "Walking",
+    description: "server-research",
+    regions: ["neck"],
+    checked: "2026-11-27T00:00:00.000Z",
+    references: [],
+  };
+  const bare = withLocalPrivateFields(undefined, incoming);
+  assert.equal(bare.points?.[0]?.comment, undefined);
+  assert.deepEqual(bare.answers, []);
+  assert.equal(bare.ai, undefined);
+  assert.equal(bare.research, undefined);
+  const kept = withLocalPrivateFields(local, incoming);
+  assert.equal(kept.points?.[0]?.comment, "local-comment");
+  assert.equal(kept.answers[0]?.text, "local-answer");
+  assert.equal(kept.ai?.map.summary, "local-ai");
+  assert.equal(kept.research, undefined);
+  assert.equal(JSON.stringify(kept).includes("server-"), false);
+});
+
+test("a later backup replaces the journal note and stays quiet when it is unchanged", () => {
+  const local = {
+    ...storedEntry({ ...validMap, title: "alpha-marker" }),
+    note: "alpha-marker",
+    noteUpdated: "2026-11-27T00:00:00.000Z",
+  };
+  const remote = {
+    ...local,
+    note: "cloud-note-marker",
+    noteUpdated: "2026-11-27T01:00:00.000Z",
+    map: { ...local.map, summary: "cloud-note-marker" },
+  };
+  const next = savedAfterBackupPull([local], [remote], [remote]);
+  assert.equal(next[0]?.note, "cloud-note-marker");
+  assert.equal(savedAfterBackupPull(next, [remote], [remote]), next);
+});
+
+test("account delete waits for an in-flight upload", async () => {
+  const store = memory();
+  let release = () => {};
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const order = [];
+  const upload = (async () => {
+    order.push("put-start");
+    await gate;
+    order.push("put-done");
+  })();
+  const pending = deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    api: {
+      async deleteAccount() {
+        order.push("delete");
+      },
+    },
+    removeLocal: async () => {},
+    deleteAuth: async () => {},
+    settleUploads: () => upload,
+    store,
+  });
+  await Promise.resolve();
+  assert.deepEqual(order, ["put-start"]);
+  release();
+  await pending;
+  assert.deepEqual(order, ["put-start", "put-done", "delete"]);
+});
+
+test("the next account does not upload the previous account's entries", async () => {
+  const store = memory();
+  rememberSeenEntries(store, "user-a", ["from-a"]);
+  rememberSeenEntries(store, "user-b", ["from-a", "from-b"]);
+  assert.deepEqual(
+    withoutOtherAccountEntries(
+      [entry("from-a", 1), entry("from-b", 1)],
+      store,
+      "user-b",
+    ).map((row) => row.id),
+    ["from-b"],
+  );
+  grantOptIn(store, "user-b");
+  const sent = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [entry("from-a", 1), entry("from-b", 1)],
+    now: NOW,
+    store,
+    pull: async () => [],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["from-b"]]);
+});
+
+test("a later save applies the downloaded note before the next upload", () => {
+  const root = new URL("../", import.meta.url);
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  const store = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  const auth = readFileSync(
+    new URL("src/account/firebase-auth.ts", root),
+    "utf8",
+  );
+  assert.equal(
+    button.includes("pushBackupEntries(entries, deleted, onMerge)"),
+    true,
+  );
+  assert.equal(button.includes("rememberSeenEntries("), true);
+  assert.equal(store.includes("await onMerge?.(remote)"), true);
+  assert.equal(
+    store.includes(
+      "withoutOtherAccountEntries(kept, browserStore(), session.uid)",
+    ),
+    true,
+  );
+  assert.equal(store.includes("settleUploads: () => pushChain"), true);
+  assert.equal(notebook.includes("savedAfterBackupPull"), true);
+  assert.equal(auth.includes("storage()?.setItem(REFRESH_KEY"), false);
+  assert.equal(auth.includes("storage()?.getItem(REFRESH_KEY"), false);
+  assert.equal(
+    auth.includes("sessionStorageOrNull()?.setItem(REFRESH_KEY, token)"),
+    true,
+  );
 });
 
 test("map review does not spend a source search", () => {
@@ -993,16 +1166,22 @@ test("map review does not spend a source search", () => {
 
 test("account events are an action name and nothing else", async () => {
   const bodies: string[] = [];
-  const analytics = createAnalytics("https://analytics.test/collect", async (_url, init) => {
-    bodies.push(String(init?.body));
-    return new Response(null, { status: 204 });
-  });
+  const analytics = createAnalytics(
+    "https://analytics.test/collect",
+    async (_url, init) => {
+      bodies.push(String(init?.body));
+      return new Response(null, { status: 204 });
+    },
+  );
   analytics.record("sign_in");
   analytics.record("note: shoulder pain person@example.com");
   analytics.record("upgrade_sheet");
   assert.equal(accountEventBody("sign_in"), '{"event":"sign_in"}');
   assert.equal(accountEventBody("uid-123"), null);
-  assert.deepEqual(analytics.sent, ['{"event":"sign_in"}', '{"event":"upgrade_sheet"}']);
+  assert.deepEqual(analytics.sent, [
+    '{"event":"sign_in"}',
+    '{"event":"upgrade_sheet"}',
+  ]);
   await new Promise((resolve) => setTimeout(resolve, 0));
   for (const body of bodies) {
     const parsed = JSON.parse(body) as Record<string, unknown>;
@@ -1013,9 +1192,18 @@ test("account events are an action name and nothing else", async () => {
 });
 
 test("account API accepts https and loopback, and maps limit codes", async () => {
-  assert.equal(accountApiOrigin("https://api.ihurt.app"), "https://api.ihurt.app");
-  assert.equal(accountApiOrigin("http://127.0.0.1:8787"), "http://127.0.0.1:8787");
-  assert.equal(accountApiOrigin("http://localhost:8787"), "http://localhost:8787");
+  assert.equal(
+    accountApiOrigin("https://api.ihurt.app"),
+    "https://api.ihurt.app",
+  );
+  assert.equal(
+    accountApiOrigin("http://127.0.0.1:8787"),
+    "http://127.0.0.1:8787",
+  );
+  assert.equal(
+    accountApiOrigin("http://localhost:8787"),
+    "http://localhost:8787",
+  );
   assert.equal(accountApiOrigin("http://192.168.1.20"), null);
   assert.equal(accountApiOrigin("https://user:pass@api.ihurt.app"), null);
   assert.equal(createAccountApi(""), null);
@@ -1034,10 +1222,18 @@ test("account API accepts https and loopback, and maps limit codes", async () =>
         { status: 403, headers: { "content-type": "application/json" } },
       );
     }
-    return new Response(JSON.stringify({ tier: "free", searchesRemaining: 5, backupDays: 90, sync: false }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        tier: "free",
+        searchesRemaining: 5,
+        backupDays: 90,
+        sync: false,
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
   };
   const api = createAccountApi("https://api.ihurt.app", fetchImpl);
   assert.ok(api);
@@ -1075,7 +1271,11 @@ test("passkey relying party is ihurt.app on the public host", async () => {
     {
       challenge: btoa("challenge"),
       rp: { id: "evil.example", name: "Other" },
-      user: { id: btoa("user"), name: "person@example.com", displayName: "Person" },
+      user: {
+        id: btoa("user"),
+        name: "person@example.com",
+        displayName: "Person",
+      },
     },
     "ihurt.app",
   );
@@ -1087,7 +1287,10 @@ test("passkey relying party is ihurt.app on the public host", async () => {
     rpId: "ihurt.app",
     fetchImpl: async (url, init) => {
       const target = String(url);
-      assert.equal(target.startsWith("https://identitytoolkit.googleapis.com/"), true);
+      assert.equal(
+        target.startsWith("https://identitytoolkit.googleapis.com/"),
+        true,
+      );
       assert.equal(target.includes("key=public-key"), true);
       if (target.includes("passkeySignIn:start")) {
         return new Response(
@@ -1104,17 +1307,36 @@ test("passkey relying party is ihurt.app on the public host", async () => {
         authenticatorAuthenticationResponse: {
           id: string;
           rawId: string;
-          response: { clientDataJSON: string; authenticatorData: string; signature: string };
+          response: {
+            clientDataJSON: string;
+            authenticatorData: string;
+            signature: string;
+          };
         };
         name: string;
         sessionId?: string;
       };
       assert.equal(body.authenticatorAuthenticationResponse.rawId, "-_8");
-      assert.equal(body.authenticatorAuthenticationResponse.response.clientDataJSON, "-_8");
-      assert.equal(body.authenticatorAuthenticationResponse.response.signature, "-_8");
-      assert.equal(body.authenticatorAuthenticationResponse.rawId.includes("+"), false);
-      assert.equal(body.authenticatorAuthenticationResponse.rawId.includes("/"), false);
-      assert.equal(body.authenticatorAuthenticationResponse.rawId.includes("="), false);
+      assert.equal(
+        body.authenticatorAuthenticationResponse.response.clientDataJSON,
+        "-_8",
+      );
+      assert.equal(
+        body.authenticatorAuthenticationResponse.response.signature,
+        "-_8",
+      );
+      assert.equal(
+        body.authenticatorAuthenticationResponse.rawId.includes("+"),
+        false,
+      );
+      assert.equal(
+        body.authenticatorAuthenticationResponse.rawId.includes("/"),
+        false,
+      );
+      assert.equal(
+        body.authenticatorAuthenticationResponse.rawId.includes("="),
+        false,
+      );
       assert.equal(body.name, "iHurt");
       assert.equal(body.sessionId, "session-1");
       return new Response(
@@ -1252,10 +1474,19 @@ test("config comes from env and the test runtime stays on loopback", async () =>
     VITE_FIREBASE_PROJECT_ID: "ihurt",
     VITE_FIREBASE_APP_ID: "app",
   };
-  assert.equal(readAccountConfig(iosEnv, "https:").firebase?.apiKey, "website-key");
-  assert.equal(readAccountConfig(iosEnv, "capacitor:").firebase?.apiKey, "ios-key");
   assert.equal(
-    readAccountConfig({ ...iosEnv, VITE_FIREBASE_IOS_API_KEY: "" }, "capacitor:").firebase,
+    readAccountConfig(iosEnv, "https:").firebase?.apiKey,
+    "website-key",
+  );
+  assert.equal(
+    readAccountConfig(iosEnv, "capacitor:").firebase?.apiKey,
+    "ios-key",
+  );
+  assert.equal(
+    readAccountConfig(
+      { ...iosEnv, VITE_FIREBASE_IOS_API_KEY: "" },
+      "capacitor:",
+    ).firebase,
     null,
   );
   const runtime = {
@@ -1276,13 +1507,21 @@ test("config comes from env and the test runtime stays on loopback", async () =>
     },
     apiBase: "https://ihurt-api.test",
   };
-  assert.equal(readTestRuntime("ihurt.app", { __IHURT_ACCOUNT_RUNTIME__: runtime }), null);
   assert.equal(
-    readTestRuntime("localhost", { __IHURT_ACCOUNT_RUNTIME__: runtime }, "capacitor:"),
+    readTestRuntime("ihurt.app", { __IHURT_ACCOUNT_RUNTIME__: runtime }),
     null,
   );
   assert.equal(
-    readTestRuntime("127.0.0.1", { __IHURT_ACCOUNT_RUNTIME__: runtime })?.apiBase,
+    readTestRuntime(
+      "localhost",
+      { __IHURT_ACCOUNT_RUNTIME__: runtime },
+      "capacitor:",
+    ),
+    null,
+  );
+  assert.equal(
+    readTestRuntime("127.0.0.1", { __IHURT_ACCOUNT_RUNTIME__: runtime })
+      ?.apiBase,
     "https://ihurt-api.test",
   );
 });

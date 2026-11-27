@@ -26,6 +26,7 @@ import {
 } from "./config.ts";
 import {
   backupEpoch,
+  claimUpload,
   clearOptIn,
   deleteSignedInAccount,
   grantOptIn,
@@ -33,6 +34,7 @@ import {
   optedIn,
   pushBackup,
   releaseRemoteDeletes,
+  releaseUpload,
   rememberRemoteDeletes,
   removedIdsFor,
   rememberDownloaded,
@@ -296,28 +298,40 @@ export async function enableBackup(
       setState({ ...state, busy: false });
       return;
     }
-    await api.putEntries(token, windowed);
-    rememberSeenEntries(
-      browserStore(),
-      session.uid,
-      windowed.map((entry) => entry.id),
-    );
-    if (gone.length > 0) await onRemove?.(gone);
-    if (
-      state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch
-    ) {
-      setState({ ...state, busy: false });
-      return;
+    const upload = claimUpload(browserStore(), session.uid);
+    try {
+      if (
+        state.session?.uid !== session.uid ||
+        backupEpoch(browserStore()) !== epoch
+      ) {
+        setState({ ...state, busy: false });
+        return;
+      }
+      await api.putEntries(token, windowed);
+      rememberSeenEntries(
+        browserStore(),
+        session.uid,
+        windowed.map((entry) => entry.id),
+      );
+      rememberSynced(
+        browserStore(),
+        windowed.map((entry) => entry.id),
+        session.uid,
+      );
+      if (gone.length > 0) await onRemove?.(gone);
+      if (
+        state.session?.uid !== session.uid ||
+        backupEpoch(browserStore()) !== epoch
+      ) {
+        setState({ ...state, busy: false });
+        return;
+      }
+      grantOptIn(browserStore(), session.uid);
+      analytics.record("sync_on");
+      setState({ ...state, busy: false, optedIn: true });
+    } finally {
+      releaseUpload(browserStore(), session.uid, upload);
     }
-    rememberSynced(
-      browserStore(),
-      windowed.map((entry) => entry.id),
-      session.uid,
-    );
-    grantOptIn(browserStore(), session.uid);
-    analytics.record("sync_on");
-    setState({ ...state, busy: false, optedIn: true });
   } catch (error) {
     const code = error instanceof AccountAuthError ? error.code : "error";
     setState({ ...state, busy: false, error: code });

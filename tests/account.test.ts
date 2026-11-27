@@ -1441,6 +1441,66 @@ test("account delete waits for an in-flight upload", async () => {
   assert.deepEqual(wiped, [["just-backed"]]);
 });
 
+test("a delete waits for an upload another tab already started", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const epoch = backupEpoch(store);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let putStarted = false;
+  let putReturned = false;
+  const upload = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("from-this-device", 1)],
+    now: NOW,
+    store,
+    epoch,
+    pull: async () => [],
+    put: async () => {
+      putStarted = true;
+      await gate;
+      putReturned = true;
+    },
+  });
+  for (let attempt = 0; attempt < 20 && !putStarted; attempt += 1)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(putStarted, true);
+  nextBackupEpoch(store);
+  clearOptIn(store);
+  const wiped: string[] = [];
+  let deleted = false;
+  const pending = deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    settleUploads: async () => {},
+    api: {
+      async deleteAccount() {
+        deleted = true;
+      },
+    },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  for (let attempt = 0; attempt < 5; attempt += 1)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(deleted, false);
+  assert.equal(putReturned, false);
+  release();
+  await upload;
+  await pending;
+  assert.equal(putReturned, true);
+  assert.equal(deleted, true);
+  assert.deepEqual(wiped, ["from-this-device"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+});
+
 test("a delete on another device is not uploaded again", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -1952,6 +2012,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   const beforeUpload = sync.slice(push, uploaded);
   assert.equal(beforeUpload.includes("rememberSeenEntries("), true);
   assert.equal(beforeUpload.includes("rememberDownloaded("), true);
+  assert.equal(beforeUpload.includes("claimUpload("), true);
   assert.equal(beforeUpload.includes("remote.map((entry) => entry.id)"), true);
   const pullAt = beforeUpload.indexOf("await input.pull");
   const claimedAt = beforeUpload.indexOf("rememberSeenEntries(");
@@ -1964,6 +2025,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   const beforePut = store.slice(enable, put);
   assert.equal(beforePut.includes("rememberSeenEntries("), true);
   assert.equal(beforePut.includes("rememberDownloaded("), true);
+  assert.equal(beforePut.includes("claimUpload("), true);
   assert.equal(beforePut.includes("merged.map((entry) => entry.id)"), true);
   const mergedAt = beforePut.indexOf("const merged = await onMerge(remote)");
   const afterMerge = beforePut.slice(mergedAt);
@@ -1990,6 +2052,10 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.ok(deleting > 0 && cloudDelete > deleting && authDelete > cloudDelete);
   assert.equal(
     sync.slice(deleting, cloudDelete).includes("input.sameAccount"),
+    true,
+  );
+  assert.equal(
+    sync.slice(deleting, cloudDelete).includes("waitForAccountUploads("),
     true,
   );
   assert.equal(

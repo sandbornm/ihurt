@@ -11,6 +11,8 @@ export const SYNCED_IDS_KEY = "ihurt-synced-ids";
 export const SYNCED_UID_KEY = "ihurt-synced-uid";
 const BACKUP_EPOCH_KEY = "ihurt-backup-epoch";
 const SEEN_ENTRIES_KEY = "ihurt-seen-entries";
+const UPLOADS_KEY = "ihurt-backup-uploads";
+const UPLOAD_LEASE_MS = 2 * 60 * 1000;
 
 export interface KeyValueStore {
   getItem(key: string): string | null;
@@ -285,6 +287,112 @@ export function clearSynced(store: KeyValueStore, uid?: string) {
   writeBook(store, book);
 }
 
+type UploadBook = Record<string, Record<string, number>>;
+
+function readUploads(store: KeyValueStore): UploadBook {
+  try {
+    const parsed = JSON.parse(store.getItem(UPLOADS_KEY) ?? "{}") as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
+    const book: UploadBook = {};
+    for (const [uid, row] of Object.entries(parsed)) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const claims: Record<string, number> = {};
+      for (const [id, stamp] of Object.entries(row)) {
+        if (typeof stamp === "number" && Number.isFinite(stamp))
+          claims[id] = stamp;
+      }
+      if (Object.keys(claims).length > 0) book[uid] = claims;
+    }
+    return book;
+  } catch {
+    return {};
+  }
+}
+
+function writeUploads(store: KeyValueStore, book: UploadBook) {
+  if (Object.keys(book).length === 0) {
+    store.removeItem(UPLOADS_KEY);
+    return;
+  }
+  store.setItem(UPLOADS_KEY, JSON.stringify(book));
+}
+
+function liveClaims(claims: Record<string, number> | undefined, now: number) {
+  const live: Record<string, number> = {};
+  for (const [id, stamp] of Object.entries(claims ?? {})) {
+    if (now - stamp < UPLOAD_LEASE_MS) live[id] = stamp;
+  }
+  return live;
+}
+
+function uploadsOpen(store: KeyValueStore, uid: string, now = Date.now()) {
+  return Object.keys(liveClaims(readUploads(store)[uid], now)).length > 0;
+}
+
+const uploadWaiters = new Set<() => void>();
+
+function notifyUploadWaiters() {
+  for (const waiter of uploadWaiters) waiter();
+}
+
+export function claimUpload(store: KeyValueStore, uid: string): string {
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const book = readUploads(store);
+    const row = liveClaims(book[uid], now);
+    row[id] = now;
+    book[uid] = row;
+    writeUploads(store, book);
+    if (readUploads(store)[uid]?.[id] === now) {
+      notifyUploadWaiters();
+      return id;
+    }
+  }
+  notifyUploadWaiters();
+  return id;
+}
+
+export function releaseUpload(store: KeyValueStore, uid: string, id: string) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const book = readUploads(store);
+    const row = book[uid];
+    if (!row?.[id]) {
+      notifyUploadWaiters();
+      return;
+    }
+    delete row[id];
+    if (Object.keys(row).length === 0) delete book[uid];
+    writeUploads(store, book);
+    if (!readUploads(store)[uid]?.[id]) {
+      notifyUploadWaiters();
+      return;
+    }
+  }
+  notifyUploadWaiters();
+}
+
+// Another tab can already be waiting on its PUT. Deletion waits until that
+// request finishes and its bookkeeping is written, then removes the account.
+export function waitForAccountUploads(
+  store: KeyValueStore,
+  uid: string,
+): Promise<void> {
+  if (!uploadsOpen(store, uid)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => {
+      if (uploadsOpen(store, uid)) return;
+      uploadWaiters.delete(finish);
+      clearInterval(timer);
+      resolve();
+    };
+    uploadWaiters.add(finish);
+    const timer = setInterval(finish, 50);
+    finish();
+  });
+}
+
 type Snapshot<T> = readonly T[] | (() => readonly T[] | Promise<readonly T[]>);
 
 async function snapshotOf<T>(
@@ -376,18 +484,24 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
   if (!current()) return [];
-  await input.put(input.token, windowed);
-  rememberSeenEntries(
-    input.store,
-    input.uid,
-    windowed.map((entry) => entry.id),
-  );
-  retainSynced(
-    input.store,
-    windowed.map((entry) => entry.id),
-    input.uid,
-  );
-  return windowed;
+  const upload = claimUpload(input.store, input.uid);
+  try {
+    if (!current()) return [];
+    await input.put(input.token, windowed);
+    rememberSeenEntries(
+      input.store,
+      input.uid,
+      windowed.map((entry) => entry.id),
+    );
+    retainSynced(
+      input.store,
+      windowed.map((entry) => entry.id),
+      input.uid,
+    );
+    return windowed;
+  } finally {
+    releaseUpload(input.store, input.uid, upload);
+  }
 }
 
 export type AccountDeleteStage = "api" | "local" | "auth";
@@ -453,6 +567,7 @@ export async function deleteSignedInAccount(input: {
   }
   try {
     await input.settleUploads?.();
+    await waitForAccountUploads(input.store, input.uid);
     if (input.sameAccount?.() === false) throw cancelledDelete();
     const token =
       typeof input.token === "function" ? await input.token() : input.token;

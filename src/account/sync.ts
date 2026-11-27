@@ -127,7 +127,7 @@ function seenBook(store: KeyValueStore): Record<string, string[]> {
   }
 }
 
-// The first signed-in account to have an entry on this device keeps it.
+// Backup claims an entry for this account. Sign-in alone does not.
 // A later account can still see it, and does not upload it.
 export function rememberSeenEntries(
   store: KeyValueStore,
@@ -372,7 +372,7 @@ function tagDeleteError(error: unknown, stage: AccountDeleteStage): unknown {
 // stays, because cloud copies could not be removed.
 export async function deleteSignedInAccount(input: {
   uid: string;
-  token: string;
+  token: string | (() => Promise<string>);
   api: { deleteAccount(token: string): Promise<void> } | null;
   removeLocal: (ids: string[]) => Promise<void>;
   deleteAuth: () => Promise<void>;
@@ -392,7 +392,9 @@ export async function deleteSignedInAccount(input: {
   }
   try {
     await input.settleUploads?.();
-    await input.api.deleteAccount(input.token);
+    const token =
+      typeof input.token === "function" ? await input.token() : input.token;
+    await input.api.deleteAccount(token);
   } catch (error) {
     const status = (error as { status?: unknown } | null)?.status;
     const code = (error as { code?: unknown } | null)?.code;

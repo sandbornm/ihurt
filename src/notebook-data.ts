@@ -468,7 +468,9 @@ function parseMapUpdated(value: unknown): NonNullable<SavedMap["mapUpdated"]> {
   return stamps;
 }
 
-function parseStoredResearch(value: unknown): NonNullable<SavedMap["research"]> {
+function parseStoredResearch(
+  value: unknown,
+): NonNullable<SavedMap["research"]> {
   const research = object(value);
   return {
     activity: text(research.activity, 200),
@@ -512,17 +514,23 @@ export function acceptStoredEntry(value: unknown): SavedMap | null {
     };
     if (!entry.id) return null;
     if (row.updated !== undefined) entry.updated = date(row.updated);
-    if (row.noteUpdated !== undefined) entry.noteUpdated = date(row.noteUpdated);
+    if (row.noteUpdated !== undefined)
+      entry.noteUpdated = date(row.noteUpdated);
     if (row.pointsUpdated !== undefined)
       entry.pointsUpdated = date(row.pointsUpdated);
     if (row.aiUpdated !== undefined) entry.aiUpdated = date(row.aiUpdated);
     if (row.mapUpdated !== undefined)
       entry.mapUpdated = parseMapUpdated(row.mapUpdated);
     if (row.points !== undefined) {
-      entry.points = array(row.points, 500).map(parsePoint);
-      if (new Set(entry.points.map((point) => point.id)).size !== entry.points.length)
+      entry.points = array(row.points, Infinity).map(parsePoint);
+      if (
+        new Set(entry.points.map((point) => point.id)).size !==
+        entry.points.length
+      )
         return null;
-      if (entry.points.some((point) => !entry.map.regions.includes(point.region)))
+      if (
+        entry.points.some((point) => !entry.map.regions.includes(point.region))
+      )
         return null;
     }
     if (row.references !== undefined)

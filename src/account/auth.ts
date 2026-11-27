@@ -1,17 +1,13 @@
 import { testRuntimeAllowed } from "./config.ts";
 
 export type SignInProvider =
-  | "apple"
-  | "google"
-  | "email"
-  | "passkey"
-  | "unknown";
+  "apple" | "google" | "email" | "passkey" | "unknown";
 
 export interface AccountSession {
   uid: string;
   email: string | null;
   provider: SignInProvider;
-  getIdToken(): Promise<string>;
+  getIdToken(forceRefresh?: boolean): Promise<string>;
 }
 
 export interface AuthClient {

@@ -405,7 +405,7 @@ export async function deleteAccount(
   try {
     await deleteSignedInAccount({
       uid: session.uid,
-      token: await session.getIdToken(),
+      token: () => (state.session ?? session).getIdToken(true),
       api,
       removeLocal: onRemove,
       confirmRecentLogin: () => auth.reauthenticate(),

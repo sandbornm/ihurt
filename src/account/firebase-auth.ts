@@ -25,7 +25,7 @@ interface FirebaseUser {
   uid: string;
   email: string | null;
   providerData: { providerId: string }[];
-  getIdToken(): Promise<string>;
+  getIdToken(forceRefresh?: boolean): Promise<string>;
   delete(): Promise<void>;
 }
 
@@ -46,7 +46,7 @@ function toSession(
     uid: user.uid,
     email: user.email,
     provider: provider ?? providerOf(user),
-    getIdToken: () => user.getIdToken(),
+    getIdToken: (forceRefresh?: boolean) => user.getIdToken(forceRefresh),
   };
 }
 
@@ -324,6 +324,7 @@ export async function createFirebaseAuth(
           return toSession(result.user, "passkey");
         } catch (error) {
           if (isCancel(error)) throw new AccountAuthError("cancelled");
+          throw new AccountAuthError("passkey-unavailable");
         }
       }
       try {

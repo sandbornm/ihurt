@@ -912,6 +912,21 @@ test("a mixed sync response is rejected before upload", async () => {
   assert.deepEqual(calls, ["GET"]);
 });
 
+test("a backup row with more pins than 500 still syncs", () => {
+  const many = storedEntry(validMap);
+  many.points = Array.from({ length: 501 }, (_, index) => ({
+    id: `pin-${index}`,
+    region: "neck",
+    structure: "Sternum",
+    position: [0, 1, 0],
+  }));
+  const other = { ...storedEntry(validMap), id: "other" };
+  const rows = remoteEntries({ entries: [many, other] });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]?.points?.length, 501);
+  assert.equal(rows[1]?.id, "other");
+});
+
 test("duplicate sync ids are rejected before upload", () => {
   const row = storedEntry(validMap);
   assert.throws(
@@ -1108,6 +1123,33 @@ test("a later backup replaces the journal note and stays quiet when it is unchan
   const next = savedAfterBackupPull([local], [remote], [remote]);
   assert.equal(next[0]?.note, "cloud-note-marker");
   assert.equal(savedAfterBackupPull(next, [remote], [remote]), next);
+});
+
+test("delete sends the token from after the recent sign-in", async () => {
+  const store = memory();
+  const order: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: async () => {
+      order.push("token");
+      return "fresh-token";
+    },
+    api: {
+      async deleteAccount(token) {
+        order.push(token);
+      },
+    },
+    removeLocal: async () => {},
+    deleteAuth: async () => {},
+    confirmRecentLogin: async () => {
+      order.push("reauth");
+    },
+    settleUploads: async () => {
+      order.push("settle");
+    },
+    store,
+  });
+  assert.deepEqual(order, ["reauth", "settle", "token", "fresh-token"]);
 });
 
 test("account delete waits for an in-flight upload", async () => {
@@ -1391,15 +1433,27 @@ test("a later save applies the downloaded note before the next upload", () => {
     true,
   );
   assert.equal(button.includes("rememberSeenEntries("), true);
+  const claim = button.indexOf("rememberSeenEntries(");
+  const guard = button.lastIndexOf("snapshot.optedIn", claim);
+  assert.ok(guard > 0 && claim - guard < 80);
   assert.equal(store.includes("await onMerge?.(remote)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);
   assert.equal(store.includes("rememberRemoteDeletes("), true);
   assert.equal(store.includes("settleUploads: () => pushChain"), true);
+  assert.equal(store.includes("getIdToken(true)"), true);
   assert.equal(notebook.includes("savedAfterBackupPull"), true);
   assert.equal(auth.includes("storage()?.setItem(REFRESH_KEY"), false);
   assert.equal(auth.includes("storage()?.getItem(REFRESH_KEY"), false);
   assert.equal(
     auth.includes("sessionStorageOrNull()?.setItem(REFRESH_KEY, token)"),
+    true,
+  );
+  const passkey = auth.indexOf('exported.signInWithPasskey(auth, "iHurt")');
+  const fallback = auth.indexOf("passkeySignIn(", passkey);
+  assert.ok(passkey > 0 && fallback > passkey);
+  const between = auth.slice(passkey, fallback);
+  assert.equal(
+    between.includes('throw new AccountAuthError("passkey-unavailable")'),
     true,
   );
 });

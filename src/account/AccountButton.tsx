@@ -67,7 +67,7 @@ export default function AccountButton({
   useEffect(() => {
     if (!ready) return;
     let cancel = false;
-    if (snapshot.session) {
+    if (snapshot.session && snapshot.optedIn) {
       rememberSeenEntries(
         localStorage,
         snapshot.session.uid,

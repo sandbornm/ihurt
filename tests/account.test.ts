@@ -1206,6 +1206,53 @@ test("a later backup replaces the journal note and stays quiet when it is unchan
   assert.equal(savedAfterBackupPull(next, [remote], [remote]), next);
 });
 
+test("a delete stops when the signed-in account changes", async () => {
+  const store = memory();
+  rememberSynced(store, ["backed"], "user-a");
+  let uid = "user-a";
+  const calls: string[] = [];
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const pending = deleteSignedInAccount({
+    uid: "user-a",
+    token: async () => {
+      calls.push("token");
+      return "token-a";
+    },
+    confirmRecentLogin: async () => {
+      calls.push("reauth");
+      await gate;
+    },
+    settleUploads: async () => {
+      calls.push("settle");
+    },
+    api: {
+      async deleteAccount() {
+        calls.push("api");
+      },
+    },
+    removeLocal: async () => {
+      calls.push("local");
+    },
+    deleteAuth: async () => {
+      calls.push("auth");
+    },
+    sameAccount: () => uid === "user-a",
+    store,
+  });
+  uid = "user-b";
+  release();
+  await assert.rejects(
+    pending,
+    (error: unknown) =>
+      (error as { code?: string } | null)?.code === "cancelled",
+  );
+  assert.deepEqual(calls, ["reauth"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["backed"]);
+});
+
 test("delete sends the token from after the recent sign-in", async () => {
   const store = memory();
   const order: string[] = [];
@@ -1745,6 +1792,23 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(store.includes("rememberRemoteDeletes("), true);
   assert.equal(store.includes("settleUploads: () => pushChain"), true);
   assert.equal(store.includes("getIdToken(true)"), true);
+  assert.equal(store.includes("state.session?.uid !== session.uid"), true);
+  assert.equal(
+    store.includes("sameAccount: () => state.session?.uid === session.uid"),
+    true,
+  );
+  const deleting = sync.indexOf("export async function deleteSignedInAccount");
+  const cloudDelete = sync.indexOf("await input.api.deleteAccount", deleting);
+  const authDelete = sync.indexOf("await input.deleteAuth", deleting);
+  assert.ok(deleting > 0 && cloudDelete > deleting && authDelete > cloudDelete);
+  assert.equal(
+    sync.slice(deleting, cloudDelete).includes("input.sameAccount"),
+    true,
+  );
+  assert.equal(
+    sync.slice(cloudDelete, authDelete).includes("input.sameAccount"),
+    true,
+  );
   assert.equal(notebook.includes("savedAfterBackupPull"), true);
   assert.equal(auth.includes("storage()?.setItem(REFRESH_KEY"), false);
   assert.equal(auth.includes("storage()?.getItem(REFRESH_KEY"), false);

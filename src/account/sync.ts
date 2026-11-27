@@ -373,6 +373,12 @@ export function accountDeleteKeepsDevice(_error: unknown): boolean {
   return true;
 }
 
+function cancelledDelete(): Error {
+  const error = new Error("cancelled");
+  Object.defineProperty(error, "code", { value: "cancelled" });
+  return error;
+}
+
 function tagDeleteError(error: unknown, stage: AccountDeleteStage): unknown {
   if (error && typeof error === "object") {
     try {
@@ -398,6 +404,7 @@ export async function deleteSignedInAccount(input: {
   deleteAuth: () => Promise<void>;
   confirmRecentLogin?: () => Promise<void>;
   settleUploads?: () => Promise<void>;
+  sameAccount?: () => boolean;
   store: KeyValueStore;
 }): Promise<void> {
   if (!input.api) {
@@ -407,26 +414,33 @@ export async function deleteSignedInAccount(input: {
   }
   try {
     await input.confirmRecentLogin?.();
+    if (input.sameAccount?.() === false) throw cancelledDelete();
   } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === "cancelled") throw error;
     throw tagDeleteError(error, "auth");
   }
   try {
     await input.settleUploads?.();
+    if (input.sameAccount?.() === false) throw cancelledDelete();
     const token =
       typeof input.token === "function" ? await input.token() : input.token;
+    if (input.sameAccount?.() === false) throw cancelledDelete();
     await input.api.deleteAccount(token);
   } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === "cancelled") throw error;
     const status = (error as { status?: unknown } | null)?.status;
     const code = (error as { code?: unknown } | null)?.code;
     if (!(status === 404 && code === "not_found"))
       throw tagDeleteError(error, "api");
   }
+  if (input.sameAccount?.() === false) throw cancelledDelete();
   const ids = backedIdsFor(input.store, input.uid);
   try {
     await input.removeLocal(ids);
   } catch (error) {
     throw tagDeleteError(error, "local");
   }
+  if (input.sameAccount?.() === false) throw cancelledDelete();
   try {
     await input.deleteAuth();
   } catch (error) {

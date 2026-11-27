@@ -399,6 +399,12 @@ export function pushBackupEntries(
     });
 }
 
+function cancelledAccountChange(): Error {
+  const error = new Error("cancelled");
+  Object.defineProperty(error, "code", { value: "cancelled" });
+  return error;
+}
+
 export async function deleteAccount(
   onRemove: (ids: string[]) => Promise<void>,
 ) {
@@ -410,12 +416,16 @@ export async function deleteAccount(
   try {
     await deleteSignedInAccount({
       uid: session.uid,
-      token: () => (state.session ?? session).getIdToken(true),
+      token: () => {
+        if (state.session?.uid !== session.uid) throw cancelledAccountChange();
+        return (state.session ?? session).getIdToken(true);
+      },
       api,
       removeLocal: onRemove,
       confirmRecentLogin: () => auth.reauthenticate(),
       deleteAuth: () => auth.deleteUser(),
       settleUploads: () => pushChain,
+      sameAccount: () => state.session?.uid === session.uid,
       store: browserStore(),
     });
     analytics.record("account_delete");

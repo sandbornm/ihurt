@@ -475,6 +475,7 @@ export const es: Messages = {
     "Tu borrador se guarda en este dispositivo. Imprime un informe o exporta un archivo .ihm para conservar juntos el mapa y las notas. La búsqueda opcional de fuentes te deja revisar primero lo que se envía a Grok.",
   "tour.progress": "RECORRIDO RÁPIDO · {step} DE {total}",
   "tour.close": "Cerrar el recorrido",
+  "a11y.skipToContent": "Saltar al contenido principal",
   "tour.limit":
     "Esta es una anatomía de referencia. Los pines ayudan a describir un lugar; no miden tu cuerpo ni identifican la causa del dolor.",
   "tour.back": "Atrás",

@@ -575,7 +575,7 @@ export default function Notebook({
             </button>
           }
         </nav>
-        <main id="main-content" className="main-content">
+        <main id="main-content" className="main-content" tabIndex={-1}>
           <div className="page-heading">
             <div>
               <div className="eyebrow">

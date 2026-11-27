@@ -158,6 +158,9 @@
   background: #dceacb;
   color: #294f1c;
 }
+[data-theme="light"] .skip-link {
+  color: #fff;
+}
 [data-theme="light"] :is(.primary, .new-map-button, .cta-primary) {
   background: #376b22;
   color: #fff;

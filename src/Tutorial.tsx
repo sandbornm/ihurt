@@ -13,18 +13,22 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" && step < steps.length - 1) {
-        e.preventDefault();
-        setStep((s) => s + 1);
-      } else if (e.key === "ArrowLeft" && step > 0) {
-        e.preventDefault();
-        setStep((s) => s - 1);
-      }
+  }, []);
+  useEffect(() => {
+    const node = dialog.current;
+    if (!node) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      setStep((current) => {
+        if (event.key === "ArrowRight")
+          return Math.min(current + 1, steps.length - 1);
+        return Math.max(current - 1, 0);
+      });
     };
-    dialog.current?.addEventListener("keydown", handleKeyDown);
-    return () => dialog.current?.removeEventListener("keydown", handleKeyDown);
-  }, [step]);
+    node.addEventListener("keydown", onKey);
+    return () => node.removeEventListener("keydown", onKey);
+  }, []);
   useEffect(() => {
     heading.current?.focus();
   }, [step]);

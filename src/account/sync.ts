@@ -362,7 +362,6 @@ export async function deleteSignedInAccount(input: {
   } catch (error) {
     throw tagDeleteError(error, "auth");
   }
-  const ids = backedIdsFor(input.store, input.uid);
   try {
     await input.settleUploads?.();
     await input.api.deleteAccount(input.token);
@@ -372,6 +371,7 @@ export async function deleteSignedInAccount(input: {
     if (!(status === 404 && code === "not_found"))
       throw tagDeleteError(error, "api");
   }
+  const ids = backedIdsFor(input.store, input.uid);
   try {
     await input.removeLocal(ids);
   } catch (error) {

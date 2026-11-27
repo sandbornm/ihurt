@@ -1,6 +1,10 @@
 import { acceptStoredEntry } from "../notebook-data.ts";
 import type { SavedMap } from "../types.ts";
-import { toBackupPayload, type BackupEntry } from "./backup.ts";
+import {
+  toBackupPayload,
+  withoutServerMapDetails,
+  type BackupEntry,
+} from "./backup.ts";
 
 export class AccountApiError extends Error {
   readonly status: number;
@@ -49,13 +53,14 @@ export function accountApiOrigin(value: string): string | null {
 }
 
 export function remoteEntries(value: unknown): SavedMap[] {
-  if (!value || typeof value !== "object") throw new AccountApiError(200, "invalid");
+  if (!value || typeof value !== "object")
+    throw new AccountApiError(200, "invalid");
   const entries = (value as { entries?: unknown }).entries;
   if (!Array.isArray(entries)) throw new AccountApiError(200, "invalid");
   const rows = entries.map((entry) => {
     const accepted = acceptStoredEntry(entry);
     if (!accepted) throw new AccountApiError(200, "invalid");
-    return accepted;
+    return withoutServerMapDetails(accepted);
   });
   const ids = new Set<string>();
   for (const row of rows) {

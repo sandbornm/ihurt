@@ -1041,6 +1041,56 @@ test("a downloaded backup does not keep server comments, answers, or AI notes", 
   assert.equal(JSON.stringify(kept).includes("server-"), false);
 });
 
+test("a downloaded backup does not keep server map details", () => {
+  const local = storedEntry({
+    ...validMap,
+    title: "local-title",
+    quality: "local-quality",
+    activity: "local-activity",
+    duration: "local-duration",
+    intensity: 4,
+    urgent: false,
+    safety_message: "local-safety",
+  });
+  const incoming = storedEntry({
+    ...validMap,
+    title: "server-title",
+    quality: "server-quality",
+    activity: "server-activity",
+    duration: "server-duration",
+    intensity: 9,
+    urgent: true,
+    safety_message: "server-safety",
+  });
+  incoming.mapUpdated = { quality: "2099-01-01T00:00:00.000Z" };
+  const bare = withLocalPrivateFields(undefined, incoming);
+  assert.equal(bare.map.title, "");
+  assert.equal(bare.map.quality, "");
+  assert.equal(bare.map.activity, "");
+  assert.equal(bare.map.duration, "");
+  assert.equal(bare.map.intensity, null);
+  assert.equal(bare.map.urgent, false);
+  assert.equal(bare.map.safety_message, null);
+  assert.equal(bare.map.summary, incoming.note);
+  assert.equal(JSON.stringify(bare).includes("server-"), false);
+  const kept = withLocalPrivateFields(local, incoming);
+  assert.equal(kept.map.title, "local-title");
+  assert.equal(kept.map.quality, "local-quality");
+  assert.equal(kept.map.activity, "local-activity");
+  assert.equal(kept.map.duration, "local-duration");
+  assert.equal(kept.map.intensity, 4);
+  assert.equal(kept.map.urgent, false);
+  assert.equal(kept.map.safety_message, "local-safety");
+  assert.equal(JSON.stringify(kept).includes("server-"), false);
+  const rows = remoteEntries({ entries: [incoming] });
+  assert.equal(rows[0]?.map.title, "");
+  assert.equal(rows[0]?.map.quality, "");
+  assert.equal(rows[0]?.map.activity, "");
+  assert.equal(rows[0]?.map.safety_message, null);
+  assert.equal(rows[0]?.note, incoming.note);
+  assert.equal(JSON.stringify(rows[0]).includes("server-"), false);
+});
+
 test("a later backup replaces the journal note and stays quiet when it is unchanged", () => {
   const local = {
     ...storedEntry({ ...validMap, title: "alpha-marker" }),
@@ -1065,9 +1115,11 @@ test("account delete waits for an in-flight upload", async () => {
     release = resolve;
   });
   const order = [];
+  const wiped = [];
   const upload = (async () => {
     order.push("put-start");
     await gate;
+    rememberSynced(store, ["just-backed"], "user-a");
     order.push("put-done");
   })();
   const pending = deleteSignedInAccount({
@@ -1078,7 +1130,9 @@ test("account delete waits for an in-flight upload", async () => {
         order.push("delete");
       },
     },
-    removeLocal: async () => {},
+    removeLocal: async (ids) => {
+      wiped.push(ids);
+    },
     deleteAuth: async () => {},
     settleUploads: () => upload,
     store,
@@ -1088,6 +1142,7 @@ test("account delete waits for an in-flight upload", async () => {
   release();
   await pending;
   assert.deepEqual(order, ["put-start", "put-done", "delete"]);
+  assert.deepEqual(wiped, [["just-backed"]]);
 });
 
 test("a delete on another device is not uploaded again", async () => {

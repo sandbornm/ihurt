@@ -259,9 +259,36 @@ function dropKeys<T extends object, K extends keyof T>(
   return next;
 }
 
+function backedMap(entry: SavedMap): SavedMap["map"] {
+  return {
+    title: "",
+    summary: entry.note,
+    regions: entry.map.regions,
+    quality: "",
+    activity: "",
+    duration: "",
+    intensity: null,
+    question: null,
+    urgent: false,
+    safety_message: null,
+  };
+}
+
+// The backup is the note and the pins. Title and the other map details stay
+// on the device that recorded them.
+export function withoutServerMapDetails(entry: SavedMap): SavedMap {
+  const rest = dropKeys(entry, ["mapUpdated"]);
+  return { ...rest, map: backedMap(entry) };
+}
+
 function withoutServerPrivateFields(entry: SavedMap): SavedMap {
   const points = entry.points?.map((point) => dropKeys(point, ["comment"]));
-  const rest = dropKeys(entry, ["ai", "aiUpdated", "research", "references"]);
+  const rest = dropKeys(withoutServerMapDetails(entry), [
+    "ai",
+    "aiUpdated",
+    "research",
+    "references",
+  ]);
   return { ...rest, answers: [], ...(points ? { points } : {}) };
 }
 
@@ -368,16 +395,17 @@ export function withLocalPrivateFields(
     ...(local.aiUpdated ? { aiUpdated: local.aiUpdated } : {}),
     ...(local.research ? { research: local.research } : {}),
     ...(local.references ? { references: local.references } : {}),
+    ...(local.mapUpdated ? { mapUpdated: local.mapUpdated } : {}),
     map: {
-      ...incoming.map,
-      title: local.map.title || incoming.map.title,
-      quality: incoming.map.quality || local.map.quality,
-      activity: incoming.map.activity || local.map.activity,
-      duration: incoming.map.duration || local.map.duration,
-      intensity: incoming.map.intensity ?? local.map.intensity,
-      question: incoming.map.question ?? local.map.question,
-      urgent: incoming.map.urgent || local.map.urgent,
-      safety_message: incoming.map.safety_message ?? local.map.safety_message,
+      ...cleaned.map,
+      title: local.map.title,
+      quality: local.map.quality,
+      activity: local.map.activity,
+      duration: local.map.duration,
+      intensity: local.map.intensity,
+      question: local.map.question,
+      urgent: local.map.urgent,
+      safety_message: local.map.safety_message,
     },
   };
 }

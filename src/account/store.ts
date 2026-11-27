@@ -503,7 +503,12 @@ export async function deleteAccount(
       throw error;
     }
     if (code === "delete-partial") {
-      setState({ ...state, busy: false, error: "delete-partial" });
+      setState({
+        ...state,
+        busy: false,
+        optedIn: false,
+        error: "delete-partial",
+      });
       throw error;
     }
     setState({

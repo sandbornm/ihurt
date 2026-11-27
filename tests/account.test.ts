@@ -301,6 +301,48 @@ test("an entry aging out of the window does not block the next backup", async ()
   assert.deepEqual(wiped, ["aging", "fresh"]);
 });
 
+test("a failed Firebase delete turns backup off before the next save", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["backed"], "user-a");
+  const epoch = backupEpoch(store);
+  const sent: string[] = [];
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: {
+          async deleteAccount() {},
+        },
+        removeLocal: async () => {},
+        deleteAuth: async () => {
+          throw new Error("auth down");
+        },
+        store,
+      }),
+    (caught) =>
+      accountDeleteStage(caught) === "auth" &&
+      (caught as { code?: unknown }).code === "delete-partial",
+  );
+  assert.equal(optedIn(store, "user-a"), false);
+  assert.ok(backupEpoch(store) > epoch);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["backed"]);
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("later", 1)],
+    now: NOW,
+    store,
+    epoch: backupEpoch(store),
+    pull: async () => [],
+    put: async () => {
+      sent.push("put");
+    },
+  });
+  assert.deepEqual(sent, []);
+});
+
 test("a stale sign-in deletes nothing", async () => {
   const store = memory();
   rememberSynced(store, ["synced"], "user-a");
@@ -526,7 +568,7 @@ test("a rejected delete keeps the synced ids for a retry", async () => {
       accountDeleteStage(error) === "auth" && accountDeleteKeepsDevice(error),
   );
   assert.deepEqual(readSyncedIds(store), ["synced"]);
-  assert.equal(optedIn(store, "user-a"), true);
+  assert.equal(optedIn(store, "user-a"), false);
 });
 
 test("a missing cloud account still finishes local wipe and auth delete", async () => {
@@ -1703,29 +1745,38 @@ test("a backup still blocks deletion after the upload lease", async () => {
 });
 
 test("two tabs that claim together both keep their uploads", async () => {
-  const nav = globalThis.navigator as Navigator & {
-    locks?: { request: (name: string, callback: () => unknown) => unknown };
-  };
-  const previous = nav.locks;
+  const nav = globalThis.navigator;
+  const previous = Object.getOwnPropertyDescriptor(nav, "locks");
+  // Node 24 exposes navigator.locks as a getter with no setter. Assignment throws.
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    get() {
+      return undefined;
+    },
+  });
   let held = 0;
   let chain: Promise<void> = Promise.resolve();
-  nav.locks = {
-    request(_name, callback) {
-      const run = chain.then(async () => {
-        held += 1;
-        try {
-          return await callback();
-        } finally {
-          held -= 1;
-        }
-      });
-      chain = run.then(
-        () => undefined,
-        () => undefined,
-      );
-      return run;
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    writable: true,
+    value: {
+      request(_name: string, callback: () => unknown) {
+        const run = chain.then(async () => {
+          held += 1;
+          try {
+            return await callback();
+          } finally {
+            held -= 1;
+          }
+        });
+        chain = run.then(
+          () => undefined,
+          () => undefined,
+        );
+        return run;
+      },
     },
-  };
+  });
   try {
     const data = new Map<string, string>();
     const store: KeyValueStore = {
@@ -1749,8 +1800,8 @@ test("two tabs that claim together both keep their uploads", async () => {
     };
     assert.equal(Object.keys(book["user-a"] ?? {}).length, 2);
   } finally {
-    if (previous) nav.locks = previous;
-    else delete nav.locks;
+    if (previous) Object.defineProperty(nav, "locks", previous);
+    else delete (nav as { locks?: unknown }).locks;
   }
 });
 

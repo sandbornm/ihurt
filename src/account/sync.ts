@@ -636,6 +636,11 @@ export async function deleteSignedInAccount(input: {
         throw tagDeleteError(error, "api");
     }
     if (input.sameAccount?.() === false) throw cancelledDelete();
+    // The cloud account is gone. Stop backup before the Firebase user delete
+    // so a later edit cannot upload to that account, and keep the synced ids
+    // so a retry can still remove the sign-in.
+    if (optedIn(input.store, input.uid)) clearOptIn(input.store);
+    nextBackupEpoch(input.store);
     const ids = [
       ...new Set([
         ...backedIdsFor(input.store, input.uid),

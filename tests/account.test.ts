@@ -645,6 +645,34 @@ test("a later save keeps another device's newer note and new entry", async () =>
   assert.deepEqual(blocked, []);
 });
 
+test("turning backup off during the pull skips the upload", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent: string[] = [];
+  const pending = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("recent", 1)],
+    now: NOW,
+    store,
+    pull: async () => {
+      await gate;
+      return [];
+    },
+    put: async () => {
+      sent.push("put");
+    },
+  });
+  clearOptIn(store);
+  release();
+  assert.deepEqual(await pending, []);
+  assert.deepEqual(sent, []);
+});
+
 function storedEntry(map: unknown) {
   return {
     id: "entry-1",
@@ -720,6 +748,14 @@ test("a mixed sync response is rejected before upload", async () => {
     (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
   );
   assert.deepEqual(calls, ["GET"]);
+});
+
+test("duplicate sync ids are rejected before upload", () => {
+  const row = storedEntry(validMap);
+  assert.throws(
+    () => remoteEntries({ entries: [row, { ...row, note: "other note" }] }),
+    (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
+  );
 });
 
 test("backup upload sends notes and pins only", async () => {

@@ -743,6 +743,46 @@ export const saveDraft = (draft: Draft) =>
   mutate(["settings"], (tx) => {
     tx.objectStore("settings").put(draft, "draft");
   });
+// A backup restore must not undo a delete. Tombstones are read in this
+// transaction, and a matching id is left deleted. Import and undo still use
+// storeEntries, which clears a tombstone on purpose.
+export function restoreBackupEntries(entries: SavedMap[]): Promise<SavedMap[]> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["entries", "settings"], "readwrite");
+        const merged: SavedMap[] = [];
+        tx.oncomplete = () => resolve(merged);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+        try {
+          const store = tx.objectStore("entries");
+          const tomb = tx.objectStore("settings").get(DELETED_IDS);
+          tomb.onsuccess = () => {
+            const ids = new Set(deletedIds(tomb.result));
+            for (const entry of entries) {
+              if (ids.has(entry.id)) continue;
+              const current = store.get(entry.id);
+              current.onsuccess = () => {
+                const existing = current.result as SavedMap | undefined;
+                const row = keepLandedResearch(existing, entry);
+                merged.push(row);
+                store.put(row);
+              };
+            }
+          };
+        } catch (error) {
+          try {
+            tx.abort();
+          } catch {
+            // Already aborting.
+          }
+          reject(error);
+        }
+      }),
+  );
+}
+
 export function storeEntries(entries: SavedMap[]): Promise<SavedMap[]> {
   return open().then(
     (db) =>

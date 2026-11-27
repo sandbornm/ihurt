@@ -52,11 +52,17 @@ export function remoteEntries(value: unknown): SavedMap[] {
   if (!value || typeof value !== "object") throw new AccountApiError(200, "invalid");
   const entries = (value as { entries?: unknown }).entries;
   if (!Array.isArray(entries)) throw new AccountApiError(200, "invalid");
-  return entries.map((entry) => {
+  const rows = entries.map((entry) => {
     const accepted = acceptStoredEntry(entry);
     if (!accepted) throw new AccountApiError(200, "invalid");
     return accepted;
   });
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (ids.has(row.id)) throw new AccountApiError(200, "invalid");
+    ids.add(row.id);
+  }
+  return rows;
 }
 
 function statusFrom(value: unknown): AccountStatus {

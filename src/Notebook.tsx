@@ -63,6 +63,7 @@ import {
   saveDraft,
   saveResearch,
   storeEntries,
+  restoreBackupEntries,
   removeEntry,
   readDeletedIds,
   editorAfterSave,
@@ -542,14 +543,22 @@ export default function Notebook({
               const fresh = incoming.filter((entry) => !deleted.has(entry.id));
               if (fresh.length === 0) return [];
               const local = new Map(saved.map((item) => [item.id, item]));
-              const stored = await storeEntries(
+              const stored = await restoreBackupEntries(
                 fresh.map((entry) => withLocalPrivateFields(local.get(entry.id), entry)),
               );
+              const kept = new Set(stored.map((row) => row.id));
               setSaved((old) => {
                 const map = new Map(old.map((item) => [item.id, item]));
+                for (const entry of fresh) {
+                  if (!kept.has(entry.id)) map.delete(entry.id);
+                }
                 for (const row of stored) map.set(row.id, row);
                 return [...map.values()];
               });
+              if (!kept.has(entry.id) && fresh.some((row) => row.id === entry.id)) {
+                setEntry(blankEntry());
+                setSelected(null);
+              }
               return stored;
             }}
             onRemove={async (ids) => {

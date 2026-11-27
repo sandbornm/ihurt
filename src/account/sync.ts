@@ -138,6 +138,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
   if (!optedIn(input.store, input.uid)) return [];
   const deleted = new Set(input.deletedIds ?? []);
   const remote = input.pull ? await input.pull(input.token) : [];
+  if (!optedIn(input.store, input.uid)) return [];
   const windowed = input.pull
     ? mergeBackupWindow(input.entries, remote, deleted, input.now)
     : entriesForBackup(input.entries, input.now);
@@ -151,6 +152,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // A list from before the pull is missing account rows and is not a delete.
   // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
+  if (!optedIn(input.store, input.uid)) return [];
   await input.put(input.token, windowed);
   retainSynced(
     input.store,

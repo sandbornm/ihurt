@@ -197,6 +197,7 @@ globalThis.indexedDB = {
 const {
   loadNotebook,
   storeEntries,
+  restoreBackupEntries,
   removeEntry,
   saveDraft,
   saveResearch,
@@ -2719,3 +2720,33 @@ for (const legacy of [true, false]) {
     assert.equal(row?.research?.description, "stiff");
   });
 }
+
+test("a backup restore leaves a deleted entry deleted", async () => {
+  const row = entry("backup-tomb", "gone", {
+    noteUpdated: "2026-01-02T00:00:00.000Z",
+  });
+  await storeEntries([row]);
+  await removeEntry("backup-tomb");
+  const restored = await restoreBackupEntries([
+    entry("backup-tomb", "from cloud", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+    }),
+    entry("backup-keep", "stays", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+    }),
+  ]);
+  assert.deepEqual(
+    restored.map((item) => item.id),
+    ["backup-keep"],
+  );
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.some((item) => item.id === "backup-tomb"),
+    false,
+  );
+  assert.equal(
+    loaded.entries.some((item) => item.id === "backup-keep"),
+    true,
+  );
+  assert.equal(await saveResearch("backup-tomb", research), undefined);
+});

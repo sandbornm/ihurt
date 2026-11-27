@@ -163,6 +163,10 @@
   color: #fff;
   border-color: #376b22;
 }
+[data-theme="light"] .new-map-button:not(:disabled):hover {
+  background: #2d5a1b;
+  color: #fff;
+}
 [data-theme="light"]
   :is(
     .secondary,

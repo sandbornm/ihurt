@@ -123,7 +123,7 @@ textarea {
 }
 .brand-period {
   color: var(--lime);
-  margin-left: -10px;
+  margin-left: 1px;
 }
 .brand-caption {
   font-size: 10px;
@@ -216,6 +216,12 @@ textarea {
   margin: auto;
   padding: 34px 39px 19px;
 }
+.notebook-shell .rail {
+  display: none !important;
+}
+.notebook-shell .main-content {
+  width: 100% !important;
+}
 .page-heading {
   display: flex;
   align-items: center;
@@ -248,12 +254,17 @@ h1 > span {
   margin-top: 10px;
 }
 .new-map-button {
-  border: 1px solid #4a5e3e;
+  border: 1px solid #b7e78c;
   border-radius: 8px;
-  background: #baf38b08;
-  color: #c6e7ad;
+  background: var(--lime);
+  color: #203018;
   font-size: 12px;
-  padding: 11px 14px;
+  font-weight: 650;
+  padding: 13px 16px;
+  min-height: 44px;
+}
+.new-map-button:not(:disabled):hover {
+  background: #cef7ab;
 }
 .page-tabs {
   display: flex;
@@ -1340,7 +1351,7 @@ h1 > span {
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: #adc396;
+  color: var(--muted);
 }
 .empty-journal h3 {
   margin-top: 22px;
@@ -1353,6 +1364,99 @@ h1 > span {
 }
 .empty-journal button {
   width: auto;
+}
+.history-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--muted);
+}
+.history-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--soft);
+}
+.history-search input:focus,
+.history-search input:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.history-empty,
+.moment-empty {
+  color: var(--muted);
+  margin-top: 16px;
+}
+.day-strip {
+  display: grid;
+  gap: 10px;
+  margin: 14px 16px 0;
+}
+.day-strip-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.day-strip-head button {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  color: var(--soft);
+}
+.day-strip-head button:disabled {
+  opacity: 0.4;
+}
+.day-strip-head strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 560;
+}
+.day-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+.moment-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+.moment-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 180px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--soft);
+  text-align: left;
+}
+.moment-card[aria-current="true"] {
+  border-color: var(--lime);
+}
+.moment-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.moment-time,
+.moment-score {
+  color: var(--muted);
+  font-size: 12px;
+}
+.moment-title {
+  font-size: 14px;
 }
 .journal-grid {
   display: grid;

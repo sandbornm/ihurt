@@ -505,4 +505,28 @@
     max-width: 126px;
     font-size: 18px !important;
   }
+  .notebook-shell .anatomy-navigation {
+    left: 8px;
+    right: 56px;
+    bottom: 8px;
+    max-width: none;
+    padding: 4px;
+  }
+  .notebook-shell .navigation-modes,
+  .notebook-shell .navigation-arrows {
+    flex-wrap: nowrap;
+  }
+  .notebook-shell .navigation-modes button,
+  .notebook-shell .navigation-arrows button {
+    flex: 1 1 0;
+    min-width: 0 !important;
+    padding: 4px 2px !important;
+    font-size: 11px !important;
+  }
+  .notebook-shell .anatomy-navigation small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-top: 2px;
+  }
 }

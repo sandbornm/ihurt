@@ -18,6 +18,7 @@ import {
   FREE_SEARCHES,
   idsDeletedOnServer,
   mergeBackupWindow,
+  remoteDeleteClosesEditor,
   savedAfterBackupPull,
   toBackupPayload,
   withLocalPrivateFields,
@@ -1230,6 +1231,26 @@ test("the next account does not upload the previous account's entries", async ()
     },
   });
   assert.deepEqual(sent, [["from-b"]]);
+});
+
+test("a remote delete closes the entry opened while the pull was in flight", () => {
+  const openWhenThePullStarted = "entry-a";
+  const openedDuringThePull = "entry-x";
+  assert.equal(
+    remoteDeleteClosesEditor(openWhenThePullStarted, ["entry-x"]),
+    false,
+  );
+  assert.equal(
+    remoteDeleteClosesEditor(openedDuringThePull, ["entry-x"]),
+    true,
+  );
+  const root = new URL("../", import.meta.url);
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  const start = notebook.indexOf("onRemove={async (ids)");
+  assert.ok(start > 0);
+  const block = notebook.slice(start, notebook.indexOf("/>", start));
+  assert.equal(block.includes("entryRef.current.id"), true);
+  assert.equal(block.includes("entry.id"), false);
 });
 
 test("a later save applies the downloaded note before the next upload", () => {

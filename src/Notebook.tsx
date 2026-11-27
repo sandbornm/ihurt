@@ -93,6 +93,7 @@ import LanguageSetting from "./i18n/LanguageSetting";
 import AccountButton from "./account/AccountButton";
 import {
   journalSignature,
+  remoteDeleteClosesEditor,
   savedAfterBackupPull,
   withLocalPrivateFields,
 } from "./account/backup.ts";
@@ -584,10 +585,17 @@ export default function Notebook({
             onRemove={async (ids) => {
               for (const id of ids) await removeEntry(id);
               setSaved((old) => old.filter((item) => !ids.includes(item.id)));
-              if (ids.includes(entry.id)) {
-                setEntry(blankEntry());
-                setSelected(null);
-              }
+              if (!remoteDeleteClosesEditor(entryRef.current.id, ids)) return;
+              const next = blankEntry();
+              entryRef.current = next;
+              draftRef.current = {
+                ...draftRef.current,
+                entry: next,
+                selected: null,
+              };
+              setEntry(next);
+              setSelected(null);
+              await saveDraft(draftRef.current);
             }}
           />
           <LanguageSetting />

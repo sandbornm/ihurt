@@ -343,6 +343,15 @@ export function journalSignature(entry: SavedMap): string {
   ]);
 }
 
+// The backup callback can be from before the user opened this entry.
+// Compare the id that is open when the delete arrives.
+export function remoteDeleteClosesEditor(
+  openId: string,
+  removedIds: readonly string[],
+): boolean {
+  return removedIds.includes(openId);
+}
+
 // A later backup pull replaces the journal row. Skip the update when the
 // visible fields are unchanged, so the save effect does not upload again.
 export function savedAfterBackupPull(

@@ -66,9 +66,17 @@ export async function pushBackup<T extends BackupEntry>(input: {
   now: number;
   store: KeyValueStore;
   put: (token: string, entries: T[]) => Promise<void>;
+  deletedIds?: readonly string[];
 }): Promise<T[]> {
   if (!optedIn(input.store, input.uid)) return [];
   const windowed = entriesForBackup(input.entries, input.now);
+  const deleted = new Set(input.deletedIds ?? []);
+  const present = new Set(windowed.map((entry) => entry.id));
+  const omitted = syncedIdsFor(input.store, input.uid).filter(
+    (id) => !present.has(id) && !deleted.has(id),
+  );
+  // A list from before the pull is missing account rows and is not a delete.
+  if (omitted.length > 0) return [];
   await input.put(input.token, windowed);
   rememberSynced(
     input.store,
@@ -85,10 +93,10 @@ export function accountDeleteStage(error: unknown): AccountDeleteStage | null {
   return stage === "api" || stage === "local" || stage === "auth" ? stage : null;
 }
 
-// Failures before the cloud account is deleted, and failures while wiping this
-// device, keep the sign-in and the synced-id list so a retry can finish.
-export function accountDeleteKeepsDevice(error: unknown): boolean {
-  return accountDeleteStage(error) !== "auth";
+// A failed delete keeps the sign-in. The cloud account, the local wipe, or the
+// Firebase user may still need another attempt, including after a 404.
+export function accountDeleteKeepsDevice(_error: unknown): boolean {
+  return true;
 }
 
 function tagDeleteError(error: unknown, stage: AccountDeleteStage): unknown {
@@ -124,18 +132,19 @@ export async function deleteSignedInAccount(input: {
   try {
     await input.api.deleteAccount(input.token);
   } catch (error) {
-    throw tagDeleteError(error, "api");
+    const status = (error as { status?: unknown } | null)?.status;
+    if (status !== 404) throw tagDeleteError(error, "api");
   }
   try {
     await input.removeLocal(ids);
   } catch (error) {
     throw tagDeleteError(error, "local");
   }
-  clearOptIn(input.store);
-  clearSynced(input.store, input.uid);
   try {
     await input.deleteAuth();
   } catch (error) {
     throw tagDeleteError(error, "auth");
   }
+  clearOptIn(input.store);
+  clearSynced(input.store, input.uid);
 }

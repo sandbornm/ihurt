@@ -196,7 +196,7 @@ export async function passkeySignIn(input: {
     input.apiKey,
     {},
     fetchImpl,
-  )) as { credentialRequestOptions?: Record<string, unknown> };
+  )) as { credentialRequestOptions?: Record<string, unknown>; sessionId?: unknown };
   const options = started.credentialRequestOptions;
   if (!options) throw new AccountAuthError("passkey-unavailable");
   const credential = await credentials.get({
@@ -204,10 +204,12 @@ export async function passkeySignIn(input: {
   });
   if (!credential) throw new AccountAuthError("cancelled");
   const name = input.name || "iHurt";
+  const sessionId = typeof started.sessionId === "string" ? started.sessionId : "";
   const finished = await postIdentity(
     "/v2/accounts/passkeySignIn:finalize",
     input.apiKey,
     {
+      ...(sessionId ? { sessionId } : {}),
       authenticatorAuthenticationResponse: publicKeyCredentialToJSON(
         credential as PublicKeyCredential,
       ),

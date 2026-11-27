@@ -40,7 +40,7 @@ export function initializeNativeApp() {
     const result = await appleSignIn.signIn();
     if (!result.idToken || !result.nonce) throw new Error("apple-failed");
     return { idToken: result.idToken, nonce: result.nonce };
-  }, true);
+  });
   configureNativeExports({
     async write(file, path) {
       const result = await Filesystem.writeFile({

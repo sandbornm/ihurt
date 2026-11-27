@@ -13,6 +13,7 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
 
     private var pending: CAPPluginCall?
     private var rawNonce: String?
+    private var controller: ASAuthorizationController?
 
     @objc func signIn(_ call: CAPPluginCall) {
         if pending != nil {
@@ -26,6 +27,7 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
         request.requestedScopes = [.fullName, .email]
         request.nonce = Self.sha256(nonce)
         let controller = ASAuthorizationController(authorizationRequests: [request])
+        self.controller = controller
         controller.delegate = self
         controller.presentationContextProvider = self
         controller.performRequests()
@@ -61,6 +63,7 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
     private func clear() {
         pending = nil
         rawNonce = nil
+        controller = nil
     }
 
     private static func randomNonce(length: Int = 32) -> String {

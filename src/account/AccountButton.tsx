@@ -57,7 +57,13 @@ export default function AccountButton({
 
   useEffect(() => {
     if (!ready) return;
-    pushBackupEntries(entries);
+    let cancel = false;
+    void readDeletedIds().then((deleted) => {
+      if (!cancel) pushBackupEntries(entries, deleted);
+    });
+    return () => {
+      cancel = true;
+    };
   }, [entries, ready, snapshot.optedIn, snapshot.session?.uid]);
 
   useEffect(() => {
@@ -152,9 +158,9 @@ export default function AccountButton({
                 void run(async () => {
                   await enableBackup(entries, async (remote) => {
                     const deleted = new Set(await readDeletedIds());
-                    await onMerge(
-                      remote.filter((entry) => !deleted.has(entry.id)),
-                    );
+                    const kept = remote.filter((entry) => !deleted.has(entry.id));
+                    await onMerge(kept);
+                    return kept;
                   });
                   setStep("home");
                 })

@@ -25,3 +25,17 @@ export function entriesForBackup<T extends BackupEntry>(
 ): T[] {
   return entries.filter((entry) => withinBackupWindow(entry, now, days));
 }
+
+// Local rows win when both sides have the same id. Remote-only rows stay,
+// so the upload is not limited to the list this device had before the pull.
+export function backupUploadSet<T extends BackupEntry>(
+  local: readonly T[],
+  remote: readonly T[],
+  now: number,
+  days = BACKUP_DAYS,
+): T[] {
+  const byId = new Map<string, T>();
+  for (const entry of remote) byId.set(entry.id, entry);
+  for (const entry of local) byId.set(entry.id, entry);
+  return entriesForBackup([...byId.values()], now, days);
+}

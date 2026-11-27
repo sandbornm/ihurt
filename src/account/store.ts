@@ -8,12 +8,10 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
-import { entriesForBackup, type BackupEntry } from "./backup.ts";
+import { backupUploadSet, type BackupEntry } from "./backup.ts";
 import { readAccountConfig, testRuntimeAllowed, type AccountConfig } from "./config.ts";
 import {
   clearOptIn,
-  clearSynced,
-  accountDeleteKeepsDevice,
   deleteSignedInAccount,
   grantOptIn,
   optedIn,
@@ -181,7 +179,7 @@ export async function signOut() {
 
 export async function enableBackup(
   entries: readonly BackupEntry[],
-  onMerge: (entries: SavedMap[]) => Promise<void>,
+  onMerge: (entries: SavedMap[]) => Promise<readonly BackupEntry[] | void>,
 ) {
   const session = state.session;
   if (!session || !client) throw new AccountAuthError("unconfigured");
@@ -195,8 +193,12 @@ export async function enableBackup(
       setState({ ...state, busy: false });
       return;
     }
-    await onMerge(remote);
-    const windowed = entriesForBackup(entries, Date.now());
+    const kept = await onMerge(remote);
+    const windowed = backupUploadSet(
+      entries,
+      Array.isArray(kept) ? kept : remote,
+      Date.now(),
+    );
     await api.putEntries(token, windowed);
     if (state.session?.uid !== session.uid) {
       setState({ ...state, busy: false });
@@ -242,7 +244,10 @@ export async function disableBackup() {
   setState({ ...state, optedIn: false });
 }
 
-export function pushBackupEntries(entries: readonly BackupEntry[]) {
+export function pushBackupEntries(
+  entries: readonly BackupEntry[],
+  deletedIds: readonly string[] = [],
+) {
   const session = state.session;
   if (!session || !api || !optedIn(browserStore(), session.uid)) return;
   const uid = session.uid;
@@ -258,6 +263,7 @@ export function pushBackupEntries(entries: readonly BackupEntry[]) {
         entries,
         now: Date.now(),
         store: browserStore(),
+        deletedIds,
         put: (next, rows) => current.putEntries(next, rows),
       });
     })
@@ -290,25 +296,12 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
       notice: "deleted",
     });
   } catch (error) {
-    if (accountDeleteKeepsDevice(error)) {
-      const code = (error as { code?: unknown } | null)?.code;
-      setState({
-        ...state,
-        busy: false,
-        error: code === "no-api" ? "no-api" : "error",
-      });
-    } else {
-      clearOptIn(browserStore());
-      clearSynced(browserStore(), session.uid);
-      await auth.signOut().catch(() => {});
-      setState({
-        ...state,
-        busy: false,
-        session: null,
-        optedIn: false,
-        error: "error",
-      });
-    }
+    const code = (error as { code?: unknown } | null)?.code;
+    setState({
+      ...state,
+      busy: false,
+      error: code === "no-api" ? "no-api" : "error",
+    });
     throw error;
   }
 }

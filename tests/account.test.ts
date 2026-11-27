@@ -14,6 +14,7 @@ import {
 import { readTestRuntime } from "../src/account/auth.ts";
 import {
   BACKUP_DAYS,
+  backupUploadSet,
   entriesForBackup,
   FREE_SEARCHES,
   withinBackupWindow,
@@ -88,6 +89,11 @@ test("backup window keeps 90 days and drops older entries", () => {
     entriesForBackup([edited, recent], NOW).map((row) => row.id),
     ["recent"],
   );
+  const remoteOnly = entry("remote", 2);
+  const uploaded = backupUploadSet([recent], [remoteOnly, old], NOW).map(
+    (row) => row.id,
+  );
+  assert.deepEqual(uploaded.sort(), ["recent", "remote"]);
 });
 
 test("sync waits for opt-in and does not follow a different account", async () => {
@@ -137,6 +143,38 @@ test("sync waits for opt-in and does not follow a different account", async () =
   assert.deepEqual(readSyncedIds(store), ["recent"]);
   clearOptIn(store);
   assert.equal(optedIn(store, "user-a"), false);
+
+  rememberSynced(store, ["remote", "recent"], "user-a");
+  grantOptIn(store, "user-a");
+  const stale: string[][] = [];
+  const skipped = await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("recent", 1)],
+    now: NOW,
+    store,
+    put: async (_token, rows) => {
+      stale.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(skipped, []);
+  assert.deepEqual(stale, []);
+  const removed = await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("recent", 1)],
+    deletedIds: ["remote"],
+    now: NOW,
+    store,
+    put: async (_token, rows) => {
+      stale.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(
+    removed.map((row) => row.id),
+    ["recent"],
+  );
+  assert.deepEqual(stale, [["recent"]]);
 });
 
 test("delete calls the API before wiping local synced entries", async () => {
@@ -291,8 +329,38 @@ test("a rejected delete keeps the synced ids for a retry", async () => {
         },
         store,
       }),
-    (error: unknown) => accountDeleteStage(error) === "auth" && !accountDeleteKeepsDevice(error),
+    (error: unknown) =>
+      accountDeleteStage(error) === "auth" && accountDeleteKeepsDevice(error),
   );
+  assert.deepEqual(readSyncedIds(store), ["synced"]);
+  assert.equal(optedIn(store, "user-a"), true);
+});
+
+test("a missing cloud account still finishes local wipe and auth delete", async () => {
+  const store = memory();
+  rememberSynced(store, ["synced"], "user-a");
+  grantOptIn(store, "user-a");
+  const done: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    api: {
+      async deleteAccount() {
+        done.push("api");
+        throw new AccountApiError(404, "missing");
+      },
+    },
+    removeLocal: async (ids) => {
+      done.push(`local:${ids.join(",")}`);
+    },
+    deleteAuth: async () => {
+      done.push("auth");
+    },
+    store,
+  });
+  assert.deepEqual(done, ["api", "local:synced", "auth"]);
+  assert.deepEqual(readSyncedIds(store), []);
+  assert.equal(optedIn(store, "user-a"), false);
 });
 
 function storedEntry(map: unknown) {
@@ -465,6 +533,7 @@ test("passkey relying party is ihurt.app on the public host", async () => {
       if (target.includes("passkeySignIn:start")) {
         return new Response(
           JSON.stringify({
+            sessionId: "session-1",
             credentialRequestOptions: {
               challenge: btoa("challenge"),
               rpId: "evil.example",
@@ -475,9 +544,11 @@ test("passkey relying party is ihurt.app on the public host", async () => {
       const body = JSON.parse(String(init?.body)) as {
         authenticatorAuthenticationResponse: { id: string };
         name: string;
+        sessionId?: string;
       };
       assert.equal(typeof body.authenticatorAuthenticationResponse.id, "string");
       assert.equal(body.name, "iHurt");
+      assert.equal(body.sessionId, "session-1");
       return new Response(
         JSON.stringify({
           idToken: "header.payload.sig",

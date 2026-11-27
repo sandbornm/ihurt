@@ -257,11 +257,6 @@ export async function enableBackup(
       [...priorRemoved].filter((id) => kept.some((entry) => entry.id === id)),
       session.uid,
     );
-    rememberSeenEntries(
-      browserStore(),
-      session.uid,
-      kept.map((entry) => entry.id),
-    );
     const gone = idsDeletedOnServer(
       syncedIdsFor(browserStore(), session.uid),
       kept,
@@ -289,6 +284,11 @@ export async function enableBackup(
       return;
     }
     await api.putEntries(token, windowed);
+    rememberSeenEntries(
+      browserStore(),
+      session.uid,
+      windowed.map((entry) => entry.id),
+    );
     if (gone.length > 0) await onRemove?.(gone);
     if (
       state.session?.uid !== session.uid ||

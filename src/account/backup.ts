@@ -352,6 +352,20 @@ export function remoteDeleteClosesEditor(
   return removedIds.includes(openId);
 }
 
+// The open entry was deleted on another device. Keep a copy when this device
+// has edits that are not in the saved row from when the pull started.
+// The copy gets a new id so the deletion tombstone does not remove it.
+export function entryKeptAfterRemoteDelete(
+  open: SavedMap,
+  prior: SavedMap | undefined,
+  nextId: string,
+): SavedMap | null {
+  if (prior && journalSignature(prior) === journalSignature(open)) return null;
+  if (!prior && open.note === "" && (open.points ?? []).length === 0)
+    return null;
+  return { ...open, id: nextId };
+}
+
 // A later backup pull replaces the journal row. Skip the update when the
 // visible fields are unchanged, so the save effect does not upload again.
 export function savedAfterBackupPull(

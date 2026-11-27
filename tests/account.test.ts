@@ -18,6 +18,7 @@ import {
   FREE_SEARCHES,
   idsDeletedOnServer,
   mergeBackupWindow,
+  entryKeptAfterRemoteDelete,
   remoteDeleteClosesEditor,
   savedAfterBackupPull,
   toBackupPayload,
@@ -1347,6 +1348,31 @@ test("a delete during backup enable is left out of the first upload", () => {
   );
 });
 
+test("deleting an account releases entries it never backed up", async () => {
+  const store = memory();
+  rememberSeenEntries(store, "user-a", ["local-only", "backed"]);
+  rememberSynced(store, ["backed"], "user-a");
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, ["backed"]);
+  assert.deepEqual(
+    withoutOtherAccountEntries([entry("local-only", 1)], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["local-only"],
+  );
+});
+
 test("the next account does not upload the previous account's entries", async () => {
   const store = memory();
   rememberSeenEntries(store, "user-a", ["from-a"]);
@@ -1393,6 +1419,48 @@ test("a remote delete closes the entry opened while the pull was in flight", () 
   const block = notebook.slice(start, notebook.indexOf("/>", start));
   assert.equal(block.includes("entryRef.current.id"), true);
   assert.equal(block.includes("entry.id"), false);
+  assert.equal(block.includes("entryKeptAfterRemoteDelete("), true);
+  const keptAt = block.indexOf("entryKeptAfterRemoteDelete(");
+  const blankAt = block.indexOf("blankEntry()", keptAt);
+  assert.ok(keptAt > 0 && blankAt > keptAt);
+});
+
+test("typing during a remote delete keeps the draft as a new entry", () => {
+  const prior = {
+    id: "open",
+    created: new Date(NOW).toISOString(),
+    updated: new Date(NOW).toISOString(),
+    note: "saved before the pull",
+    provider: "notes",
+    answers: [],
+    points: [],
+    map: {
+      title: "",
+      summary: "saved before the pull",
+      regions: [],
+      quality: "",
+      activity: "",
+      duration: "",
+      intensity: null,
+      question: null,
+      urgent: false,
+      safety_message: null,
+    },
+  };
+  const typed = {
+    ...prior,
+    note: "typed while the pull was open",
+    noteUpdated: new Date(NOW + 1000).toISOString(),
+    map: { ...prior.map, summary: "typed while the pull was open" },
+  };
+  const kept = entryKeptAfterRemoteDelete(typed, prior, "kept-copy");
+  assert.equal(kept?.id, "kept-copy");
+  assert.equal(kept?.note, "typed while the pull was open");
+  assert.equal(entryKeptAfterRemoteDelete(prior, prior, "unused"), null);
+  assert.equal(
+    entryKeptAfterRemoteDelete({ ...prior, note: "" }, undefined, "unused"),
+    null,
+  );
 });
 
 test("a backup pull reads private fields from the stored row", () => {
@@ -1436,6 +1504,14 @@ test("a later save applies the downloaded note before the next upload", () => {
   const claim = button.indexOf("rememberSeenEntries(");
   const guard = button.lastIndexOf("snapshot.optedIn", claim);
   assert.ok(guard > 0 && claim - guard < 80);
+  const enable = store.indexOf("export async function enableBackup");
+  const put = store.indexOf("await api.putEntries(token, windowed)", enable);
+  const claimed = store.indexOf("rememberSeenEntries(", put);
+  assert.ok(enable > 0 && put > enable && claimed > put);
+  assert.equal(
+    store.slice(enable, put).includes("rememberSeenEntries("),
+    false,
+  );
   assert.equal(store.includes("await onMerge?.(remote)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);
   assert.equal(store.includes("rememberRemoteDeletes("), true);

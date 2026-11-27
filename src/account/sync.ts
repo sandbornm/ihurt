@@ -151,6 +151,13 @@ export function rememberSeenEntries(
   store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
 }
 
+export function clearSeenEntries(store: KeyValueStore, uid: string) {
+  const book = seenBook(store);
+  if (!(uid in book)) return;
+  delete book[uid];
+  store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
+}
+
 export function withoutOtherAccountEntries<T extends { id: string }>(
   entries: readonly T[],
   store: KeyValueStore,
@@ -422,4 +429,5 @@ export async function deleteSignedInAccount(input: {
   }
   clearOptIn(input.store);
   clearSynced(input.store, input.uid);
+  clearSeenEntries(input.store, input.uid);
 }

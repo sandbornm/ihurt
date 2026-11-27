@@ -115,6 +115,7 @@ export const es: Messages = {
   "notebook.anatomyCredits": "Créditos de anatomía ↗",
   "notebook.callout.proposed": "PIN PROPUESTO · SIN COLOCAR",
   "notebook.callout.reported": "REGIÓN INDICADA",
+  "notebook.callout.suggested": "SUGERENCIA DE IA",
   "notebook.callout.selected": "REGIÓN SELECCIONADA",
   "notebook.confirmPinLabel": "Confirmar pin propuesto",
   "notebook.confirmPin": "Confirmar pin",
@@ -147,6 +148,77 @@ export const es: Messages = {
     "Dónde lo sientes rígido, qué lo provoca, qué cambió…",
   "notebook.toast.voiceAdded":
     "Se agregó el borrador de voz. Revisa tu entrada y luego guárdala.",
+  "notebook.toast.wordsAdded": "Se agregaron tus palabras a la nota.",
+  "notebook.toast.noteTooLong":
+    "Acorta la nota antes de agregar estas palabras.",
+  "pain.summary": "Sugerencia de dolor",
+  "pain.intro":
+    "Opcional. La sugerencia queda aparte de tus notas hasta que la uses.",
+  "pain.describe": "Describe el dolor",
+  "pain.placeholder": "Dolor agudo en el hombro izquierdo al levantar el brazo",
+  "pain.stopSpeech": "Detener voz",
+  "pain.startSpeech": "Iniciar voz",
+  "pain.suggest": "Sugerir",
+  "pain.addWords": "Agregar estas palabras a tu nota",
+  "pain.speech.apple":
+    "La voz se queda en este dispositivo. Las palabras permanecen en este cuadro hasta que pidas una sugerencia.",
+  "pain.speech.web":
+    "Este navegador puede enviar el audio a su servicio de voz. Las palabras permanecen en este cuadro hasta que pidas una sugerencia.",
+  "pain.speech.upload":
+    "Al detener, la grabación se envía al servicio de transcripción. Después puedes pedir una sugerencia.",
+  "pain.speech.none":
+    "Escribe una descripción. El reconocimiento de voz no está disponible en este navegador.",
+  "pain.providerFallback": "el servicio de transcripción",
+  "pain.recordConsent": "Enviar una grabación a {provider} para una transcripción.",
+  "pain.consent":
+    "Enviar esta descripción a TypeSafe, un tercero, para una sugerencia.",
+  "pain.cost":
+    "Una sugerencia reserva unos {amount} del presupuesto diario. Esa estimación no es un límite de gasto.",
+  "pain.error.speechUnavailable":
+    "El reconocimiento de voz no está disponible. Escribe una descripción.",
+  "pain.error.speechStart":
+    "No se pudo iniciar el reconocimiento de voz. Escribe una descripción.",
+  "pain.error.transcriptionOff":
+    "La transcripción está desactivada en este servidor. Escribe una descripción o activa las notas de voz.",
+  "pain.error.recordConsent":
+    "Acepta enviar la grabación para una transcripción, o escribe en su lugar.",
+  "pain.error.visitorMic":
+    "Completa la verificación de visitante y vuelve a intentar el micrófono.",
+  "pain.error.mic": "No se pudo iniciar el micrófono. Escribe una descripción.",
+  "pain.error.transcribe":
+    "No se pudo transcribir la grabación. Escribe una descripción.",
+  "pain.error.micBlocked":
+    "El permiso del micrófono está bloqueado. Puedes escribir.",
+  "pain.error.speechStopped":
+    "El reconocimiento de voz se detuvo. Puedes escribir.",
+  "pain.error.short": "Describe el dolor en unas pocas palabras.",
+  "pain.error.native":
+    "Las sugerencias funcionan en el cuaderno del navegador con el servidor local. Aún puedes agregar estas palabras a tu nota.",
+  "pain.error.consent":
+    "Acepta enviar esta descripción antes de pedir una sugerencia.",
+  "pain.status.off": "Las sugerencias están desactivadas en este servidor.",
+  "pain.error.visitor": "Completa la verificación de visitante y vuelve a intentar.",
+  "pain.status.unreadable":
+    "No se pudo leer la sugerencia. Tus notas no cambiaron.",
+  "pain.status.empty":
+    "Nada en esa descripción fue lo bastante claro para sugerir.",
+  "pain.error.request": "No se pudo pedir la sugerencia.",
+  "pain.heading": "Sugerencia de IA",
+  "pain.scope":
+    "Solo lado y nivel de dolor. Indica las regiones con el mapa del cuerpo o tu nota.",
+  "pain.useStated": "Usar el nivel indicado ({level}/10)",
+  "pain.bandOnly": "Solo un rango. Indica la intensidad en el control.",
+  "pain.clear": "Borrar sugerencia",
+  "pain.side.left": "Lado izquierdo",
+  "pain.side.right": "Lado derecho",
+  "pain.side.both": "Ambos lados",
+  "pain.side.midline": "Línea media",
+  "pain.level.none": "Ninguno",
+  "pain.level.mild": "Leve (2-3)",
+  "pain.level.moderate": "Moderado (4-5)",
+  "pain.level.severe": "Intenso (6-7)",
+  "pain.level.very_severe": "Muy intenso (8-10)",
+  "pain.band": "Rango de IA: {label}",
   "notebook.markHistory": "Deshacer cambios del mapa",
   "notebook.pinsHighlights": "Pines y resaltados",
   "notebook.undoMark": "Deshacer la última marca",

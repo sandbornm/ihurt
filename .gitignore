@@ -15,3 +15,4 @@ output/
 public/mediapipe/wasm/
 public/mediapipe/*.task
 public/mediapipe/*.tmp
+.tmp/

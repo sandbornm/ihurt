@@ -13,16 +13,18 @@ export interface VoiceClient {
     audio: Blob,
     challenge: string,
     signal: AbortSignal,
+    language?: "en" | "es",
   ): Promise<string>;
 }
 export const localVoiceClient: VoiceClient = {
   session: () => api<VoiceSession>("session"),
-  async transcribe(audio, challenge, signal) {
+  async transcribe(audio, challenge, signal, language) {
     const form = new FormData();
     form.append("audio", audio, "note.wav");
     form.append("consent", "true");
     form.append("request_id", crypto.randomUUID());
     form.append("challenge_token", challenge);
+    if (language === "en" || language === "es") form.append("language", language);
     const response = await api<{ text: string }>("transcribe", form, signal);
     if (
       typeof response.text !== "string" ||

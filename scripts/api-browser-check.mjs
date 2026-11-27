@@ -36,6 +36,7 @@ const server = spawn(
       ANTHROPIC_API_KEY: "",
       XAI_API_KEY: "",
       ELEVENLABS_API_KEY: "",
+      TYPESAFE_API_KEY: "",
       LOCAL_MODEL: "",
       LOCAL_API_KEY: "",
       TURNSTILE_SITE_KEY: "",

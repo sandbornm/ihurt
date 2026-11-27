@@ -29,6 +29,16 @@ test("heat painting tints nearby vertices and leaves distant ones on the base", 
   assert.ok(colors.getX(0) > colors.getX(1) + 0.2);
   assert.ok(Math.abs(colors.getX(1) - base.r) < 0.02);
 });
+test("a suggestion tint is separate from the base color and from reported heat", () => {
+  const positions = new Float32BufferAttribute([0, 0, 0], 3);
+  const colors = new Float32BufferAttribute([0, 0, 0], 3);
+  const base = new Color("#666666");
+  paintHeat(positions, colors, new Matrix4(), base, false, [], null, null, fallbackHeat, false);
+  const plain = colors.getZ(0);
+  paintHeat(positions, colors, new Matrix4(), base, false, [], null, null, fallbackHeat, true);
+  assert.ok(colors.getZ(0) > plain + 0.05);
+  assert.ok(colors.getZ(0) > colors.getX(0));
+});
 test("heat samples skip volumes that cannot reach a mesh", () => {
   const bounds = new Box3(
     new Vector3(-0.1, -0.1, -0.1),

@@ -88,6 +88,7 @@ import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
+import PainSuggest from "./pain/PainSuggest";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -160,6 +161,7 @@ export default function Notebook({
   const [selected, setSelected] = useState<RegionId | null>(
       example ? "neck" : null,
     ),
+    [suggestedRegions, setSuggestedRegions] = useState<RegionId[]>([]),
     [layer, setLayer] = useState<"muscle" | "bone">("muscle"),
     [view, setView] = useState<"front" | "back">(example ? "back" : "front");
   // Unconfirmed pin proposed from voice. Kept out of the autosaved draft.
@@ -343,6 +345,9 @@ export default function Notebook({
     );
   }, [selected]);
   useEffect(() => setProposedPin(null), [entry.id]);
+  useEffect(() => {
+    setSuggestedRegions([]);
+  }, [entry.id]);
   function selectRegion(id: RegionId) {
     setSelected(id);
     setView(id.includes("back") ? "back" : "front");
@@ -966,6 +971,7 @@ export default function Notebook({
                         onSelect={setSelected}
                         proposed={proposedPin}
                         points={points}
+                        suggested={suggestedRegions}
                         onPoint={(point) => {
                           setPoints((old) => [...old, point]);
                         }}
@@ -1053,7 +1059,9 @@ export default function Notebook({
                           ? t("notebook.callout.proposed")
                           : result?.regions.includes(selected)
                             ? t("notebook.callout.reported")
-                            : t("notebook.callout.selected")}
+                            : suggestedRegions.includes(selected)
+                              ? t("notebook.callout.suggested")
+                              : t("notebook.callout.selected")}
                       </span>
                       <strong>{regionName(selected)}</strong>
                     </div>
@@ -1235,6 +1243,32 @@ export default function Notebook({
                       <span>{note.length}/3000</span>
                     </div>
                   </div>
+                  <PainSuggest
+                    key={entry.id}
+                    onHighlight={setSuggestedRegions}
+                    onShow={(id) => {
+                      selectRegion(id);
+                      action("focus");
+                    }}
+                    onAddPin={(id) => {
+                      selectRegion(id);
+                      action("pin-center");
+                    }}
+                    onUseQuality={(value) => context("quality", value)}
+                    onUseIntensity={(value) => context("intensity", value)}
+                    onUseActivity={(value) => context("activity", value)}
+                    onInsertText={(value) => {
+                      const next = [note.trim(), value]
+                        .filter(Boolean)
+                        .join("\n\n");
+                      if (next.length > 3000) {
+                        setToast(t("notebook.toast.noteTooLong"));
+                        return;
+                      }
+                      change({ note: next });
+                      setToast(t("notebook.toast.wordsAdded"));
+                    }}
+                  />
                   <IntensityDial
                     value={entry.map.intensity}
                     onChange={(value) => context("intensity", value)}

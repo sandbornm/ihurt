@@ -11,6 +11,7 @@ const vertex = new Vector3();
 const painted = new Color();
 const heatTint = new Color();
 const selectedTint = new Color("#ceefb3");
+const suggestionTint = new Color("#7ea2d6");
 const base = new Color();
 const probe = new Vector3();
 
@@ -43,8 +44,10 @@ export function paintHeat(
   region: HeatSample | null,
   intensity: number | null,
   heat: HeatFunction,
+  suggested = false,
 ) {
   base.copy(baseColor);
+  if (suggested) base.lerp(suggestionTint, 0.55);
   if (selectedUnmapped) base.lerp(selectedTint, 0.48);
   heatTint.set(intensityColor(intensity));
   const hasHeat = samples.length > 0 || region !== null;

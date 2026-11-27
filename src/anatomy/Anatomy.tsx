@@ -39,6 +39,7 @@ interface Props {
   command: { type: string; id: number };
   onSelect: (region: RegionId) => void;
   points?: PainPoint[];
+  suggested?: RegionId[];
   onPoint?: (point: PainPoint) => void;
   navigation?: boolean;
   advancedControls?: boolean;
@@ -55,6 +56,7 @@ export default function Anatomy(props: Props) {
   // Re-render on a language change. Strings come from t().
   const { lang } = useI18n();
   const mappedKey = props.mapped.join("|");
+  const suggestedKey = (props.suggested ?? []).join("|");
   const pointsKey = JSON.stringify(
     props.points?.map((point) => [
       point.id,
@@ -228,7 +230,8 @@ export default function Anatomy(props: Props) {
     outerRing.position.y = -2.53;
     scene.add(outerRing);
     const cool = new T.Color("#c4ed76"),
-      warm = new T.Color("#ffb265");
+      warm = new T.Color("#ffb265"),
+      suggestionColor = new T.Color("#7ea2d6");
     let heat: HeatFunction = fallbackHeat;
     let disposed = false,
       dirty = 2,
@@ -318,6 +321,8 @@ export default function Anatomy(props: Props) {
         p.layer === "bone" || p.showSkeleton !== false ? "visible" : "hidden";
       pinGroup.visible = !spread.active;
       const mappedKey = p.mapped.join("|");
+      const suggested = p.suggested ?? [];
+      root.dataset.suggested = suggested.length ? suggested.join(" ") : "none";
       const samples = (p.points ?? []).flatMap((point) =>
         (point.area?.path ?? [point.position]).map((position) => ({
           position,
@@ -347,6 +352,11 @@ export default function Anatomy(props: Props) {
         mesh.material.emissiveIntensity = 0.2;
         const region = mesh.userData.region;
         const isSelected = region === p.selected;
+        const isSuggested =
+          !!region &&
+          suggested.includes(region) &&
+          !isSelected &&
+          !p.mapped.includes(region);
         let bounds = meshBounds.get(mesh);
         if (!bounds) {
           mesh.geometry.computeBoundingBox();
@@ -359,6 +369,7 @@ export default function Anatomy(props: Props) {
           : null;
         const cacheKey = [
           isSelected ? 1 : 0,
+          isSuggested ? 1 : 0,
           nearby.length || regionHeat ? p.intensity : "unpainted",
           mappedKey,
           nearby.length,
@@ -388,6 +399,7 @@ export default function Anatomy(props: Props) {
             : null,
           p.intensity,
           heat,
+          isSuggested,
         );
       }
       body.fibers.visible = p.layer === "muscle";
@@ -408,6 +420,11 @@ export default function Anatomy(props: Props) {
           bone.material.color.lerp(cool, 0.8);
         if (p.mapped.includes(bone.userData.region!))
           bone.material.color.lerp(warm, 0.8);
+        else if (
+          suggested.includes(bone.userData.region!) &&
+          bone.userData.region !== p.selected
+        )
+          bone.material.color.lerp(suggestionColor, 0.55);
         else if (bone.userData.region === p.selected)
           bone.material.color.lerp(cool, 0.7);
       }
@@ -1257,6 +1274,7 @@ export default function Anatomy(props: Props) {
       props.selected,
       props.proposed,
       mappedKey,
+      suggestedKey,
       props.layer,
       props.showSkeleton,
       pointsKey,

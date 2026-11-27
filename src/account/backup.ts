@@ -24,13 +24,17 @@ export function withinBackupWindow(
 }
 
 // A device clock that is behind still has to see the server's window. The
-// newest stamp in the pull is the later clock. An aged-out note then stays
-// outside the window instead of looking like a delete.
+// newest stamp in the pull is the later clock, up to ten days ahead. A further
+// stamp is a fast or wrong clock; following it would age this device's current
+// notes out of the upload.
+const CLOCK_AHEAD_MS = 10 * DAY_MS;
+
 export function backupClock<T extends BackupEntry>(
   now: number,
   remote: readonly T[],
 ): number {
   let latest = now;
+  const cap = now + CLOCK_AHEAD_MS;
   for (const entry of remote) {
     const stamps = [
       entry.created,
@@ -41,7 +45,8 @@ export function backupClock<T extends BackupEntry>(
     for (const value of stamps) {
       if (typeof value !== "string") continue;
       const stamp = Date.parse(value);
-      if (stamp > latest) latest = stamp;
+      if (!Number.isFinite(stamp) || stamp <= latest) continue;
+      latest = stamp < cap ? stamp : cap;
     }
   }
   return latest;

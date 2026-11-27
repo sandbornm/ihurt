@@ -19,6 +19,7 @@ import {
 import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
   BACKUP_DAYS,
+  backupClock,
   backupRowsAfterMerge,
   backupUploadSet,
   entriesForBackup,
@@ -942,6 +943,55 @@ test("a slow clock does not drop cloud entries dated ahead of this device", asyn
   assert.deepEqual(sent[0]?.sort(), ["ahead", "recent"]);
 });
 
+test("a future remote stamp does not drop a current local note", async () => {
+  const far = new Date(NOW + 400 * DAY).toISOString();
+  const fields = [
+    "created",
+    "updated",
+    "noteUpdated",
+    "pointsUpdated",
+  ] as const;
+  for (const field of fields) {
+    const clock = backupClock(NOW, [
+      {
+        id: "ahead",
+        created: new Date(NOW).toISOString(),
+        [field]: far,
+      },
+    ]);
+    assert.ok(clock < NOW + 60 * DAY, field);
+    assert.equal(
+      entriesForBackup([entry("today", 0), entry("within", 30)], clock).length,
+      2,
+      field,
+    );
+  }
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("today", 0), entry("within", 30)],
+    now: NOW,
+    store,
+    pull: async () => [
+      {
+        id: "ahead",
+        created: far,
+        updated: far,
+        noteUpdated: far,
+        pointsUpdated: far,
+        note: "ahead",
+      },
+    ],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+  });
+  assert.deepEqual(sent, [["ahead", "today", "within"]]);
+});
+
 test("a slow clock does not delete a note the server aged out", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -1276,6 +1326,60 @@ test("an oversized sync response is rejected before upload", async () => {
       }),
     (error: unknown) =>
       error instanceof AccountApiError && error.code === "invalid",
+  );
+});
+
+test("an account request that never finishes is abandoned", async () => {
+  const bounded = <T>(work: Promise<T>) =>
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("still pending")), 500);
+      work.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
+  const hangingFetch = createAccountApi(
+    "https://ihurt-api.test",
+    (_url, init) =>
+      new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) return;
+        signal.addEventListener("abort", () => {
+          reject(signal.reason ?? new Error("aborted"));
+        });
+      }),
+    40,
+  );
+  assert.ok(hangingFetch);
+  await assert.rejects(
+    () => bounded(hangingFetch.getAccount("token")),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "network",
+  );
+  const hangingBody = createAccountApi(
+    "https://ihurt-api.test",
+    async () =>
+      new Response(
+        new ReadableStream({
+          pull() {
+            return new Promise(() => {});
+          },
+        }),
+        { status: 200 },
+      ),
+    40,
+  );
+  assert.ok(hangingBody);
+  await assert.rejects(
+    () => bounded(hangingBody.getEntries("token")),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "network",
   );
 });
 

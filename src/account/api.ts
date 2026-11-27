@@ -58,6 +58,9 @@ export function accountApiOrigin(value: string): string | null {
 // Same byte cap as an .ihm import. The entry cap matches that import's list cap.
 export const ACCOUNT_RESPONSE_BYTES = 10 * 1024 * 1024;
 export const SYNC_ENTRY_LIMIT = 500;
+// The local research request uses the same bound. A fetch or a body that never
+// finishes must release backup and deletion instead of holding them open.
+export const ACCOUNT_REQUEST_MS = 135_000;
 
 export function remoteEntries(value: unknown): SavedMap[] {
   if (!value || typeof value !== "object")
@@ -133,7 +136,10 @@ function statusFrom(value: unknown): AccountStatus {
   };
 }
 
-async function readLimited(response: Response): Promise<string> {
+async function readLimited(
+  response: Response,
+  signal: AbortSignal,
+): Promise<string> {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     const size = Number(declared);
@@ -143,11 +149,37 @@ async function readLimited(response: Response): Promise<string> {
   const body = response.body;
   if (!body) return "";
   const reader = body.getReader();
+  const stop = () => {
+    void reader.cancel().catch(() => {});
+  };
+  const onAbort = () => stop();
+  signal.addEventListener("abort", onAbort);
   const chunks: Uint8Array[] = [];
   let total = 0;
+  // Cancel alone does not settle a read whose pull never finishes. Race the
+  // deadline so the caller, and the upload lock it holds, can move on.
+  const readChunk = () =>
+    new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+      if (signal.aborted) {
+        reject(new AccountApiError(0, "network"));
+        return;
+      }
+      const fail = () => reject(new AccountApiError(0, "network"));
+      signal.addEventListener("abort", fail, { once: true });
+      reader.read().then(
+        (result) => {
+          signal.removeEventListener("abort", fail);
+          resolve(result);
+        },
+        (error: unknown) => {
+          signal.removeEventListener("abort", fail);
+          reject(error);
+        },
+      );
+    });
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readChunk();
       if (done) break;
       if (!value?.byteLength) continue;
       if (total + value.byteLength > ACCOUNT_RESPONSE_BYTES)
@@ -156,8 +188,12 @@ async function readLimited(response: Response): Promise<string> {
       total += value.byteLength;
     }
   } catch (error) {
-    await reader.cancel().catch(() => {});
+    stop();
+    if (error instanceof AccountApiError) throw error;
+    if (signal.aborted) throw new AccountApiError(0, "network");
     throw error;
+  } finally {
+    signal.removeEventListener("abort", onAbort);
   }
   reader.releaseLock();
   if (total === 0) return "";
@@ -173,6 +209,7 @@ async function readLimited(response: Response): Promise<string> {
 export function createAccountApi(
   base: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs = ACCOUNT_REQUEST_MS,
 ): AccountApi | null {
   const origin = accountApiOrigin(base);
   if (!origin) return null;
@@ -183,38 +220,51 @@ export function createAccountApi(
     method: string,
     body?: unknown,
   ): Promise<unknown> {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new AccountApiError(0, "network")),
+      timeoutMs,
+    );
     let response: Response;
     try {
-      response = await fetchImpl(`${origin}${path}`, {
-        method,
-        headers: {
-          accept: "application/json",
-          authorization: `Bearer ${token}`,
-          ...(body === undefined ? {} : { "content-type": "application/json" }),
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
-    } catch {
-      throw new AccountApiError(0, "network");
-    }
-    const text = await readLimited(response);
-    let data: unknown = {};
-    if (text) {
       try {
-        data = JSON.parse(text);
-      } catch {
-        throw new AccountApiError(response.status, "invalid");
+        response = await fetchImpl(`${origin}${path}`, {
+          method,
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${token}`,
+            ...(body === undefined
+              ? {}
+              : { "content-type": "application/json" }),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof AccountApiError) throw error;
+        throw new AccountApiError(0, "network");
       }
+      const text = await readLimited(response, controller.signal);
+      let data: unknown = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new AccountApiError(response.status, "invalid");
+        }
+      }
+      if (!response.ok) {
+        const row = data as { code?: unknown; remaining?: unknown };
+        throw new AccountApiError(
+          response.status,
+          typeof row.code === "string" ? row.code : "",
+          typeof row.remaining === "number" ? row.remaining : undefined,
+        );
+      }
+      return data;
+    } finally {
+      clearTimeout(timer);
     }
-    if (!response.ok) {
-      const row = data as { code?: unknown; remaining?: unknown };
-      throw new AccountApiError(
-        response.status,
-        typeof row.code === "string" ? row.code : "",
-        typeof row.remaining === "number" ? row.remaining : undefined,
-      );
-    }
-    return data;
   }
 
   return {

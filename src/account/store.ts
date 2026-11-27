@@ -1,4 +1,9 @@
-import { createAccountApi, AccountApiError, type AccountApi } from "./api.ts";
+import {
+  createAccountApi,
+  AccountApiError,
+  assertSyncEntryLimit,
+  type AccountApi,
+} from "./api.ts";
 import { createAnalytics, type AccountAnalytics } from "./analytics.ts";
 import {
   AccountAuthError,
@@ -16,6 +21,7 @@ import {
 import {
   BACKUP_DAYS,
   backupClock,
+  backupEnableDecision,
   entriesForBackup,
   idsDeletedOnServer,
   type BackupEntry,
@@ -241,9 +247,12 @@ export async function signOut() {
 }
 
 export async function enableBackup(
+  confirmedIds: readonly string[],
   onMerge: (entries: SavedMap[]) => Promise<readonly BackupEntry[] | void>,
   onRemove?: (ids: string[]) => Promise<void>,
-) {
+): Promise<
+  { status: "refresh"; ids: readonly string[] } | { status: "limited" } | void
+> {
   const session = state.session;
   if (!session || !client) throw new AccountAuthError("unconfigured");
   if (!api) throw new AccountAuthError("no-api");
@@ -294,7 +303,7 @@ export async function enableBackup(
       setState({ ...state, busy: false, error: "error" });
       return;
     }
-    await withUploadLock(async () => {
+    return await withUploadLock(async () => {
       if (!api) {
         setState({ ...state, busy: false, error: "no-api" });
         return;
@@ -328,18 +337,37 @@ export async function enableBackup(
         deletedNow,
         clock,
       ).filter((id) => !priorRemoved.has(id));
-      rememberRemoteDeletes(browserStore(), gone, session.uid);
       const goneIds = new Set(gone);
+      const owned = withoutOtherAccountEntries(
+        kept.filter((entry) => !goneIds.has(entry.id)),
+        browserStore(),
+        session.uid,
+      );
+      const localIds = entriesForBackup(owned, clock, BACKUP_DAYS).map(
+        (entry) => entry.id,
+      );
+      // The download can finish after another tab saved a row. That row was
+      // not in the count the user confirmed, so the upload waits.
+      if (backupEnableDecision(confirmedIds, localIds) === "refresh") {
+        setState({ ...state, busy: false });
+        return { status: "refresh", ids: localIds };
+      }
+      rememberRemoteDeletes(browserStore(), gone, session.uid);
       const windowed = entriesForBackup(
-        withoutOtherAccountEntries(
-          kept.filter((entry) => !goneIds.has(entry.id)),
-          browserStore(),
-          session.uid,
-        ),
+        owned,
         clock,
         BACKUP_DAYS,
         new Set(remote.map((entry) => entry.id)),
       );
+      try {
+        assertSyncEntryLimit(windowed.length);
+      } catch (error) {
+        if (error instanceof AccountApiError && error.code === "too-many") {
+          setState({ ...state, busy: false, error: "too-many" });
+          return { status: "limited" };
+        }
+        throw error;
+      }
       const upload = await claimUpload(browserStore(), session.uid);
       try {
         if (
@@ -378,8 +406,13 @@ export async function enableBackup(
       }
     });
   } catch (error) {
-    const code = error instanceof AccountAuthError ? error.code : "error";
+    const code =
+      error instanceof AccountAuthError || error instanceof AccountApiError
+        ? error.code || "error"
+        : "error";
     setState({ ...state, busy: false, error: code });
+    if (error instanceof AccountApiError && error.code === "too-many")
+      return { status: "limited" };
     throw error;
   }
 }
@@ -464,8 +497,10 @@ export function pushBackupEntries(
         forget: onRemove,
       });
     })
-    .catch(() => {
-      setState({ ...state, error: "error" });
+    .catch((error: unknown) => {
+      const code =
+        error instanceof AccountApiError && error.code ? error.code : "error";
+      setState({ ...state, error: code });
     });
 }
 

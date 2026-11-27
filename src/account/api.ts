@@ -58,6 +58,12 @@ export function accountApiOrigin(value: string): string | null {
 // Same byte cap as an .ihm import. The entry cap matches that import's list cap.
 export const ACCOUNT_RESPONSE_BYTES = 10 * 1024 * 1024;
 export const SYNC_ENTRY_LIMIT = 500;
+
+// A download above this limit is rejected. The upload has to stop at the same
+// limit, or the next pull cannot be stored.
+export function assertSyncEntryLimit(count: number) {
+  if (count > SYNC_ENTRY_LIMIT) throw new AccountApiError(0, "too-many");
+}
 // The local research request uses the same bound. A fetch or a body that never
 // finishes must release backup and deletion instead of holding them open.
 export const ACCOUNT_REQUEST_MS = 135_000;
@@ -275,6 +281,7 @@ export function createAccountApi(
       await request("/v1/account/sync", token, "POST", { optIn: true });
     },
     async putEntries(token, entries) {
+      assertSyncEntryLimit(entries.length);
       await request("/v1/sync", token, "PUT", {
         entries: entries.map((entry) => toBackupPayload(entry)),
       });

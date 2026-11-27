@@ -32,6 +32,7 @@ function messageKey(code: string) {
   if (code === "recent-login") return "account.recentLogin" as const;
   if (code === "delete-partial") return "account.deletePartial" as const;
   if (code === "deleted") return "account.deleted" as const;
+  if (code === "too-many") return "account.tooMany" as const;
   return "account.error" as const;
 }
 
@@ -196,7 +197,8 @@ export default function AccountButton({
                     setBackupPreview(snapshotIds);
                     return;
                   }
-                  await enableBackup(
+                  const outcome = await enableBackup(
+                    shownBackupIds,
                     async (remote) => {
                       const deleted = new Set(await readDeletedIds());
                       const kept = remote.filter(
@@ -206,6 +208,10 @@ export default function AccountButton({
                     },
                     (ids) => onRemove(ids, "remote"),
                   );
+                  if (outcome?.status === "refresh") {
+                    setBackupPreview([...outcome.ids]);
+                    return;
+                  }
                   setStep("home");
                 })
               }

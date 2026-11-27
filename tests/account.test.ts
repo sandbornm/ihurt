@@ -21,6 +21,7 @@ import {
   BACKUP_DAYS,
   backupClock,
   backupConfirmDecision,
+  backupEnableDecision,
   backupRowsAfterMerge,
   backupUploadSet,
   entriesForBackup,
@@ -1013,6 +1014,45 @@ test("a backup confirm waits when another tab saved a row", () => {
   assert.equal(confirm.includes('"refresh"'), true);
 });
 
+test("a backup enable waits when a row is saved during the download", () => {
+  assert.equal(
+    backupEnableDecision(["kept"], ["kept", "saved-during-get"]),
+    "refresh",
+  );
+  assert.equal(
+    backupEnableDecision(["kept", "other"], ["other", "kept"]),
+    "upload",
+  );
+  assert.equal(backupEnableDecision(["keep", "gone"], ["keep"]), "upload");
+  const root = new URL("../", import.meta.url);
+  const source = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  const enable = source.slice(
+    source.indexOf("export async function enableBackup"),
+    source.indexOf("export async function disableBackup"),
+  );
+  const lock = enable.indexOf("await withUploadLock");
+  const snap = enable.indexOf("await readBackupSnapshot()", lock);
+  const decision = enable.indexOf("backupEnableDecision(", snap);
+  const put = enable.indexOf("await api.putEntries", decision);
+  assert.ok(lock > 0 && snap > lock && decision > snap && put > decision);
+  assert.equal(enable.slice(decision, put).includes('"refresh"'), true);
+  assert.equal(enable.includes("return await withUploadLock"), true);
+  const confirm = button.slice(
+    button.indexOf('step === "confirm-backup" &&'),
+    button.indexOf('step === "confirm-delete" &&'),
+  );
+  const call = confirm.indexOf("enableBackup(");
+  const passed = confirm.indexOf("shownBackupIds", call);
+  const again = confirm.indexOf('status === "refresh"', passed);
+  const preview = confirm.indexOf("setBackupPreview(", again);
+  const home = confirm.indexOf('setStep("home")', preview);
+  assert.ok(passed > 0 && again > passed && preview > again && home > preview);
+});
+
 test("entries claimed while backup enable waited are left out", () => {
   const store = memory();
   const rows = [entry("imported", 1), entry("from-b", 1)];
@@ -1444,6 +1484,75 @@ test("a mixed sync response is rejected before upload", async () => {
       error instanceof AccountApiError && error.code === "invalid",
   );
   assert.deepEqual(calls, ["GET"]);
+});
+
+test("a backup of more than 500 entries is refused before upload", async () => {
+  const tooMany = Array.from({ length: SYNC_ENTRY_LIMIT + 1 }, (_, index) =>
+    entry(`row-${index}`, 1),
+  );
+  const calls: string[] = [];
+  const api = createAccountApi("https://ihurt-api.test", async (_url, init) => {
+    calls.push(init?.method ?? "GET");
+    return new Response("{}", {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  assert.ok(api);
+  await assert.rejects(
+    () => api.putEntries("token", tooMany),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "too-many",
+  );
+  assert.deepEqual(calls, []);
+  const fitCalls: string[] = [];
+  const fit = createAccountApi("https://ihurt-api.test", async (_url, init) => {
+    fitCalls.push(init?.method ?? "GET");
+    return new Response("{}", {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  assert.ok(fit);
+  await fit.putEntries(
+    "token",
+    Array.from({ length: SYNC_ENTRY_LIMIT }, (_, index) =>
+      entry(`fit-${index}`, 1),
+    ),
+  );
+  assert.deepEqual(fitCalls, ["PUT"]);
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const sent: string[][] = [];
+  await assert.rejects(
+    () =>
+      pushBackup({
+        uid: "user-a",
+        token: "token-a",
+        entries: tooMany,
+        now: NOW,
+        store,
+        pull: async () => [],
+        put: async (_token, rows) => {
+          sent.push(rows.map((row) => row.id));
+        },
+      }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "too-many",
+  );
+  assert.deepEqual(sent, []);
+  const root = new URL("../", import.meta.url);
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  const en = readFileSync(new URL("src/i18n/en.ts", root), "utf8");
+  const es = readFileSync(new URL("src/i18n/es.ts", root), "utf8");
+  assert.equal(button.includes('code === "too-many"'), true);
+  assert.equal(en.includes(`"account.tooMany"`), true);
+  assert.equal(es.includes(`"account.tooMany"`), true);
+  assert.equal(en.includes(String(SYNC_ENTRY_LIMIT)), true);
+  assert.equal(es.includes(String(SYNC_ENTRY_LIMIT)), true);
 });
 
 test("an oversized sync response is rejected before upload", async () => {

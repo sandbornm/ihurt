@@ -1,3 +1,4 @@
+import { assertSyncEntryLimit } from "./api.ts";
 import {
   backupClock,
   entriesForBackup,
@@ -642,6 +643,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
     // An entry still on this device but older than the backup window is not missing.
     if (omitted.length > 0) return [];
     if (!current()) return [];
+    assertSyncEntryLimit(windowed.length);
     const upload = await claimUpload(input.store, input.uid);
     try {
       if (!current()) return [];

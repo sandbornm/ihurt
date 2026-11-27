@@ -100,6 +100,17 @@ export function backupConfirmDecision(
   return "upload";
 }
 
+// A row saved after the user confirms, while the download is still running,
+// is not part of that count. A row they confirmed and then deleted still uploads.
+export function backupEnableDecision(
+  confirmedIds: readonly string[],
+  localIds: readonly string[],
+): "upload" | "refresh" {
+  const confirmed = new Set(confirmedIds);
+  for (const id of localIds) if (!confirmed.has(id)) return "refresh";
+  return "upload";
+}
+
 export function entriesForBackup<T extends BackupEntry>(
   entries: readonly T[],
   now: number,

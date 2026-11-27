@@ -28,6 +28,7 @@ import {
 import {
   accountDeleting,
   backupEpoch,
+  backupOptInFromStorage,
   claimUpload,
   clearOptIn,
   deleteSignedInAccount,
@@ -129,6 +130,15 @@ function wire(auth: AuthClient, apiBase: string, analyticsEndpoint: string) {
 export function startAccount() {
   if (started || typeof window === "undefined") return;
   started = true;
+  window.addEventListener("storage", (event) => {
+    const next = backupOptInFromStorage(
+      state.session?.uid ?? null,
+      browserStore(),
+      event.key,
+    );
+    if (next === null || next === state.optedIn) return;
+    setState({ ...state, optedIn: next });
+  });
   if (testRuntimeAllowed(location.hostname, location.protocol)) {
     Object.assign(globalThis, { __IHURT_GUARD_SEARCH__: guardSourceSearch });
   }

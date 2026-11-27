@@ -47,7 +47,10 @@ import {
 } from "../src/account/passkey.ts";
 import {
   backupEpoch,
+  backupOptInFromStorage,
   nextBackupEpoch,
+  OPT_IN_KEY,
+  OPT_IN_UID_KEY,
   accountDeleteKeepsDevice,
   accountDeleteStage,
   backedIdsFor,
@@ -162,6 +165,20 @@ test("backup window keeps 90 days and drops older entries", () => {
     { id: "pin-new" },
   ]);
   assert.equal(rows.find((row) => row.id === "local-only")?.note, "only-here");
+});
+
+test("another tab's backup switch is the opt-in this tab shows", () => {
+  const store = memory();
+  assert.equal(backupOptInFromStorage("user-a", store, "ihurt-theme"), null);
+  assert.equal(backupOptInFromStorage("user-a", store, OPT_IN_KEY), false);
+  grantOptIn(store, "user-a");
+  assert.equal(backupOptInFromStorage("user-a", store, OPT_IN_KEY), true);
+  assert.equal(backupOptInFromStorage("user-a", store, OPT_IN_UID_KEY), true);
+  clearOptIn(store);
+  assert.equal(backupOptInFromStorage("user-a", store, OPT_IN_UID_KEY), false);
+  grantOptIn(store, "user-b");
+  assert.equal(backupOptInFromStorage("user-a", store, null), false);
+  assert.equal(backupOptInFromStorage(null, store, OPT_IN_KEY), false);
 });
 
 test("sync waits for opt-in and does not follow a different account", async () => {
@@ -2529,6 +2546,11 @@ test("a later save applies the downloaded note before the next upload", () => {
     store.indexOf("export async function enrollPasskey"),
   );
   assert.equal(enableBody.includes("backupClock("), true);
+  assert.equal(store.includes('addEventListener("storage"'), true);
+  const stored = store.indexOf('addEventListener("storage"');
+  const storedBody = store.slice(stored, stored + 500);
+  assert.equal(storedBody.includes("backupOptInFromStorage("), true);
+  assert.equal(storedBody.includes("optedIn: next"), true);
   assert.equal(enableBody.includes("remote.length > 0"), true);
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
   const claimed = store.indexOf("rememberSeenEntries(", put);

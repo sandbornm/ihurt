@@ -96,6 +96,17 @@ export function optedIn(store: KeyValueStore, uid: string): boolean {
   );
 }
 
+// Another tab writes these keys. A storage event for anything else is not a
+// backup change. A cleared store has no signed-in backup.
+export function backupOptInFromStorage(
+  uid: string | null,
+  store: KeyValueStore,
+  key: string | null,
+): boolean | null {
+  if (key !== null && key !== OPT_IN_KEY && key !== OPT_IN_UID_KEY) return null;
+  return uid !== null && optedIn(store, uid);
+}
+
 export function grantOptIn(store: KeyValueStore, uid: string) {
   store.setItem(OPT_IN_KEY, "1");
   store.setItem(OPT_IN_UID_KEY, uid);

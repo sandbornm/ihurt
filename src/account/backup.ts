@@ -29,6 +29,19 @@ export function withinBackupWindow(
 // notes out of the upload.
 const CLOCK_AHEAD_MS = 10 * DAY_MS;
 
+// A revision further ahead than the backup clock is not a later edit. Keeping
+// it would beat every real save on the next pull.
+export function revisionStamp(
+  value: string | undefined,
+  now: number,
+): string | undefined {
+  if (typeof value !== "string" || value === "") return undefined;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || parsed > now + CLOCK_AHEAD_MS)
+    return undefined;
+  return value;
+}
+
 export function backupClock<T extends BackupEntry>(
   now: number,
   remote: readonly T[],
@@ -95,12 +108,41 @@ function stampMs(value: string | undefined): number {
 // When the note stamps match, a newer row stamp wins. Otherwise this device's
 // row stays. Remote-only rows stay, so the upload is not limited to the list
 // this device had before the pull.
-function preferBackupRow<T extends BackupEntry>(local: T, remote: T): T {
-  const localNote = stampMs(local.noteUpdated);
-  const remoteNote = stampMs(remote.noteUpdated);
-  if (remoteNote !== localNote) return remoteNote > localNote ? remote : local;
-  if (stampMs(remote.updated) > stampMs(local.updated)) return remote;
-  return local;
+function preferBackupRow<T extends BackupEntry>(
+  local: T,
+  remote: T,
+  now: number,
+): T {
+  const localNote = stampMs(revisionStamp(local.noteUpdated, now));
+  const remoteNote = stampMs(revisionStamp(remote.noteUpdated, now));
+  if (remoteNote !== localNote) {
+    return remoteNote > localNote
+      ? withoutImplausibleRevisions(remote, now)
+      : withoutImplausibleRevisions(local, now);
+  }
+  if (
+    stampMs(revisionStamp(remote.updated, now)) >
+    stampMs(revisionStamp(local.updated, now))
+  )
+    return withoutImplausibleRevisions(remote, now);
+  return withoutImplausibleRevisions(local, now);
+}
+
+function withoutImplausibleRevisions<T extends BackupEntry>(
+  entry: T,
+  now: number,
+): T {
+  const next = { ...entry } as T & {
+    noteUpdated?: string;
+    pointsUpdated?: string;
+    updated?: string;
+  };
+  if (revisionStamp(next.noteUpdated, now) === undefined)
+    delete next.noteUpdated;
+  if (revisionStamp(next.pointsUpdated, now) === undefined)
+    delete next.pointsUpdated;
+  if (revisionStamp(next.updated, now) === undefined) delete next.updated;
+  return next;
 }
 
 // The merged rows replace the same id from this device. Local-only rows stay.
@@ -150,15 +192,22 @@ export function mergeBackupWindow<T extends BackupEntry>(
     if (deleted.has(entry.id)) continue;
     const previous = byId.get(entry.id);
     if (!previous && !withinBackupWindow(entry, now, days)) continue;
-    byId.set(entry.id, previous ? mergeBackupRow(entry, previous) : entry);
+    byId.set(entry.id, previous ? mergeBackupRow(entry, previous, now) : entry);
   }
   return [...byId.values()];
 }
 
-function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
-  const noteFromRemote =
-    stampMs(remote.noteUpdated) > stampMs(local.noteUpdated);
-  const pinsFromRemote = stampMs(readStamp(remote)) > stampMs(readStamp(local));
+function mergeBackupRow<T extends BackupEntry>(
+  local: T,
+  remote: T,
+  now: number,
+): T {
+  const localNoteAt = revisionStamp(local.noteUpdated, now);
+  const remoteNoteAt = revisionStamp(remote.noteUpdated, now);
+  const localPinsAt = revisionStamp(readStamp(local), now);
+  const remotePinsAt = revisionStamp(readStamp(remote), now);
+  const noteFromRemote = stampMs(remoteNoteAt) > stampMs(localNoteAt);
+  const pinsFromRemote = stampMs(remotePinsAt) > stampMs(localPinsAt);
   const row = { ...(noteFromRemote ? remote : local) } as T & {
     note?: string;
     points?: unknown;
@@ -171,13 +220,19 @@ function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
   // A newer pin revision with no points array is a clear. IndexedDB drops a
   // key whose value was undefined, so the missing key is that clear too.
   const pinsWon =
-    pinsFromRemote || stampMs(readStamp(local)) > stampMs(readStamp(remote));
+    pinsFromRemote || stampMs(localPinsAt) > stampMs(remotePinsAt);
   if (pinsWon || "points" in pins) {
     const value = "points" in pins ? pins.points : [];
     row.points = Array.isArray(value) ? value : [];
   }
-  if (pins.pointsUpdated) row.pointsUpdated = pins.pointsUpdated;
+  const pinStamp = pinsFromRemote ? remotePinsAt : localPinsAt;
+  if (pinStamp) row.pointsUpdated = pinStamp;
   else delete row.pointsUpdated;
+  if (noteFromRemote) {
+    if (remoteNoteAt) row.noteUpdated = remoteNoteAt;
+    else delete row.noteUpdated;
+  } else if (localNoteAt) row.noteUpdated = localNoteAt;
+  else delete row.noteUpdated;
   const regions = regionsForPins(row.points);
   if (row.map || pins.map || regions !== null) {
     row.map = {
@@ -189,11 +244,14 @@ function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
     };
   }
   if (note !== undefined) row.note = note;
+  const remoteUpdated = revisionStamp(remote.updated, now);
+  const localUpdated = revisionStamp(local.updated, now);
   const updated =
-    stampMs(remote.updated) > stampMs(local.updated)
-      ? remote.updated
-      : local.updated;
+    stampMs(remoteUpdated) > stampMs(localUpdated)
+      ? remoteUpdated
+      : localUpdated;
   if (updated) row.updated = updated;
+  else delete row.updated;
   return row;
 }
 
@@ -207,7 +265,10 @@ export function backupUploadSet<T extends BackupEntry>(
   for (const entry of remote) byId.set(entry.id, entry);
   for (const entry of local) {
     const previous = byId.get(entry.id);
-    byId.set(entry.id, previous ? preferBackupRow(entry, previous) : entry);
+    byId.set(
+      entry.id,
+      previous ? preferBackupRow(entry, previous, now) : entry,
+    );
   }
   return entriesForBackup([...byId.values()], now, days);
 }
@@ -473,7 +534,10 @@ export function withLocalPrivateFields(
   local: SavedMap | undefined,
   incoming: SavedMap,
 ): SavedMap {
-  const cleaned = withoutServerPrivateFields(incoming);
+  const cleaned = withoutImplausibleRevisions(
+    withoutServerPrivateFields(incoming),
+    Date.now(),
+  );
   if (!local) return cleaned;
   const comments = new Map(
     (local.points ?? []).flatMap((point) =>

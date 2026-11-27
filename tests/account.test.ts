@@ -992,6 +992,95 @@ test("a future remote stamp does not drop a current local note", async () => {
   assert.deepEqual(sent, [["ahead", "today", "within"]]);
 });
 
+test("a future remote revision does not overwrite a newer local edit", async () => {
+  const created = new Date(NOW - 2 * DAY).toISOString();
+  const map = {
+    regions: ["neck"],
+    summary: "typed-after",
+    title: "local-title",
+    quality: "",
+    activity: "",
+    duration: "",
+    intensity: null,
+    question: null,
+    urgent: false,
+    safety_message: null,
+  };
+  const local = {
+    id: "a",
+    created,
+    note: "typed-after",
+    noteUpdated: new Date(NOW).toISOString(),
+    pointsUpdated: new Date(NOW).toISOString(),
+    updated: new Date(NOW).toISOString(),
+    provider: "Your notes",
+    answers: [],
+    points: [
+      {
+        id: "pin-local",
+        region: "neck" as const,
+        structure: "Sternum",
+        position: [0, 1, 0] as [number, number, number],
+      },
+    ],
+    map,
+  };
+  const far = new Date(NOW + 400 * DAY).toISOString();
+  const remote = {
+    ...local,
+    note: "from-cloud",
+    noteUpdated: far,
+    pointsUpdated: far,
+    updated: far,
+    points: [
+      {
+        id: "pin-cloud",
+        region: "neck" as const,
+        structure: "Sternum",
+        position: [1, 1, 0] as [number, number, number],
+      },
+    ],
+    map: { ...map, summary: "from-cloud" },
+  };
+  const [merged] = mergeBackupWindow([local], [remote], new Set(), NOW);
+  assert.equal(merged?.note, "typed-after");
+  assert.equal(merged?.points?.[0]?.id, "pin-local");
+  assert.equal(merged?.noteUpdated, local.noteUpdated);
+  assert.equal(merged?.pointsUpdated, local.pointsUpdated);
+  const soon = new Date(NOW + 2 * DAY).toISOString();
+  const [skewed] = mergeBackupWindow(
+    [
+      {
+        ...local,
+        note: "older",
+        noteUpdated: new Date(NOW - DAY).toISOString(),
+        pointsUpdated: new Date(NOW - DAY).toISOString(),
+      },
+    ],
+    [
+      {
+        ...remote,
+        note: "skewed",
+        noteUpdated: soon,
+        pointsUpdated: soon,
+        updated: soon,
+      },
+    ],
+    new Set(),
+    NOW,
+  );
+  assert.equal(skewed?.note, "skewed");
+  const { keepLandedResearch } = await import("../src/notebook-storage.ts");
+  const landed = keepLandedResearch(
+    local,
+    withLocalPrivateFields(local, remote),
+  );
+  assert.equal(landed.note, "typed-after");
+  assert.equal(landed.points?.[0]?.id, "pin-local");
+  assert.notEqual(landed.noteUpdated, far);
+  assert.notEqual(landed.pointsUpdated, far);
+});
+
 test("a slow clock does not delete a note the server aged out", async () => {
   const store = memory();
   grantOptIn(store, "user-a");

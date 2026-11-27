@@ -266,7 +266,7 @@ export function entryReferences(
 // on the row and on that research list. The row time is the later stamp.
 // Notes and pins each follow incomingWins: equal stamps keep stored.
 // saveResearch and editorAfterSave settle a tie the same way.
-function keepLandedResearch(
+export function keepLandedResearch(
   existing: SavedMap | undefined,
   entry: SavedMap,
   tie: UnstampedTie = "stored",

@@ -52,6 +52,7 @@ import {
   accountDeleteStage,
   backedIdsFor,
   clearOptIn,
+  accountDeleting,
   claimUpload,
   deleteSignedInAccount,
   grantOptIn,
@@ -341,6 +342,114 @@ test("a failed Firebase delete turns backup off before the next save", async () 
     },
   });
   assert.deepEqual(sent, []);
+});
+
+test("a cloud delete turns that account's backup off before a session switch", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["backed"], "user-a");
+  const epoch = backupEpoch(store);
+  let uid = "user-a";
+  const calls: string[] = [];
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: {
+          async deleteAccount() {
+            calls.push("api");
+            uid = "user-b";
+          },
+        },
+        removeLocal: async () => {
+          calls.push("local");
+        },
+        deleteAuth: async () => {
+          calls.push("auth");
+        },
+        sameAccount: () => uid === "user-a",
+        store,
+      }),
+    (error: unknown) =>
+      (error as { code?: string } | null)?.code === "cancelled",
+  );
+  assert.deepEqual(calls, ["api"]);
+  assert.equal(optedIn(store, "user-a"), false);
+  assert.ok(backupEpoch(store) > epoch);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["backed"]);
+  const sent: string[] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("later", 1)],
+    now: NOW,
+    store,
+    epoch: backupEpoch(store),
+    pull: async () => [],
+    put: async () => {
+      sent.push("put");
+    },
+  });
+  assert.deepEqual(sent, []);
+});
+
+test("a failed delete leaves the other tab's deletion in place", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const paused = deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    api: {
+      async deleteAccount() {
+        await gate;
+      },
+    },
+    removeLocal: async () => {},
+    deleteAuth: async () => {},
+    store,
+  });
+  for (let i = 0; i < 20 && !accountDeleting(store, "user-a"); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.equal(accountDeleting(store, "user-a"), true);
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: {
+          async deleteAccount() {
+            throw new Error("api down");
+          },
+        },
+        removeLocal: async () => {},
+        deleteAuth: async () => {},
+        store,
+      }),
+    (error: unknown) => accountDeleteStage(error) === "api",
+  );
+  assert.equal(accountDeleting(store, "user-a"), true);
+  const sent: string[] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("during", 1)],
+    now: NOW,
+    store,
+    pull: async () => [],
+    put: async () => {
+      sent.push("put");
+    },
+  });
+  assert.deepEqual(sent, []);
+  release();
+  await paused;
+  assert.equal(accountDeleting(store, "user-a"), false);
 });
 
 test("a stale sign-in deletes nothing", async () => {
@@ -1579,6 +1688,19 @@ test("a delete blocks an upload that starts after the wait", async () => {
   assert.equal(optedIn(store, "user-a"), false);
 });
 
+test("the iOS Firebase key is not restricted to the shell origin", () => {
+  const root = new URL("../", import.meta.url);
+  const docs = readFileSync(new URL("docs/IOS.md", root), "utf8");
+  const example = readFileSync(new URL(".env.example", root), "utf8");
+  const text = `${docs}\n${example}`;
+  assert.equal(text.includes("referrer restriction includes"), false);
+  assert.equal(text.includes("list must include capacitor://localhost"), false);
+  assert.equal(docs.includes("no HTTP referrer restriction"), true);
+  assert.equal(docs.includes("no iOS bundle restriction"), true);
+  assert.equal(docs.includes("Identity Toolkit API"), true);
+  assert.equal(docs.includes("Token Service API"), true);
+});
+
 test("the privacy manifest lists backup notes and the account id", () => {
   const root = new URL("../", import.meta.url);
   const plist = readFileSync(
@@ -1588,6 +1710,7 @@ test("the privacy manifest lists backup notes and the account id", () => {
   for (const type of [
     "NSPrivacyCollectedDataTypeHealth",
     "NSPrivacyCollectedDataTypeUserID",
+    "NSPrivacyCollectedDataTypeEmailAddress",
   ]) {
     const at = plist.indexOf(type);
     assert.ok(at > 0);
@@ -2371,10 +2494,10 @@ test("a later save applies the downloaded note before the next upload", () => {
   const waitingBody = sync.slice(waiting, waiting + 500);
   assert.equal(waitingBody.includes("withUploadLock("), true);
   assert.equal(waitingBody.includes("UPLOAD_LEASE_MS"), false);
-  assert.equal(
-    sync.slice(cloudDelete, authDelete).includes("input.sameAccount"),
-    true,
-  );
+  const afterCloud = sync.slice(cloudDelete, authDelete);
+  const backupOff = afterCloud.indexOf("clearOptIn(");
+  const switched = afterCloud.indexOf("input.sameAccount");
+  assert.ok(backupOff >= 0 && switched > backupOff);
   assert.equal(notebook.includes("savedAfterBackupPull"), true);
   assert.equal(auth.includes("storage()?.setItem(REFRESH_KEY"), false);
   assert.equal(auth.includes("storage()?.getItem(REFRESH_KEY"), false);

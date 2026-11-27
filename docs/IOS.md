@@ -267,8 +267,11 @@ remain compatible across web and iOS.
 The website Firebase key is restricted to `https://ihurt.app/*`. The packaged
 app calls Firebase Auth from `capacitor://localhost`, and Google rejects that
 key for this origin. The iOS build sets `VITE_FIREBASE_IOS_API_KEY` to a
-separate key whose HTTP referrer restriction includes `capacitor://localhost`.
-The shell does not fall back to the website key. Apple sign-in still uses the
+separate key with no HTTP referrer restriction and no iOS bundle restriction.
+The WebView does not send the app's bundle id, and `capacitor://localhost` is
+not a supported website referrer, so either restriction rejects sign-in.
+Restrict that key to the Identity Toolkit API and the Token Service API. The
+shell does not fall back to the website key. Apple sign-in still uses the
 native Apple credential, then the Firebase JS client exchanges it with the iOS
 key.
 

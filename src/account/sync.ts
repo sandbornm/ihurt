@@ -105,16 +105,75 @@ export function clearOptIn(store: KeyValueStore) {
   store.removeItem(OPT_IN_UID_KEY);
 }
 
+type DeletingBook = Record<string, Record<string, number>>;
+
+function readDeleting(store: KeyValueStore): DeletingBook {
+  try {
+    const parsed = JSON.parse(store.getItem(DELETING_KEY) ?? "{}") as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
+    const book: DeletingBook = {};
+    for (const [uid, row] of Object.entries(parsed)) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const claims: Record<string, number> = {};
+      for (const [id, stamp] of Object.entries(row)) {
+        if (typeof stamp === "number" && Number.isFinite(stamp))
+          claims[id] = stamp;
+      }
+      if (Object.keys(claims).length > 0) book[uid] = claims;
+    }
+    return book;
+  } catch {
+    return {};
+  }
+}
+
+function writeDeleting(store: KeyValueStore, book: DeletingBook) {
+  if (Object.keys(book).length === 0) {
+    store.removeItem(DELETING_KEY);
+    return;
+  }
+  store.setItem(DELETING_KEY, JSON.stringify(book));
+}
+
 export function accountDeleting(store: KeyValueStore, uid: string): boolean {
-  return store.getItem(DELETING_KEY) === uid;
+  return Object.keys(readDeleting(store)[uid] ?? {}).length > 0;
 }
 
-function markAccountDeleting(store: KeyValueStore, uid: string) {
-  store.setItem(DELETING_KEY, uid);
+// Each deletion owns one token. Two tabs can delete the same account, and the
+// one that fails removes only its token. The other token stays, so a save
+// cannot upload while that delete is still running. A tab that closes during
+// delete leaves its token, and backup stays off.
+const DELETE_LOCK = "ihurt-account-deleting-lock";
+
+async function markAccountDeleting(
+  store: KeyValueStore,
+  uid: string,
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await withCrossTabLock(DELETE_LOCK, async () => {
+    const book = readDeleting(store);
+    const claims = book[uid] ?? {};
+    claims[id] = Date.now();
+    book[uid] = claims;
+    writeDeleting(store, book);
+  });
+  return id;
 }
 
-function clearAccountDeleting(store: KeyValueStore) {
-  store.removeItem(DELETING_KEY);
+async function clearAccountDeleting(
+  store: KeyValueStore,
+  uid: string,
+  id: string,
+) {
+  await withCrossTabLock(DELETE_LOCK, async () => {
+    const book = readDeleting(store);
+    const claims = book[uid];
+    if (!claims?.[id]) return;
+    delete claims[id];
+    if (Object.keys(claims).length === 0) delete book[uid];
+    writeDeleting(store, book);
+  });
 }
 
 export function backupEpoch(store: KeyValueStore): number {
@@ -346,26 +405,33 @@ function liveClaims(claims: Record<string, number> | undefined, now: number) {
 // a slow PUT as done when its timestamp passes the lease: a closed document
 // drops the lock, and a request that is still running does not.
 let holdingUpload = 0;
-let uploadQueue: Promise<unknown> = Promise.resolve();
+const lockQueues = new Map<string, Promise<unknown>>();
+
+function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  const locks = globalThis.navigator?.locks;
+  // The lock is held until the callback's promise settles. The DOM type omits that.
+  if (locks) return locks.request(name, () => fn()) as Promise<T>;
+  const previous = lockQueues.get(name) ?? Promise.resolve();
+  const run = previous.then(fn, fn);
+  lockQueues.set(
+    name,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
 
 export function withUploadLock<T>(fn: () => Promise<T>): Promise<T> {
-  const exec = async () => {
+  return withCrossTabLock(UPLOAD_LOCK, async () => {
     holdingUpload += 1;
     try {
       return await fn();
     } finally {
       holdingUpload -= 1;
     }
-  };
-  const locks = globalThis.navigator?.locks;
-  // The lock is held until the callback's promise settles. The DOM type omits that.
-  if (locks) return locks.request(UPLOAD_LOCK, () => exec()) as Promise<T>;
-  const run = uploadQueue.then(exec, exec);
-  uploadQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+  });
 }
 
 function writeClaim(store: KeyValueStore, uid: string): string {
@@ -617,7 +683,7 @@ export async function deleteSignedInAccount(input: {
     if ((error as { code?: unknown } | null)?.code === "cancelled") throw error;
     throw tagDeleteError(error, "auth");
   }
-  markAccountDeleting(input.store, input.uid);
+  const deletionId = await markAccountDeleting(input.store, input.uid);
   try {
     try {
       await input.settleUploads?.();
@@ -635,12 +701,12 @@ export async function deleteSignedInAccount(input: {
       if (!(status === 404 && code === "not_found"))
         throw tagDeleteError(error, "api");
     }
-    if (input.sameAccount?.() === false) throw cancelledDelete();
-    // The cloud account is gone. Stop backup before the Firebase user delete
-    // so a later edit cannot upload to that account, and keep the synced ids
-    // so a retry can still remove the sign-in.
+    // The cloud account is gone. Stop this account's backup before the session
+    // check, so a tab that already switched cannot leave the flag on. Keep the
+    // synced ids so a retry can still remove the sign-in.
     if (optedIn(input.store, input.uid)) clearOptIn(input.store);
     nextBackupEpoch(input.store);
+    if (input.sameAccount?.() === false) throw cancelledDelete();
     const ids = [
       ...new Set([
         ...backedIdsFor(input.store, input.uid),
@@ -670,6 +736,6 @@ export async function deleteSignedInAccount(input: {
     clearSynced(input.store, input.uid);
     clearSeenEntries(input.store, input.uid);
   } finally {
-    clearAccountDeleting(input.store);
+    await clearAccountDeleting(input.store, input.uid, deletionId);
   }
 }

@@ -2589,10 +2589,15 @@ test("a delete during backup enable is left out of the first upload", () => {
   const pullAt = store.indexOf("const sync = await current.getEntries(next)");
   const mergeCall = store.indexOf("await onMerge?.(remote)", pullAt);
   assert.ok(pullAt > 0 && mergeCall > pullAt);
-  assert.equal(
-    store.slice(pullAt, mergeCall).includes("await clearDeletedIds(revived)"),
-    true,
+  const laterPull = store.slice(pullAt, mergeCall);
+  assert.equal(laterPull.includes("releaseRemoteDeletes("), true);
+  assert.equal(laterPull.includes("clearDeletedIds("), false);
+  const enablePull = enable.slice(
+    enable.indexOf("const sync = await api.getEntries"),
+    enable.indexOf("const merged = await onMerge(remote)"),
   );
+  assert.equal(enablePull.includes("releaseRemoteDeletes("), true);
+  assert.equal(enablePull.includes("clearDeletedIds("), false);
 });
 
 test("deleting an account releases entries it never backed up", async () => {

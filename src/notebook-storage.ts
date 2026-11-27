@@ -141,8 +141,8 @@ export function readBackupSnapshot(): Promise<{
   );
 }
 
-// A remote delete wrote these tombstones. The row is back in a later pull,
-// so the notebook can store it again. Other tombstones stay.
+// Clears named user-delete tombstones. A backup pull must not call this.
+// A delete made while that pull was running has to stay deleted.
 export function clearDeletedIds(ids: readonly string[]): Promise<void> {
   const drop = new Set(ids);
   if (drop.size === 0) return Promise.resolve();

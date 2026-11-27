@@ -13,11 +13,7 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
-import {
-  clearDeletedIds,
-  readBackupSnapshot,
-  readDeletedIds,
-} from "../notebook-storage.ts";
+import { readBackupSnapshot, readDeletedIds } from "../notebook-storage.ts";
 import {
   BACKUP_DAYS,
   backupClock,
@@ -274,10 +270,10 @@ export async function enableBackup(
     const revived = removedIdsFor(browserStore(), session.uid).filter((id) =>
       remote.some((entry) => entry.id === id),
     );
-    if (revived.length > 0) {
+    // The account marker can go. A user delete made while this pull was
+    // running stays in the notebook tombstone list.
+    if (revived.length > 0)
       releaseRemoteDeletes(browserStore(), revived, session.uid);
-      await clearDeletedIds(revived);
-    }
     const merged = await onMerge(remote);
     if (Array.isArray(merged)) {
       rememberSeenEntries(
@@ -486,10 +482,10 @@ export function pushBackupEntries(
           const revived = removedIdsFor(browserStore(), uid).filter((id) =>
             remote.some((entry) => entry.id === id),
           );
-          if (revived.length > 0) {
+          // A user delete during this pull stays tombstoned. Only the
+          // account's remote-delete marker is released.
+          if (revived.length > 0)
             releaseRemoteDeletes(browserStore(), revived, uid);
-            await clearDeletedIds(revived);
-          }
           await onMerge?.(remote);
           return sync;
         },

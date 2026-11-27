@@ -2746,6 +2746,20 @@ test("a remote delete does not tombstone an id another account imported", async 
   assert.deepEqual(blocked, []);
 });
 
+test("a local delete during a pull is not restored", async () => {
+  const row = entry("reimported", "again");
+  await storeEntries([row]);
+  await removeEntry("reimported");
+  const restored = await restoreBackupEntries([row]);
+  assert.deepEqual(restored, []);
+  const snapshot = await readBackupSnapshot();
+  assert.equal(snapshot.deletedIds.includes("reimported"), true);
+  assert.equal(
+    snapshot.entries.some((item) => item.id === "reimported"),
+    false,
+  );
+});
+
 test("a restored cloud row can be stored after its remote delete", async () => {
   const row = entry("undo-remote", "back", {
     noteUpdated: "2026-01-03T00:00:00.000Z",

@@ -216,6 +216,8 @@ export const en = {
   "pain.level.severe": "Severe (6-7)",
   "pain.level.very_severe": "Very severe (8-10)",
   "pain.band": "AI band: {label}",
+  "pain.levelGroup": "Pain level",
+  "pain.useLevel": "Use as level",
   "notebook.markHistory": "Undo map changes",
   "notebook.pinsHighlights": "Pins & highlights",
   "notebook.undoMark": "Undo last mark",

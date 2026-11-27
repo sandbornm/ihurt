@@ -219,6 +219,8 @@ export const es: Messages = {
   "pain.level.severe": "Intenso (6-7)",
   "pain.level.very_severe": "Muy intenso (8-10)",
   "pain.band": "Rango de IA: {label}",
+  "pain.levelGroup": "Nivel de dolor",
+  "pain.useLevel": "Usar como nivel",
   "notebook.markHistory": "Deshacer cambios del mapa",
   "notebook.pinsHighlights": "Pines y resaltados",
   "notebook.undoMark": "Deshacer la última marca",

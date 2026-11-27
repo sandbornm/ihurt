@@ -9,11 +9,12 @@ import VisitorCheck from "../VisitorCheck.tsx";
 import { localVoiceClient } from "../voice/client.ts";
 import { startRecording, toWav, type Recording } from "../voice/recording.ts";
 import {
+  PAIN_LEVEL_SCALE,
   painLevelKey,
   plainText,
   readSuggestion,
   sideKey,
-  statedIntensity,
+  suggestedIntensity,
   suggestionIsCurrent,
   type PainSuggestion,
 } from "./catalog.ts";
@@ -39,7 +40,7 @@ export default function PainSuggest(props: PainSuggestProps) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<PainSuggestion | null>(null);
-  const [sourceText, setSourceText] = useState("");
+  const [chosenLevel, setChosenLevel] = useState<number | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [token, setToken] = useState("");
   const [nonce, setNonce] = useState(0);
@@ -62,7 +63,7 @@ export default function PainSuggest(props: PainSuggestProps) {
 
   function clearSuggestion() {
     setResult(null);
-    setSourceText("");
+    setChosenLevel(null);
     props.onHighlight([]);
   }
 
@@ -288,7 +289,7 @@ export default function PainSuggest(props: PainSuggestProps) {
         return;
       }
       setResult(parsed);
-      setSourceText(description);
+      setChosenLevel(suggestedIntensity(parsed.pain_level));
       props.onHighlight([]);
       const namedSide = parsed.side && parsed.side.id !== "unspecified";
       const empty = !namedSide && !parsed.pain_level;
@@ -324,7 +325,6 @@ export default function PainSuggest(props: PainSuggestProps) {
           currency: "USD",
         }).format(hold)
       : "";
-  const stated = statedIntensity(sourceText);
   const levelKey = result?.pain_level ? painLevelKey(result.pain_level) : null;
   const shownSide = result?.side ? sideKey(result.side.id) : null;
 
@@ -421,22 +421,36 @@ export default function PainSuggest(props: PainSuggestProps) {
           <p className="pain-status">{t("pain.scope")}</p>
           {shownSide && <p>{t(shownSide)}</p>}
           {levelKey && (
-            <div className="pain-row">
+            <div className="pain-row pain-level-row">
               <span>{t("pain.band", { label: t(levelKey) })}</span>
-              {stated != null ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const exact = statedIntensity(sourceText);
-                    if (exact == null) return;
-                    props.onUseIntensity(exact);
-                  }}
-                >
-                  {t("pain.useStated", { level: stated })}
-                </button>
-              ) : (
-                <span className="pain-status">{t("pain.bandOnly")}</span>
-              )}
+              <div
+                className="pain-level-picks"
+                role="radiogroup"
+                aria-label={t("pain.levelGroup")}
+              >
+                {PAIN_LEVEL_SCALE.map((n) => (
+                  <label key={n} className="pain-level-option">
+                    <input
+                      type="radio"
+                      name="pain-stated-level"
+                      value={n}
+                      checked={chosenLevel === n}
+                      onChange={() => setChosenLevel(n)}
+                    />
+                    <span>{n}</span>
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="secondary"
+                disabled={chosenLevel === null}
+                onClick={() => {
+                  if (chosenLevel !== null) props.onUseIntensity(chosenLevel);
+                }}
+              >
+                {t("pain.useLevel")}
+              </button>
             </div>
           )}
           <button

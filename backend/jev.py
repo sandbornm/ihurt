@@ -15,12 +15,14 @@ from pathlib import Path
 
 import httpx
 
-from .models import PAIN_LEVEL_BANDS, Region
+from .models import PAIN_LEVEL_BANDS, Region, band_for_pain_value
 
 JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 # Pinned so confidence cutoffs stay tuned to one model; jev-latest moves without notice.
 JEV_MODEL = os.environ.get("JEV_MODEL", "").strip() or "jev-1.13.0"
 JEV_MIN_CONFIDENCE = 0.5
+# Pain-level bands are accepted a little lower than side. The cutoff is for the pinned model.
+JEV_PAIN_LEVEL_MIN_CONFIDENCE = 0.3
 JEV_TRIGGER_MIN_CONFIDENCE = 0.7
 MAX_STATE_CHARS = 4000
 CATALOG_PATH = Path(__file__).resolve().parent.parent / "config" / "pain-regions.json"
@@ -399,17 +401,144 @@ def _region_hits(answers: dict, source: Catalog, prefix: str) -> list[dict] | No
     return hits or None
 
 
-def _pain_level(answer) -> dict | None:
+_NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "cero": 0,
+    "uno": 1,
+    "dos": 2,
+    "tres": 3,
+    "cuatro": 4,
+    "cinco": 5,
+    "seis": 6,
+    "siete": 7,
+    "ocho": 8,
+    "nueve": 9,
+    "diez": 10,
+}
+_RATING_WORD = (
+    "zero|one|two|three|four|five|six|seven|eight|nine|ten|"
+    "cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez"
+)
+_RATING_ATOM = rf"(?:{_RATING_WORD}|10|[0-9])"
+_SCALE_RE = re.compile(
+    rf"\b(?P<n>{_RATING_ATOM})\s*(?:/\s*|\s+out\s+of\s+|\s+de\s+)(?:10|ten|diez)\b",
+    re.I,
+)
+_CONTEXT_RES = (
+    re.compile(rf"\b(?:about\s+)?(?:an?|un|una)\s+(?P<n>{_RATING_ATOM})\b", re.I),
+    re.compile(rf"\bpain\s+(?:level\s+)?is\s+(?P<n>{_RATING_ATOM})\b", re.I),
+    re.compile(rf"\blevel\s+(?:is\s+)?(?P<n>{_RATING_ATOM})\b", re.I),
+    re.compile(rf"\brated\s+(?:it\s+)?(?:as\s+)?(?:an?\s+)?(?P<n>{_RATING_ATOM})\b", re.I),
+)
+_BETWEEN_RE = re.compile(
+    rf"\b(?:between|entre)\s+(?P<left>{_RATING_ATOM})\s+(?:and|y)\s+(?P<right>{_RATING_ATOM})\b",
+    re.I,
+)
+_UNIT_SUFFIX = re.compile(
+    r"^\s*[-]?\s*(?:"
+    r"days?|weeks?|months?|years?|hours?|hrs?|minutes?|mins?|seconds?|secs?|"
+    r"old|o'?clock|a\.?m\.?|p\.?m\.?|percent|times?|off|fold|"
+    r"miles?|kilometers?|km|meters?|metres?|pounds?|lbs?|kg|"
+    r"knees?|shoulders?|elbows?|hips?|ankles?|wrists?|hands?|feet|foot|"
+    r"fingers?|toes?|legs?|arms?"
+    r")\b",
+    re.I,
+)
+_SCALE_TAIL = re.compile(r"^/\s*(?:10|ten|diez)\b", re.I)
+
+
+def _rating_number(token: str) -> int:
+    if token.isdigit():
+        return int(token)
+    return _NUMBER_WORDS[token.lower()]
+
+
+def _touches_decimal(text: str, start: int, end: int) -> bool:
+    before = text[start - 1] if start else ""
+    after = text[end:end + 2]
+    if before == "." and start >= 2 and text[start - 2].isdigit():
+        return True
+    return after.startswith(".") and len(after) > 1 and after[1].isdigit()
+
+
+def _non_rating_context(rest: str) -> bool:
+    if re.match(r"^\d", rest) or re.match(r"^[.,]\d", rest):
+        return True
+    stripped = rest.lstrip()
+    if stripped.startswith("%"):
+        return True
+    if stripped.startswith("/") and not _SCALE_TAIL.match(stripped):
+        return True
+    return bool(_UNIT_SUFFIX.match(rest))
+
+
+def parse_explicit_pain_level(text: str) -> int | None:
+    """Return one stated 0-10 rating, or None when it is missing, decimal, or ambiguous."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    between = _BETWEEN_RE.search(text)
+    if between:
+        left = _rating_number(between.group("left"))
+        right = _rating_number(between.group("right"))
+        if left != right:
+            return None
+    found: list[int] = []
+    for pattern in (_SCALE_RE, *_CONTEXT_RES):
+        for match in pattern.finditer(text):
+            if _touches_decimal(text, match.start("n"), match.end("n")):
+                continue
+            if _non_rating_context(text[match.end():]):
+                continue
+            found.append(_rating_number(match.group("n")))
+    unique = set(found)
+    if len(unique) != 1:
+        return None
+    value = unique.pop()
+    if not 0 <= value <= 10:
+        return None
+    return value
+
+
+def _pain_level(answer, text: str | None = None) -> dict | None:
+    if text:
+        stated = parse_explicit_pain_level(text)
+        if stated is not None:
+            band = band_for_pain_value(stated)
+            if band is not None:
+                label, _number = PAIN_LEVEL_BANDS[band]
+                return {
+                    "band": band,
+                    "label": label,
+                    "value": stated,
+                    "confidence": 1.0,
+                    "source": "stated",
+                }
     labels = {band: label for band, (label, _value) in PAIN_LEVEL_BANDS.items()}
-    picked = _choice_score(answer, labels)
+    picked = _choice_score(answer, labels, JEV_PAIN_LEVEL_MIN_CONFIDENCE)
     if picked is None:
         return None
     band = picked[0]
     label, number = PAIN_LEVEL_BANDS[band]
-    return {"band": band, "label": label, "value": number, "confidence": round(picked[1], 4)}
+    return {
+        "band": band,
+        "label": label,
+        "value": number,
+        "confidence": round(picked[1], 4),
+        "source": "model",
+    }
 
 
-def parse_payload(payload, source: Catalog | None = None) -> dict:
+def parse_payload(payload, source: Catalog | None = None, *, text: str | None = None) -> dict:
     """Keep only side and pain level. Discard any region-like fields from the model."""
     source = source or catalog()
     if not isinstance(payload, dict):
@@ -421,7 +550,7 @@ def parse_payload(payload, source: Catalog | None = None) -> dict:
     model = payload.get("model")
     return {
         "side": {"id": side[0], "label": SIDE_LABELS[side[0]], "confidence": round(side[1], 4)} if side else None,
-        "pain_level": _pain_level(answers.get("pain_level")),
+        "pain_level": _pain_level(answers.get("pain_level"), text),
         "model": model if isinstance(model, str) and _MODEL.fullmatch(model) else "unknown",
     }
 
@@ -486,4 +615,4 @@ async def classify_pain(text: str, api_key: str, client: httpx.AsyncClient | Non
         sleep=sleep,
         paid_attempts=paid_attempts,
     )
-    return parse_payload(payload)
+    return parse_payload(payload, text=text)

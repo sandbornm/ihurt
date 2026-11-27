@@ -151,11 +151,36 @@ try {
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
   await page.getByText("Right side", { exact: true }).waitFor();
   await page.getByText("AI band: Severe (6-7)", { exact: true }).waitFor();
+  const levelGroup = page.getByRole("radiogroup", { name: "Pain level" });
+  await levelGroup.waitFor();
+  const radios = levelGroup.getByRole("radio");
+  assert.equal(await radios.count(), 11);
+  assert.equal(
+    await levelGroup.getByRole("radio", { name: "6", exact: true }).isChecked(),
+    true,
+  );
+  await levelGroup.getByRole("radio", { name: "6", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  assert.equal(
+    await levelGroup.getByRole("radio", { name: "7", exact: true }).isChecked(),
+    true,
+  );
+  const targets = await levelGroup.locator("label").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      return { width: box.width, height: box.height };
+    }),
+  );
+  assert.equal(targets.length, 11);
+  assert.equal(
+    targets.every((box) => box.width >= 44 && box.height >= 44),
+    true,
+  );
   const beforeLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");
   assert.equal(beforeLevel, "Not recorded");
-  await page.getByRole("button", { name: "Use stated level (7/10)" }).click();
+  await page.getByRole("button", { name: "Use as level" }).click();
   const afterLevel = await page
     .getByRole("slider", { name: "Reported intensity" })
     .getAttribute("aria-valuetext");

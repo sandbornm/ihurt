@@ -21,6 +21,7 @@ from backend.jev import (
     catalog,
     classify_pain,
     load_catalog,
+    parse_explicit_pain_level,
     parse_payload,
 )
 from backend.models import Region
@@ -99,7 +100,7 @@ def test_confidence_threshold_nulls_weak_and_unknown_fields():
     parsed = parse_payload(answered())
     assert set(parsed) == {"side", "pain_level", "model"}
     assert parsed["side"] == {"id": "right", "label": "Right", "confidence": 0.9}
-    assert parsed["pain_level"] == {"band": "severe", "label": "Severe (6-7)", "value": 6, "confidence": 0.8}
+    assert parsed["pain_level"] == {"band": "severe", "label": "Severe (6-7)", "value": 6, "confidence": 0.8, "source": "model"}
     weak = parse_payload(payload({
         "region:left_shoulder": noul(0.99),
         "pain_level": choice("none", 0.5),
@@ -311,6 +312,56 @@ def test_suggestion_reservation_does_not_spend_an_activity(tmp_path):
         second = client.post("/api/pain", json={"request_id": str(uuid.uuid4()), "text": "Left shoulder feels sharp.", "consent": True})
         assert second.status_code == 429
         assert client.get("/api/session").json()["remaining"] == 3
+
+
+def test_explicit_pain_level_parses_stated_numbers_and_rejects_lookalikes():
+    assert parse_explicit_pain_level("six out of ten") == 6
+    assert parse_explicit_pain_level("7/10") == 7
+    assert parse_explicit_pain_level("about an 8") == 8
+    assert parse_explicit_pain_level("about an 8.") == 8
+    assert parse_explicit_pain_level("a 7") == 7
+    assert parse_explicit_pain_level("a 7, sharp") == 7
+    assert parse_explicit_pain_level("pain is 7") == 7
+    assert parse_explicit_pain_level("level 3") == 3
+    assert parse_explicit_pain_level("rated it 5") == 5
+    assert parse_explicit_pain_level("6 out of 10") == 6
+    assert parse_explicit_pain_level("it hurts a lot") is None
+    assert parse_explicit_pain_level("for 3 days") is None
+    assert parse_explicit_pain_level("10 minutes") is None
+    assert parse_explicit_pain_level("2 weeks") is None
+    assert parse_explicit_pain_level("2 knees") is None
+    assert parse_explicit_pain_level("I am 8 years old") is None
+    assert parse_explicit_pain_level("it's a 6 or an 8") is None
+    assert parse_explicit_pain_level("6.5/10") is None
+    assert parse_explicit_pain_level("about a 6.5") is None
+    assert parse_explicit_pain_level("a one-off injury") is None
+    assert parse_explicit_pain_level("a two-fold increase") is None
+    assert parse_explicit_pain_level("one-off") is None
+    assert parse_explicit_pain_level("two-fold") is None
+    assert parse_explicit_pain_level("between 6 and 7") is None
+    assert parse_explicit_pain_level("pain is between 6 and 7") is None
+    assert parse_explicit_pain_level("entre 6 y 7") is None
+    assert parse_explicit_pain_level("seis de diez") == 6
+    assert parse_explicit_pain_level("un ocho") == 8
+    stated = parse_payload(payload({"pain_level": choice("mild", 0.9)}), text="7/10")
+    assert stated["pain_level"] == {
+        "band": "severe",
+        "label": "Severe (6-7)",
+        "value": 7,
+        "confidence": 1.0,
+        "source": "stated",
+    }
+    spanish = parse_payload(payload({"pain_level": choice("mild", 0.9)}), text="seis de diez")
+    assert spanish["pain_level"]["value"] == 6
+    assert spanish["pain_level"]["source"] == "stated"
+    untouched = parse_payload(payload({"pain_level": choice("severe", 0.4)}), text="a one-off injury")
+    assert untouched["pain_level"]["value"] == 6
+    assert untouched["pain_level"]["source"] == "model"
+    decimal = parse_payload(payload({"pain_level": choice("severe", 0.8)}), text="6.5/10")
+    assert decimal["pain_level"]["value"] == 6
+    assert decimal["pain_level"]["source"] == "model"
+    assert parse_payload(payload({"pain_level": choice("severe", 0.2)}))["pain_level"] is None
+    assert parse_payload(payload({"pain_level": choice("unknown", 0.9)}))["pain_level"] is None
 
 
 def test_pain_level_bands_and_side_only():

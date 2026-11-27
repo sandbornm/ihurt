@@ -1060,6 +1060,48 @@ h1 > span {
 .pain-suggest .consent {
   margin: 8px 0;
 }
+.pain-level-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.pain-level-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pain-level-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: inherit;
+}
+.pain-level-option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.pain-level-option span {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pain-level-option:has(:checked) {
+  background: var(--lime);
+  border-color: var(--lime);
+}
+.pain-level-option:has(:checked) span {
+  color: #203018;
+}
+.pain-level-option:has(:focus-visible) {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
 .voice-tools {
   display: flex;
   gap: 11px;

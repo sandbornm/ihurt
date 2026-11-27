@@ -29,6 +29,7 @@ export interface PainLevel {
   band: string;
   value: number;
   confidence: number;
+  source?: "stated" | "model";
 }
 export interface PainSide {
   id: "left" | "right" | "both" | "midline" | "unspecified";
@@ -62,14 +63,6 @@ const regionList: CatalogRegion[] = data.regions.flatMap((region) => {
 });
 const byId = new Map(regionList.map((region) => [region.id, region]));
 
-// Keep the stored numbers aligned with PAIN_LEVEL_BANDS in backend/models.py.
-const PAIN_LEVELS: Record<string, { label: string; value: number }> = {
-  none: { label: "None", value: 0 },
-  mild: { label: "Mild (2-3)", value: 2 },
-  moderate: { label: "Moderate (4-5)", value: 4 },
-  severe: { label: "Severe (6-7)", value: 6 },
-  very_severe: { label: "Very severe (8-10)", value: 9 },
-};
 const SIDE_IDS = ["left", "right", "both", "midline", "unspecified"] as const;
 const SIDE_KEYS: Partial<Record<(typeof SIDE_IDS)[number], MessageKey>> = {
   left: "pain.side.left",
@@ -84,6 +77,15 @@ const LEVEL_KEYS: Record<string, MessageKey> = {
   severe: "pain.level.severe",
   very_severe: "pain.level.very_severe",
 };
+const PAIN_LEVEL_RANGES: Record<string, [number, number]> = {
+  none: [0, 0],
+  mild: [1, 3],
+  moderate: [4, 5],
+  severe: [6, 7],
+  very_severe: [8, 10],
+};
+const PAIN_LEVEL_MIN = 0.3;
+export const PAIN_LEVEL_SCALE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 const subByAnatomy = new Map<string, (typeof data.sub_locations)[number]>();
 for (const group of data.sub_locations) {
   for (const anatomyId of group.anatomy_ids) {
@@ -137,13 +139,30 @@ function readSide(value: unknown): PainSide | null {
   return id ? { id, confidence: score } : null;
 }
 
+function inBand(band: string, value: unknown): value is number {
+  const range = PAIN_LEVEL_RANGES[band];
+  return (
+    !!range &&
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= range[0] &&
+    value <= range[1]
+  );
+}
+
 function readLevel(value: unknown): PainLevel | null {
   const row = record(value);
-  const score = row ? scoreOf(row.confidence) : null;
+  const score = row ? scoreOf(row.confidence, PAIN_LEVEL_MIN) : null;
   if (!row || score === null || typeof row.band !== "string") return null;
-  const known = PAIN_LEVELS[row.band];
-  if (!known || row.value !== known.value) return null;
-  return { band: row.band, value: known.value, confidence: score };
+  if (!inBand(row.band, row.value)) return null;
+  const source =
+    row.source === "stated" || row.source === "model" ? row.source : undefined;
+  return {
+    band: row.band,
+    value: row.value,
+    confidence: score,
+    ...(source ? { source } : {}),
+  };
 }
 
 
@@ -164,10 +183,13 @@ export function sideKey(id: string): MessageKey | null {
 }
 
 export function painLevelKey(level: PainLevel): MessageKey | null {
-  const known = PAIN_LEVELS[level.band];
   const key = LEVEL_KEYS[level.band];
-  if (!known || !key || known.value !== level.value) return null;
+  if (!key || !inBand(level.band, level.value)) return null;
   return key;
+}
+
+export function suggestedIntensity(level: PainLevel | null | undefined) {
+  return level && inBand(level.band, level.value) ? level.value : null;
 }
 
 /** English catalog lines for tests. The panel renders these keys with t(). */

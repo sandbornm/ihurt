@@ -10,6 +10,7 @@ import {
   regionLabel,
   sideCopy,
   statedIntensity,
+  suggestedIntensity,
   suggestionIsCurrent,
 } from "../src/pain/catalog.ts";
 import { chooseSpeech } from "../src/pain/dictate.ts";
@@ -83,6 +84,32 @@ test("statedIntensity keeps exact ratings and drops negated ones", () => {
   assert.equal(statedIntensity("sharp pain in my left shoulder"), null);
   assert.equal(statedIntensity("not 7/10"), null);
   assert.equal(statedIntensity("5/10 and also 8/10"), null);
+});
+
+test("a stated 0-10 value stays in its band and a midpoint still reads", () => {
+  const stated = readSuggestion({
+    pain_level: {
+      band: "severe",
+      value: 7,
+      confidence: 1,
+      source: "stated",
+    },
+  });
+  assert.equal(stated!.pain_level?.value, 7);
+  assert.equal(stated!.pain_level?.source, "stated");
+  assert.equal(suggestedIntensity(stated!.pain_level), 7);
+  assert.equal(
+    readSuggestion({
+      pain_level: { band: "mild", value: 7, confidence: 0.9, source: "stated" },
+    })!.pain_level,
+    null,
+  );
+  assert.equal(
+    readSuggestion({
+      pain_level: { band: "severe", value: 6, confidence: 0.3, source: "model" },
+    })!.pain_level?.value,
+    6,
+  );
 });
 
 test("a late suggestion is dropped when the text changes or the panel closes", () => {

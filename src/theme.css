@@ -240,3 +240,6 @@
 [data-theme="light"] :is(.pain-status, .pain-suggestion p, .pain-row span) {
   color: #243627;
 }
+[data-theme="light"] .pain-level-option:has(:checked) span {
+  color: #fff;
+}

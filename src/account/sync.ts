@@ -12,6 +12,7 @@ export const SYNCED_UID_KEY = "ihurt-synced-uid";
 const BACKUP_EPOCH_KEY = "ihurt-backup-epoch";
 const SEEN_ENTRIES_KEY = "ihurt-seen-entries";
 const UPLOADS_KEY = "ihurt-backup-uploads";
+const UPLOAD_LOCK = UPLOADS_KEY;
 const DELETING_KEY = "ihurt-account-deleting";
 const UPLOAD_LEASE_MS = 2 * 60 * 1000;
 
@@ -339,17 +340,35 @@ function liveClaims(claims: Record<string, number> | undefined, now: number) {
   return live;
 }
 
-function uploadsOpen(store: KeyValueStore, uid: string, now = Date.now()) {
-  return Object.keys(liveClaims(readUploads(store)[uid], now)).length > 0;
+// One cross-tab lock for the upload book and the PUT it belongs to. Two tabs
+// can otherwise read the same book and each overwrite the other's claim.
+// Holding the lock until the request finishes also keeps deletion from treating
+// a slow PUT as done when its timestamp passes the lease: a closed document
+// drops the lock, and a request that is still running does not.
+let holdingUpload = 0;
+let uploadQueue: Promise<unknown> = Promise.resolve();
+
+export function withUploadLock<T>(fn: () => Promise<T>): Promise<T> {
+  const exec = async () => {
+    holdingUpload += 1;
+    try {
+      return await fn();
+    } finally {
+      holdingUpload -= 1;
+    }
+  };
+  const locks = globalThis.navigator?.locks;
+  // The lock is held until the callback's promise settles. The DOM type omits that.
+  if (locks) return locks.request(UPLOAD_LOCK, () => exec()) as Promise<T>;
+  const run = uploadQueue.then(exec, exec);
+  uploadQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
-const uploadWaiters = new Set<() => void>();
-
-function notifyUploadWaiters() {
-  for (const waiter of uploadWaiters) waiter();
-}
-
-export function claimUpload(store: KeyValueStore, uid: string): string {
+function writeClaim(store: KeyValueStore, uid: string): string {
   const id = crypto.randomUUID();
   const now = Date.now();
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -358,51 +377,61 @@ export function claimUpload(store: KeyValueStore, uid: string): string {
     row[id] = now;
     book[uid] = row;
     writeUploads(store, book);
-    if (readUploads(store)[uid]?.[id] === now) {
-      notifyUploadWaiters();
-      return id;
-    }
+    if (readUploads(store)[uid]?.[id] === now) return id;
   }
-  notifyUploadWaiters();
   return id;
 }
 
-export function releaseUpload(store: KeyValueStore, uid: string, id: string) {
+function clearClaim(store: KeyValueStore, uid: string, id: string) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const book = readUploads(store);
     const row = book[uid];
-    if (!row?.[id]) {
-      notifyUploadWaiters();
-      return;
-    }
+    if (!row?.[id]) return;
     delete row[id];
     if (Object.keys(row).length === 0) delete book[uid];
     writeUploads(store, book);
-    if (!readUploads(store)[uid]?.[id]) {
-      notifyUploadWaiters();
-      return;
-    }
+    if (!readUploads(store)[uid]?.[id]) return;
   }
-  notifyUploadWaiters();
 }
 
-// Another tab can already be waiting on its PUT. Deletion waits until that
-// request finishes and its bookkeeping is written, then removes the account.
+export async function claimUpload(
+  store: KeyValueStore,
+  uid: string,
+): Promise<string> {
+  if (holdingUpload > 0) return writeClaim(store, uid);
+  let id = "";
+  await withUploadLock(async () => {
+    id = writeClaim(store, uid);
+  });
+  return id;
+}
+
+export async function releaseUpload(
+  store: KeyValueStore,
+  uid: string,
+  id: string,
+): Promise<void> {
+  if (holdingUpload > 0) {
+    clearClaim(store, uid, id);
+    return;
+  }
+  await withUploadLock(async () => {
+    clearClaim(store, uid, id);
+  });
+}
+
+// Another tab can already be waiting on its PUT. Deletion takes the same lock
+// that request holds, so it runs only after the request and its bookkeeping
+// finish. A claim left behind belongs to a document that is already gone.
 export function waitForAccountUploads(
   store: KeyValueStore,
   uid: string,
 ): Promise<void> {
-  if (!uploadsOpen(store, uid)) return Promise.resolve();
-  return new Promise((resolve) => {
-    const finish = () => {
-      if (uploadsOpen(store, uid)) return;
-      uploadWaiters.delete(finish);
-      clearInterval(timer);
-      resolve();
-    };
-    uploadWaiters.add(finish);
-    const timer = setInterval(finish, 50);
-    finish();
+  return withUploadLock(async () => {
+    const book = readUploads(store);
+    if (!book[uid]) return;
+    delete book[uid];
+    writeUploads(store, book);
   });
 }
 
@@ -500,24 +529,27 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
   if (!current()) return [];
-  const upload = claimUpload(input.store, input.uid);
-  try {
+  return withUploadLock(async () => {
     if (!current()) return [];
-    await input.put(input.token, windowed);
-    rememberSeenEntries(
-      input.store,
-      input.uid,
-      windowed.map((entry) => entry.id),
-    );
-    retainSynced(
-      input.store,
-      windowed.map((entry) => entry.id),
-      input.uid,
-    );
-    return windowed;
-  } finally {
-    releaseUpload(input.store, input.uid, upload);
-  }
+    const upload = await claimUpload(input.store, input.uid);
+    try {
+      if (!current()) return [];
+      await input.put(input.token, windowed);
+      rememberSeenEntries(
+        input.store,
+        input.uid,
+        windowed.map((entry) => entry.id),
+      );
+      retainSynced(
+        input.store,
+        windowed.map((entry) => entry.id),
+        input.uid,
+      );
+      return windowed;
+    } finally {
+      await releaseUpload(input.store, input.uid, upload);
+    }
+  });
 }
 
 export type AccountDeleteStage = "api" | "local" | "auth";

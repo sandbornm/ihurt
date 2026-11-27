@@ -52,6 +52,7 @@ import {
   accountDeleteStage,
   backedIdsFor,
   clearOptIn,
+  claimUpload,
   deleteSignedInAccount,
   grantOptIn,
   optedIn,
@@ -1536,6 +1537,119 @@ test("a delete blocks an upload that starts after the wait", async () => {
   assert.equal(optedIn(store, "user-a"), false);
 });
 
+test("a backup still blocks deletion after the upload lease", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const epoch = backupEpoch(store);
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let putStarted = false;
+    const upload = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("from-this-device", 1)],
+      now: NOW,
+      store,
+      epoch,
+      pull: async () => [],
+      put: async () => {
+        putStarted = true;
+        now += 10 * 60 * 1000;
+        await gate;
+      },
+    });
+    for (let attempt = 0; attempt < 20 && !putStarted; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(putStarted, true);
+    const wiped: string[] = [];
+    let deleted = false;
+    const pending = deleteSignedInAccount({
+      uid: "user-a",
+      token: "token-a",
+      confirmRecentLogin: async () => {},
+      settleUploads: async () => {},
+      api: {
+        async deleteAccount() {
+          deleted = true;
+        },
+      },
+      removeLocal: async (ids) => {
+        wiped.push(...ids);
+      },
+      deleteAuth: async () => {},
+      store,
+    });
+    for (let attempt = 0; attempt < 5; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(deleted, false);
+    release();
+    await upload;
+    await pending;
+    assert.equal(deleted, true);
+    assert.deepEqual(wiped, ["from-this-device"]);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("two tabs that claim together both keep their uploads", async () => {
+  const nav = globalThis.navigator as Navigator & {
+    locks?: { request: (name: string, callback: () => unknown) => unknown };
+  };
+  const previous = nav.locks;
+  let held = 0;
+  let chain: Promise<void> = Promise.resolve();
+  nav.locks = {
+    request(_name, callback) {
+      const run = chain.then(async () => {
+        held += 1;
+        try {
+          return await callback();
+        } finally {
+          held -= 1;
+        }
+      });
+      chain = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
+    },
+  };
+  try {
+    const data = new Map<string, string>();
+    const store: KeyValueStore = {
+      getItem(key) {
+        if (key === "ihurt-backup-uploads" && held === 0) return "{}";
+        return data.get(key) ?? null;
+      },
+      setItem(key, value) {
+        data.set(key, value);
+      },
+      removeItem(key) {
+        data.delete(key);
+      },
+    };
+    await Promise.all([
+      claimUpload(store, "user-a"),
+      claimUpload(store, "user-a"),
+    ]);
+    const book = JSON.parse(data.get("ihurt-backup-uploads") ?? "{}") as {
+      "user-a"?: Record<string, number>;
+    };
+    assert.equal(Object.keys(book["user-a"] ?? {}).length, 2);
+  } finally {
+    if (previous) nav.locks = previous;
+    else delete nav.locks;
+  }
+});
+
 test("a delete on another device is not uploaded again", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -2050,6 +2164,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   const beforeUpload = sync.slice(push, uploaded);
   assert.equal(beforeUpload.includes("rememberSeenEntries("), true);
   assert.equal(beforeUpload.includes("rememberDownloaded("), true);
+  assert.equal(beforeUpload.includes("withUploadLock("), true);
   assert.equal(beforeUpload.includes("claimUpload("), true);
   assert.equal(beforeUpload.includes("remote.map((entry) => entry.id)"), true);
   const pullAt = beforeUpload.indexOf("await input.pull");
@@ -2063,6 +2178,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   const beforePut = store.slice(enable, put);
   assert.equal(beforePut.includes("rememberSeenEntries("), true);
   assert.equal(beforePut.includes("rememberDownloaded("), true);
+  assert.equal(beforePut.includes("withUploadLock("), true);
   assert.equal(beforePut.includes("claimUpload("), true);
   assert.equal(beforePut.includes("merged.map((entry) => entry.id)"), true);
   const mergedAt = beforePut.indexOf("const merged = await onMerge(remote)");
@@ -2096,6 +2212,10 @@ test("a later save applies the downloaded note before the next upload", () => {
     sync.slice(deleting, cloudDelete).includes("waitForAccountUploads("),
     true,
   );
+  const waiting = sync.indexOf("export function waitForAccountUploads");
+  const waitingBody = sync.slice(waiting, waiting + 500);
+  assert.equal(waitingBody.includes("withUploadLock("), true);
+  assert.equal(waitingBody.includes("UPLOAD_LEASE_MS"), false);
   assert.equal(
     sync.slice(cloudDelete, authDelete).includes("input.sameAccount"),
     true,

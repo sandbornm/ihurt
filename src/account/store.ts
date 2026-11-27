@@ -42,6 +42,7 @@ import {
   rememberSeenEntries,
   rememberSynced,
   syncedIdsFor,
+  withUploadLock,
   withoutOtherAccountEntries,
   type KeyValueStore,
 } from "./sync.ts";
@@ -294,16 +295,11 @@ export async function enableBackup(
       BACKUP_DAYS,
       new Set(remote.map((entry) => entry.id)),
     );
-    if (
-      state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch ||
-      accountDeleting(browserStore(), session.uid)
-    ) {
-      setState({ ...state, busy: false });
-      return;
-    }
-    const upload = claimUpload(browserStore(), session.uid);
-    try {
+    await withUploadLock(async () => {
+      if (!api) {
+        setState({ ...state, busy: false, error: "no-api" });
+        return;
+      }
       if (
         state.session?.uid !== session.uid ||
         backupEpoch(browserStore()) !== epoch ||
@@ -312,32 +308,43 @@ export async function enableBackup(
         setState({ ...state, busy: false });
         return;
       }
-      await api.putEntries(token, windowed);
-      rememberSeenEntries(
-        browserStore(),
-        session.uid,
-        windowed.map((entry) => entry.id),
-      );
-      rememberSynced(
-        browserStore(),
-        windowed.map((entry) => entry.id),
-        session.uid,
-      );
-      if (gone.length > 0) await onRemove?.(gone);
-      if (
-        state.session?.uid !== session.uid ||
-        backupEpoch(browserStore()) !== epoch ||
-        accountDeleting(browserStore(), session.uid)
-      ) {
-        setState({ ...state, busy: false });
-        return;
+      const upload = await claimUpload(browserStore(), session.uid);
+      try {
+        if (
+          state.session?.uid !== session.uid ||
+          backupEpoch(browserStore()) !== epoch ||
+          accountDeleting(browserStore(), session.uid)
+        ) {
+          setState({ ...state, busy: false });
+          return;
+        }
+        await api.putEntries(token, windowed);
+        rememberSeenEntries(
+          browserStore(),
+          session.uid,
+          windowed.map((entry) => entry.id),
+        );
+        rememberSynced(
+          browserStore(),
+          windowed.map((entry) => entry.id),
+          session.uid,
+        );
+        if (gone.length > 0) await onRemove?.(gone);
+        if (
+          state.session?.uid !== session.uid ||
+          backupEpoch(browserStore()) !== epoch ||
+          accountDeleting(browserStore(), session.uid)
+        ) {
+          setState({ ...state, busy: false });
+          return;
+        }
+        grantOptIn(browserStore(), session.uid);
+        analytics.record("sync_on");
+        setState({ ...state, busy: false, optedIn: true });
+      } finally {
+        await releaseUpload(browserStore(), session.uid, upload);
       }
-      grantOptIn(browserStore(), session.uid);
-      analytics.record("sync_on");
-      setState({ ...state, busy: false, optedIn: true });
-    } finally {
-      releaseUpload(browserStore(), session.uid, upload);
-    }
+    });
   } catch (error) {
     const code = error instanceof AccountAuthError ? error.code : "error";
     setState({ ...state, busy: false, error: code });

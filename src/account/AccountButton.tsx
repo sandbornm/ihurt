@@ -7,11 +7,7 @@ import {
 import { useI18n } from "../i18n/react";
 import { readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
-import {
-  backupRowsAfterMerge,
-  entriesForBackup,
-  type BackupEntry,
-} from "./backup.ts";
+import { entriesForBackup, type BackupEntry } from "./backup.ts";
 import { rememberSeenEntries, withoutOtherAccountEntries } from "./sync.ts";
 import { AccountAuthError } from "./auth.ts";
 import {
@@ -192,8 +188,7 @@ export default function AccountButton({
                     const kept = remote.filter(
                       (entry) => !deleted.has(entry.id),
                     );
-                    const merged = (await onMerge(kept)) ?? [];
-                    return backupRowsAfterMerge(entries, merged, deleted);
+                    return (await onMerge(kept)) ?? [];
                   }, onRemove);
                   setStep("home");
                 })

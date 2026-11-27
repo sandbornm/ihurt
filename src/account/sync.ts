@@ -191,6 +191,23 @@ export function rememberRemoteDeletes(
   writeBook(store, book);
 }
 
+// The id was deleted on another device, then a later pull or a local undo
+// brought it back. The marker must not delete that restore.
+export function releaseRemoteDeletes(
+  store: KeyValueStore,
+  ids: readonly string[],
+  uid: string,
+) {
+  if (ids.length === 0) return;
+  const book = readBook(store);
+  const current = book[uid] ?? emptyAccount();
+  const drop = new Set(ids);
+  const removed = current.removed.filter((id) => !drop.has(id));
+  if (removed.length === current.removed.length) return;
+  book[uid] = { ...current, removed };
+  writeBook(store, book);
+}
+
 export function rememberSynced(
   store: KeyValueStore,
   ids: readonly string[],
@@ -271,6 +288,17 @@ export async function pushBackup<T extends BackupEntry>(input: {
   );
   const deleted = new Set(await snapshotOf(input.deletedIds));
   if (!current()) return [];
+  const priorRemoved = removedIdsFor(input.store, input.uid);
+  const pulledIds = new Set(remote.map((entry) => entry.id));
+  // A pull that returns the id, or a local row whose tombstone is gone, is a
+  // restore. An id still tombstoned stays deleted.
+  const revived = priorRemoved.filter(
+    (id) =>
+      pulledIds.has(id) ||
+      (entries.some((entry) => entry.id === id) && !deleted.has(id)),
+  );
+  releaseRemoteDeletes(input.store, revived, input.uid);
+  const alreadyRemoved = new Set(priorRemoved);
   const remoteGone = input.pull
     ? idsDeletedOnServer(
         syncedIdsFor(input.store, input.uid),
@@ -278,7 +306,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
         remote,
         deleted,
         input.now,
-      )
+      ).filter((id) => !alreadyRemoved.has(id))
     : [];
   rememberRemoteDeletes(input.store, remoteGone, input.uid);
   const drop = [

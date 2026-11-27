@@ -8,7 +8,11 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
-import { readDeletedIds } from "../notebook-storage.ts";
+import {
+  clearDeletedIds,
+  readBackupSnapshot,
+  readDeletedIds,
+} from "../notebook-storage.ts";
 import {
   BACKUP_DAYS,
   entriesForBackup,
@@ -28,7 +32,9 @@ import {
   nextBackupEpoch,
   optedIn,
   pushBackup,
+  releaseRemoteDeletes,
   rememberRemoteDeletes,
+  removedIdsFor,
   rememberSeenEntries,
   rememberSynced,
   syncedIdsFor,
@@ -223,7 +229,14 @@ export async function enableBackup(
       setState({ ...state, busy: false });
       return;
     }
-    const kept = await onMerge(remote);
+    const revived = removedIdsFor(browserStore(), session.uid).filter((id) =>
+      remote.some((entry) => entry.id === id),
+    );
+    if (revived.length > 0) {
+      releaseRemoteDeletes(browserStore(), revived, session.uid);
+      await clearDeletedIds(revived);
+    }
+    const merged = await onMerge(remote);
     if (
       state.session?.uid !== session.uid ||
       backupEpoch(browserStore()) !== epoch
@@ -231,10 +244,19 @@ export async function enableBackup(
       setState({ ...state, busy: false });
       return;
     }
-    if (!Array.isArray(kept)) {
+    if (!Array.isArray(merged)) {
       setState({ ...state, busy: false, error: "error" });
       return;
     }
+    const snapshot = await readBackupSnapshot();
+    const deletedNow = new Set(snapshot.deletedIds);
+    const kept = snapshot.entries.filter((entry) => !deletedNow.has(entry.id));
+    const priorRemoved = new Set(removedIdsFor(browserStore(), session.uid));
+    releaseRemoteDeletes(
+      browserStore(),
+      [...priorRemoved].filter((id) => kept.some((entry) => entry.id === id)),
+      session.uid,
+    );
     rememberSeenEntries(
       browserStore(),
       session.uid,
@@ -244,9 +266,9 @@ export async function enableBackup(
       syncedIdsFor(browserStore(), session.uid),
       kept,
       remote,
-      new Set(),
+      deletedNow,
       Date.now(),
-    );
+    ).filter((id) => !priorRemoved.has(id));
     rememberRemoteDeletes(browserStore(), gone, session.uid);
     const goneIds = new Set(gone);
     const windowed = entriesForBackup(
@@ -353,6 +375,13 @@ export function pushBackupEntries(
           if (backupEpoch(browserStore()) !== epoch) return remote;
           if (state.session?.uid !== uid || !optedIn(browserStore(), uid))
             return remote;
+          const revived = removedIdsFor(browserStore(), uid).filter((id) =>
+            remote.some((entry) => entry.id === id),
+          );
+          if (revived.length > 0) {
+            releaseRemoteDeletes(browserStore(), revived, uid);
+            await clearDeletedIds(revived);
+          }
           await onMerge?.(remote);
           return remote;
         },

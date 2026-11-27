@@ -199,6 +199,8 @@ const {
   storeEntries,
   restoreBackupEntries,
   removeEntry,
+  readBackupSnapshot,
+  clearDeletedIds,
   saveDraft,
   saveResearch,
   editorAfterSave,
@@ -2720,6 +2722,43 @@ for (const legacy of [true, false]) {
     assert.equal(row?.research?.description, "stiff");
   });
 }
+
+test("a restored cloud row can be stored after its remote delete", async () => {
+  const row = entry("undo-remote", "back", {
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+  });
+  await storeEntries([row]);
+  await removeEntry("undo-remote");
+  await clearDeletedIds(["undo-remote"]);
+  const restored = await restoreBackupEntries([row]);
+  assert.deepEqual(
+    restored.map((item) => item.id),
+    ["undo-remote"],
+  );
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.some((item) => item.id === "undo-remote"),
+    true,
+  );
+});
+
+test("a backup snapshot sees a delete that landed before the upload", async () => {
+  await storeEntries([
+    entry("keep-snap", "keep", { noteUpdated: "2026-01-02T00:00:00.000Z" }),
+    entry("gone-snap", "gone", { noteUpdated: "2026-01-02T00:00:00.000Z" }),
+  ]);
+  await removeEntry("gone-snap");
+  const snapshot = await readBackupSnapshot();
+  assert.equal(
+    snapshot.entries.some((item) => item.id === "keep-snap"),
+    true,
+  );
+  assert.equal(
+    snapshot.entries.some((item) => item.id === "gone-snap"),
+    false,
+  );
+  assert.equal(snapshot.deletedIds.includes("gone-snap"), true);
+});
 
 test("a backup restore leaves a deleted entry deleted", async () => {
   const row = entry("backup-tomb", "gone", {

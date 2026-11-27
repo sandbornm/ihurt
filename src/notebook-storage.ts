@@ -112,6 +112,51 @@ export function readDeletedIds(): Promise<string[]> {
   );
 }
 
+// Entries and tombstones from one read, so a delete that lands before the
+// backup upload is in this pair.
+export function readBackupSnapshot(): Promise<{
+  entries: SavedMap[];
+  deletedIds: string[];
+}> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["entries", "settings"], "readonly");
+        const entriesRequest = tx.objectStore("entries").getAll();
+        const tomb = tx.objectStore("settings").get(DELETED_IDS);
+        let entries: SavedMap[] = [];
+        let deleted: string[] = [];
+        let done = 0;
+        const finish = () => {
+          if (++done !== 2) return;
+          entries = (entriesRequest.result ?? []) as SavedMap[];
+          deleted = deletedIds(tomb.result);
+        };
+        entriesRequest.onsuccess = finish;
+        tomb.onsuccess = finish;
+        tx.oncomplete = () => resolve({ entries, deletedIds: deleted });
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      }),
+  );
+}
+
+// A remote delete wrote these tombstones. The row is back in a later pull,
+// so the notebook can store it again. Other tombstones stay.
+export function clearDeletedIds(ids: readonly string[]): Promise<void> {
+  const drop = new Set(ids);
+  if (drop.size === 0) return Promise.resolve();
+  return mutate(["settings"], (tx) => {
+    const current = tx.objectStore("settings").get(DELETED_IDS);
+    current.onsuccess = () => {
+      const existing = deletedIds(current.result);
+      const next = existing.filter((id) => !drop.has(id));
+      if (next.length !== existing.length)
+        tx.objectStore("settings").put(next, DELETED_IDS);
+    };
+  });
+}
+
 // Missing on rows saved before versions existed. Older than any stamped search.
 function researchVersion(entry: SavedMap | undefined): string {
   const version = entry?.research?.version;

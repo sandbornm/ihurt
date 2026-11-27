@@ -52,6 +52,7 @@ import {
   optedIn,
   pushBackup,
   readSyncedIds,
+  rememberRemoteDeletes,
   rememberSeenEntries,
   rememberSynced,
   removedIdsFor,
@@ -1176,6 +1177,7 @@ test("a delete on another device is not uploaded again", async () => {
     entries: [entry("gone", 1), entry("keep", 1)],
     now: NOW,
     store,
+    deletedIds: ["gone"],
     pull: async () => [entry("keep", 1)],
     put: async (_token, rows) => {
       again.push(rows.map((row) => row.id));
@@ -1202,6 +1204,104 @@ test("a delete on another device is not uploaded again", async () => {
       NOW,
     ),
     ["gone"],
+  );
+});
+
+test("an undo on another device clears the remote delete", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["gone", "keep"], "user-a");
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("gone", 1), entry("keep", 1)],
+    now: NOW,
+    store,
+    pull: async () => [entry("keep", 1)],
+    put: async () => {},
+    forget: async () => {},
+  });
+  const sent: string[][] = [];
+  const forgotten: string[][] = [];
+  let tombstones = ["gone"];
+  let local = [entry("keep", 1)];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: () => local,
+    now: NOW,
+    store,
+    deletedIds: () => tombstones,
+    pull: async () => {
+      tombstones = [];
+      local = [entry("keep", 1), entry("gone", 1)];
+      return [entry("keep", 1), entry("gone", 1)];
+    },
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(sent, [["gone", "keep"]]);
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(removedIdsFor(store, "user-a"), []);
+  const undone: string[][] = [];
+  rememberRemoteDeletes(store, ["gone"], "user-a");
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("gone", 1), entry("keep", 1)],
+    now: NOW,
+    store,
+    deletedIds: [],
+    pull: async () => [entry("keep", 1)],
+    put: async (_token, rows) => {
+      undone.push(rows.map((row) => row.id).sort());
+    },
+  });
+  assert.deepEqual(undone, [["gone", "keep"]]);
+  assert.deepEqual(removedIdsFor(store, "user-a"), []);
+});
+
+test("a delete during backup enable is left out of the first upload", () => {
+  const stale = backupRowsAfterMerge(
+    [entry("keep", 1), entry("gone", 1)],
+    [entry("keep", 1)],
+    new Set(),
+  );
+  assert.deepEqual(stale.map((row) => row.id).sort(), ["gone", "keep"]);
+  const current = [entry("keep", 1)];
+  const uploaded = backupRowsAfterMerge(current, stale, new Set(["gone"]));
+  assert.deepEqual(
+    uploaded.map((row) => row.id),
+    ["keep"],
+  );
+  const root = new URL("../", import.meta.url);
+  const store = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  const enable = store.slice(
+    store.indexOf("export async function enableBackup"),
+  );
+  const mergeAt = enable.indexOf("const merged = await onMerge(remote)");
+  const snapAt = enable.indexOf("await readBackupSnapshot()");
+  const putAt = enable.indexOf("await api.putEntries");
+  assert.ok(mergeAt > 0 && snapAt > mergeAt && putAt > snapAt);
+  assert.equal(
+    enable.slice(snapAt, putAt).includes("snapshot.deletedIds"),
+    true,
+  );
+  assert.equal(button.includes("backupRowsAfterMerge(entries"), false);
+  const pullAt = store.indexOf("const remote = await current.getEntries(next)");
+  const mergeCall = store.indexOf("await onMerge?.(remote)", pullAt);
+  assert.ok(pullAt > 0 && mergeCall > pullAt);
+  assert.equal(
+    store.slice(pullAt, mergeCall).includes("await clearDeletedIds(revived)"),
+    true,
   );
 });
 

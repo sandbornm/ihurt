@@ -1015,6 +1015,21 @@ test("a backup confirm waits when another tab saved a row", () => {
   assert.equal(confirm.includes('"refresh"'), true);
 });
 
+test("Apple sign-in presents on the main thread", () => {
+  const root = new URL("../", import.meta.url);
+  const swift = readFileSync(
+    new URL("ios/App/App/AppleSignInPlugin.swift", root),
+    "utf8",
+  );
+  const signIn = swift.slice(
+    swift.indexOf("func signIn"),
+    swift.indexOf("func authorizationController"),
+  );
+  const hop = signIn.indexOf("DispatchQueue.main.async");
+  const present = signIn.indexOf("performRequests()");
+  assert.ok(hop > 0 && present > hop);
+});
+
 test("a confirmation opened for one account does not run for another", () => {
   assert.equal(confirmAccountDecision("user-a", "user-a"), "proceed");
   assert.equal(confirmAccountDecision("user-a", "user-b"), "refresh");
@@ -2756,7 +2771,8 @@ test("a delete during backup enable is left out of the first upload", () => {
   const mergeAt = enable.indexOf("const merged = await onMerge(remote)");
   const snapAt = enable.indexOf("await readBackupSnapshot()");
   const putAt = enable.indexOf("await api.putEntries");
-  assert.ok(mergeAt > 0 && snapAt > mergeAt && putAt > snapAt);
+  assert.ok(snapAt > 0 && putAt > snapAt && mergeAt > putAt);
+  assert.equal(enable.slice(0, putAt).includes("await onMerge(remote)"), false);
   assert.equal(
     enable.slice(snapAt, putAt).includes("snapshot.deletedIds"),
     true,
@@ -3161,20 +3177,26 @@ test("a later save applies the downloaded note before the next upload", () => {
   const claimed = store.indexOf("rememberSeenEntries(", put);
   assert.ok(enable > 0 && put > enable && claimed > put);
   const beforePut = store.slice(enable, put);
-  assert.equal(beforePut.includes("rememberSeenEntries("), true);
-  assert.equal(beforePut.includes("rememberDownloaded("), true);
+  assert.equal(beforePut.includes("await onMerge(remote)"), false);
   assert.equal(beforePut.includes("withUploadLock("), true);
   assert.equal(beforePut.includes("claimUpload("), true);
-  assert.equal(beforePut.includes("merged.map((entry) => entry.id)"), true);
-  const mergedAt = beforePut.indexOf("const merged = await onMerge(remote)");
-  const afterMerge = beforePut.slice(mergedAt);
-  const claimedMerge = afterMerge.indexOf("rememberSeenEntries(");
-  const epochAfterMerge = afterMerge.indexOf(
-    "backupEpoch(browserStore()) !== epoch",
-  );
+  assert.equal(beforePut.includes("await readBackupSnapshot()"), true);
+  const afterPut = store.slice(put);
+  const mergedAt = afterPut.indexOf("const merged = await onMerge(remote)");
+  const claimedMerge = afterPut.indexOf("rememberSeenEntries(", mergedAt);
+  const downloadedMerge = afterPut.indexOf("rememberDownloaded(", claimedMerge);
+  const optIn = afterPut.indexOf("grantOptIn(", downloadedMerge);
   assert.ok(
-    mergedAt >= 0 && claimedMerge > 0 && epochAfterMerge > claimedMerge,
+    mergedAt > 0 &&
+      claimedMerge > mergedAt &&
+      downloadedMerge > claimedMerge &&
+      optIn > downloadedMerge,
   );
+  const mapped = afterPut.indexOf(
+    "merged.map((entry) => entry.id)",
+    mergedAt,
+  );
+  assert.ok(mapped > claimedMerge && mapped < downloadedMerge);
   assert.equal(store.includes("await onMerge?.(remote)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);
   assert.equal(store.includes("rememberRemoteDeletes("), true);

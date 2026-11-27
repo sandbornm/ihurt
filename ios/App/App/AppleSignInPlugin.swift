@@ -16,6 +16,13 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
     private var controller: ASAuthorizationController?
 
     @objc func signIn(_ call: CAPPluginCall) {
+        // AuthenticationServices presents UIKit. Capacitor calls this off the main thread.
+        DispatchQueue.main.async {
+            self.beginSignIn(call)
+        }
+    }
+
+    private func beginSignIn(_ call: CAPPluginCall) {
         if pending != nil {
             call.reject("Sign in is already in progress.", "busy")
             return
@@ -34,6 +41,12 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        DispatchQueue.main.async {
+            self.finishSignIn(authorization)
+        }
+    }
+
+    private func finishSignIn(_ authorization: ASAuthorization) {
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let tokenData = credential.identityToken,
               let idToken = String(data: tokenData, encoding: .utf8),
@@ -47,17 +60,26 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        let code = (error as NSError).code
-        if code == ASAuthorizationError.Code.canceled.rawValue {
-            pending?.reject("Sign in cancelled.", "cancelled")
-        } else {
-            pending?.reject("Apple sign-in failed.", "apple-failed")
+        DispatchQueue.main.async {
+            let code = (error as NSError).code
+            if code == ASAuthorizationError.Code.canceled.rawValue {
+                self.pending?.reject("Sign in cancelled.", "cancelled")
+            } else {
+                self.pending?.reject("Apple sign-in failed.", "apple-failed")
+            }
+            self.clear()
         }
-        clear()
     }
 
     public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        return bridge?.webView?.window ?? ASPresentationAnchor()
+        if Thread.isMainThread {
+            return bridge?.webView?.window ?? ASPresentationAnchor()
+        }
+        var anchor = ASPresentationAnchor()
+        DispatchQueue.main.sync {
+            anchor = self.bridge?.webView?.window ?? ASPresentationAnchor()
+        }
+        return anchor
     }
 
     private func clear() {

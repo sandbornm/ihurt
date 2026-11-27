@@ -22,6 +22,7 @@ import {
   backupEnableDecision,
   entriesForBackup,
   idsDeletedOnServer,
+  mergeBackupWindow,
   type BackupEntry,
 } from "./backup.ts";
 import {
@@ -277,29 +278,12 @@ export async function enableBackup(
       // running stays in the notebook tombstone list.
       if (revived.length > 0)
         releaseRemoteDeletes(browserStore(), revived, session.uid);
-      const merged = await onMerge(remote);
-      if (Array.isArray(merged)) {
-        rememberSeenEntries(
-          browserStore(),
-          session.uid,
-          merged.map((entry) => entry.id),
-        );
-        rememberDownloaded(
-          browserStore(),
-          merged.map((entry) => entry.id),
-          session.uid,
-        );
-      }
       if (
         state.session?.uid !== session.uid ||
         backupEpoch(browserStore()) !== epoch ||
         accountDeleting(browserStore(), session.uid)
       ) {
         setState({ ...state, busy: false });
-        return;
-      }
-      if (!Array.isArray(merged)) {
-        setState({ ...state, busy: false, error: "error" });
         return;
       }
       try {
@@ -357,8 +341,19 @@ export async function enableBackup(
             return { status: "refresh", ids: localIds };
           }
           rememberRemoteDeletes(browserStore(), gone, session.uid);
+          // The cloud note is not written yet. The upload carries the merge,
+          // and the journal changes only after that upload is accepted.
           const windowed = entriesForBackup(
-            owned,
+            withoutOtherAccountEntries(
+              mergeBackupWindow(
+                owned,
+                remote,
+                new Set([...deletedNow, ...gone]),
+                clock,
+              ),
+              browserStore(),
+              session.uid,
+            ),
             clock,
             BACKUP_DAYS,
             new Set(remote.map((entry) => entry.id)),
@@ -383,6 +378,29 @@ export async function enableBackup(
               return;
             }
             await api.putEntries(token, windowed, sync.revision);
+            if (
+              state.session?.uid !== session.uid ||
+              backupEpoch(browserStore()) !== epoch ||
+              accountDeleting(browserStore(), session.uid)
+            ) {
+              setState({ ...state, busy: false });
+              return;
+            }
+            const merged = await onMerge(remote);
+            if (!Array.isArray(merged)) {
+              setState({ ...state, busy: false, error: "error" });
+              return;
+            }
+            rememberSeenEntries(
+              browserStore(),
+              session.uid,
+              merged.map((entry) => entry.id),
+            );
+            rememberDownloaded(
+              browserStore(),
+              merged.map((entry) => entry.id),
+              session.uid,
+            );
             rememberSeenEntries(
               browserStore(),
               session.uid,

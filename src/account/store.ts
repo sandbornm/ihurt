@@ -8,7 +8,7 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import type { SavedMap } from "../types.ts";
-import { backupUploadSet, type BackupEntry } from "./backup.ts";
+import { entriesForBackup, type BackupEntry } from "./backup.ts";
 import { readAccountConfig, testRuntimeAllowed, type AccountConfig } from "./config.ts";
 import {
   clearOptIn,
@@ -178,7 +178,6 @@ export async function signOut() {
 }
 
 export async function enableBackup(
-  entries: readonly BackupEntry[],
   onMerge: (entries: SavedMap[]) => Promise<readonly BackupEntry[] | void>,
 ) {
   const session = state.session;
@@ -194,11 +193,15 @@ export async function enableBackup(
       return;
     }
     const kept = await onMerge(remote);
-    const windowed = backupUploadSet(
-      entries,
-      Array.isArray(kept) ? kept : remote,
-      Date.now(),
-    );
+    if (state.session?.uid !== session.uid) {
+      setState({ ...state, busy: false });
+      return;
+    }
+    if (!Array.isArray(kept)) {
+      setState({ ...state, busy: false, error: "error" });
+      return;
+    }
+    const windowed = entriesForBackup(kept, Date.now());
     await api.putEntries(token, windowed);
     if (state.session?.uid !== session.uid) {
       setState({ ...state, busy: false });

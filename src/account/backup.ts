@@ -47,6 +47,23 @@ function preferBackupRow<T extends BackupEntry>(local: T, remote: T): T {
   return local;
 }
 
+// The merged rows replace the same id from this device. Local-only rows stay.
+// A deleted id is left out. The caller supplies the fieldwise merge.
+export function backupRowsAfterMerge<T extends BackupEntry>(
+  local: readonly T[],
+  merged: readonly T[],
+  deleted: ReadonlySet<string> = new Set(),
+): T[] {
+  const byId = new Map<string, T>();
+  for (const entry of local) {
+    if (!deleted.has(entry.id)) byId.set(entry.id, entry);
+  }
+  for (const entry of merged) {
+    if (!deleted.has(entry.id)) byId.set(entry.id, entry);
+  }
+  return [...byId.values()];
+}
+
 export function backupUploadSet<T extends BackupEntry>(
   local: readonly T[],
   remote: readonly T[],

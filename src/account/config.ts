@@ -74,3 +74,9 @@ export function emailContinueUrl(pageUrl: string, authDomain: string): string {
   const domain = authDomain.trim() || "ihurt.app";
   return `https://${domain}/?emailLink=1`;
 }
+
+// The packaged iOS shell cannot receive the email link. Apple, Google, and
+// passkeys stay available there.
+export function emailSignInAllowed(protocol: string): boolean {
+  return protocol !== "capacitor:";
+}

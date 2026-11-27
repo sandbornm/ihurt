@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { emailSignInAllowed } from "./config.ts";
 import { useI18n } from "../i18n/react";
 import { readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
-import { entriesForBackup, type BackupEntry } from "./backup.ts";
+import {
+  backupRowsAfterMerge,
+  entriesForBackup,
+  type BackupEntry,
+} from "./backup.ts";
 import { AccountAuthError } from "./auth.ts";
 import {
   closeUpgrade,
@@ -38,7 +43,7 @@ export default function AccountButton({
 }: {
   entries: readonly BackupEntry[];
   ready: boolean;
-  onMerge: (entries: SavedMap[]) => Promise<void>;
+  onMerge: (entries: SavedMap[]) => Promise<readonly SavedMap[] | void>;
   onRemove: (ids: string[]) => Promise<void>;
 }) {
   useEffect(() => {
@@ -103,6 +108,8 @@ export default function AccountButton({
       )
     : "";
   const backupCount = entriesForBackup(entries, Date.now()).length;
+  const emailSignIn =
+    typeof location === "undefined" || emailSignInAllowed(location.protocol);
   const title =
     step === "confirm-backup"
       ? t("account.confirmBackupTitle")
@@ -157,11 +164,11 @@ export default function AccountButton({
               disabled={snapshot.busy}
               onClick={() =>
                 void run(async () => {
-                  await enableBackup(entries, async (remote) => {
+                  await enableBackup(async (remote) => {
                     const deleted = new Set(await readDeletedIds());
                     const kept = remote.filter((entry) => !deleted.has(entry.id));
-                    await onMerge(kept);
-                    return kept;
+                    const merged = (await onMerge(kept)) ?? [];
+                    return backupRowsAfterMerge(entries, merged, deleted);
                   });
                   setStep("home");
                 })
@@ -244,6 +251,7 @@ export default function AccountButton({
                 >
                   {t("account.google")}
                 </button>
+                {emailSignIn && (
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -269,6 +277,7 @@ export default function AccountButton({
                     {t("account.email")}
                   </button>
                 </form>
+                )}
                 <button
                   type="button"
                   className="secondary"

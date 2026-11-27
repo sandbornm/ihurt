@@ -49,12 +49,13 @@ export function accountApiOrigin(value: string): string | null {
 }
 
 export function remoteEntries(value: unknown): SavedMap[] {
-  if (!value || typeof value !== "object") return [];
+  if (!value || typeof value !== "object") throw new AccountApiError(200, "invalid");
   const entries = (value as { entries?: unknown }).entries;
-  if (!Array.isArray(entries)) return [];
-  return entries.flatMap((entry) => {
+  if (!Array.isArray(entries)) throw new AccountApiError(200, "invalid");
+  return entries.map((entry) => {
     const accepted = acceptStoredEntry(entry);
-    return accepted ? [accepted] : [];
+    if (!accepted) throw new AccountApiError(200, "invalid");
+    return accepted;
   });
 }
 

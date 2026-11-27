@@ -540,7 +540,7 @@ export default function Notebook({
             onMerge={async (incoming) => {
               const deleted = new Set(await readDeletedIds());
               const fresh = incoming.filter((entry) => !deleted.has(entry.id));
-              if (fresh.length === 0) return;
+              if (fresh.length === 0) return [];
               const local = new Map(saved.map((item) => [item.id, item]));
               const stored = await storeEntries(
                 fresh.map((entry) => withLocalPrivateFields(local.get(entry.id), entry)),
@@ -550,6 +550,7 @@ export default function Notebook({
                 for (const row of stored) map.set(row.id, row);
                 return [...map.values()];
               });
+              return stored;
             }}
             onRemove={async (ids) => {
               for (const id of ids) await removeEntry(id);

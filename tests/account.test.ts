@@ -15,6 +15,7 @@ import { readTestRuntime } from "../src/account/auth.ts";
 import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
   BACKUP_DAYS,
+  backupRowsAfterMerge,
   backupUploadSet,
   entriesForBackup,
   FREE_SEARCHES,
@@ -24,6 +25,7 @@ import {
 } from "../src/account/backup.ts";
 import {
   emailContinueUrl,
+  emailSignInAllowed,
   readAccountConfig,
   testRuntimeAllowed,
 } from "../src/account/config.ts";
@@ -117,6 +119,33 @@ test("backup window keeps 90 days and drops older entries", () => {
   };
   assert.equal(backupUploadSet([older], [newer], NOW)[0]?.note, "newer-note");
   assert.equal(backupUploadSet([newer], [older], NOW)[0]?.note, "newer-note");
+  const local = {
+    id: "same",
+    created: new Date(NOW - DAY).toISOString(),
+    note: "newer-note",
+    points: [{ id: "pin-old" }],
+  };
+  const merged = {
+    id: "same",
+    created: new Date(NOW - DAY).toISOString(),
+    note: "newer-note",
+    points: [{ id: "pin-new" }],
+  };
+  const onlyLocal = {
+    id: "local-only",
+    created: new Date(NOW).toISOString(),
+    note: "only-here",
+  };
+  const rows = backupRowsAfterMerge(
+    [local, onlyLocal],
+    [merged],
+    new Set(["gone"]),
+  );
+  assert.deepEqual(
+    rows.find((row) => row.id === "same")?.points,
+    [{ id: "pin-new" }],
+  );
+  assert.equal(rows.find((row) => row.id === "local-only")?.note, "only-here");
 });
 
 test("sync waits for opt-in and does not follow a different account", async () => {
@@ -560,11 +589,33 @@ test("a backup entry with an empty map is not stored", () => {
     acceptStoredEntry({ ...valid, research: { activity: "Walking" } }),
     null,
   );
-  const rows = remoteEntries({
-    entries: [valid, storedEntry({}), { id: "nope" }],
+  assert.throws(
+    () =>
+      remoteEntries({
+        entries: [valid, storedEntry({}), { id: "nope" }],
+      }),
+    (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
+  );
+  assert.deepEqual(remoteEntries({ entries: [] }), []);
+});
+
+test("a mixed sync response is rejected before upload", async () => {
+  const calls: string[] = [];
+  const api = createAccountApi("https://ihurt-api.test", async (_url, init) => {
+    calls.push(init?.method ?? "GET");
+    return new Response(
+      JSON.stringify({
+        entries: [storedEntry(validMap), { id: "broken" }],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
   });
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0]?.id, "entry-1");
+  assert.ok(api);
+  await assert.rejects(
+    () => api.getEntries("token"),
+    (error: unknown) => error instanceof AccountApiError && error.code === "invalid",
+  );
+  assert.deepEqual(calls, ["GET"]);
 });
 
 test("backup upload sends notes and pins only", async () => {
@@ -791,6 +842,8 @@ test("config comes from env and the test runtime stays on loopback", async () =>
   assert.equal(testRuntimeAllowed("localhost"), true);
   assert.equal(testRuntimeAllowed("127.0.0.1"), true);
   assert.equal(testRuntimeAllowed("localhost", "capacitor:"), false);
+  assert.equal(emailSignInAllowed("https:"), true);
+  assert.equal(emailSignInAllowed("capacitor:"), false);
   assert.equal(
     emailContinueUrl("https://ihurt.app/notebook", "ihurt.app"),
     "https://ihurt.app/?emailLink=1",

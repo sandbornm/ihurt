@@ -87,6 +87,19 @@ export function idsDeletedOnServer<T extends BackupEntry>(
   });
 }
 
+// The confirm screen and the upload have to name the same rows. A row saved
+// in another tab changes the snapshot, so the first click shows that count
+// again instead of sending it.
+export function backupConfirmDecision(
+  shownIds: readonly string[],
+  snapshotIds: readonly string[],
+): "upload" | "refresh" {
+  if (shownIds.length !== snapshotIds.length) return "refresh";
+  const shown = new Set(shownIds);
+  for (const id of snapshotIds) if (!shown.has(id)) return "refresh";
+  return "upload";
+}
+
 export function entriesForBackup<T extends BackupEntry>(
   entries: readonly T[],
   now: number,

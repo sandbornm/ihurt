@@ -294,35 +294,6 @@ export async function enableBackup(
       setState({ ...state, busy: false, error: "error" });
       return;
     }
-    const snapshot = await readBackupSnapshot();
-    const deletedNow = new Set(snapshot.deletedIds);
-    const kept = snapshot.entries.filter((entry) => !deletedNow.has(entry.id));
-    const priorRemoved = new Set(removedIdsFor(browserStore(), session.uid));
-    releaseRemoteDeletes(
-      browserStore(),
-      [...priorRemoved].filter((id) => kept.some((entry) => entry.id === id)),
-      session.uid,
-    );
-    const clock = backupClock(Date.now(), remote);
-    const gone = idsDeletedOnServer(
-      syncedIdsFor(browserStore(), session.uid),
-      kept,
-      sync.deleted,
-      deletedNow,
-      clock,
-    ).filter((id) => !priorRemoved.has(id));
-    rememberRemoteDeletes(browserStore(), gone, session.uid);
-    const goneIds = new Set(gone);
-    const windowed = entriesForBackup(
-      withoutOtherAccountEntries(
-        kept.filter((entry) => !goneIds.has(entry.id)),
-        browserStore(),
-        session.uid,
-      ),
-      clock,
-      BACKUP_DAYS,
-      new Set(remote.map((entry) => entry.id)),
-    );
     await withUploadLock(async () => {
       if (!api) {
         setState({ ...state, busy: false, error: "no-api" });
@@ -336,6 +307,39 @@ export async function enableBackup(
         setState({ ...state, busy: false });
         return;
       }
+      // Another tab can claim these rows while this enable waited on the lock.
+      // Read the journal and the ownership again before the upload.
+      const snapshot = await readBackupSnapshot();
+      const deletedNow = new Set(snapshot.deletedIds);
+      const kept = snapshot.entries.filter(
+        (entry) => !deletedNow.has(entry.id),
+      );
+      const priorRemoved = new Set(removedIdsFor(browserStore(), session.uid));
+      releaseRemoteDeletes(
+        browserStore(),
+        [...priorRemoved].filter((id) => kept.some((entry) => entry.id === id)),
+        session.uid,
+      );
+      const clock = backupClock(Date.now(), remote);
+      const gone = idsDeletedOnServer(
+        syncedIdsFor(browserStore(), session.uid),
+        kept,
+        sync.deleted,
+        deletedNow,
+        clock,
+      ).filter((id) => !priorRemoved.has(id));
+      rememberRemoteDeletes(browserStore(), gone, session.uid);
+      const goneIds = new Set(gone);
+      const windowed = entriesForBackup(
+        withoutOtherAccountEntries(
+          kept.filter((entry) => !goneIds.has(entry.id)),
+          browserStore(),
+          session.uid,
+        ),
+        clock,
+        BACKUP_DAYS,
+        new Set(remote.map((entry) => entry.id)),
+      );
       const upload = await claimUpload(browserStore(), session.uid);
       try {
         if (

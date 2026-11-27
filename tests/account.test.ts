@@ -20,6 +20,7 @@ import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
   BACKUP_DAYS,
   backupClock,
+  backupConfirmDecision,
   backupRowsAfterMerge,
   backupUploadSet,
   entriesForBackup,
@@ -990,6 +991,65 @@ test("a future remote stamp does not drop a current local note", async () => {
     },
   });
   assert.deepEqual(sent, [["ahead", "today", "within"]]);
+});
+
+test("a backup confirm waits when another tab saved a row", () => {
+  assert.equal(backupConfirmDecision(["a"], ["a", "b"]), "refresh");
+  assert.equal(backupConfirmDecision(["a", "b"], ["b", "a"]), "upload");
+  assert.equal(backupConfirmDecision(["a", "b"], ["a"]), "refresh");
+  const root = new URL("../", import.meta.url);
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  const confirm = button.slice(
+    button.indexOf('step === "confirm-backup" &&'),
+    button.indexOf('step === "confirm-delete" &&'),
+  );
+  const readAt = confirm.indexOf("readBackupSnapshot(");
+  const decisionAt = confirm.indexOf("backupConfirmDecision(");
+  const enableAt = confirm.indexOf("enableBackup(");
+  assert.ok(readAt > 0 && decisionAt > readAt && enableAt > decisionAt);
+  assert.equal(confirm.includes('"refresh"'), true);
+});
+
+test("entries claimed while backup enable waited are left out", () => {
+  const store = memory();
+  const rows = [entry("imported", 1), entry("from-b", 1)];
+  rememberSeenEntries(store, "user-a", ["imported"]);
+  const upload = entriesForBackup(
+    withoutOtherAccountEntries(rows, store, "user-b"),
+    NOW,
+  );
+  assert.deepEqual(
+    upload.map((row) => row.id),
+    ["from-b"],
+  );
+  const root = new URL("../", import.meta.url);
+  const source = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const enable = source.slice(
+    source.indexOf("export async function enableBackup"),
+    source.indexOf("export async function disableBackup"),
+  );
+  const lock = enable.indexOf("await withUploadLock");
+  const snap = enable.indexOf("await readBackupSnapshot()", lock);
+  const owned = enable.indexOf("withoutOtherAccountEntries(", snap);
+  const put = enable.indexOf("await api.putEntries", owned);
+  assert.ok(lock > 0 && snap > lock && owned > snap && put > owned);
+});
+
+test("a remote delete does not use the user tombstone", () => {
+  const root = new URL("../", import.meta.url);
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  const start = notebook.indexOf("onRemove={async (ids, reason)");
+  const block = notebook.slice(start, notebook.indexOf("/>", start));
+  assert.equal(block.includes("dropEntry("), true);
+  assert.equal(block.includes("removeEntry("), false);
+  const erase = notebook.slice(
+    notebook.indexOf("async function erase"),
+    notebook.indexOf("async function undoDelete"),
+  );
+  assert.equal(erase.includes("removeEntry("), true);
 });
 
 test("a future remote revision does not overwrite a newer local edit", async () => {

@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { emailSignInAllowed, googleSignInAllowed } from "./config.ts";
 import { useI18n } from "../i18n/react";
-import { readDeletedIds } from "../notebook-storage.ts";
+import { readBackupSnapshot, readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
-import { entriesForBackup, type BackupEntry } from "./backup.ts";
+import {
+  backupConfirmDecision,
+  entriesForBackup,
+  type BackupEntry,
+} from "./backup.ts";
 import { withoutOtherAccountEntries } from "./sync.ts";
 import { AccountAuthError } from "./auth.ts";
 import {
@@ -52,6 +56,7 @@ export default function AccountButton({
   );
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [backupPreview, setBackupPreview] = useState<string[] | null>(null);
   const [step, setStep] = useState<Step>("home");
   const [email, setEmail] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
@@ -105,12 +110,15 @@ export default function AccountButton({
               : "account.provider.unknown",
       )
     : "";
-  const backupCount = entriesForBackup(
+  const backupEntries = entriesForBackup(
     snapshot.session
       ? withoutOtherAccountEntries(entries, localStorage, snapshot.session.uid)
       : entries,
     Date.now(),
-  ).length;
+  );
+  const shownBackupIds =
+    backupPreview ?? backupEntries.map((entry) => entry.id);
+  const backupCount = shownBackupIds.length;
   const protocol =
     typeof location === "undefined" ? "https:" : location.protocol;
   const showEmail = emailSignInAllowed(protocol);
@@ -169,6 +177,25 @@ export default function AccountButton({
               disabled={snapshot.busy}
               onClick={() =>
                 void run(async () => {
+                  const session = snapshot.session;
+                  if (!session) return;
+                  const fresh = await readBackupSnapshot();
+                  const deleted = new Set(fresh.deletedIds);
+                  const snapshotIds = entriesForBackup(
+                    withoutOtherAccountEntries(
+                      fresh.entries.filter((entry) => !deleted.has(entry.id)),
+                      localStorage,
+                      session.uid,
+                    ),
+                    Date.now(),
+                  ).map((entry) => entry.id);
+                  if (
+                    backupConfirmDecision(shownBackupIds, snapshotIds) ===
+                    "refresh"
+                  ) {
+                    setBackupPreview(snapshotIds);
+                    return;
+                  }
                   await enableBackup(
                     async (remote) => {
                       const deleted = new Set(await readDeletedIds());
@@ -320,7 +347,10 @@ export default function AccountButton({
                     type="button"
                     className="secondary"
                     disabled={snapshot.busy}
-                    onClick={() => setStep("confirm-backup")}
+                    onClick={() => {
+                      setBackupPreview(null);
+                      setStep("confirm-backup");
+                    }}
                   >
                     {t("account.turnOn")}
                   </button>

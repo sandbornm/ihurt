@@ -65,6 +65,7 @@ import {
   storeEntries,
   restoreBackupEntries,
   removeEntry,
+  dropEntry,
   readDeletedIds,
   editorAfterSave,
   withStampedResearch,
@@ -613,7 +614,7 @@ export default function Notebook({
               return stored;
             }}
             onRemove={async (ids, reason) => {
-              for (const id of ids) await removeEntry(id);
+              for (const id of ids) await dropEntry(id);
               setSaved((old) => old.filter((item) => !ids.includes(item.id)));
               if (!remoteDeleteClosesEditor(entryRef.current.id, ids)) return;
               const kept = entryKeptAfterRemove(

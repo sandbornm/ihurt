@@ -885,6 +885,14 @@ export const removeEntry = (id: string) =>
     };
   });
 
+// A remote or account removal takes the row off this device. It is not the
+// user's delete, so the id stays restorable for another account that imported
+// the same entry.
+export const dropEntry = (id: string) =>
+  mutate(["entries"], (tx) => {
+    tx.objectStore("entries").delete(id);
+  });
+
 // editor is the open entry, when it is this one. Another tab may have saved a
 // newer draft since, so the editor is one of three records merged field by
 // field: the stored row, the saved draft, and the editor.

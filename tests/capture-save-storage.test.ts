@@ -199,6 +199,7 @@ const {
   storeEntries,
   restoreBackupEntries,
   removeEntry,
+  dropEntry,
   readBackupSnapshot,
   clearDeletedIds,
   saveDraft,
@@ -2722,6 +2723,28 @@ for (const legacy of [true, false]) {
     assert.equal(row?.research?.description, "stiff");
   });
 }
+
+test("a remote delete does not tombstone an id another account imported", async () => {
+  const shared = entry("shared-import", "from the file");
+  await storeEntries([shared, entry("only-b", "b")]);
+  await dropEntry("shared-import");
+  const afterDrop = await readBackupSnapshot();
+  assert.equal(afterDrop.deletedIds.includes("shared-import"), false);
+  assert.equal(
+    afterDrop.entries.some((item) => item.id === "shared-import"),
+    false,
+  );
+  const restored = await restoreBackupEntries([shared]);
+  assert.deepEqual(
+    restored.map((item) => item.id),
+    ["shared-import"],
+  );
+  await removeEntry("only-b");
+  const userDeleted = await readBackupSnapshot();
+  assert.equal(userDeleted.deletedIds.includes("only-b"), true);
+  const blocked = await restoreBackupEntries([entry("only-b", "back")]);
+  assert.deepEqual(blocked, []);
+});
 
 test("a restored cloud row can be stored after its remote delete", async () => {
   const row = entry("undo-remote", "back", {

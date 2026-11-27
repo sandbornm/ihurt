@@ -367,24 +367,6 @@ export async function enableBackup(
   }
 }
 
-export async function enrollPasskey() {
-  if (!client) throw new AccountAuthError("unconfigured");
-  setState({ ...state, busy: true, error: "" });
-  try {
-    await client.enrollPasskey();
-    setState({ ...state, busy: false });
-  } catch (error) {
-    const code =
-      error instanceof AccountAuthError ? error.code : "passkey-unavailable";
-    setState({
-      ...state,
-      busy: false,
-      error: code === "cancelled" ? "" : code,
-    });
-    if (code !== "cancelled") throw error;
-  }
-}
-
 export async function disableBackup() {
   nextBackupEpoch(browserStore());
   const session = state.session;

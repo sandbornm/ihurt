@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import {
-  emailSignInAllowed,
-  googleSignInAllowed,
-  passkeySignInAllowed,
-} from "./config.ts";
+import { emailSignInAllowed, googleSignInAllowed } from "./config.ts";
 import { useI18n } from "../i18n/react";
 import { readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
@@ -15,7 +11,6 @@ import {
   deleteAccount,
   disableBackup,
   enableBackup,
-  enrollPasskey,
   getAccountSnapshot,
   pushBackupEntries,
   signIn,
@@ -28,8 +23,6 @@ type Step = "home" | "confirm-backup" | "confirm-delete";
 
 function messageKey(code: string) {
   if (code === "email-sent") return "account.emailSent" as const;
-  if (code === "passkey-unavailable")
-    return "account.passkeyUnavailable" as const;
   if (code === "unconfigured") return "account.notConfigured" as const;
   if (code === "no-api") return "account.noApi" as const;
   if (code === "recent-login") return "account.recentLogin" as const;
@@ -109,9 +102,7 @@ export default function AccountButton({
             ? "account.provider.google"
             : snapshot.session.provider === "email"
               ? "account.provider.email"
-              : snapshot.session.provider === "passkey"
-                ? "account.provider.passkey"
-                : "account.provider.unknown",
+              : "account.provider.unknown",
       )
     : "";
   const backupCount = entriesForBackup(
@@ -124,7 +115,6 @@ export default function AccountButton({
     typeof location === "undefined" ? "https:" : location.protocol;
   const showEmail = emailSignInAllowed(protocol);
   const showGoogle = googleSignInAllowed(protocol);
-  const showPasskey = passkeySignInAllowed(protocol);
   const title =
     step === "confirm-backup"
       ? t("account.confirmBackupTitle")
@@ -299,16 +289,6 @@ export default function AccountButton({
                     </button>
                   </form>
                 )}
-                {showPasskey && (
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={snapshot.busy || snapshot.status !== "ready"}
-                    onClick={() => void run(() => signIn("passkey"))}
-                  >
-                    {t("account.passkey")}
-                  </button>
-                )}
               </>
             )}
             {snapshot.session && (
@@ -346,16 +326,6 @@ export default function AccountButton({
                   </button>
                 ) : (
                   <p className="account-copy">{t("account.noApi")}</p>
-                )}
-                {showPasskey && (
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={snapshot.busy}
-                    onClick={() => void run(enrollPasskey)}
-                  >
-                    {t("account.passkeyAdd")}
-                  </button>
                 )}
                 <button
                   type="button"

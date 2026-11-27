@@ -903,8 +903,6 @@ export const es: Messages = {
     "El inicio de sesión no está configurado en esta versión. Tu cuaderno sigue funcionando en este dispositivo.",
   "account.working": "Trabajando…",
   "account.emailSent": "Revisa tu correo para ver el enlace de acceso.",
-  "account.passkeyUnavailable":
-    "Las llaves de acceso no están disponibles en este navegador.",
   "account.noApi":
     "La copia en la nube no está configurada en esta versión. El diario en este dispositivo sigue funcionando.",
   "account.deleted":
@@ -920,13 +918,10 @@ export const es: Messages = {
   "account.google": "Iniciar sesión con Google",
   "account.emailLabel": "Correo",
   "account.email": "Enviarme un enlace de acceso",
-  "account.passkey": "Iniciar sesión con una llave de acceso",
-  "account.passkeyAdd": "Agregar una llave de acceso",
   "account.signedIn": "Sesión iniciada",
   "account.provider.apple": "Apple",
   "account.provider.google": "Google",
   "account.provider.email": "Enlace de correo",
-  "account.provider.passkey": "Llave de acceso",
   "account.provider.unknown": "Cuenta",
   "account.searchesLeft": {
     one: "Queda {count} búsqueda de fuentes este mes.",

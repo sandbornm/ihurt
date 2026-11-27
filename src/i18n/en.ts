@@ -864,18 +864,17 @@ export const en = {
     "No usable transcript was returned. Try again or type below.",
   "account.title": "Account",
   "account.close": "Close account",
-  "account.optional":
-    "Sign-in is optional. Your journal stays on this device.",
+  "account.optional": "Sign-in is optional. Your journal stays on this device.",
   "account.notConfigured":
     "Sign-in is not set up in this build. Your journal still works on this device.",
   "account.working": "Working…",
   "account.emailSent": "Check your email for the sign-in link.",
-  "account.passkeyUnavailable": "Passkeys are unavailable in this browser.",
   "account.noApi":
     "Cloud backup is not set up in this build. Journaling on this device still works.",
   "account.deleted":
     "Account deleted. Entries that were never backed up stay on this device.",
-  "account.error": "Something went wrong. Your journal is still on this device.",
+  "account.error":
+    "Something went wrong. Your journal is still on this device.",
   "account.recentLogin":
     "Sign in again, then delete the account. Nothing was removed.",
   "account.deletePartial":
@@ -886,13 +885,10 @@ export const en = {
   "account.google": "Sign in with Google",
   "account.emailLabel": "Email",
   "account.email": "Email me a sign-in link",
-  "account.passkey": "Sign in with a passkey",
-  "account.passkeyAdd": "Add a passkey",
   "account.signedIn": "Signed in",
   "account.provider.apple": "Apple",
   "account.provider.google": "Google",
   "account.provider.email": "Email link",
-  "account.provider.passkey": "Passkey",
   "account.provider.unknown": "Account",
   "account.searchesLeft": {
     one: "{count} source search left this month.",

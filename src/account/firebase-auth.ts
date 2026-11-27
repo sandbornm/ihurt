@@ -8,16 +8,16 @@ import {
   type SignInProvider,
 } from "./auth.ts";
 import { emailContinueUrl, type FirebasePublicConfig } from "./config.ts";
-import {
-  decodeBase64,
-  passkeyEnroll,
-  passkeyRpId,
-  passkeySignIn,
-  refreshIdToken,
-  tokenExpiryMs,
-} from "./passkey.ts";
 
-const REFRESH_KEY = "ihurt-auth-refresh";
+function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 const EMAIL_KEY = "ihurt-email-for-sign-in";
 const RECENT_LOGIN_MS = 5 * 60 * 1000;
 
@@ -34,7 +34,6 @@ function providerOf(user: FirebaseUser): SignInProvider {
   if (id === "apple.com") return "apple";
   if (id === "google.com") return "google";
   if (id === "password" || id === "emailLink") return "email";
-  if (id.includes("passkey")) return "passkey";
   return "unknown";
 }
 
@@ -116,32 +115,8 @@ function storage(): Storage | null {
   }
 }
 
-function sessionStorageOrNull(): Storage | null {
-  try {
-    return sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function readPasskeyRefresh(): string | null {
-  storage()?.removeItem(REFRESH_KEY);
-  return sessionStorageOrNull()?.getItem(REFRESH_KEY) ?? null;
-}
-
-function writePasskeyRefresh(token: string) {
-  storage()?.removeItem(REFRESH_KEY);
-  sessionStorageOrNull()?.setItem(REFRESH_KEY, token);
-}
-
-function clearPasskeyRefresh() {
-  storage()?.removeItem(REFRESH_KEY);
-  sessionStorageOrNull()?.removeItem(REFRESH_KEY);
-}
-
 export async function createFirebaseAuth(
   config: FirebasePublicConfig,
-  fetchImpl: typeof fetch = fetch,
 ): Promise<AuthClient> {
   const [{ getApps, initializeApp }, authMod] = await Promise.all([
     import("firebase/app"),
@@ -162,7 +137,6 @@ export async function createFirebaseAuth(
   const auth = authMod.getAuth(app);
   auth.languageCode = language() === "es" ? "es" : "en";
 
-  let passkeySession: AccountSession | null = null;
   const listeners = new Set<(session: AccountSession | null) => void>();
 
   function emit(session: AccountSession | null) {
@@ -171,53 +145,21 @@ export async function createFirebaseAuth(
 
   function active(): AccountSession | null {
     const user = auth.currentUser as FirebaseUser | null;
-    if (user) return toSession(user);
-    return passkeySession;
+    return user ? toSession(user) : null;
   }
 
   authMod.onAuthStateChanged(auth, () => {
-    if (auth.currentUser) passkeySession = null;
     emit(active());
   });
-
-  function adoptPasskey(
-    idToken: string,
-    refreshToken: string,
-    localId: string,
-  ): AccountSession {
-    let currentId = idToken;
-    let currentRefresh = refreshToken;
-    writePasskeyRefresh(currentRefresh);
-    const session: AccountSession = {
-      uid: localId,
-      email: null,
-      provider: "passkey",
-      async getIdToken() {
-        if (tokenExpiryMs(currentId) - Date.now() > 60_000) return currentId;
-        const next = await refreshIdToken(
-          config.apiKey,
-          currentRefresh,
-          fetchImpl,
-        );
-        currentId = next.idToken;
-        currentRefresh = next.refreshToken;
-        writePasskeyRefresh(currentRefresh);
-        return currentId;
-      },
-    };
-    passkeySession = session;
-    emit(session);
-    return session;
-  }
 
   await auth.authStateReady();
   try {
     const redirect = await authMod.getRedirectResult(auth);
     if (redirect?.user) emit(toSession(redirect.user as FirebaseUser));
   } catch {
-    // A stale redirect must not block Apple, Google, email, or passkeys.
+    // A stale redirect must not block Apple, Google, or email.
   }
-  const continued = await completeEmailLink({
+  await completeEmailLink({
     isLink: authMod.isSignInWithEmailLink(auth, location.href),
     email: storage()?.getItem(EMAIL_KEY) ?? null,
     href: location.href,
@@ -227,18 +169,6 @@ export async function createFirebaseAuth(
     clearQuery: () =>
       history.replaceState(null, "", `${location.origin}${location.pathname}`),
   });
-  if (!continued && !auth.currentUser) {
-    const refresh = readPasskeyRefresh();
-    if (refresh) {
-      try {
-        const next = await refreshIdToken(config.apiKey, refresh, fetchImpl);
-        adoptPasskey(next.idToken, next.refreshToken, next.localId);
-      } catch {
-        clearPasskeyRefresh();
-      }
-    }
-  }
-
   async function signInWithProvider(method: "apple" | "google") {
     const provider =
       method === "google"
@@ -308,70 +238,15 @@ export async function createFirebaseAuth(
         storage()?.setItem(EMAIL_KEY, address);
         return "email-sent";
       }
-      const rpId = passkeyRpId(location.hostname, config.passkeyRpId);
-      const exported = authMod as typeof authMod & {
-        signInWithPasskey?: (
-          auth: unknown,
-          name: string,
-        ) => Promise<{ user: FirebaseUser }>;
-      };
-      if (
-        typeof exported.signInWithPasskey === "function" &&
-        rpId === location.hostname
-      ) {
-        try {
-          const result = await exported.signInWithPasskey(auth, "iHurt");
-          return toSession(result.user, "passkey");
-        } catch (error) {
-          if (isCancel(error)) throw new AccountAuthError("cancelled");
-          throw new AccountAuthError("passkey-unavailable");
-        }
-      }
-      try {
-        const tokens = await passkeySignIn({
-          apiKey: config.apiKey,
-          rpId,
-          fetchImpl,
-        });
-        return adoptPasskey(
-          tokens.idToken,
-          tokens.refreshToken,
-          tokens.localId,
-        );
-      } catch (error) {
-        if (error instanceof AccountAuthError) throw error;
-        throw new AccountAuthError("passkey-unavailable");
-      }
+      throw new AccountAuthError("unconfigured");
     },
     async signOut() {
-      passkeySession = null;
-      clearPasskeyRefresh();
       await authMod.signOut(auth);
       emit(null);
     },
     async reauthenticate() {
       const current = auth.currentUser;
-      if (!current) {
-        if (!passkeySession) throw new AccountAuthError("unconfigured");
-        if (recentEnough(await passkeySession.getIdToken())) return;
-        const rpId = passkeyRpId(location.hostname, config.passkeyRpId);
-        try {
-          const tokens = await passkeySignIn({
-            apiKey: config.apiKey,
-            rpId,
-            fetchImpl,
-          });
-          if (tokens.localId !== passkeySession.uid) {
-            throw new AccountAuthError("recent-login");
-          }
-          adoptPasskey(tokens.idToken, tokens.refreshToken, tokens.localId);
-        } catch (error) {
-          if (error instanceof AccountAuthError) throw error;
-          if (isCancel(error)) throw new AccountAuthError("cancelled");
-          throw new AccountAuthError("recent-login");
-        }
-        return;
-      }
+      if (!current) throw new AccountAuthError("unconfigured");
       const user = current as FirebaseUser;
       if (recentEnough(await user.getIdToken())) return;
       const provider = providerOf(user);
@@ -425,38 +300,8 @@ export async function createFirebaseAuth(
     },
     async deleteUser() {
       const user = auth.currentUser as FirebaseUser | null;
-      if (user) {
-        await user.delete();
-        passkeySession = null;
-        clearPasskeyRefresh();
-        return;
-      }
-      if (passkeySession) {
-        const idToken = await passkeySession.getIdToken();
-        const response = await fetchImpl(
-          `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${encodeURIComponent(config.apiKey)}`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ idToken }),
-          },
-        );
-        if (!response.ok) throw new AccountAuthError("delete-failed");
-        passkeySession = null;
-        clearPasskeyRefresh();
-        emit(null);
-      }
-    },
-    async enrollPasskey() {
-      const session = active();
-      if (!session) throw new AccountAuthError("unconfigured");
-      const rpId = passkeyRpId(location.hostname, config.passkeyRpId);
-      await passkeyEnroll({
-        apiKey: config.apiKey,
-        rpId,
-        idToken: await session.getIdToken(),
-        fetchImpl,
-      });
+      if (!user) return;
+      await user.delete();
     },
   };
   return client;

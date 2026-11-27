@@ -101,7 +101,6 @@ async function runSignedInWithoutApi() {
         async signOut() {},
         async reauthenticate() {},
         async deleteUser() {},
-        async enrollPasskey() {},
       },
     };
   });
@@ -111,6 +110,12 @@ async function runSignedInWithoutApi() {
     .waitFor();
   await page.getByRole("button", { name: "Account", exact: true }).click();
   const account = page.locator("dialog.account-dialog").first();
+  assert.equal(
+    await account
+      .getByRole("button", { name: "Sign in with a passkey" })
+      .count(),
+    0,
+  );
   await account.getByRole("button", { name: "Sign in with Google" }).click();
   await account.getByText("Signed in", { exact: false }).waitFor();
   assert.equal(
@@ -175,7 +180,6 @@ async function runFlow(name, contextOptions, limitCode) {
           session = null;
           for (const listener of listeners) listener(null);
         },
-        async enrollPasskey() {},
       },
     };
   });
@@ -270,6 +274,12 @@ async function runFlow(name, contextOptions, limitCode) {
   const account = page.locator("dialog.account-dialog").first();
   const signInName =
     name === "iphone" ? "Sign in with Apple" : "Sign in with Google";
+  assert.equal(
+    await account
+      .getByRole("button", { name: "Sign in with a passkey" })
+      .count(),
+    0,
+  );
   const signIn = account.getByRole("button", { name: signInName });
   const box = await signIn.boundingBox();
   assert.ok(box && box.height >= 44, `${name} sign-in target`);
@@ -277,6 +287,10 @@ async function runFlow(name, contextOptions, limitCode) {
   await account
     .getByText("5 source searches left this month.", { exact: true })
     .waitFor();
+  assert.equal(
+    await account.getByRole("button", { name: "Add a passkey" }).count(),
+    0,
+  );
   assert.equal(
     calls.some((call) => call.method === "PUT"),
     false,

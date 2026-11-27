@@ -1,7 +1,6 @@
 import { testRuntimeAllowed } from "./config.ts";
 
-export type SignInProvider =
-  "apple" | "google" | "email" | "passkey" | "unknown";
+export type SignInProvider = "apple" | "google" | "email" | "unknown";
 
 export interface AccountSession {
   uid: string;
@@ -20,7 +19,6 @@ export interface AuthClient {
   signOut(): Promise<void>;
   reauthenticate(): Promise<void>;
   deleteUser(): Promise<void>;
-  enrollPasskey(): Promise<void>;
 }
 
 export class AccountAuthError extends Error {

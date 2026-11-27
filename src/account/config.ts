@@ -10,13 +10,11 @@ export interface FirebasePublicConfig {
   authDomain: string;
   projectId: string;
   appId: string;
-  passkeyRpId: string;
 }
 
 export interface AccountConfig {
   firebase: FirebasePublicConfig | null;
   apiBase: string;
-  passkeyRpId: string;
   analyticsEndpoint: string;
 }
 
@@ -27,11 +25,8 @@ export interface AccountEnv {
   VITE_FIREBASE_PROJECT_ID?: string;
   VITE_FIREBASE_APP_ID?: string;
   VITE_IHURT_API_BASE?: string;
-  VITE_PASSKEY_RP_ID?: string;
   VITE_ANALYTICS_ENDPOINT?: string;
 }
-
-const PASSKEY_RP_ID = "ihurt.app";
 
 function clean(value: string | undefined): string {
   return (value ?? "").trim();
@@ -50,15 +45,13 @@ export function readAccountConfig(
   const authDomain = clean(env.VITE_FIREBASE_AUTH_DOMAIN);
   const projectId = clean(env.VITE_FIREBASE_PROJECT_ID);
   const appId = clean(env.VITE_FIREBASE_APP_ID);
-  const passkeyRpId = clean(env.VITE_PASSKEY_RP_ID) || PASSKEY_RP_ID;
   const firebase =
     apiKey && authDomain && projectId && appId
-      ? { apiKey, authDomain, projectId, appId, passkeyRpId }
+      ? { apiKey, authDomain, projectId, appId }
       : null;
   return {
     firebase,
     apiBase: clean(env.VITE_IHURT_API_BASE),
-    passkeyRpId,
     analyticsEndpoint: clean(env.VITE_ANALYTICS_ENDPOINT),
   };
 }
@@ -98,11 +91,5 @@ export function emailSignInAllowed(protocol: string): boolean {
 // The iOS shell has no Google credential handoff. The web popup cannot
 // finish in that web view, including the sign-in asked for before deletion.
 export function googleSignInAllowed(protocol: string): boolean {
-  return protocol !== "capacitor:";
-}
-
-// A passkey for ihurt.app cannot be created on capacitor://localhost, and one
-// created for localhost would not match the web account.
-export function passkeySignInAllowed(protocol: string): boolean {
   return protocol !== "capacitor:";
 }

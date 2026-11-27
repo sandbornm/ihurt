@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   ACCOUNT_RESPONSE_BYTES,
@@ -33,18 +33,10 @@ import {
   emailContinueUrl,
   emailSignInAllowed,
   googleSignInAllowed,
-  passkeySignInAllowed,
   readAccountConfig,
   testRuntimeAllowed,
 } from "../src/account/config.ts";
 import { acceptStoredEntry, STORED_PIN_LIMIT } from "../src/notebook-data.ts";
-import {
-  passkeyRpId,
-  passkeySignIn,
-  prepareCreationOptions,
-  prepareRequestOptions,
-  publicKeyCredentialToJSON,
-} from "../src/account/passkey.ts";
 import {
   backupEpoch,
   backupOptInFromStorage,
@@ -2543,7 +2535,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   const enable = store.indexOf("export async function enableBackup");
   const enableBody = store.slice(
     enable,
-    store.indexOf("export async function enrollPasskey"),
+    store.indexOf("export async function disableBackup"),
   );
   assert.equal(enableBody.includes("backupClock("), true);
   assert.equal(store.includes('addEventListener("storage"'), true);
@@ -2601,20 +2593,9 @@ test("a later save applies the downloaded note before the next upload", () => {
   const switched = afterCloud.indexOf("input.sameAccount");
   assert.ok(backupOff >= 0 && switched > backupOff);
   assert.equal(notebook.includes("savedAfterBackupPull"), true);
-  assert.equal(auth.includes("storage()?.setItem(REFRESH_KEY"), false);
-  assert.equal(auth.includes("storage()?.getItem(REFRESH_KEY"), false);
-  assert.equal(
-    auth.includes("sessionStorageOrNull()?.setItem(REFRESH_KEY, token)"),
-    true,
-  );
-  const passkey = auth.indexOf('exported.signInWithPasskey(auth, "iHurt")');
-  const fallback = auth.indexOf("passkeySignIn(", passkey);
-  assert.ok(passkey > 0 && fallback > passkey);
-  const between = auth.slice(passkey, fallback);
-  assert.equal(
-    between.includes('throw new AccountAuthError("passkey-unavailable")'),
-    true,
-  );
+  assert.equal(auth.includes("REFRESH_KEY"), false);
+  assert.equal(auth.includes("passkeySignIn"), false);
+  assert.equal(auth.includes("passkeyEnrollment"), false);
 });
 
 test("map review does not spend a source search", () => {
@@ -2720,158 +2701,31 @@ test("account API accepts https and loopback, and maps limit codes", async () =>
   assert.equal(seen[1]?.body?.includes("note"), false);
 });
 
-test("passkey relying party is ihurt.app on the public host", async () => {
-  assert.equal(passkeyRpId("ihurt.app"), "ihurt.app");
-  assert.equal(passkeyRpId("www.ihurt.app"), "ihurt.app");
-  assert.equal(passkeyRpId("127.0.0.1"), "127.0.0.1");
-  assert.equal(passkeyRpId("localhost", "ihurt.app"), "localhost");
-  const options = prepareRequestOptions(
-    {
-      challenge: btoa("challenge"),
-      rpId: "evil.example",
-      allowCredentials: [{ id: btoa("abc"), type: "public-key" }],
-    },
-    "ihurt.app",
+test("passkeys stay hidden until Firebase publishes a sign-in method", async () => {
+  const auth = await import("firebase/auth");
+  assert.equal(
+    typeof (auth as { signInWithPasskey?: unknown }).signInWithPasskey,
+    "undefined",
   );
-  assert.equal(options.rpId, "ihurt.app");
-  const created = prepareCreationOptions(
-    {
-      challenge: btoa("challenge"),
-      rp: { id: "evil.example", name: "Other" },
-      user: {
-        id: btoa("user"),
-        name: "person@example.com",
-        displayName: "Person",
-      },
-    },
-    "ihurt.app",
+  const root = new URL("../", import.meta.url);
+  const client = readFileSync(
+    new URL("src/account/firebase-auth.ts", root),
+    "utf8",
   );
-  assert.equal(created.rp.id, "ihurt.app");
-
-  let seenRp = "";
-  const tokens = await passkeySignIn({
-    apiKey: "public-key",
-    rpId: "ihurt.app",
-    fetchImpl: async (url, init) => {
-      const target = String(url);
-      assert.equal(
-        target.startsWith("https://identitytoolkit.googleapis.com/"),
-        true,
-      );
-      assert.equal(target.includes("key=public-key"), true);
-      if (target.includes("passkeySignIn:start")) {
-        return new Response(
-          JSON.stringify({
-            sessionId: "session-1",
-            credentialRequestOptions: {
-              challenge: btoa("challenge"),
-              rpId: "evil.example",
-            },
-          }),
-        );
-      }
-      const body = JSON.parse(String(init?.body)) as {
-        authenticatorAuthenticationResponse: {
-          id: string;
-          rawId: string;
-          response: {
-            clientDataJSON: string;
-            authenticatorData: string;
-            signature: string;
-          };
-        };
-        name: string;
-        sessionId?: string;
-      };
-      assert.equal(body.authenticatorAuthenticationResponse.rawId, "-_8");
-      assert.equal(
-        body.authenticatorAuthenticationResponse.response.clientDataJSON,
-        "-_8",
-      );
-      assert.equal(
-        body.authenticatorAuthenticationResponse.response.signature,
-        "-_8",
-      );
-      assert.equal(
-        body.authenticatorAuthenticationResponse.rawId.includes("+"),
-        false,
-      );
-      assert.equal(
-        body.authenticatorAuthenticationResponse.rawId.includes("/"),
-        false,
-      );
-      assert.equal(
-        body.authenticatorAuthenticationResponse.rawId.includes("="),
-        false,
-      );
-      assert.equal(body.name, "iHurt");
-      assert.equal(body.sessionId, "session-1");
-      return new Response(
-        JSON.stringify({
-          idToken: "header.payload.sig",
-          refreshToken: "refresh",
-          localId: "uid-pass",
-        }),
-      );
-    },
-    credentials: {
-      async get(request) {
-        seenRp = request.publicKey?.rpId ?? "";
-        const raw = new Uint8Array([251, 255]).buffer;
-        return {
-          id: "cred",
-          type: "public-key",
-          rawId: raw,
-          response: {
-            clientDataJSON: raw,
-            authenticatorData: raw,
-            signature: raw,
-            userHandle: null,
-          },
-        } as PublicKeyCredential;
-      },
-    },
-  });
-  assert.equal(seenRp, "ihurt.app");
-  assert.equal(tokens.localId, "uid-pass");
-});
-
-test("passkey bytes that need base64url are unpadded", () => {
-  const raw = new Uint8Array([251, 255]).buffer;
-  const assertion = publicKeyCredentialToJSON({
-    id: "cred",
-    type: "public-key",
-    rawId: raw,
-    response: {
-      clientDataJSON: raw,
-      authenticatorData: raw,
-      signature: raw,
-      userHandle: raw,
-    },
-  } as PublicKeyCredential) as {
-    rawId: string;
-    response: Record<string, string>;
-  };
-  assert.equal(assertion.rawId, "-_8");
-  assert.equal(assertion.response.authenticatorData, "-_8");
-  assert.equal(assertion.response.userHandle, "-_8");
-  assert.equal(assertion.rawId.includes("+"), false);
-  assert.equal(assertion.rawId.includes("="), false);
-  const registered = publicKeyCredentialToJSON({
-    id: "cred",
-    type: "public-key",
-    rawId: raw,
-    response: { clientDataJSON: raw, attestationObject: raw },
-  } as PublicKeyCredential) as { response: { attestationObject: string } };
-  assert.equal(registered.response.attestationObject, "-_8");
-  const fromJson = publicKeyCredentialToJSON({
-    id: "cred",
-    type: "public-key",
-    rawId: raw,
-    response: { clientDataJSON: raw },
-    toJSON: () => ({ id: "from-json", rawId: "-_8" }),
-  } as PublicKeyCredential) as { id: string };
-  assert.equal(fromJson.id, "from-json");
+  assert.equal(client.includes("passkeySignIn"), false);
+  assert.equal(client.includes("passkeyEnrollment"), false);
+  assert.equal(client.includes("/v2/accounts/"), false);
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  assert.equal(button.includes("account.passkey"), false);
+  assert.equal(button.includes('signIn("passkey")'), false);
+  const settings = readFileSync(new URL("src/account/config.ts", root), "utf8");
+  assert.equal(settings.includes("passkeySignInAllowed"), false);
+  assert.equal(settings.includes("VITE_PASSKEY_RP_ID"), false);
+  const passkeyFile = new URL("src/account/passkey.ts", root);
+  assert.equal(existsSync(passkeyFile), false);
 });
 
 test("config comes from env and the test runtime stays on loopback", async () => {
@@ -2881,8 +2735,6 @@ test("config comes from env and the test runtime stays on loopback", async () =>
   assert.equal(testRuntimeAllowed("localhost", "capacitor:"), false);
   assert.equal(emailSignInAllowed("https:"), true);
   assert.equal(emailSignInAllowed("capacitor:"), false);
-  assert.equal(passkeySignInAllowed("https:"), true);
-  assert.equal(passkeySignInAllowed("capacitor:"), false);
   assert.equal(googleSignInAllowed("https:"), true);
   assert.equal(googleSignInAllowed("capacitor:"), false);
   assert.equal(
@@ -2917,7 +2769,6 @@ test("config comes from env and the test runtime stays on loopback", async () =>
       VITE_FIREBASE_PROJECT_ID: "ihurt",
       VITE_FIREBASE_APP_ID: "app",
       VITE_IHURT_API_BASE: "https://api.ihurt.app",
-      VITE_PASSKEY_RP_ID: "",
       VITE_ANALYTICS_ENDPOINT: "",
     }),
     {
@@ -2926,10 +2777,8 @@ test("config comes from env and the test runtime stays on loopback", async () =>
         authDomain: "ihurt.app",
         projectId: "ihurt",
         appId: "app",
-        passkeyRpId: "ihurt.app",
       },
       apiBase: "https://api.ihurt.app",
-      passkeyRpId: "ihurt.app",
       analyticsEndpoint: "",
     },
   );
@@ -2970,7 +2819,6 @@ test("config comes from env and the test runtime stays on loopback", async () =>
       async signOut() {},
       async reauthenticate() {},
       async deleteUser() {},
-      async enrollPasskey() {},
     },
     apiBase: "https://ihurt-api.test",
   };

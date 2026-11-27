@@ -1756,6 +1756,28 @@ test("backup upload sends notes and pins only", async () => {
   assert.equal(body.includes("title-marker"), false);
 });
 
+test("a backup payload replaces a private provider", async () => {
+  const entry = storedEntry(validMap);
+  entry.provider = "provider-marker";
+  const payload = toBackupPayload(entry);
+  assert.equal(payload.provider, "Your notes");
+  assert.equal(JSON.stringify(payload).includes("provider-marker"), false);
+  let body = "";
+  const api = createAccountApi("https://api.ihurt.app", async (_url, init) => {
+    body = String(init?.body ?? "");
+    return new Response("{}", { status: 200 });
+  });
+  await api?.putEntries("token", [entry]);
+  assert.equal(body.includes("provider-marker"), false);
+  const incoming = storedEntry(validMap);
+  incoming.provider = "server-provider-marker";
+  const kept = withLocalPrivateFields(entry, incoming);
+  assert.equal(kept.provider, "provider-marker");
+  const bare = withLocalPrivateFields(undefined, incoming);
+  assert.equal(bare.provider, "Your notes");
+  assert.equal(JSON.stringify(bare).includes("server-provider-marker"), false);
+});
+
 test("a downloaded backup does not keep server comments, answers, or AI notes", () => {
   const local = storedEntry(validMap);
   local.points = [

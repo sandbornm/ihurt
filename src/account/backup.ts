@@ -298,7 +298,10 @@ export function backupUploadSet<T extends BackupEntry>(
 }
 
 // The confirmation names notes and pins. The optional title, pin comments,
-// answers, readings, and the AI note stay on the device.
+// answers, readings, the AI note, and the entry's provider stay on the device.
+// The stored row still needs a provider, so the upload uses this fixed label.
+const BACKUP_PROVIDER = "Your notes";
+
 export function toBackupPayload(
   entry: BackupEntry & Partial<SavedMap>,
 ): SavedMap {
@@ -310,8 +313,7 @@ export function toBackupPayload(
     ...(entry.noteUpdated ? { noteUpdated: entry.noteUpdated } : {}),
     ...(entry.pointsUpdated ? { pointsUpdated: entry.pointsUpdated } : {}),
     note: typeof entry.note === "string" ? entry.note : "",
-    provider:
-      typeof entry.provider === "string" ? entry.provider : "Your notes",
+    provider: BACKUP_PROVIDER,
     answers: [],
     points,
     map: {
@@ -562,6 +564,8 @@ export function withLocalPrivateFields(
     withoutServerPrivateFields(incoming),
     Date.now(),
   );
+  // A provider on the download is not the one this device stored.
+  cleaned.provider = local?.provider ?? BACKUP_PROVIDER;
   if (!local) return cleaned;
   const comments = new Map(
     (local.points ?? []).flatMap((point) =>

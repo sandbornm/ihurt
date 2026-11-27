@@ -32,6 +32,7 @@ import {
 import {
   accountDeleteKeepsDevice,
   accountDeleteStage,
+  backedIdsFor,
   clearOptIn,
   deleteSignedInAccount,
   grantOptIn,
@@ -220,6 +221,57 @@ test("an entry aging out of the window does not block the next backup", async ()
   );
   assert.deepEqual(sent, [["aging"], ["fresh"]]);
   assert.deepEqual(syncedIdsFor(store, "user-a"), ["fresh"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["aging", "fresh"]);
+
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, ["aging", "fresh"]);
+});
+
+test("a stale sign-in deletes nothing", async () => {
+  const store = memory();
+  rememberSynced(store, ["synced"], "user-a");
+  grantOptIn(store, "user-a");
+  const steps: string[] = [];
+  const stale = new Error("requires-recent-login");
+  Object.defineProperty(stale, "code", { value: "auth/requires-recent-login" });
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        confirmRecentLogin: async () => {
+          steps.push("reauth");
+          throw stale;
+        },
+        api: {
+          async deleteAccount() {
+            steps.push("api");
+          },
+        },
+        removeLocal: async () => {
+          steps.push("local");
+        },
+        deleteAuth: async () => {
+          steps.push("auth");
+        },
+        store,
+      }),
+    (caught) => accountDeleteStage(caught) === "auth",
+  );
+  assert.deepEqual(steps, ["reauth"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["synced"]);
+  assert.equal(optedIn(store, "user-a"), true);
 });
 
 test("delete calls the API before wiping local synced entries", async () => {
@@ -755,6 +807,7 @@ test("config comes from env and the test runtime stays on loopback", () => {
         return "email-sent" as const;
       },
       async signOut() {},
+      async reauthenticate() {},
       async deleteUser() {},
       async enrollPasskey() {},
     },

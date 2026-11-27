@@ -910,6 +910,8 @@ export const es: Messages = {
   "account.deleted":
     "Cuenta eliminada. Las entradas que nunca se copiaron se quedan en este dispositivo.",
   "account.error": "Algo salió mal. Tu cuaderno sigue en este dispositivo.",
+  "account.recentLogin":
+    "Vuelve a iniciar sesión y luego elimina la cuenta. No se eliminó nada.",
   "account.searchFailed":
     "El servicio de la cuenta no pudo revisar las búsquedas de fuentes. La búsqueda no se envió.",
   "account.apple": "Iniciar sesión con Apple",

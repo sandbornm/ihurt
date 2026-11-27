@@ -876,6 +876,8 @@ export const en = {
   "account.deleted":
     "Account deleted. Entries that were never backed up stay on this device.",
   "account.error": "Something went wrong. Your journal is still on this device.",
+  "account.recentLogin":
+    "Sign in again, then delete the account. Nothing was removed.",
   "account.searchFailed":
     "The account service could not check source searches. The search was not sent.",
   "account.apple": "Sign in with Apple",

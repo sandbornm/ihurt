@@ -283,6 +283,7 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
       token: await session.getIdToken(),
       api,
       removeLocal: onRemove,
+      confirmRecentLogin: () => auth.reauthenticate(),
       deleteAuth: () => auth.deleteUser(),
       store: browserStore(),
     });
@@ -297,10 +298,18 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
     });
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;
+    if (code === "cancelled") {
+      setState({ ...state, busy: false, error: "" });
+      throw error;
+    }
+    if (code === "email-sent") {
+      setState({ ...state, busy: false, error: "", notice: "email-sent" });
+      throw error;
+    }
     setState({
       ...state,
       busy: false,
-      error: code === "no-api" ? "no-api" : "error",
+      error: code === "no-api" || code === "recent-login" ? code : "error",
     });
     throw error;
   }

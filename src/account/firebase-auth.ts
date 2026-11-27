@@ -9,6 +9,7 @@ import {
 } from "./auth.ts";
 import type { FirebasePublicConfig } from "./config.ts";
 import {
+  decodeBase64,
   passkeyEnroll,
   passkeyRpId,
   passkeySignIn,
@@ -18,6 +19,7 @@ import {
 
 const REFRESH_KEY = "ihurt-auth-refresh";
 const EMAIL_KEY = "ihurt-email-for-sign-in";
+const RECENT_LOGIN_MS = 5 * 60 * 1000;
 
 interface FirebaseUser {
   uid: string;
@@ -60,6 +62,23 @@ function isCancel(error: unknown): boolean {
 function isMissingPlugin(error: unknown): boolean {
   const text = errorText(error).toLowerCase();
   return text.includes("unimplemented") || text.includes("not implemented");
+}
+
+function authTimeMs(idToken: string): number {
+  try {
+    const segment = idToken.split(".")[1] ?? "";
+    const payload = JSON.parse(new TextDecoder().decode(decodeBase64(segment))) as {
+      auth_time?: unknown;
+    };
+    return typeof payload.auth_time === "number" ? payload.auth_time * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function recentEnough(idToken: string): boolean {
+  const stamp = authTimeMs(idToken);
+  return stamp > 0 && Date.now() - stamp < RECENT_LOGIN_MS;
 }
 
 function storage(): Storage | null {
@@ -257,6 +276,80 @@ export async function createFirebaseAuth(
       storage()?.removeItem(REFRESH_KEY);
       await authMod.signOut(auth);
       emit(null);
+    },
+    async reauthenticate() {
+      const current = auth.currentUser;
+      if (!current) {
+        if (!passkeySession) throw new AccountAuthError("unconfigured");
+        if (recentEnough(await passkeySession.getIdToken())) return;
+        const rpId = passkeyRpId(location.hostname, config.passkeyRpId);
+        try {
+          const tokens = await passkeySignIn({
+            apiKey: config.apiKey,
+            rpId,
+            fetchImpl,
+          });
+          if (tokens.localId !== passkeySession.uid) {
+            throw new AccountAuthError("recent-login");
+          }
+          adoptPasskey(tokens.idToken, tokens.refreshToken, tokens.localId);
+        } catch (error) {
+          if (error instanceof AccountAuthError) throw error;
+          if (isCancel(error)) throw new AccountAuthError("cancelled");
+          throw new AccountAuthError("recent-login");
+        }
+        return;
+      }
+      const user = current as FirebaseUser;
+      if (recentEnough(await user.getIdToken())) return;
+      const provider = providerOf(user);
+      try {
+        if (provider === "google") {
+          await authMod.reauthenticateWithPopup(
+            current,
+            new authMod.GoogleAuthProvider(),
+          );
+          return;
+        }
+        if (provider === "apple") {
+          const native = nativeAppleSignIn();
+          if (native) {
+            try {
+              const { idToken, nonce } = await native();
+              const apple = new authMod.OAuthProvider("apple.com");
+              const credential = apple.credential({ idToken, rawNonce: nonce });
+              await authMod.reauthenticateWithCredential(current, credential);
+              return;
+            } catch (error) {
+              if (isCancel(error)) throw new AccountAuthError("cancelled");
+              if (!isMissingPlugin(error)) throw error;
+            }
+          }
+          await authMod.reauthenticateWithPopup(
+            current,
+            new authMod.OAuthProvider("apple.com"),
+          );
+          return;
+        }
+        if (provider === "email") {
+          const address = user.email ?? storage()?.getItem(EMAIL_KEY) ?? "";
+          if (!address) throw new AccountAuthError("recent-login");
+          await authMod.sendSignInLinkToEmail(auth, address, {
+            url: `${location.origin}/?emailLink=1`,
+            handleCodeInApp: true,
+          });
+          storage()?.setItem(EMAIL_KEY, address);
+          throw new AccountAuthError("email-sent");
+        }
+        throw new AccountAuthError("recent-login");
+      } catch (error) {
+        if (error instanceof AccountAuthError) throw error;
+        if (isCancel(error)) throw new AccountAuthError("cancelled");
+        if (errorText(error).includes("requires-recent-login")) {
+          throw new AccountAuthError("recent-login");
+        }
+        throw error;
+      }
     },
     async deleteUser() {
       const user = auth.currentUser as FirebaseUser | null;

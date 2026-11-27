@@ -22,6 +22,7 @@ export interface AuthClient {
     email?: string,
   ): Promise<AccountSession | "email-sent" | "redirect">;
   signOut(): Promise<void>;
+  reauthenticate(): Promise<void>;
   deleteUser(): Promise<void>;
   enrollPasskey(): Promise<void>;
 }

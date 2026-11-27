@@ -25,6 +25,7 @@ function messageKey(code: string) {
   if (code === "passkey-unavailable") return "account.passkeyUnavailable" as const;
   if (code === "unconfigured") return "account.notConfigured" as const;
   if (code === "no-api") return "account.noApi" as const;
+  if (code === "recent-login") return "account.recentLogin" as const;
   if (code === "deleted") return "account.deleted" as const;
   return "account.error" as const;
 }

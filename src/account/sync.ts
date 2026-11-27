@@ -16,30 +16,51 @@ function idsOf(value: unknown): string[] {
   return value.filter((id): id is string => typeof id === "string");
 }
 
-// One list per account. An older build stored a single list plus a uid.
-function readBook(store: KeyValueStore): Record<string, string[]> {
+interface SyncedAccount {
+  window: string[];
+  backed: string[];
+}
+
+function accountOf(value: unknown): SyncedAccount {
+  if (Array.isArray(value)) {
+    const ids = idsOf(value);
+    return { window: [...ids], backed: [...ids] };
+  }
+  if (!value || typeof value !== "object") return { window: [], backed: [] };
+  const row = value as { window?: unknown; backed?: unknown };
+  const window = idsOf(row.window);
+  return {
+    window,
+    backed: [...new Set([...idsOf(row.backed), ...window])],
+  };
+}
+
+// One record per account. `window` is the last 90-day upload. `backed` is every
+// id this device has uploaded, including rows that later aged out of the window.
+// An older build stored a single list, or a list plus a uid.
+function readBook(store: KeyValueStore): Record<string, SyncedAccount> {
   try {
     const parsed = JSON.parse(store.getItem(SYNCED_IDS_KEY) || "{}") as unknown;
     if (Array.isArray(parsed)) {
       const uid = store.getItem(SYNCED_UID_KEY);
-      return uid ? { [uid]: idsOf(parsed) } : {};
+      return uid ? { [uid]: accountOf(parsed) } : {};
     }
     if (!parsed || typeof parsed !== "object") return {};
-    const book: Record<string, string[]> = {};
-    for (const [uid, ids] of Object.entries(parsed)) book[uid] = idsOf(ids);
+    const book: Record<string, SyncedAccount> = {};
+    for (const [uid, ids] of Object.entries(parsed)) book[uid] = accountOf(ids);
     return book;
   } catch {
     return {};
   }
 }
 
-function writeBook(store: KeyValueStore, book: Record<string, string[]>) {
+function writeBook(store: KeyValueStore, book: Record<string, SyncedAccount>) {
   store.setItem(SYNCED_IDS_KEY, JSON.stringify(book));
   store.removeItem(SYNCED_UID_KEY);
 }
 
 export function readSyncedIds(store: KeyValueStore): string[] {
-  return [...new Set(Object.values(readBook(store)).flat())];
+  return [...new Set(Object.values(readBook(store)).flatMap((row) => row.window))];
 }
 
 export function optedIn(store: KeyValueStore, uid: string): boolean {
@@ -59,7 +80,11 @@ export function clearOptIn(store: KeyValueStore) {
 }
 
 export function syncedIdsFor(store: KeyValueStore, uid: string): string[] {
-  return readBook(store)[uid] ?? [];
+  return readBook(store)[uid]?.window ?? [];
+}
+
+export function backedIdsFor(store: KeyValueStore, uid: string): string[] {
+  return readBook(store)[uid]?.backed ?? [];
 }
 
 export function rememberSynced(
@@ -68,13 +93,23 @@ export function rememberSynced(
   uid: string,
 ) {
   const book = readBook(store);
-  book[uid] = [...new Set([...(book[uid] ?? []), ...ids])];
+  const current = book[uid] ?? { window: [], backed: [] };
+  const window = [...new Set([...current.window, ...ids])];
+  book[uid] = {
+    window,
+    backed: [...new Set([...current.backed, ...window])],
+  };
   writeBook(store, book);
 }
 
 function retainSynced(store: KeyValueStore, ids: readonly string[], uid: string) {
   const book = readBook(store);
-  book[uid] = [...new Set(ids)];
+  const current = book[uid] ?? { window: [], backed: [] };
+  const window = [...new Set(ids)];
+  book[uid] = {
+    window,
+    backed: [...new Set([...current.backed, ...window])],
+  };
   writeBook(store, book);
 }
 
@@ -145,14 +180,16 @@ function tagDeleteError(error: unknown, stage: AccountDeleteStage): unknown {
   return wrapped;
 }
 
-// Cloud delete, then local wipe of ids that were synced, then the auth user.
-// Without a backup API the sign-in stays, because cloud copies could not be removed.
+// Confirm a recent sign-in, then cloud delete, then local wipe of every id
+// this device backed up, then the auth user. Without a backup API the sign-in
+// stays, because cloud copies could not be removed.
 export async function deleteSignedInAccount(input: {
   uid: string;
   token: string;
   api: { deleteAccount(token: string): Promise<void> } | null;
   removeLocal: (ids: string[]) => Promise<void>;
   deleteAuth: () => Promise<void>;
+  confirmRecentLogin?: () => Promise<void>;
   store: KeyValueStore;
 }): Promise<void> {
   if (!input.api) {
@@ -160,7 +197,12 @@ export async function deleteSignedInAccount(input: {
     Object.defineProperty(missing, "code", { value: "no-api" });
     throw tagDeleteError(missing, "api");
   }
-  const ids = syncedIdsFor(input.store, input.uid);
+  try {
+    await input.confirmRecentLogin?.();
+  } catch (error) {
+    throw tagDeleteError(error, "auth");
+  }
+  const ids = backedIdsFor(input.store, input.uid);
   try {
     await input.api.deleteAccount(input.token);
   } catch (error) {

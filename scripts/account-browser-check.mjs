@@ -103,6 +103,7 @@ async function runFlow(name, contextOptions, limitCode) {
           session = null;
           for (const listener of listeners) listener(null);
         },
+        async reauthenticate() {},
         async deleteUser() {
           state.deleted = true;
           session = null;

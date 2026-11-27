@@ -50,8 +50,27 @@ export function readAccountConfig(env: AccountEnv): AccountConfig {
   };
 }
 
-// The injected test runtime is only honored on a loopback page. Production
-// ihurt.app cannot install a fake session through this hook.
-export function testRuntimeAllowed(hostname: string): boolean {
+// The injected test runtime is only honored on a loopback web page. Production
+// ihurt.app cannot install a fake session through this hook. The iOS shell is
+// capacitor://localhost, and that page must not honor the hook either.
+export function testRuntimeAllowed(hostname: string, protocol = ""): boolean {
+  if (protocol === "capacitor:") return false;
   return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+// Email links have to land on an https host Firebase allows, or on loopback
+// http during local development. The iOS shell's capacitor://localhost origin
+// is not an authorized domain.
+export function emailContinueUrl(pageUrl: string, authDomain: string): string {
+  try {
+    const url = new URL(pageUrl);
+    const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (url.protocol === "https:" || (url.protocol === "http:" && loopback)) {
+      return `${url.origin}/?emailLink=1`;
+    }
+  } catch {
+    // A page without a usable origin uses the public auth domain below.
+  }
+  const domain = authDomain.trim() || "ihurt.app";
+  return `https://${domain}/?emailLink=1`;
 }

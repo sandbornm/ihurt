@@ -8,6 +8,7 @@ export interface BackupEntry {
   id: string;
   created: string;
   updated?: string;
+  noteUpdated?: string;
 }
 
 export function withinBackupWindow(
@@ -28,8 +29,24 @@ export function entriesForBackup<T extends BackupEntry>(
   return entries.filter((entry) => withinBackupWindow(entry, now, days));
 }
 
-// Local rows win when both sides have the same id. Remote-only rows stay,
-// so the upload is not limited to the list this device had before the pull.
+function stampMs(value: string | undefined): number {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// The note stamp decides the row. A missing stamp is older than a present one.
+// When the note stamps match, a newer row stamp wins. Otherwise this device's
+// row stays. Remote-only rows stay, so the upload is not limited to the list
+// this device had before the pull.
+function preferBackupRow<T extends BackupEntry>(local: T, remote: T): T {
+  const localNote = stampMs(local.noteUpdated);
+  const remoteNote = stampMs(remote.noteUpdated);
+  if (remoteNote !== localNote) return remoteNote > localNote ? remote : local;
+  if (stampMs(remote.updated) > stampMs(local.updated)) return remote;
+  return local;
+}
+
 export function backupUploadSet<T extends BackupEntry>(
   local: readonly T[],
   remote: readonly T[],
@@ -38,7 +55,10 @@ export function backupUploadSet<T extends BackupEntry>(
 ): T[] {
   const byId = new Map<string, T>();
   for (const entry of remote) byId.set(entry.id, entry);
-  for (const entry of local) byId.set(entry.id, entry);
+  for (const entry of local) {
+    const previous = byId.get(entry.id);
+    byId.set(entry.id, previous ? preferBackupRow(entry, previous) : entry);
+  }
   return entriesForBackup([...byId.values()], now, days);
 }
 

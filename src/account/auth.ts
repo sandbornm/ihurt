@@ -69,8 +69,9 @@ export interface AccountTestRuntime {
 export function readTestRuntime(
   hostname = typeof location === "undefined" ? "" : location.hostname,
   holder: object = globalThis,
+  protocol = typeof location === "undefined" ? "" : location.protocol,
 ): AccountTestRuntime | null {
-  if (!testRuntimeAllowed(hostname)) return null;
+  if (!testRuntimeAllowed(hostname, protocol)) return null;
   const runtime = (holder as { __IHURT_ACCOUNT_RUNTIME__?: AccountTestRuntime })
     .__IHURT_ACCOUNT_RUNTIME__;
   if (!runtime?.auth || typeof runtime.auth.signIn !== "function") return null;

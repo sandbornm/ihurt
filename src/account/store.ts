@@ -100,7 +100,7 @@ function wire(auth: AuthClient, apiBase: string, analyticsEndpoint: string) {
 export function startAccount() {
   if (started || typeof window === "undefined") return;
   started = true;
-  if (testRuntimeAllowed(location.hostname)) {
+  if (testRuntimeAllowed(location.hostname, location.protocol)) {
     Object.assign(globalThis, { __IHURT_GUARD_SEARCH__: guardSourceSearch });
   }
   const runtime = readTestRuntime();

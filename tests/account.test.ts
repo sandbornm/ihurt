@@ -12,6 +12,7 @@ import {
   createAnalytics,
 } from "../src/account/analytics.ts";
 import { readTestRuntime } from "../src/account/auth.ts";
+import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
   BACKUP_DAYS,
   backupUploadSet,
@@ -21,7 +22,11 @@ import {
   withLocalPrivateFields,
   withinBackupWindow,
 } from "../src/account/backup.ts";
-import { readAccountConfig, testRuntimeAllowed } from "../src/account/config.ts";
+import {
+  emailContinueUrl,
+  readAccountConfig,
+  testRuntimeAllowed,
+} from "../src/account/config.ts";
 import { acceptStoredEntry } from "../src/notebook-data.ts";
 import {
   passkeyRpId,
@@ -98,6 +103,20 @@ test("backup window keeps 90 days and drops older entries", () => {
     (row) => row.id,
   );
   assert.deepEqual(uploaded.sort(), ["recent", "remote"]);
+  const older = {
+    id: "same",
+    created: new Date(NOW - DAY).toISOString(),
+    noteUpdated: new Date(NOW - DAY).toISOString(),
+    note: "older-note",
+  };
+  const newer = {
+    id: "same",
+    created: new Date(NOW - DAY).toISOString(),
+    noteUpdated: new Date(NOW).toISOString(),
+    note: "newer-note",
+  };
+  assert.equal(backupUploadSet([older], [newer], NOW)[0]?.note, "newer-note");
+  assert.equal(backupUploadSet([newer], [older], NOW)[0]?.note, "newer-note");
 });
 
 test("sync waits for opt-in and does not follow a different account", async () => {
@@ -767,10 +786,36 @@ test("passkey relying party is ihurt.app on the public host", async () => {
   assert.equal(tokens.localId, "uid-pass");
 });
 
-test("config comes from env and the test runtime stays on loopback", () => {
+test("config comes from env and the test runtime stays on loopback", async () => {
   assert.equal(testRuntimeAllowed("ihurt.app"), false);
   assert.equal(testRuntimeAllowed("localhost"), true);
   assert.equal(testRuntimeAllowed("127.0.0.1"), true);
+  assert.equal(testRuntimeAllowed("localhost", "capacitor:"), false);
+  assert.equal(
+    emailContinueUrl("https://ihurt.app/notebook", "ihurt.app"),
+    "https://ihurt.app/?emailLink=1",
+  );
+  assert.equal(
+    emailContinueUrl("http://localhost:5173/notebook", "ihurt.app"),
+    "http://localhost:5173/?emailLink=1",
+  );
+  assert.equal(
+    emailContinueUrl("capacitor://localhost", "ihurt.app"),
+    "https://ihurt.app/?emailLink=1",
+  );
+  const cleared: string[] = [];
+  const failed = await completeEmailLink({
+    isLink: true,
+    email: "person@example.com",
+    href: "https://ihurt.app/?oobCode=bad",
+    signIn: async () => {
+      throw new Error("invalid-action-code");
+    },
+    clearEmail: () => cleared.push("email"),
+    clearQuery: () => cleared.push("query"),
+  });
+  assert.equal(failed, false);
+  assert.deepEqual(cleared, ["email", "query"]);
   assert.deepEqual(
     readAccountConfig({
       VITE_FIREBASE_API_KEY: "public",
@@ -814,6 +859,10 @@ test("config comes from env and the test runtime stays on loopback", () => {
     apiBase: "https://ihurt-api.test",
   };
   assert.equal(readTestRuntime("ihurt.app", { __IHURT_ACCOUNT_RUNTIME__: runtime }), null);
+  assert.equal(
+    readTestRuntime("localhost", { __IHURT_ACCOUNT_RUNTIME__: runtime }, "capacitor:"),
+    null,
+  );
   assert.equal(
     readTestRuntime("127.0.0.1", { __IHURT_ACCOUNT_RUNTIME__: runtime })?.apiBase,
     "https://ihurt-api.test",

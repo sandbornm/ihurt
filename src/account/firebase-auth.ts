@@ -7,7 +7,7 @@ import {
   type AuthClient,
   type SignInProvider,
 } from "./auth.ts";
-import type { FirebasePublicConfig } from "./config.ts";
+import { emailContinueUrl, type FirebasePublicConfig } from "./config.ts";
 import {
   decodeBase64,
   passkeyEnroll,
@@ -79,6 +79,28 @@ function authTimeMs(idToken: string): number {
 function recentEnough(idToken: string): boolean {
   const stamp = authTimeMs(idToken);
   return stamp > 0 && Date.now() - stamp < RECENT_LOGIN_MS;
+}
+
+// A bad code or a mismatched address must not block the other sign-in methods.
+// The query is cleared either way so a reload does not retry the same link.
+export async function completeEmailLink(input: {
+  isLink: boolean;
+  email: string | null;
+  href: string;
+  signIn: (email: string, href: string) => Promise<void>;
+  clearEmail: () => void;
+  clearQuery: () => void;
+}): Promise<boolean> {
+  if (!input.isLink || !input.email) return false;
+  try {
+    await input.signIn(input.email, input.href);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    input.clearEmail();
+    input.clearQuery();
+  }
 }
 
 function storage(): Storage | null {
@@ -157,17 +179,23 @@ export async function createFirebaseAuth(
   }
 
   await auth.authStateReady();
-  const redirect = await authMod.getRedirectResult(auth);
-  if (redirect?.user) emit(toSession(redirect.user as FirebaseUser));
-  if (
-    authMod.isSignInWithEmailLink(auth, location.href) &&
-    storage()?.getItem(EMAIL_KEY)
-  ) {
-    const email = storage()?.getItem(EMAIL_KEY) ?? "";
-    await authMod.signInWithEmailLink(auth, email, location.href);
-    storage()?.removeItem(EMAIL_KEY);
-    history.replaceState(null, "", `${location.origin}${location.pathname}`);
-  } else if (!auth.currentUser) {
+  try {
+    const redirect = await authMod.getRedirectResult(auth);
+    if (redirect?.user) emit(toSession(redirect.user as FirebaseUser));
+  } catch {
+    // A stale redirect must not block Apple, Google, email, or passkeys.
+  }
+  const continued = await completeEmailLink({
+    isLink: authMod.isSignInWithEmailLink(auth, location.href),
+    email: storage()?.getItem(EMAIL_KEY) ?? null,
+    href: location.href,
+    signIn: (address, href) =>
+      authMod.signInWithEmailLink(auth, address, href).then(() => undefined),
+    clearEmail: () => storage()?.removeItem(EMAIL_KEY),
+    clearQuery: () =>
+      history.replaceState(null, "", `${location.origin}${location.pathname}`),
+  });
+  if (!continued && !auth.currentUser) {
     const refresh = storage()?.getItem(REFRESH_KEY);
     if (refresh) {
       try {
@@ -238,7 +266,7 @@ export async function createFirebaseAuth(
           return toSession(result.user as FirebaseUser, "email");
         }
         await authMod.sendSignInLinkToEmail(auth, address, {
-          url: `${location.origin}/?emailLink=1`,
+          url: emailContinueUrl(location.href, config.authDomain),
           handleCodeInApp: true,
         });
         storage()?.setItem(EMAIL_KEY, address);
@@ -335,7 +363,7 @@ export async function createFirebaseAuth(
           const address = user.email ?? storage()?.getItem(EMAIL_KEY) ?? "";
           if (!address) throw new AccountAuthError("recent-login");
           await authMod.sendSignInLinkToEmail(auth, address, {
-            url: `${location.origin}/?emailLink=1`,
+            url: emailContinueUrl(location.href, config.authDomain),
             handleCodeInApp: true,
           });
           storage()?.setItem(EMAIL_KEY, address);

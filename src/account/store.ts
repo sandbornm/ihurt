@@ -13,6 +13,7 @@ import { readAccountConfig, testRuntimeAllowed, type AccountConfig } from "./con
 import {
   clearOptIn,
   clearSynced,
+  accountDeleteKeepsDevice,
   deleteSignedInAccount,
   grantOptIn,
   optedIn,
@@ -289,7 +290,9 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
       notice: "deleted",
     });
   } catch (error) {
-    if (!(error instanceof AccountApiError)) {
+    if (accountDeleteKeepsDevice(error)) {
+      setState({ ...state, busy: false, error: "error" });
+    } else {
       clearOptIn(browserStore());
       clearSynced(browserStore(), session.uid);
       await auth.signOut().catch(() => {});
@@ -300,8 +303,6 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
         optedIn: false,
         error: "error",
       });
-    } else {
-      setState({ ...state, busy: false, error: "error" });
     }
     throw error;
   }

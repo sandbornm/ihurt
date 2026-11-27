@@ -78,6 +78,33 @@ export async function pushBackup<T extends BackupEntry>(input: {
   return windowed;
 }
 
+export type AccountDeleteStage = "api" | "local" | "auth";
+
+export function accountDeleteStage(error: unknown): AccountDeleteStage | null {
+  const stage = (error as { stage?: unknown } | null)?.stage;
+  return stage === "api" || stage === "local" || stage === "auth" ? stage : null;
+}
+
+// Failures before the cloud account is deleted, and failures while wiping this
+// device, keep the sign-in and the synced-id list so a retry can finish.
+export function accountDeleteKeepsDevice(error: unknown): boolean {
+  return accountDeleteStage(error) !== "auth";
+}
+
+function tagDeleteError(error: unknown, stage: AccountDeleteStage): unknown {
+  if (error && typeof error === "object") {
+    try {
+      Object.defineProperty(error, "stage", { value: stage });
+      return error;
+    } catch {
+      // A frozen error still needs a stage the caller can read.
+    }
+  }
+  const wrapped = new Error(error instanceof Error ? error.message : "delete");
+  Object.defineProperty(wrapped, "stage", { value: stage });
+  return wrapped;
+}
+
 // API delete, then local wipe of ids that were synced, then the auth user.
 // A failed API delete leaves the device and the sign-in alone.
 export async function deleteSignedInAccount(input: {
@@ -90,10 +117,22 @@ export async function deleteSignedInAccount(input: {
 }): Promise<void> {
   const ids = syncedIdsFor(input.store, input.uid);
   if (input.api) {
-    await input.api.deleteAccount(input.token);
-    await input.removeLocal(ids);
+    try {
+      await input.api.deleteAccount(input.token);
+    } catch (error) {
+      throw tagDeleteError(error, "api");
+    }
+    try {
+      await input.removeLocal(ids);
+    } catch (error) {
+      throw tagDeleteError(error, "local");
+    }
   }
   clearOptIn(input.store);
   clearSynced(input.store, input.uid);
-  await input.deleteAuth();
+  try {
+    await input.deleteAuth();
+  } catch (error) {
+    throw tagDeleteError(error, "auth");
+  }
 }

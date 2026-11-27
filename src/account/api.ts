@@ -1,3 +1,4 @@
+import { acceptStoredEntry } from "../notebook-data.ts";
 import type { SavedMap } from "../types.ts";
 import type { BackupEntry } from "./backup.ts";
 
@@ -47,28 +48,14 @@ export function accountApiOrigin(value: string): string | null {
   return null;
 }
 
-function isSavedMap(value: unknown): value is SavedMap {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Partial<SavedMap>;
-  return (
-    typeof row.id === "string" &&
-    row.id.length > 0 &&
-    row.id.length < 80 &&
-    typeof row.created === "string" &&
-    row.created.length < 40 &&
-    typeof row.note === "string" &&
-    typeof row.provider === "string" &&
-    Array.isArray(row.answers) &&
-    !!row.map &&
-    typeof row.map === "object"
-  );
-}
-
 export function remoteEntries(value: unknown): SavedMap[] {
   if (!value || typeof value !== "object") return [];
   const entries = (value as { entries?: unknown }).entries;
   if (!Array.isArray(entries)) return [];
-  return entries.filter(isSavedMap);
+  return entries.flatMap((entry) => {
+    const accepted = acceptStoredEntry(entry);
+    return accepted ? [accepted] : [];
+  });
 }
 
 function statusFrom(value: unknown): AccountStatus {
@@ -111,15 +98,20 @@ export function createAccountApi(
     method: string,
     body?: unknown,
   ): Promise<unknown> {
-    const response = await fetchImpl(`${origin}${path}`, {
-      method,
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${token}`,
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+    let response: Response;
+    try {
+      response = await fetchImpl(`${origin}${path}`, {
+        method,
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    } catch {
+      throw new AccountApiError(0, "network");
+    }
     const text = await response.text();
     let data: unknown = {};
     if (text) {

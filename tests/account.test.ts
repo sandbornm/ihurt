@@ -4,6 +4,7 @@ import {
   AccountApiError,
   accountApiOrigin,
   createAccountApi,
+  remoteEntries,
 } from "../src/account/api.ts";
 import {
   accountEventBody,
@@ -17,6 +18,7 @@ import {
   withinBackupWindow,
 } from "../src/account/backup.ts";
 import { readAccountConfig, testRuntimeAllowed } from "../src/account/config.ts";
+import { acceptStoredEntry } from "../src/notebook-data.ts";
 import {
   passkeyRpId,
   passkeySignIn,
@@ -24,6 +26,8 @@ import {
   prepareRequestOptions,
 } from "../src/account/passkey.ts";
 import {
+  accountDeleteKeepsDevice,
+  accountDeleteStage,
   clearOptIn,
   deleteSignedInAccount,
   grantOptIn,
@@ -193,6 +197,113 @@ test("delete calls the API before wiping local synced entries", async () => {
   assert.deepEqual(done, ["api", "local:synced", "auth"]);
   assert.deepEqual(readSyncedIds(store), []);
   assert.equal(optedIn(store, "user-a"), false);
+});
+
+test("a rejected delete keeps the synced ids for a retry", async () => {
+  const store = memory();
+  rememberSynced(store, ["synced"], "user-a");
+  grantOptIn(store, "user-a");
+  const wiped: string[] = [];
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: {
+          async deleteAccount() {
+            throw new TypeError("fetch failed");
+          },
+        },
+        removeLocal: async (ids) => {
+          wiped.push(...ids);
+        },
+        deleteAuth: async () => {
+          throw new Error("auth");
+        },
+        store,
+      }),
+    (error: unknown) => {
+      assert.equal(accountDeleteStage(error), "api");
+      assert.equal(accountDeleteKeepsDevice(error), true);
+      assert.equal(error instanceof TypeError, true);
+      return true;
+    },
+  );
+  assert.deepEqual(wiped, []);
+  assert.deepEqual(readSyncedIds(store), ["synced"]);
+  assert.equal(optedIn(store, "user-a"), true);
+
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: {
+          async deleteAccount() {},
+        },
+        removeLocal: async () => {},
+        deleteAuth: async () => {
+          throw new TypeError("auth network");
+        },
+        store,
+      }),
+    (error: unknown) => accountDeleteStage(error) === "auth" && !accountDeleteKeepsDevice(error),
+  );
+});
+
+function storedEntry(map: unknown) {
+  return {
+    id: "entry-1",
+    created: "2026-11-27T00:00:00.000Z",
+    note: "Stiff after a walk.",
+    provider: "Your notes",
+    answers: [],
+    map,
+  };
+}
+
+const validMap = {
+  title: "Walk",
+  summary: "Stiff after a walk.",
+  regions: ["neck"],
+  quality: "",
+  activity: "Walking",
+  duration: "",
+  intensity: null,
+  question: null,
+  urgent: false,
+  safety_message: null,
+};
+
+test("a backup entry with an empty map is not stored", () => {
+  const valid = storedEntry(validMap);
+  const accepted = acceptStoredEntry(valid);
+  assert.ok(accepted);
+  assert.deepEqual(accepted?.map.regions, ["neck"]);
+  assert.equal(acceptStoredEntry(storedEntry({})), null);
+  assert.equal(
+    acceptStoredEntry({
+      ...valid,
+      points: [
+        {
+          id: "pin-1",
+          region: "chest",
+          structure: "Sternum",
+          position: [0, 1, 0],
+        },
+      ],
+    }),
+    null,
+  );
+  assert.equal(
+    acceptStoredEntry({ ...valid, research: { activity: "Walking" } }),
+    null,
+  );
+  const rows = remoteEntries({
+    entries: [valid, storedEntry({}), { id: "nope" }],
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.id, "entry-1");
 });
 
 test("account events are an action name and nothing else", async () => {

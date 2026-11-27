@@ -25,6 +25,7 @@ import {
   type AccountConfig,
 } from "./config.ts";
 import {
+  accountDeleting,
   backupEpoch,
   claimUpload,
   clearOptIn,
@@ -227,7 +228,8 @@ export async function enableBackup(
     const remote = await api.getEntries(token);
     if (
       state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch
+      backupEpoch(browserStore()) !== epoch ||
+      accountDeleting(browserStore(), session.uid)
     ) {
       setState({ ...state, busy: false });
       return;
@@ -254,7 +256,8 @@ export async function enableBackup(
     }
     if (
       state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch
+      backupEpoch(browserStore()) !== epoch ||
+      accountDeleting(browserStore(), session.uid)
     ) {
       setState({ ...state, busy: false });
       return;
@@ -293,7 +296,8 @@ export async function enableBackup(
     );
     if (
       state.session?.uid !== session.uid ||
-      backupEpoch(browserStore()) !== epoch
+      backupEpoch(browserStore()) !== epoch ||
+      accountDeleting(browserStore(), session.uid)
     ) {
       setState({ ...state, busy: false });
       return;
@@ -302,7 +306,8 @@ export async function enableBackup(
     try {
       if (
         state.session?.uid !== session.uid ||
-        backupEpoch(browserStore()) !== epoch
+        backupEpoch(browserStore()) !== epoch ||
+        accountDeleting(browserStore(), session.uid)
       ) {
         setState({ ...state, busy: false });
         return;
@@ -321,7 +326,8 @@ export async function enableBackup(
       if (gone.length > 0) await onRemove?.(gone);
       if (
         state.session?.uid !== session.uid ||
-        backupEpoch(browserStore()) !== epoch
+        backupEpoch(browserStore()) !== epoch ||
+        accountDeleting(browserStore(), session.uid)
       ) {
         setState({ ...state, busy: false });
         return;
@@ -373,7 +379,13 @@ export function pushBackupEntries(
   onRemove?: (ids: string[]) => Promise<void>,
 ) {
   const session = state.session;
-  if (!session || !api || !optedIn(browserStore(), session.uid)) return;
+  if (
+    !session ||
+    !api ||
+    !optedIn(browserStore(), session.uid) ||
+    accountDeleting(browserStore(), session.uid)
+  )
+    return;
   latestEntries = entries;
   latestDeleted = deletedIds;
   const uid = session.uid;
@@ -381,10 +393,20 @@ export function pushBackupEntries(
   const epoch = backupEpoch(browserStore());
   pushChain = pushChain
     .then(async () => {
-      if (state.session?.uid !== uid || !optedIn(browserStore(), uid)) return;
+      if (
+        state.session?.uid !== uid ||
+        !optedIn(browserStore(), uid) ||
+        accountDeleting(browserStore(), uid)
+      )
+        return;
       if (backupEpoch(browserStore()) !== epoch) return;
       const token = await session.getIdToken();
-      if (state.session?.uid !== uid || !optedIn(browserStore(), uid)) return;
+      if (
+        state.session?.uid !== uid ||
+        !optedIn(browserStore(), uid) ||
+        accountDeleting(browserStore(), uid)
+      )
+        return;
       if (backupEpoch(browserStore()) !== epoch) return;
       await pushBackup({
         uid,
@@ -400,7 +422,11 @@ export function pushBackupEntries(
         pull: async (next) => {
           const remote = await current.getEntries(next);
           if (backupEpoch(browserStore()) !== epoch) return remote;
-          if (state.session?.uid !== uid || !optedIn(browserStore(), uid))
+          if (
+            state.session?.uid !== uid ||
+            !optedIn(browserStore(), uid) ||
+            accountDeleting(browserStore(), uid)
+          )
             return remote;
           const revived = removedIdsFor(browserStore(), uid).filter((id) =>
             remote.some((entry) => entry.id === id),

@@ -25,8 +25,8 @@ const server = spawn(
   ],
   { stdio: "pipe" },
 );
-  let logs = "";
-  let cloudEntries = [];
+let logs = "";
+let cloudEntries = [];
 server.stderr.on("data", (chunk) => {
   logs += chunk;
 });
@@ -46,19 +46,84 @@ try {
     headless: true,
     args: ["--enable-unsafe-swiftshader"],
   });
-  await runFlow("desktop", {
-    viewport: { width: 1440, height: 1050 },
-    locale: "en-US",
-  }, "upgrade_coming_soon");
+  await runFlow(
+    "desktop",
+    {
+      viewport: { width: 1440, height: 1050 },
+      locale: "en-US",
+    },
+    "upgrade_coming_soon",
+  );
   await runFlow(
     "iphone",
     { ...devices["iPhone 16 Pro"], locale: "en-US" },
     "limit_reached",
   );
+  await runSignedInWithoutApi();
   console.log("PASS account sign-in, backup, limit sheet, and delete");
 } finally {
   await browser?.close();
   server.kill();
+}
+
+async function runSignedInWithoutApi() {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1050 },
+    locale: "en-US",
+    reducedMotion: "reduce",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(60000);
+  await page.addInitScript(() => {
+    const listeners = new Set();
+    let session = null;
+    window.__IHURT_ACCOUNT_RUNTIME__ = {
+      apiBase: "",
+      auth: {
+        async current() {
+          return session;
+        },
+        onChange(listener) {
+          listeners.add(listener);
+          listener(session);
+          return () => listeners.delete(listener);
+        },
+        async signIn(method) {
+          session = {
+            uid: "uid-1",
+            email: "person@example.com",
+            provider: method,
+            getIdToken: async () => "test-id-token",
+          };
+          for (const listener of listeners) listener(session);
+          return session;
+        },
+        async signOut() {},
+        async reauthenticate() {},
+        async deleteUser() {},
+        async enrollPasskey() {},
+      },
+    };
+  });
+  await page.goto(origin);
+  await page
+    .locator('[data-atlas="z-anatomy"][data-heat-engine="wasm"]')
+    .waitFor();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
+  const account = page.locator("dialog.account-dialog").first();
+  await account.getByRole("button", { name: "Sign in with Google" }).click();
+  await account.getByText("Signed in", { exact: false }).waitFor();
+  assert.equal(
+    await account.getByRole("button", { name: "Turn on backup" }).count(),
+    0,
+  );
+  await account
+    .getByText(
+      "Cloud backup is not set up in this build. Journaling on this device still works.",
+      { exact: true },
+    )
+    .waitFor();
+  await context.close();
 }
 
 async function runFlow(name, contextOptions, limitCode) {
@@ -198,15 +263,20 @@ async function runFlow(name, contextOptions, limitCode) {
   await note.fill("alpha-marker after a walk.");
   await page.locator("#entry-title").fill("alpha-marker");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
-  await page.getByText("Entry saved on this device.", { exact: true }).waitFor();
+  await page
+    .getByText("Entry saved on this device.", { exact: true })
+    .waitFor();
   await page.getByRole("button", { name: "Account", exact: true }).click();
   const account = page.locator("dialog.account-dialog").first();
-  const signInName = name === "iphone" ? "Sign in with Apple" : "Sign in with Google";
+  const signInName =
+    name === "iphone" ? "Sign in with Apple" : "Sign in with Google";
   const signIn = account.getByRole("button", { name: signInName });
   const box = await signIn.boundingBox();
   assert.ok(box && box.height >= 44, `${name} sign-in target`);
   await signIn.click();
-  await account.getByText("5 source searches left this month.", { exact: true }).waitFor();
+  await account
+    .getByText("5 source searches left this month.", { exact: true })
+    .waitFor();
   assert.equal(
     calls.some((call) => call.method === "PUT"),
     false,
@@ -219,7 +289,10 @@ async function runFlow(name, contextOptions, limitCode) {
         request.onerror = () => resolve(null);
         request.onsuccess = () => {
           const db = request.result;
-          const all = db.transaction("entries", "readonly").objectStore("entries").getAll();
+          const all = db
+            .transaction("entries", "readonly")
+            .objectStore("entries")
+            .getAll();
           all.onsuccess = () => {
             db.close();
             const row = all.result.find((item) =>
@@ -267,7 +340,11 @@ async function runFlow(name, contextOptions, limitCode) {
   await account.getByRole("button", { name: "Turn on backup" }).click();
   await account.getByText("This copies 1 entry", { exact: false }).waitFor();
   await account.getByRole("button", { name: "Copy to this account" }).click();
-  for (let i = 0; i < 50 && !calls.some((call) => call.method === "PUT"); i += 1)
+  for (
+    let i = 0;
+    i < 50 && !calls.some((call) => call.method === "PUT");
+    i += 1
+  )
     await new Promise((resolve) => setTimeout(resolve, 100));
   const puts = calls.filter((call) => call.method === "PUT");
   assert.ok(puts.length >= 1, `${name} backup request`);
@@ -316,7 +393,9 @@ async function runFlow(name, contextOptions, limitCode) {
   await note.fill("beta-marker after a rest.");
   await page.locator("#entry-title").fill("beta-marker");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
-  await page.getByText("Entry saved on this device.", { exact: true }).waitFor();
+  await page
+    .getByText("Entry saved on this device.", { exact: true })
+    .waitFor();
   assert.equal(
     calls.filter((call) => call.method === "PUT").length,
     putsAfterSignOut,
@@ -326,7 +405,9 @@ async function runFlow(name, contextOptions, limitCode) {
   const signedIn = page.locator("dialog.account-dialog").first();
   await signedIn.getByRole("button", { name: signInName }).click();
   await signedIn.getByRole("button", { name: "Delete account" }).click();
-  await signedIn.getByRole("heading", { name: "Delete this account?" }).waitFor();
+  await signedIn
+    .getByRole("heading", { name: "Delete this account?" })
+    .waitFor();
   await signedIn
     .getByText("Entries that were never backed up stay on this device.", {
       exact: false,
@@ -335,13 +416,23 @@ async function runFlow(name, contextOptions, limitCode) {
   await signedIn.getByRole("button", { name: "Delete account" }).click();
   await signedIn.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: /^Notebook/ }).click();
-  await page.getByRole("heading", { name: "beta-marker", exact: true }).waitFor();
+  await page
+    .getByRole("heading", { name: "beta-marker", exact: true })
+    .waitFor();
   assert.equal(
-    await page.getByRole("heading", { name: "alpha-marker", exact: true }).count(),
+    await page
+      .getByRole("heading", { name: "alpha-marker", exact: true })
+      .count(),
     0,
   );
-  assert.ok(calls.some((call) => call.method === "DELETE" && call.path === "/v1/account"));
-  const deleted = await page.evaluate(() => window.__IHURT_ACCOUNT_STATE__.deleted);
+  assert.ok(
+    calls.some(
+      (call) => call.method === "DELETE" && call.path === "/v1/account",
+    ),
+  );
+  const deleted = await page.evaluate(
+    () => window.__IHURT_ACCOUNT_STATE__.deleted,
+  );
   assert.equal(deleted, true);
   assert.deepEqual(blocked, [], `${name} contacted ${blocked.join(",")}`);
   assert.deepEqual(errors, []);

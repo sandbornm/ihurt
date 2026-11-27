@@ -12,6 +12,7 @@ export const SYNCED_UID_KEY = "ihurt-synced-uid";
 const BACKUP_EPOCH_KEY = "ihurt-backup-epoch";
 const SEEN_ENTRIES_KEY = "ihurt-seen-entries";
 const UPLOADS_KEY = "ihurt-backup-uploads";
+const DELETING_KEY = "ihurt-account-deleting";
 const UPLOAD_LEASE_MS = 2 * 60 * 1000;
 
 export interface KeyValueStore {
@@ -101,6 +102,18 @@ export function grantOptIn(store: KeyValueStore, uid: string) {
 export function clearOptIn(store: KeyValueStore) {
   store.removeItem(OPT_IN_KEY);
   store.removeItem(OPT_IN_UID_KEY);
+}
+
+export function accountDeleting(store: KeyValueStore, uid: string): boolean {
+  return store.getItem(DELETING_KEY) === uid;
+}
+
+function markAccountDeleting(store: KeyValueStore, uid: string) {
+  store.setItem(DELETING_KEY, uid);
+}
+
+function clearAccountDeleting(store: KeyValueStore) {
+  store.removeItem(DELETING_KEY);
 }
 
 export function backupEpoch(store: KeyValueStore): number {
@@ -416,7 +429,10 @@ export async function pushBackup<T extends BackupEntry>(input: {
 }): Promise<T[]> {
   const sameEpoch = () =>
     input.epoch === undefined || backupEpoch(input.store) === input.epoch;
-  const current = () => optedIn(input.store, input.uid) && sameEpoch();
+  const current = () =>
+    optedIn(input.store, input.uid) &&
+    sameEpoch() &&
+    !accountDeleting(input.store, input.uid);
   if (!current()) return [];
   const remote = input.pull ? await input.pull(input.token) : [];
   // The pull can store these rows before this check. Sign-out during that
@@ -565,48 +581,54 @@ export async function deleteSignedInAccount(input: {
     if ((error as { code?: unknown } | null)?.code === "cancelled") throw error;
     throw tagDeleteError(error, "auth");
   }
+  markAccountDeleting(input.store, input.uid);
   try {
-    await input.settleUploads?.();
-    await waitForAccountUploads(input.store, input.uid);
-    if (input.sameAccount?.() === false) throw cancelledDelete();
-    const token =
-      typeof input.token === "function" ? await input.token() : input.token;
-    if (input.sameAccount?.() === false) throw cancelledDelete();
-    await input.api.deleteAccount(token);
-  } catch (error) {
-    if ((error as { code?: unknown } | null)?.code === "cancelled") throw error;
-    const status = (error as { status?: unknown } | null)?.status;
-    const code = (error as { code?: unknown } | null)?.code;
-    if (!(status === 404 && code === "not_found"))
-      throw tagDeleteError(error, "api");
-  }
-  if (input.sameAccount?.() === false) throw cancelledDelete();
-  const ids = [
-    ...new Set([
-      ...backedIdsFor(input.store, input.uid),
-      ...downloadedIdsFor(input.store, input.uid),
-    ]),
-  ];
-  try {
-    await input.removeLocal(ids);
-  } catch (error) {
-    throw tagDeleteError(error, "local");
-  }
-  if (input.sameAccount?.() === false) throw cancelledDelete();
-  try {
-    await input.deleteAuth();
-  } catch (error) {
-    const partial = tagDeleteError(error, "auth");
-    if (partial && typeof partial === "object") {
-      try {
-        Object.defineProperty(partial, "code", { value: "delete-partial" });
-      } catch {
-        // The stage is still auth. The caller keeps the sign-in.
-      }
+    try {
+      await input.settleUploads?.();
+      await waitForAccountUploads(input.store, input.uid);
+      if (input.sameAccount?.() === false) throw cancelledDelete();
+      const token =
+        typeof input.token === "function" ? await input.token() : input.token;
+      if (input.sameAccount?.() === false) throw cancelledDelete();
+      await input.api.deleteAccount(token);
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === "cancelled")
+        throw error;
+      const status = (error as { status?: unknown } | null)?.status;
+      const code = (error as { code?: unknown } | null)?.code;
+      if (!(status === 404 && code === "not_found"))
+        throw tagDeleteError(error, "api");
     }
-    throw partial;
+    if (input.sameAccount?.() === false) throw cancelledDelete();
+    const ids = [
+      ...new Set([
+        ...backedIdsFor(input.store, input.uid),
+        ...downloadedIdsFor(input.store, input.uid),
+      ]),
+    ];
+    try {
+      await input.removeLocal(ids);
+    } catch (error) {
+      throw tagDeleteError(error, "local");
+    }
+    if (input.sameAccount?.() === false) throw cancelledDelete();
+    try {
+      await input.deleteAuth();
+    } catch (error) {
+      const partial = tagDeleteError(error, "auth");
+      if (partial && typeof partial === "object") {
+        try {
+          Object.defineProperty(partial, "code", { value: "delete-partial" });
+        } catch {
+          // The stage is still auth. The caller keeps the sign-in.
+        }
+      }
+      throw partial;
+    }
+    clearOptIn(input.store);
+    clearSynced(input.store, input.uid);
+    clearSeenEntries(input.store, input.uid);
+  } finally {
+    clearAccountDeleting(input.store);
   }
-  clearOptIn(input.store);
-  clearSynced(input.store, input.uid);
-  clearSeenEntries(input.store, input.uid);
 }

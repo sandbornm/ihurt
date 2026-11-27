@@ -335,7 +335,7 @@ export default function AccountButton({
                   >
                     {t("account.turnOff")}
                   </button>
-                ) : (
+                ) : snapshot.canBackup ? (
                   <button
                     type="button"
                     className="secondary"
@@ -344,6 +344,8 @@ export default function AccountButton({
                   >
                     {t("account.turnOn")}
                   </button>
+                ) : (
+                  <p className="account-copy">{t("account.noApi")}</p>
                 )}
                 {showPasskey && (
                   <button

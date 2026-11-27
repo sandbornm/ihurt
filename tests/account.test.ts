@@ -1501,6 +1501,41 @@ test("a delete waits for an upload another tab already started", async () => {
   assert.deepEqual(backedIdsFor(store, "user-a"), []);
 });
 
+test("a delete blocks an upload that starts after the wait", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  nextBackupEpoch(store);
+  const epoch = backupEpoch(store);
+  const sent: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    settleUploads: async () => {},
+    api: {
+      async deleteAccount() {
+        await pushBackup({
+          uid: "user-a",
+          token: "token-a",
+          entries: [entry("late", 1)],
+          now: NOW,
+          store,
+          epoch,
+          pull: async () => [],
+          put: async () => {
+            sent.push("put");
+          },
+        });
+      },
+    },
+    removeLocal: async () => {},
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(sent, []);
+  assert.equal(optedIn(store, "user-a"), false);
+});
+
 test("a delete on another device is not uploaded again", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -2004,6 +2039,9 @@ test("a later save applies the downloaded note before the next upload", () => {
     true,
   );
   assert.equal(button.includes("rememberSeenEntries("), false);
+  const turnOn = button.indexOf('t("account.turnOn")');
+  const backupGate = button.lastIndexOf("snapshot.canBackup", turnOn);
+  assert.ok(turnOn > 0 && backupGate >= 0 && backupGate < turnOn);
   const sync = readFileSync(new URL("src/account/sync.ts", root), "utf8");
   const push = sync.indexOf("export async function pushBackup");
   const uploaded = sync.indexOf("await input.put(input.token, windowed)", push);

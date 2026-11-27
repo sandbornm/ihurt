@@ -173,11 +173,7 @@ export default function AccountButton({
         )}
         {step === "confirm-delete" && (
           <div className="account-actions">
-            <p className="account-copy">
-              {snapshot.canBackup
-                ? t("account.confirmDelete")
-                : t("account.confirmDeleteLocal")}
-            </p>
+            <p className="account-copy">{t("account.confirmDelete")}</p>
             <button
               type="button"
               className="primary"
@@ -326,14 +322,18 @@ export default function AccountButton({
                 >
                   {t("account.signOut")}
                 </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={snapshot.busy}
-                  onClick={() => setStep("confirm-delete")}
-                >
-                  {t("account.delete")}
-                </button>
+                {snapshot.canBackup ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={snapshot.busy}
+                    onClick={() => setStep("confirm-delete")}
+                  >
+                    {t("account.delete")}
+                  </button>
+                ) : (
+                  <p className="account-copy">{t("account.deleteNeedsService")}</p>
+                )}
               </>
             )}
           </div>

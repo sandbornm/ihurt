@@ -90,6 +90,7 @@ import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
 import AccountButton from "./account/AccountButton";
+import { guardSourceSearch } from "./account/store.ts";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -112,6 +113,7 @@ export default function Notebook({
   Research?: ComponentType<{
     entry: SavedMap;
     sources: string[];
+    beforeSearch: () => Promise<boolean>;
     onSave: (research: NonNullable<SavedMap["research"]>) => Promise<void>;
   }>;
 }) {
@@ -1388,6 +1390,7 @@ export default function Notebook({
                       key={entry.id}
                       entry={currentEntry()}
                       sources={readingSources}
+                      beforeSearch={guardSourceSearch}
                       onSave={async (research) => {
                         // The latest editor, which the autosave has not
                         // written yet. The search merges against it, and the

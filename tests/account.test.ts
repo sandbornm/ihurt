@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   AccountApiError,
@@ -76,6 +77,16 @@ test("backup window keeps 90 days and drops older entries", () => {
   assert.deepEqual(
     entriesForBackup([recent, edge, old, future], NOW).map((row) => row.id),
     ["recent", "edge"],
+  );
+  const edited = {
+    id: "edited",
+    created: new Date(NOW - 120 * DAY).toISOString(),
+    updated: new Date(NOW - DAY).toISOString(),
+  };
+  assert.equal(withinBackupWindow(edited, NOW), false);
+  assert.deepEqual(
+    entriesForBackup([edited, recent], NOW).map((row) => row.id),
+    ["recent"],
   );
 });
 
@@ -199,6 +210,39 @@ test("delete calls the API before wiping local synced entries", async () => {
   assert.equal(optedIn(store, "user-a"), false);
 });
 
+test("delete without a backup API keeps the sign-in", async () => {
+  const store = memory();
+  rememberSynced(store, ["synced"], "user-a");
+  grantOptIn(store, "user-a");
+  let wiped = false;
+  let removedAuth = false;
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: null,
+        removeLocal: async () => {
+          wiped = true;
+        },
+        deleteAuth: async () => {
+          removedAuth = true;
+        },
+        store,
+      }),
+    (error: unknown) => {
+      assert.equal(accountDeleteStage(error), "api");
+      assert.equal(accountDeleteKeepsDevice(error), true);
+      assert.equal((error as { code?: unknown }).code, "no-api");
+      return true;
+    },
+  );
+  assert.equal(wiped, false);
+  assert.equal(removedAuth, false);
+  assert.deepEqual(readSyncedIds(store), ["synced"]);
+  assert.equal(optedIn(store, "user-a"), true);
+});
+
 test("a rejected delete keeps the synced ids for a retry", async () => {
   const store = memory();
   rememberSynced(store, ["synced"], "user-a");
@@ -304,6 +348,20 @@ test("a backup entry with an empty map is not stored", () => {
   });
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.id, "entry-1");
+});
+
+test("map review does not spend a source search", () => {
+  const root = new URL("../", import.meta.url);
+  const review = readFileSync(new URL("src/AIOptions.tsx", root), "utf8");
+  assert.equal(review.includes("guardSourceSearch"), false);
+  assert.equal(review.includes("useSearch"), false);
+  assert.equal(review.includes("/v1/searches"), false);
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  assert.equal(notebook.includes("beforeSearch={guardSourceSearch}"), true);
+  const search = readFileSync(new URL("src/account/api.ts", root), "utf8");
+  const quota = search.indexOf('request("/v1/searches"');
+  assert.ok(quota > 0);
+  assert.equal(search.slice(0, quota).includes("useSearch"), true);
 });
 
 test("account events are an action name and nothing else", async () => {

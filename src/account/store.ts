@@ -291,7 +291,12 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
     });
   } catch (error) {
     if (accountDeleteKeepsDevice(error)) {
-      setState({ ...state, busy: false, error: "error" });
+      const code = (error as { code?: unknown } | null)?.code;
+      setState({
+        ...state,
+        busy: false,
+        error: code === "no-api" ? "no-api" : "error",
+      });
     } else {
       clearOptIn(browserStore());
       clearSynced(browserStore(), session.uid);

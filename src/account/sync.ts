@@ -105,8 +105,8 @@ function tagDeleteError(error: unknown, stage: AccountDeleteStage): unknown {
   return wrapped;
 }
 
-// API delete, then local wipe of ids that were synced, then the auth user.
-// A failed API delete leaves the device and the sign-in alone.
+// Cloud delete, then local wipe of ids that were synced, then the auth user.
+// Without a backup API the sign-in stays, because cloud copies could not be removed.
 export async function deleteSignedInAccount(input: {
   uid: string;
   token: string;
@@ -115,18 +115,21 @@ export async function deleteSignedInAccount(input: {
   deleteAuth: () => Promise<void>;
   store: KeyValueStore;
 }): Promise<void> {
+  if (!input.api) {
+    const missing = new Error("no-api");
+    Object.defineProperty(missing, "code", { value: "no-api" });
+    throw tagDeleteError(missing, "api");
+  }
   const ids = syncedIdsFor(input.store, input.uid);
-  if (input.api) {
-    try {
-      await input.api.deleteAccount(input.token);
-    } catch (error) {
-      throw tagDeleteError(error, "api");
-    }
-    try {
-      await input.removeLocal(ids);
-    } catch (error) {
-      throw tagDeleteError(error, "local");
-    }
+  try {
+    await input.api.deleteAccount(input.token);
+  } catch (error) {
+    throw tagDeleteError(error, "api");
+  }
+  try {
+    await input.removeLocal(ids);
+  } catch (error) {
+    throw tagDeleteError(error, "local");
   }
   clearOptIn(input.store);
   clearSynced(input.store, input.uid);

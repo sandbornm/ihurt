@@ -9,11 +9,11 @@ export interface BackupEntry {
 }
 
 export function withinBackupWindow(
-  entry: Pick<BackupEntry, "created" | "updated">,
+  entry: Pick<BackupEntry, "created">,
   now: number,
   days = BACKUP_DAYS,
 ): boolean {
-  const stamp = Date.parse(entry.updated || entry.created);
+  const stamp = Date.parse(entry.created);
   if (!Number.isFinite(stamp)) return false;
   return stamp >= now - days * DAY_MS && stamp <= now + DAY_MS;
 }

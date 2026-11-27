@@ -950,8 +950,8 @@ export const es: Messages = {
   "account.confirmDeleteTitle": "¿Eliminar esta cuenta?",
   "account.confirmDelete":
     "Esto elimina la cuenta en la nube y las entradas copiadas desde este dispositivo. Las entradas que nunca se copiaron se quedan en este dispositivo.",
-  "account.confirmDeleteLocal":
-    "Esto elimina el inicio de sesión en este dispositivo. Las entradas de este dispositivo se quedan aquí.",
+  "account.deleteNeedsService":
+    "El servicio de copia tiene que estar disponible para eliminar la cuenta y sus copias en la nube. Cerrar sesión deja la cuenta en su lugar.",
   "account.confirmDeleteAction": "Eliminar cuenta",
   "account.upgradeTitle": "Pro: la mejora llega pronto",
   "account.upgradeBody":

@@ -915,8 +915,8 @@ export const en = {
   "account.confirmDeleteTitle": "Delete this account?",
   "account.confirmDelete":
     "This removes the cloud account and the entries backed up from this device. Entries that were never backed up stay on this device.",
-  "account.confirmDeleteLocal":
-    "This removes the sign-in on this device. Entries on this device stay here.",
+  "account.deleteNeedsService":
+    "The backup service has to be available to delete an account and its cloud copies. Sign out leaves the account in place.",
   "account.confirmDeleteAction": "Delete account",
   "account.upgradeTitle": "Pro: upgrade coming soon",
   "account.upgradeBody":

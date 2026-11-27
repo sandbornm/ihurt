@@ -15,6 +15,7 @@ import {
 } from "../notebook-storage.ts";
 import {
   BACKUP_DAYS,
+  backupClock,
   entriesForBackup,
   idsDeletedOnServer,
   type BackupEntry,
@@ -276,13 +277,17 @@ export async function enableBackup(
       [...priorRemoved].filter((id) => kept.some((entry) => entry.id === id)),
       session.uid,
     );
-    const gone = idsDeletedOnServer(
-      syncedIdsFor(browserStore(), session.uid),
-      kept,
-      remote,
-      deletedNow,
-      Date.now(),
-    ).filter((id) => !priorRemoved.has(id));
+    const clock = backupClock(Date.now(), remote);
+    const gone =
+      remote.length > 0
+        ? idsDeletedOnServer(
+            syncedIdsFor(browserStore(), session.uid),
+            kept,
+            remote,
+            deletedNow,
+            clock,
+          ).filter((id) => !priorRemoved.has(id))
+        : [];
     rememberRemoteDeletes(browserStore(), gone, session.uid);
     const goneIds = new Set(gone);
     const windowed = entriesForBackup(
@@ -291,7 +296,7 @@ export async function enableBackup(
         browserStore(),
         session.uid,
       ),
-      Date.now(),
+      clock,
       BACKUP_DAYS,
       new Set(remote.map((entry) => entry.id)),
     );

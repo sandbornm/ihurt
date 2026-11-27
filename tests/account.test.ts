@@ -847,6 +847,32 @@ test("clearing every pin does not upload pins with an empty region list", () => 
   assert.equal(acceptStoredEntry(payload)?.id, "a");
 });
 
+test("a local pin clear without a points array beats an older remote pin list", () => {
+  const created = new Date(NOW - DAY).toISOString();
+  const remote = {
+    id: "a",
+    created,
+    note: "newer-note",
+    noteUpdated: new Date(NOW).toISOString(),
+    pointsUpdated: new Date(NOW - 2 * DAY).toISOString(),
+    points: [{ id: "old" }],
+  };
+  const local = {
+    id: "a",
+    created,
+    note: "older-note",
+    noteUpdated: new Date(NOW - DAY).toISOString(),
+    pointsUpdated: new Date(NOW - DAY).toISOString(),
+  };
+  const [merged] = mergeBackupWindow([local], [remote], new Set(), NOW);
+  assert.equal(merged?.note, "newer-note");
+  assert.deepEqual(merged?.points, []);
+  assert.equal(merged?.pointsUpdated, local.pointsUpdated);
+  const payload = toBackupPayload(merged!);
+  assert.deepEqual(payload.points, []);
+  assert.deepEqual(payload.map.regions, []);
+});
+
 test("a note with regions and no pins does not upload those regions", () => {
   const payload = toBackupPayload({
     id: "legacy",
@@ -900,6 +926,54 @@ test("a slow clock does not drop cloud entries dated ahead of this device", asyn
     },
   });
   assert.deepEqual(sent[0]?.sort(), ["ahead", "recent"]);
+});
+
+test("a slow clock does not delete a note the server aged out", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["aged"], "user-a");
+  const forgotten: string[][] = [];
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("aged", 95), entry("local", 1)],
+    now: NOW - 10 * DAY,
+    store,
+    pull: async () => [entry("today", 0)],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(sent, [["local", "today"]]);
+});
+
+test("an empty sync snapshot does not delete local notes", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["kept"], "user-a");
+  const forgotten: string[][] = [];
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("kept", 1), entry("fresh", 1)],
+    now: NOW,
+    store,
+    pull: async () => [],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(sent, [["fresh", "kept"]]);
 });
 
 test("a fast clock does not drop a cloud entry the server still returned", async () => {
@@ -2450,6 +2524,12 @@ test("a later save applies the downloaded note before the next upload", () => {
   const abortAt = beforeUpload.indexOf("if (!current()) return []", pullAt);
   assert.ok(pullAt >= 0 && claimedAt > pullAt && abortAt > claimedAt);
   const enable = store.indexOf("export async function enableBackup");
+  const enableBody = store.slice(
+    enable,
+    store.indexOf("export async function enrollPasskey"),
+  );
+  assert.equal(enableBody.includes("backupClock("), true);
+  assert.equal(enableBody.includes("remote.length > 0"), true);
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
   const claimed = store.indexOf("rememberSeenEntries(", put);
   assert.ok(enable > 0 && put > enable && claimed > put);

@@ -1,4 +1,5 @@
 import {
+  backupClock,
   entriesForBackup,
   idsDeletedOnServer,
   mergeBackupWindow,
@@ -570,15 +571,21 @@ export async function pushBackup<T extends BackupEntry>(input: {
     );
     releaseRemoteDeletes(input.store, revived, input.uid);
     const alreadyRemoved = new Set(priorRemoved);
-    const remoteGone = input.pull
-      ? idsDeletedOnServer(
-          syncedIdsFor(input.store, input.uid),
-          entries,
-          remote,
-          deleted,
-          input.now,
-        ).filter((id) => !alreadyRemoved.has(id))
-      : [];
+    // An empty 200 is not a generation. It must not delete every synced note
+    // and then upload the list without them. A pull that names other notes
+    // can still show a delete. The clock follows the newest stamp in that
+    // pull, so a slow device does not treat a note the server aged out as one.
+    const clock = backupClock(input.now, remote);
+    const remoteGone =
+      input.pull && remote.length > 0
+        ? idsDeletedOnServer(
+            syncedIdsFor(input.store, input.uid),
+            entries,
+            remote,
+            deleted,
+            clock,
+          ).filter((id) => !alreadyRemoved.has(id))
+        : [];
     rememberRemoteDeletes(input.store, remoteGone, input.uid);
     const drop = [
       ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
@@ -587,7 +594,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
     if (drop.length > 0) await input.forget?.(drop);
     if (!current()) return [];
     const windowed = input.pull
-      ? mergeBackupWindow(entries, remote, deleted, input.now)
+      ? mergeBackupWindow(entries, remote, deleted, clock)
       : entriesForBackup(entries, input.now);
     const localIds = new Set(entries.map((entry) => entry.id));
     const remoteIds = new Set(remote.map((entry) => entry.id));

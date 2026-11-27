@@ -23,6 +23,30 @@ export function withinBackupWindow(
   return stamp >= now - days * DAY_MS;
 }
 
+// A device clock that is behind still has to see the server's window. The
+// newest stamp in the pull is the later clock. An aged-out note then stays
+// outside the window instead of looking like a delete.
+export function backupClock<T extends BackupEntry>(
+  now: number,
+  remote: readonly T[],
+): number {
+  let latest = now;
+  for (const entry of remote) {
+    const stamps = [
+      entry.created,
+      entry.updated,
+      entry.noteUpdated,
+      (entry as T & { pointsUpdated?: unknown }).pointsUpdated,
+    ];
+    for (const value of stamps) {
+      if (typeof value !== "string") continue;
+      const stamp = Date.parse(value);
+      if (stamp > latest) latest = stamp;
+    }
+  }
+  return latest;
+}
+
 // A successful pull is the cloud window. An id this device last uploaded, that
 // is still inside the window and missing from that pull, was deleted on
 // another device. A new local row was never uploaded, so it is not in `synced`.
@@ -138,10 +162,13 @@ function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
   const pins = (pinsFromRemote ? remote : local) as typeof row;
   const note = readNote(noteFromRemote ? remote : local);
   const title = noteFromRemote ? remoteMapTitle(remote) : remoteMapTitle(local);
-  // A newer pin revision with no points array is a clear. Leaving the key
-  // off used to keep the other device's pins under an empty region list.
-  if (pinsFromRemote || "points" in pins) {
-    row.points = "points" in pins ? pins.points : [];
+  // A newer pin revision with no points array is a clear. IndexedDB drops a
+  // key whose value was undefined, so the missing key is that clear too.
+  const pinsWon =
+    pinsFromRemote || stampMs(readStamp(local)) > stampMs(readStamp(remote));
+  if (pinsWon || "points" in pins) {
+    const value = "points" in pins ? pins.points : [];
+    row.points = Array.isArray(value) ? value : [];
   }
   if (pins.pointsUpdated) row.pointsUpdated = pins.pointsUpdated;
   else delete row.pointsUpdated;

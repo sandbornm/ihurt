@@ -237,7 +237,8 @@ export async function enableBackup(
   try {
     const token = await session.getIdToken();
     await api.enableSync(token);
-    const remote = await api.getEntries(token);
+    const sync = await api.getEntries(token);
+    const remote = sync.entries;
     if (
       state.session?.uid !== session.uid ||
       backupEpoch(browserStore()) !== epoch ||
@@ -288,16 +289,13 @@ export async function enableBackup(
       session.uid,
     );
     const clock = backupClock(Date.now(), remote);
-    const gone =
-      remote.length > 0
-        ? idsDeletedOnServer(
-            syncedIdsFor(browserStore(), session.uid),
-            kept,
-            remote,
-            deletedNow,
-            clock,
-          ).filter((id) => !priorRemoved.has(id))
-        : [];
+    const gone = idsDeletedOnServer(
+      syncedIdsFor(browserStore(), session.uid),
+      kept,
+      sync.deleted,
+      deletedNow,
+      clock,
+    ).filter((id) => !priorRemoved.has(id));
     rememberRemoteDeletes(browserStore(), gone, session.uid);
     const goneIds = new Set(gone);
     const windowed = entriesForBackup(
@@ -424,14 +422,15 @@ export function pushBackupEntries(
         },
         epoch,
         pull: async (next) => {
-          const remote = await current.getEntries(next);
-          if (backupEpoch(browserStore()) !== epoch) return remote;
+          const sync = await current.getEntries(next);
+          const remote = sync.entries;
+          if (backupEpoch(browserStore()) !== epoch) return sync;
           if (
             state.session?.uid !== uid ||
             !optedIn(browserStore(), uid) ||
             accountDeleting(browserStore(), uid)
           )
-            return remote;
+            return sync;
           const revived = removedIdsFor(browserStore(), uid).filter((id) =>
             remote.some((entry) => entry.id === id),
           );
@@ -440,7 +439,7 @@ export function pushBackupEntries(
             await clearDeletedIds(revived);
           }
           await onMerge?.(remote);
-          return remote;
+          return sync;
         },
         put: (next, rows) => current.putEntries(next, rows),
         forget: onRemove,

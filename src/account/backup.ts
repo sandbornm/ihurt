@@ -47,22 +47,23 @@ export function backupClock<T extends BackupEntry>(
   return latest;
 }
 
-// A successful pull is the cloud window. An id this device last uploaded, that
-// is still inside the window and missing from that pull, was deleted on
-// another device. A new local row was never uploaded, so it is not in `synced`.
-// A row older than the window is absent because it aged out, and stays local.
+// A missing id is not a delete. Another device can upload an older full list
+// and leave this device's note out. Only an id the server names in `deleted`
+// is removed, and only while it is still inside the backup window. A new local
+// row was never uploaded, so it is not in `synced`. A row older than the
+// window stays on this device.
 export function idsDeletedOnServer<T extends BackupEntry>(
   synced: readonly string[],
   local: readonly T[],
-  remote: readonly { id: string }[],
+  namedDeleted: readonly string[],
   deleted: ReadonlySet<string>,
   now: number,
   days = BACKUP_DAYS,
 ): string[] {
-  const remoteIds = new Set(remote.map((entry) => entry.id));
+  const named = new Set(namedDeleted);
   const localById = new Map(local.map((entry) => [entry.id, entry]));
   return synced.filter((id) => {
-    if (deleted.has(id) || remoteIds.has(id)) return false;
+    if (!named.has(id) || deleted.has(id)) return false;
     const entry = localById.get(id);
     return entry !== undefined && withinBackupWindow(entry, now, days);
   });

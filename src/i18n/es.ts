@@ -931,16 +931,16 @@ export const es: Messages = {
     "El plan gratuito incluye un diario sin límite en este dispositivo, copia en la nube de los últimos 90 días y 5 búsquedas de fuentes al mes.",
   "account.backup": "Copia en la nube",
   "account.backupOff":
-    "La copia está desactivada. Las entradas se quedan en este dispositivo.",
+    "La copia está desactivada. Los guardados nuevos se quedan en este dispositivo. Las entradas ya copiadas siguen en la cuenta hasta que la elimines.",
   "account.backupOn":
     "La copia está activa para esta cuenta. Las entradas de los últimos 90 días se copian cuando guardas.",
   "account.turnOn": "Activar copia",
   "account.turnOff": "Desactivar copia",
   "account.confirmBackupTitle": "¿Copiar las entradas a esta cuenta?",
   "account.confirmBackup": {
-    one: "Esto copia {count} entrada de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen las notas y los pines. Los comentarios de los pines, las búsquedas de fuentes y las notas de la IA se quedan en este dispositivo. Las grabaciones se quedan en este dispositivo.",
+    one: "Esto copia {count} entrada de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen las notas y los pines. El título, cómo se siente, la actividad, la duración, la intensidad, los comentarios de los pines, las búsquedas de fuentes y las notas de la IA se quedan en este dispositivo. Las grabaciones se quedan en este dispositivo.",
     other:
-      "Esto copia {count} entradas de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen las notas y los pines. Los comentarios de los pines, las búsquedas de fuentes y las notas de la IA se quedan en este dispositivo. Las grabaciones se quedan en este dispositivo.",
+      "Esto copia {count} entradas de los últimos 90 días en este dispositivo a esta cuenta. Se incluyen las notas y los pines. El título, cómo se siente, la actividad, la duración, la intensidad, los comentarios de los pines, las búsquedas de fuentes y las notas de la IA se quedan en este dispositivo. Las grabaciones se quedan en este dispositivo.",
   },
   "account.confirmBackupAction": "Copiar a esta cuenta",
   "account.cancel": "Cancelar",
@@ -948,7 +948,7 @@ export const es: Messages = {
   "account.delete": "Eliminar cuenta",
   "account.confirmDeleteTitle": "¿Eliminar esta cuenta?",
   "account.confirmDelete":
-    "Esto elimina la cuenta en la nube y las entradas copiadas desde este dispositivo. Las entradas que nunca se copiaron se quedan en este dispositivo.",
+    "Esto elimina la cuenta en la nube y las entradas copiadas desde este dispositivo, incluidas las de más de 90 días. Las entradas que nunca se copiaron se quedan en este dispositivo.",
   "account.deleteNeedsService":
     "El servicio de copia tiene que estar disponible para eliminar la cuenta y sus copias en la nube. Cerrar sesión deja la cuenta en su lugar.",
   "account.confirmDeleteAction": "Eliminar cuenta",

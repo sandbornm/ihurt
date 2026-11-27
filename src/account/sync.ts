@@ -522,6 +522,22 @@ async function snapshotOf<T>(
   return value ?? [];
 }
 
+function pulledWindow<T extends { id: string }>(
+  value: readonly T[] | { entries: readonly T[]; deleted?: readonly string[] },
+): { entries: readonly T[]; deleted: readonly string[] } {
+  if (Array.isArray(value)) return { entries: value, deleted: [] };
+  const window = value as {
+    entries: readonly T[];
+    deleted?: readonly string[];
+  };
+  return {
+    entries: window.entries,
+    deleted: (window.deleted ?? []).filter(
+      (id) => typeof id === "string" && id,
+    ),
+  };
+}
+
 export async function pushBackup<T extends BackupEntry>(input: {
   uid: string;
   token: string;
@@ -529,7 +545,11 @@ export async function pushBackup<T extends BackupEntry>(input: {
   now: number;
   store: KeyValueStore;
   put: (token: string, entries: T[]) => Promise<void>;
-  pull?: (token: string) => Promise<readonly T[]>;
+  pull?: (
+    token: string,
+  ) => Promise<
+    readonly T[] | { entries: readonly T[]; deleted?: readonly string[] }
+  >;
   deletedIds?: Snapshot<string>;
   epoch?: number;
   forget?: (ids: string[]) => Promise<void>;
@@ -546,7 +566,10 @@ export async function pushBackup<T extends BackupEntry>(input: {
   // the entry the earlier tab already uploaded.
   return withUploadLock(async () => {
     if (!current()) return [];
-    const remote = input.pull ? await input.pull(input.token) : [];
+    const pulled = input.pull
+      ? pulledWindow(await input.pull(input.token))
+      : { entries: [] as T[], deleted: [] as string[] };
+    const remote = pulled.entries;
     // The pull can store these rows before this check. Sign-out during that
     // write still leaves them on the device, so they stay with this account.
     if (input.pull) {
@@ -582,21 +605,21 @@ export async function pushBackup<T extends BackupEntry>(input: {
     );
     releaseRemoteDeletes(input.store, revived, input.uid);
     const alreadyRemoved = new Set(priorRemoved);
-    // An empty 200 is not a generation. It must not delete every synced note
-    // and then upload the list without them. A pull that names other notes
-    // can still show a delete. The clock follows the newest stamp in that
-    // pull, so a slow device does not treat a note the server aged out as one.
+    // An empty 200 is not a generation. A note missing from that list is not
+    // a delete either: the other device may have uploaded an older snapshot.
+    // Only an id named in `deleted` is removed. The clock follows the newest
+    // stamp in the pull, so a slow device does not treat an aged-out note as
+    // one the server deleted.
     const clock = backupClock(input.now, remote);
-    const remoteGone =
-      input.pull && remote.length > 0
-        ? idsDeletedOnServer(
-            syncedIdsFor(input.store, input.uid),
-            entries,
-            remote,
-            deleted,
-            clock,
-          ).filter((id) => !alreadyRemoved.has(id))
-        : [];
+    const remoteGone = input.pull
+      ? idsDeletedOnServer(
+          syncedIdsFor(input.store, input.uid),
+          entries,
+          pulled.deleted,
+          deleted,
+          clock,
+        ).filter((id) => !alreadyRemoved.has(id))
+      : [];
     rememberRemoteDeletes(input.store, remoteGone, input.uid);
     const drop = [
       ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),

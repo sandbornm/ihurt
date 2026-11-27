@@ -7,6 +7,7 @@ import {
   accountApiOrigin,
   createAccountApi,
   remoteEntries,
+  remoteSync,
   SYNC_ENTRY_LIMIT,
 } from "../src/account/api.ts";
 import { accountEventBody, createAnalytics } from "../src/account/analytics.ts";
@@ -2011,6 +2012,31 @@ test("two tabs that claim together both keep their uploads", async () => {
   }
 });
 
+test("a later device's snapshot does not delete a note this device already uploaded", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["from-a", "shared"], "user-a");
+  const sent: string[][] = [];
+  const forgotten: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("from-a", 1), entry("shared", 1)],
+    now: NOW,
+    store,
+    pull: async () => [entry("shared", 1), entry("from-b", 1)],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(sent, [["from-a", "from-b", "shared"]]);
+  assert.deepEqual(removedIdsFor(store, "user-a"), []);
+});
+
 test("a delete on another device is not uploaded again", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -2023,7 +2049,10 @@ test("a delete on another device is not uploaded again", async () => {
     entries: [entry("gone", 1), entry("keep", 1), entry("fresh", 1)],
     now: NOW,
     store,
-    pull: async () => [entry("keep", 1)],
+    pull: async () => ({
+      entries: [entry("keep", 1)],
+      deleted: ["gone"],
+    }),
     put: async (_token, rows) => {
       sent.push(rows.map((row) => row.id).sort());
     },
@@ -2063,11 +2092,17 @@ test("a delete on another device is not uploaded again", async () => {
     idsDeletedOnServer(
       ["gone", "keep", "old"],
       [entry("gone", 1), entry("keep", 1), entry("old", 91)],
-      [entry("keep", 1)],
+      ["gone", "old"],
       new Set(),
       NOW,
     ),
     ["gone"],
+  );
+  assert.deepEqual(remoteSync({ entries: [] }), { entries: [], deleted: [] });
+  assert.throws(
+    () => remoteSync({ entries: [], deleted: ["gone", "gone"] }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
   );
 });
 
@@ -2160,7 +2195,7 @@ test("a delete during backup enable is left out of the first upload", () => {
     true,
   );
   assert.equal(button.includes("backupRowsAfterMerge(entries"), false);
-  const pullAt = store.indexOf("const remote = await current.getEntries(next)");
+  const pullAt = store.indexOf("const sync = await current.getEntries(next)");
   const mergeCall = store.indexOf("await onMerge?.(remote)", pullAt);
   assert.ok(pullAt > 0 && mergeCall > pullAt);
   assert.equal(
@@ -2543,7 +2578,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   const storedBody = store.slice(stored, stored + 500);
   assert.equal(storedBody.includes("backupOptInFromStorage("), true);
   assert.equal(storedBody.includes("optedIn: next"), true);
-  assert.equal(enableBody.includes("remote.length > 0"), true);
+  assert.equal(enableBody.includes("sync.deleted"), true);
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
   const claimed = store.indexOf("rememberSeenEntries(", put);
   assert.ok(enable > 0 && put > enable && claimed > put);

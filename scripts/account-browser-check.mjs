@@ -353,6 +353,7 @@ async function runFlow(name, contextOptions, limitCode) {
   ];
   await account.getByRole("button", { name: "Turn on backup" }).click();
   await account.getByText("This copies 1 entry", { exact: false }).waitFor();
+  await account.getByText("the intensity", { exact: false }).waitFor();
   await account.getByRole("button", { name: "Copy to this account" }).click();
   for (
     let i = 0;
@@ -423,9 +424,7 @@ async function runFlow(name, contextOptions, limitCode) {
     .getByRole("heading", { name: "Delete this account?" })
     .waitFor();
   await signedIn
-    .getByText("Entries that were never backed up stay on this device.", {
-      exact: false,
-    })
+    .getByText("including entries older than 90 days", { exact: false })
     .waitFor();
   await signedIn.getByRole("button", { name: "Delete account" }).click();
   await signedIn.waitFor({ state: "hidden" });

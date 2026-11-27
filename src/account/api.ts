@@ -31,7 +31,9 @@ export interface AccountApi {
   getAccount(token: string): Promise<AccountStatus>;
   enableSync(token: string): Promise<void>;
   putEntries(token: string, entries: readonly BackupEntry[]): Promise<void>;
-  getEntries(token: string): Promise<SavedMap[]>;
+  getEntries(
+    token: string,
+  ): Promise<{ entries: SavedMap[]; deleted: readonly string[] }>;
   deleteAccount(token: string): Promise<void>;
   useSearch(token: string): Promise<{ remaining: number }>;
 }
@@ -76,6 +78,32 @@ export function remoteEntries(value: unknown): SavedMap[] {
     ids.add(row.id);
   }
   return rows;
+}
+
+// A missing `deleted` list is not a delete. Another device's full snapshot can
+// omit a note this device uploaded. Only ids the server names are deletions.
+export function remoteSync(value: unknown): {
+  entries: SavedMap[];
+  deleted: readonly string[];
+} {
+  const entries = remoteEntries(value);
+  const named = (value as { deleted?: unknown }).deleted;
+  if (named === undefined) return { entries, deleted: [] };
+  if (!Array.isArray(named) || named.length > SYNC_ENTRY_LIMIT)
+    throw new AccountApiError(200, "invalid");
+  const present = new Set(entries.map((entry) => entry.id));
+  const deleted: string[] = [];
+  for (const id of named) {
+    if (
+      typeof id !== "string" ||
+      !id ||
+      present.has(id) ||
+      deleted.includes(id)
+    )
+      throw new AccountApiError(200, "invalid");
+    deleted.push(id);
+  }
+  return { entries, deleted };
 }
 
 function statusFrom(value: unknown): AccountStatus {
@@ -202,7 +230,7 @@ export function createAccountApi(
       });
     },
     async getEntries(token) {
-      return remoteEntries(await request("/v1/sync", token, "GET"));
+      return remoteSync(await request("/v1/sync", token, "GET"));
     },
     async deleteAccount(token) {
       await request("/v1/account", token, "DELETE");

@@ -897,16 +897,17 @@ export const en = {
   "account.free":
     "Free includes unlimited journaling on this device, cloud backup of the last 90 days, and 5 source searches a month.",
   "account.backup": "Cloud backup",
-  "account.backupOff": "Backup is off. Entries stay on this device.",
+  "account.backupOff":
+    "Backup is off. New saves stay on this device. Entries already copied stay in the account until you delete it.",
   "account.backupOn":
     "Backup is on for this account. Entries from the last 90 days are copied when you save.",
   "account.turnOn": "Turn on backup",
   "account.turnOff": "Turn off backup",
   "account.confirmBackupTitle": "Copy entries to this account?",
   "account.confirmBackup": {
-    one: "This copies {count} entry from the last 90 days on this device to this account. Notes and pins are included. Pin comments, source searches, and AI notes stay on this device. Recordings stay on this device.",
+    one: "This copies {count} entry from the last 90 days on this device to this account. Notes and pins are included. The title, how it feels, the activity, the duration, the intensity, pin comments, source searches, and AI notes stay on this device. Recordings stay on this device.",
     other:
-      "This copies {count} entries from the last 90 days on this device to this account. Notes and pins are included. Pin comments, source searches, and AI notes stay on this device. Recordings stay on this device.",
+      "This copies {count} entries from the last 90 days on this device to this account. Notes and pins are included. The title, how it feels, the activity, the duration, the intensity, pin comments, source searches, and AI notes stay on this device. Recordings stay on this device.",
   },
   "account.confirmBackupAction": "Copy to this account",
   "account.cancel": "Cancel",
@@ -914,7 +915,7 @@ export const en = {
   "account.delete": "Delete account",
   "account.confirmDeleteTitle": "Delete this account?",
   "account.confirmDelete":
-    "This removes the cloud account and the entries backed up from this device. Entries that were never backed up stay on this device.",
+    "This removes the cloud account and the entries backed up from this device, including entries older than 90 days. Entries that were never backed up stay on this device.",
   "account.deleteNeedsService":
     "The backup service has to be available to delete an account and its cloud copies. Sign out leaves the account in place.",
   "account.confirmDeleteAction": "Delete account",

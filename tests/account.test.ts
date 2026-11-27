@@ -12,7 +12,10 @@ import {
 } from "../src/account/api.ts";
 import { accountEventBody, createAnalytics } from "../src/account/analytics.ts";
 import { readTestRuntime } from "../src/account/auth.ts";
-import { remainingForSession } from "../src/account/store.ts";
+import {
+  remainingForSession,
+  sourceSearchDecision,
+} from "../src/account/store.ts";
 import { completeEmailLink } from "../src/account/firebase-auth.ts";
 import {
   BACKUP_DAYS,
@@ -38,7 +41,7 @@ import {
   readAccountConfig,
   testRuntimeAllowed,
 } from "../src/account/config.ts";
-import { acceptStoredEntry, STORED_PIN_LIMIT } from "../src/notebook-data.ts";
+import { acceptStoredEntry } from "../src/notebook-data.ts";
 import {
   backupEpoch,
   backupOptInFromStorage,
@@ -1274,18 +1277,21 @@ test("an oversized sync response is rejected before upload", async () => {
     (error: unknown) =>
       error instanceof AccountApiError && error.code === "invalid",
   );
-  const crowded = storedEntry(validMap);
-  crowded.points = Array.from({ length: STORED_PIN_LIMIT + 1 }, (_, index) => ({
+});
+
+test("a backup row with 2001 pins comes back", () => {
+  const many = storedEntry(validMap);
+  many.points = Array.from({ length: 2001 }, (_, index) => ({
     id: `pin-${index}`,
     region: "neck",
     structure: "Sternum",
     position: [0, 1, 0],
   }));
-  assert.throws(
-    () => remoteEntries({ entries: [crowded] }),
-    (error: unknown) =>
-      error instanceof AccountApiError && error.code === "invalid",
-  );
+  const uploaded = toBackupPayload(many);
+  assert.equal(uploaded.points.length, 2001);
+  const rows = remoteEntries({ entries: [uploaded] });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.points?.length, 2001);
 });
 
 test("a backup row with more pins than 500 still syncs", () => {
@@ -2652,6 +2658,24 @@ test("another account does not keep the previous search allowance", () => {
     store.indexOf("function wire"),
   );
   assert.equal(apply.includes("remainingForSession("), true);
+});
+
+test("a source search started by one account does not finish for another", () => {
+  assert.equal(sourceSearchDecision("user-a", "user-a", false), "allow");
+  assert.equal(sourceSearchDecision("user-a", "user-b", false), "stop");
+  assert.equal(sourceSearchDecision("user-a", null, false), "stop");
+  assert.equal(sourceSearchDecision("user-a", "user-b", true), "stop");
+  assert.equal(sourceSearchDecision("user-a", "user-a", true), "upgrade");
+  const root = new URL("../", import.meta.url);
+  const store = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const guard = store.slice(
+    store.indexOf("export async function guardSourceSearch"),
+    store.indexOf("export function syncedIds"),
+  );
+  const allow = guard.indexOf('decision !== "allow"');
+  const upgrade = guard.indexOf("openUpgrade()");
+  assert.ok(allow > 0);
+  assert.ok(upgrade > allow);
 });
 
 test("map review does not spend a source search", () => {

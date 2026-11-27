@@ -486,9 +486,6 @@ function parseStoredResearch(
   };
 }
 
-// A downloaded pin list longer than this is rejected with the whole response.
-export const STORED_PIN_LIMIT = 2000;
-
 // A backup row is untrusted. Drop it unless it has the same shape the notebook
 // reads, including a region list, so a partial map cannot be stored.
 export function acceptStoredEntry(value: unknown): SavedMap | null {
@@ -525,7 +522,9 @@ export function acceptStoredEntry(value: unknown): SavedMap | null {
     if (row.mapUpdated !== undefined)
       entry.mapUpdated = parseMapUpdated(row.mapUpdated);
     if (row.points !== undefined) {
-      entry.points = array(row.points, STORED_PIN_LIMIT).map(parsePoint);
+      // The sync response is byte-limited. Pin lists have no count quota, the
+      // same as an import, so a local entry can be restored after upload.
+      entry.points = array(row.points, Infinity).map(parsePoint);
       if (
         new Set(entry.points.map((point) => point.id)).size !==
         entry.points.length

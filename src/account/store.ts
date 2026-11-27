@@ -542,21 +542,42 @@ export function closeUpgrade() {
   setState({ ...state, upgrade: false });
 }
 
+// The allowance request belongs to the account that started it. A sign-in that
+// lands before the response must not spend that result on the new account.
+export function sourceSearchDecision(
+  requestedUid: string,
+  currentUid: string | null,
+  limited: boolean,
+): "allow" | "stop" | "upgrade" {
+  if (currentUid !== requestedUid) return "stop";
+  return limited ? "upgrade" : "allow";
+}
+
 export async function guardSourceSearch(): Promise<boolean> {
   const session = state.session;
   if (!session || !api) return true;
   try {
     const result = await api.useSearch(await session.getIdToken());
-    if (state.session?.uid === session.uid)
-      setState({ ...state, remaining: result.remaining });
+    const decision = sourceSearchDecision(
+      session.uid,
+      state.session?.uid ?? null,
+      false,
+    );
+    if (decision !== "allow") return false;
+    setState({ ...state, remaining: result.remaining });
     return true;
   } catch (error) {
     if (
       error instanceof AccountApiError &&
       (error.code === "upgrade_coming_soon" || error.code === "limit_reached")
     ) {
-      if (state.session?.uid === session.uid)
-        setState({ ...state, remaining: error.remaining ?? 0 });
+      const decision = sourceSearchDecision(
+        session.uid,
+        state.session?.uid ?? null,
+        true,
+      );
+      if (decision !== "upgrade") return false;
+      setState({ ...state, remaining: error.remaining ?? 0 });
       openUpgrade();
       return false;
     }

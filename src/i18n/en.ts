@@ -461,6 +461,7 @@ export const en = {
     "Your draft saves on this device. Print a report or export an .ihm file to keep the map and notes together. Optional source search lets you review what goes to Grok first.",
   "tour.progress": "QUICK TOUR · {step} OF {total}",
   "tour.close": "Close tutorial",
+  "a11y.skipToContent": "Skip to main content",
   "tour.limit":
     "This is reference anatomy. Pins help describe a location; they do not measure your body or identify the cause of pain.",
   "tour.back": "Back",

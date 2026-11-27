@@ -15,6 +15,21 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
     dialog.current?.showModal();
   }, []);
   useEffect(() => {
+    const node = dialog.current;
+    if (!node) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      setStep((current) => {
+        if (event.key === "ArrowRight")
+          return Math.min(current + 1, steps.length - 1);
+        return Math.max(current - 1, 0);
+      });
+    };
+    node.addEventListener("keydown", onKey);
+    return () => node.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => {
     heading.current?.focus();
   }, [step]);
   const item = steps[step];

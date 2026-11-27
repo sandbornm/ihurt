@@ -6,6 +6,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
+import SkipLink from "./SkipLink";
 import {
   ArrowDownToLine,
   ArrowRight,
@@ -517,6 +518,7 @@ export default function Notebook({
       className="app-shell notebook-shell"
       data-offline={offline ? "ready" : "preparing"}
     >
+      <SkipLink />
       <header className="topbar">
         <a
           href={example ? "/" : "#"}
@@ -573,7 +575,7 @@ export default function Notebook({
             </button>
           }
         </nav>
-        <main className="main-content">
+        <main id="main-content" className="main-content" tabIndex={-1}>
           <div className="page-heading">
             <div>
               <div className="eyebrow">
@@ -1553,8 +1555,8 @@ export default function Notebook({
             </button>
           </footer>
         </main>
-      </div>
-      {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
+        </div>
+        {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
       <dialog ref={regionDialog} className="dialog region-dialog">
         <div className="dialog-heading">
           <h2>{t("notebook.regionDialog")}</h2>

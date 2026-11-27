@@ -13,6 +13,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   Crosshair,
@@ -87,6 +88,15 @@ import { recommendedSources, findReadings, sources } from "./reading";
 import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
+import {
+  dayKeys,
+  dayTitle,
+  historyMatch,
+  localDayKey,
+  momentClock,
+  momentLabel,
+  momentsOnDay,
+} from "./moments";
 import LanguageSetting from "./i18n/LanguageSetting";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
@@ -113,7 +123,7 @@ export default function Notebook({
     onSave: (research: NonNullable<SavedMap["research"]>) => Promise<void>;
   }>;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [tutorial, setTutorial] = useState(false);
   const [advancedControls, setAdvancedControls] = useState(false);
   const [toolsMenu, setToolsMenu] = useState(false);
@@ -157,6 +167,8 @@ export default function Notebook({
   const [saved, setSaved] = useState<SavedMap[]>([]),
     [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<"explore" | "journal">("explore");
+  const [day, setDay] = useState(() => localDayKey());
+  const [historyQuery, setHistoryQuery] = useState("");
   const [selected, setSelected] = useState<RegionId | null>(
       example ? "neck" : null,
     ),
@@ -267,6 +279,7 @@ export default function Notebook({
           setLayer(d.layer);
           setShowSkeleton(d.showSkeleton !== false);
           setReadingSources(d.sources);
+          setDay(localDayKey(new Date(d.entry.created)));
         }
         setHydrated(true);
       })
@@ -408,10 +421,12 @@ export default function Notebook({
     setView("front");
     setError("");
     setTab("explore");
+    setDay(localDayKey());
     action("reset");
   }
   function openEntry(item: SavedMap) {
     setEntry(structuredClone(item));
+    setDay(localDayKey(new Date(item.created)));
     setSelected(item.map.regions[0] ?? null);
     setView((item.points?.[0]?.position[2] ?? 0) < 0 ? "back" : "front");
     setTab("explore");
@@ -512,6 +527,30 @@ export default function Notebook({
       setError(t("notebook.error.fileSaveFailed"));
     }
   }
+  const momentKeys = dayKeys(
+    [...saved.map((item) => item.created), entry.created],
+    [],
+  );
+  const activeDay = momentKeys.includes(day)
+    ? day
+    : (momentKeys[momentKeys.length - 1] ?? localDayKey());
+  const dayIndex = Math.max(0, momentKeys.indexOf(activeDay));
+  const strip = momentsOnDay(saved, entry, activeDay);
+  const historyItems = [...saved]
+    .sort((a, b) => b.created.localeCompare(a.created))
+    .filter((item) =>
+      historyMatch(
+        item,
+        historyQuery,
+        item.map.regions.map((region) => regionName(region)),
+      ),
+    );
+  function dayHeading(key: string) {
+    const kind = dayTitle(key, new Date(), locale);
+    if (kind === "today") return t("moment.today");
+    if (kind === "yesterday") return t("moment.yesterday");
+    return kind;
+  }
   return (
     <div
       className="app-shell notebook-shell"
@@ -580,8 +619,7 @@ export default function Notebook({
                 {example ? t("notebook.eyebrowBrowser") : t("notebook.eyebrow")}
               </div>
               <h1>
-                {t("notebook.heading")}
-                <span>.</span>
+                {tab === "journal" ? t("moment.history") : dayHeading(activeDay)}
               </h1>
               <p>{t("notebook.tagline")}</p>
             </div>
@@ -591,7 +629,7 @@ export default function Notebook({
               disabled={busy || !hydrated}
             >
               <Plus size={17} />
-              {t("notebook.newEntry")}
+              {t("moment.new")}
             </button>
           </div>
           <div className="page-tabs">
@@ -600,7 +638,7 @@ export default function Notebook({
               onClick={() => setTab("explore")}
             >
               <Layers3 size={16} />
-              {t("notebook.bodyMap")}
+              {t("moment.today")}
             </button>
             {
               <button
@@ -608,7 +646,7 @@ export default function Notebook({
                 onClick={() => setTab("journal")}
               >
                 <BookOpen size={16} />
-                {t("notebook.notebookTab")}
+                {t("moment.history")}
                 <span className="count">{saved.length}</span>
               </button>
             }
@@ -677,15 +715,26 @@ export default function Notebook({
                   <BookOpen size={40} />
                   <h3>{t("notebook.emptyHeading")}</h3>
                   <button className="primary" onClick={() => setTab("explore")}>
-                    {t("notebook.openBodyMap")}
+                    {t("moment.openToday")}
                     <ArrowRight size={16} />
                   </button>
                 </div>
               ) : (
+                <>
+                  <label className="history-search">
+                    <Search size={16} />
+                    <input
+                      value={historyQuery}
+                      onChange={(event) => setHistoryQuery(event.target.value)}
+                      placeholder={t("moment.search")}
+                      aria-label={t("moment.searchLabel")}
+                    />
+                  </label>
+                  {!historyItems.length ? (
+                    <p className="history-empty">{t("moment.noMatch")}</p>
+                  ) : (
                 <div className="journal-grid">
-                  {[...saved]
-                    .sort((a, b) => b.created.localeCompare(a.created))
-                    .map((item) => (
+                  {historyItems.map((item) => (
                       <article className="journal-card" key={item.id}>
                         <div className="card-overline">
                           <MapPin size={17} />
@@ -735,6 +784,8 @@ export default function Notebook({
                       </article>
                     ))}
                 </div>
+                  )}
+                </>
               )}
             </section>
           ) : (
@@ -1037,6 +1088,69 @@ export default function Notebook({
                       {t("notebook.anatomyCredits")}
                     </a>
                   </div>
+                </div>
+                <div className="day-strip" aria-label={t("moment.today")}>
+                  <div className="day-strip-head">
+                    <button
+                      type="button"
+                      aria-label={t("moment.previousDay")}
+                      disabled={dayIndex <= 0}
+                      onClick={() => {
+                        const next = momentKeys[dayIndex - 1];
+                        if (next) setDay(next);
+                      }}
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <div>
+                      <strong>{dayHeading(activeDay)}</strong>
+                      <span className="day-count">
+                        {t("moment.moments", { count: strip.length })}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={t("moment.nextDay")}
+                      disabled={dayIndex >= momentKeys.length - 1}
+                      onClick={() => {
+                        const next = momentKeys[dayIndex + 1];
+                        if (next) setDay(next);
+                      }}
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                  {strip.length ? (
+                    <div className="moment-row">
+                      {strip.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="moment-card"
+                          aria-current={
+                            item.id === entry.id ? "true" : undefined
+                          }
+                          onClick={() => void openSaved(item)}
+                        >
+                          <span className="moment-copy">
+                            <span className="moment-time">
+                              {momentClock(item.created, locale)}
+                            </span>
+                            <span className="moment-title">
+                              {momentLabel(item) ?? t("moment.untitled")}
+                            </span>
+                          </span>
+                          {item.map.intensity != null && (
+                            <span className="moment-score">
+                              {item.map.intensity}/10
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="moment-empty">{t("moment.emptyDay")}</p>
+                  )}
                 </div>
                 {selected && (
                   <div className="region-callout">

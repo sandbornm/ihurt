@@ -2750,3 +2750,41 @@ test("a backup restore leaves a deleted entry deleted", async () => {
   );
   assert.equal(await saveResearch("backup-tomb", research), undefined);
 });
+
+test("a restored cloud note replaces the open editor unless it changed during the pull", () => {
+  const snapshot = entry("open", "local note", {
+    noteUpdated: "2026-01-02T00:00:00.000Z",
+    updated: "2026-01-02T00:00:00.000Z",
+    points: [],
+  });
+  const restored = entry("open", "cloud note", {
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+    updated: "2026-01-03T00:00:00.000Z",
+    pointsUpdated: "2026-01-03T00:00:00.000Z",
+    points: [{ id: "pin-cloud", region: "neck", position: [0, 1, 0] }],
+    map: {
+      ...snapshot.map,
+      title: "kept-title",
+      regions: ["neck"],
+      summary: "cloud note",
+    },
+  });
+  const unchanged = editorAfterSave(snapshot, snapshot, restored);
+  assert.equal(unchanged.note, "cloud note");
+  assert.equal(unchanged.map.title, "kept-title");
+  assert.deepEqual(
+    unchanged.points?.map((point) => point.id),
+    ["pin-cloud"],
+  );
+  const typed = {
+    ...snapshot,
+    note: "typed during pull",
+    noteUpdated: "2026-01-04T00:00:00.000Z",
+  };
+  const kept = editorAfterSave(typed, snapshot, restored);
+  assert.equal(kept.note, "typed during pull");
+  assert.deepEqual(
+    kept.points?.map((point) => point.id),
+    ["pin-cloud"],
+  );
+});

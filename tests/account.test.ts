@@ -1245,6 +1245,19 @@ test("config comes from env and the test runtime stays on loopback", async () =>
     },
   );
   assert.equal(readAccountConfig({}).firebase, null);
+  const iosEnv = {
+    VITE_FIREBASE_API_KEY: "website-key",
+    VITE_FIREBASE_IOS_API_KEY: "ios-key",
+    VITE_FIREBASE_AUTH_DOMAIN: "ihurt.app",
+    VITE_FIREBASE_PROJECT_ID: "ihurt",
+    VITE_FIREBASE_APP_ID: "app",
+  };
+  assert.equal(readAccountConfig(iosEnv, "https:").firebase?.apiKey, "website-key");
+  assert.equal(readAccountConfig(iosEnv, "capacitor:").firebase?.apiKey, "ios-key");
+  assert.equal(
+    readAccountConfig({ ...iosEnv, VITE_FIREBASE_IOS_API_KEY: "" }, "capacitor:").firebase,
+    null,
+  );
   const runtime = {
     auth: {
       async current() {

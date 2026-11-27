@@ -264,6 +264,14 @@ server and preserve all global and visitor limits. The local Python API
 remains loopback-only. Shared notebook/`.ihm` schemas and anatomy coordinates
 remain compatible across web and iOS.
 
+The website Firebase key is restricted to `https://ihurt.app/*`. The packaged
+app calls Firebase Auth from `capacitor://localhost`, and Google rejects that
+key for this origin. The iOS build sets `VITE_FIREBASE_IOS_API_KEY` to a
+separate key whose HTTP referrer restriction includes `capacitor://localhost`.
+The shell does not fall back to the website key. Apple sign-in still uses the
+native Apple credential, then the Firebase JS client exchanges it with the iOS
+key.
+
 ### Before a Metal or Vision implementation
 
 Keep the shared renderer and gesture logic until physical-device profiling

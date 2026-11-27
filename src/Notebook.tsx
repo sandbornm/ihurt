@@ -182,6 +182,8 @@ export default function Notebook({
       "notebook.status.opening",
     ),
     [removed, setRemoved] = useState<SavedMap | null>(null);
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
   const draftRef = useRef<Draft>({
     entry,
     selected,
@@ -539,23 +541,34 @@ export default function Notebook({
             entries={saved}
             ready={hydrated}
             onMerge={async (incoming) => {
+              const snapshot = entryRef.current;
               const deleted = new Set(await readDeletedIds());
-              const fresh = incoming.filter((entry) => !deleted.has(entry.id));
+              const fresh = incoming.filter((row) => !deleted.has(row.id));
               if (fresh.length === 0) return [];
               const local = new Map(saved.map((item) => [item.id, item]));
               const stored = await restoreBackupEntries(
-                fresh.map((entry) => withLocalPrivateFields(local.get(entry.id), entry)),
+                fresh.map((row) => withLocalPrivateFields(local.get(row.id), row)),
               );
               const kept = new Set(stored.map((row) => row.id));
               setSaved((old) => {
                 const map = new Map(old.map((item) => [item.id, item]));
-                for (const entry of fresh) {
-                  if (!kept.has(entry.id)) map.delete(entry.id);
+                for (const row of fresh) {
+                  if (!kept.has(row.id)) map.delete(row.id);
                 }
                 for (const row of stored) map.set(row.id, row);
                 return [...map.values()];
               });
-              if (!kept.has(entry.id) && fresh.some((row) => row.id === entry.id)) {
+              const restored = stored.find((row) => row.id === snapshot.id);
+              if (restored) {
+                const next = editorAfterSave(entryRef.current, snapshot, restored);
+                entryRef.current = next;
+                draftRef.current = { ...draftRef.current, entry: next };
+                setEntry(next);
+                await saveDraft(draftRef.current);
+              } else if (
+                !kept.has(snapshot.id) &&
+                fresh.some((row) => row.id === snapshot.id)
+              ) {
                 setEntry(blankEntry());
                 setSelected(null);
               }

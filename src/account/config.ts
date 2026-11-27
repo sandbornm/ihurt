@@ -1,5 +1,6 @@
-// Build-time public settings. Secrets stay out of Git. The Firebase web key
-// is still restricted to ihurt.app in Google Cloud; this file only reads env.
+// Build-time public settings. Secrets stay out of Git. The website key is
+// restricted to https://ihurt.app. The iOS shell calls Firebase from
+// capacitor://localhost, so it uses a separate key.
 
 export interface FirebasePublicConfig {
   apiKey: string;
@@ -18,6 +19,7 @@ export interface AccountConfig {
 
 export interface AccountEnv {
   VITE_FIREBASE_API_KEY?: string;
+  VITE_FIREBASE_IOS_API_KEY?: string;
   VITE_FIREBASE_AUTH_DOMAIN?: string;
   VITE_FIREBASE_PROJECT_ID?: string;
   VITE_FIREBASE_APP_ID?: string;
@@ -32,8 +34,15 @@ function clean(value: string | undefined): string {
   return (value ?? "").trim();
 }
 
-export function readAccountConfig(env: AccountEnv): AccountConfig {
-  const apiKey = clean(env.VITE_FIREBASE_API_KEY);
+export function readAccountConfig(
+  env: AccountEnv,
+  protocol = "https:",
+): AccountConfig {
+  const websiteKey = clean(env.VITE_FIREBASE_API_KEY);
+  const nativeKey = clean(env.VITE_FIREBASE_IOS_API_KEY);
+  // A website-restricted key is rejected for capacitor://localhost. The shell
+  // stays signed out until the iOS build provides its own key.
+  const apiKey = protocol === "capacitor:" ? nativeKey : websiteKey;
   const authDomain = clean(env.VITE_FIREBASE_AUTH_DOMAIN);
   const projectId = clean(env.VITE_FIREBASE_PROJECT_ID);
   const appId = clean(env.VITE_FIREBASE_APP_ID);

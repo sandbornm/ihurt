@@ -25,7 +25,8 @@ const server = spawn(
   ],
   { stdio: "pipe" },
 );
-let logs = "";
+  let logs = "";
+  let cloudEntries = [];
 server.stderr.on("data", (chunk) => {
   logs += chunk;
 });
@@ -163,7 +164,7 @@ async function runFlow(name, contextOptions, limitCode) {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ entries: [] }),
+          body: JSON.stringify({ entries: cloudEntries }),
         });
       }
       if (url.pathname === "/v1/sync" && method === "PUT") {
@@ -211,6 +212,58 @@ async function runFlow(name, contextOptions, limitCode) {
     false,
     `${name} uploaded before opt-in`,
   );
+  const local = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const request = indexedDB.open("ihurt-notebook");
+        request.onerror = () => resolve(null);
+        request.onsuccess = () => {
+          const db = request.result;
+          const all = db.transaction("entries", "readonly").objectStore("entries").getAll();
+          all.onsuccess = () => {
+            db.close();
+            const row = all.result.find((item) =>
+              String(item.note ?? "").includes("alpha-marker"),
+            );
+            resolve(
+              row
+                ? {
+                    id: row.id,
+                    created: row.created,
+                    noteUpdated: row.noteUpdated || row.updated || row.created,
+                  }
+                : null,
+            );
+          };
+        };
+      }),
+  );
+  assert.ok(local?.id, `${name} saved entry`);
+  const newer = new Date(Date.parse(local.noteUpdated) + 60_000).toISOString();
+  cloudEntries = [
+    {
+      id: local.id,
+      created: local.created,
+      note: "cloud-note-marker",
+      noteUpdated: newer,
+      updated: newer,
+      provider: "Your notes",
+      answers: [],
+      points: [],
+      map: {
+        title: "",
+        summary: "cloud-note-marker",
+        regions: [],
+        quality: "",
+        activity: "",
+        duration: "",
+        intensity: null,
+        question: null,
+        urgent: false,
+        safety_message: null,
+      },
+    },
+  ];
   await account.getByRole("button", { name: "Turn on backup" }).click();
   await account.getByText("This copies 1 entry", { exact: false }).waitFor();
   await account.getByRole("button", { name: "Copy to this account" }).click();
@@ -220,7 +273,8 @@ async function runFlow(name, contextOptions, limitCode) {
   assert.ok(puts.length >= 1, `${name} backup request`);
   for (const put of puts) {
     assert.equal(put.authorization, "Bearer test-id-token");
-    assert.equal(put.body.includes("alpha-marker"), true);
+    assert.equal(put.body.includes("cloud-note-marker"), true);
+    assert.equal(put.body.includes("alpha-marker"), false);
     assert.equal(put.body.includes("@"), false);
     const payload = JSON.parse(put.body);
     assert.equal(payload.entries.length, 1);
@@ -248,7 +302,10 @@ async function runFlow(name, contextOptions, limitCode) {
   await sheet.waitFor({ state: "hidden" });
   await account.getByRole("button", { name: "Sign out" }).click();
   await account.getByRole("button", { name: signInName }).waitFor();
-  assert.equal(await note.inputValue(), "alpha-marker after a walk.");
+  await page.waitForFunction(
+    () => document.querySelector("#pain-note")?.value === "cloud-note-marker",
+  );
+  assert.equal(await note.inputValue(), "cloud-note-marker");
   const putsAfterSignOut = calls.filter((call) => call.method === "PUT").length;
   await account.getByRole("button", { name: "Close account" }).click();
   await account.waitFor({ state: "hidden" });

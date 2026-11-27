@@ -113,7 +113,7 @@ export function startAccount() {
     wire(runtime.auth, runtime.apiBase ?? "", runtime.analyticsEndpoint ?? "");
     return;
   }
-  const config = readAccountConfig(import.meta.env);
+  const config = readAccountConfig(import.meta.env, location.protocol);
   if (!config.firebase) {
     setState({ ...state, status: "unconfigured", config });
     return;

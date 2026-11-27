@@ -35,6 +35,7 @@ import {
   releaseRemoteDeletes,
   rememberRemoteDeletes,
   removedIdsFor,
+  rememberDownloaded,
   rememberSeenEntries,
   rememberSynced,
   syncedIdsFor,
@@ -252,6 +253,11 @@ export async function enableBackup(
       browserStore(),
       session.uid,
       merged.map((entry) => entry.id),
+    );
+    rememberDownloaded(
+      browserStore(),
+      merged.map((entry) => entry.id),
+      session.uid,
     );
     const snapshot = await readBackupSnapshot();
     const deletedNow = new Set(snapshot.deletedIds);

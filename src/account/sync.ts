@@ -27,28 +27,31 @@ interface SyncedAccount {
   window: string[];
   backed: string[];
   removed: string[];
+  downloaded: string[];
 }
 
 function emptyAccount(): SyncedAccount {
-  return { window: [], backed: [], removed: [] };
+  return { window: [], backed: [], removed: [], downloaded: [] };
 }
 
 function accountOf(value: unknown): SyncedAccount {
   if (Array.isArray(value)) {
     const ids = idsOf(value);
-    return { window: [...ids], backed: [...ids], removed: [] };
+    return { window: [...ids], backed: [...ids], removed: [], downloaded: [] };
   }
   if (!value || typeof value !== "object") return emptyAccount();
   const row = value as {
     window?: unknown;
     backed?: unknown;
     removed?: unknown;
+    downloaded?: unknown;
   };
   const window = idsOf(row.window);
   return {
     window,
     backed: [...new Set([...idsOf(row.backed), ...window])],
     removed: idsOf(row.removed),
+    downloaded: idsOf(row.downloaded),
   };
 }
 
@@ -181,6 +184,26 @@ export function backedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.backed ?? [];
 }
 
+export function downloadedIdsFor(store: KeyValueStore, uid: string): string[] {
+  return readBook(store)[uid]?.downloaded ?? [];
+}
+
+// A pull can store a cloud row before the replacement upload finishes.
+// Account deletion has to remove that row even though it was never uploaded.
+export function rememberDownloaded(
+  store: KeyValueStore,
+  ids: readonly string[],
+  uid: string,
+) {
+  if (ids.length === 0) return;
+  const book = readBook(store);
+  const current = book[uid] ?? emptyAccount();
+  const downloaded = [...new Set([...current.downloaded, ...ids])];
+  if (downloaded.length === current.downloaded.length) return;
+  book[uid] = { ...current, downloaded };
+  writeBook(store, book);
+}
+
 export function removedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.removed ?? [];
 }
@@ -228,6 +251,7 @@ export function rememberSynced(
     window,
     backed: [...new Set([...current.backed, ...window])],
     removed: current.removed,
+    downloaded: current.downloaded,
   };
   writeBook(store, book);
 }
@@ -244,6 +268,7 @@ function retainSynced(
     window,
     backed: [...new Set([...current.backed, ...window])],
     removed: current.removed,
+    downloaded: current.downloaded,
   };
   writeBook(store, book);
 }
@@ -292,6 +317,11 @@ export async function pushBackup<T extends BackupEntry>(input: {
       input.store,
       input.uid,
       remote.map((entry) => entry.id),
+    );
+    rememberDownloaded(
+      input.store,
+      remote.map((entry) => entry.id),
+      input.uid,
     );
   }
   // The list and the tombstones passed in may be from before this pull.
@@ -434,7 +464,12 @@ export async function deleteSignedInAccount(input: {
       throw tagDeleteError(error, "api");
   }
   if (input.sameAccount?.() === false) throw cancelledDelete();
-  const ids = backedIdsFor(input.store, input.uid);
+  const ids = [
+    ...new Set([
+      ...backedIdsFor(input.store, input.uid),
+      ...downloadedIdsFor(input.store, input.uid),
+    ]),
+  ];
   try {
     await input.removeLocal(ids);
   } catch (error) {

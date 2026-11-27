@@ -256,11 +256,28 @@ function dropKeys<T extends object, K extends keyof T>(
   return next;
 }
 
+function sameRegionSet(
+  listed: readonly string[],
+  pins: readonly string[],
+): boolean {
+  if (listed.length !== pins.length) return false;
+  const have = new Set(listed);
+  return have.size === listed.length && pins.every((id) => have.has(id));
+}
+
+// A downloaded region list is the surfaces on the pins. A list that names a
+// surface with no pin is not stored.
+export function withDownloadedRegions(entry: SavedMap): SavedMap | null {
+  const regions = regionsForUpload(entry.points ?? []);
+  if (!sameRegionSet(entry.map.regions, regions)) return null;
+  return { ...entry, map: { ...entry.map, regions } };
+}
+
 function backedMap(entry: SavedMap): SavedMap["map"] {
   return {
     title: "",
     summary: entry.note,
-    regions: entry.map.regions,
+    regions: regionsForUpload(entry.points ?? []),
     quality: "",
     activity: "",
     duration: "",

@@ -2,6 +2,7 @@ import { acceptStoredEntry } from "../notebook-data.ts";
 import type { SavedMap } from "../types.ts";
 import {
   toBackupPayload,
+  withDownloadedRegions,
   withoutServerMapDetails,
   type BackupEntry,
 } from "./backup.ts";
@@ -65,7 +66,9 @@ export function remoteEntries(value: unknown): SavedMap[] {
   const rows = entries.map((entry) => {
     const accepted = acceptStoredEntry(entry);
     if (!accepted) throw new AccountApiError(200, "invalid");
-    return withoutServerMapDetails(accepted);
+    const matched = withDownloadedRegions(accepted);
+    if (!matched) throw new AccountApiError(200, "invalid");
+    return withoutServerMapDetails(matched);
   });
   const ids = new Set<string>();
   for (const row of rows) {

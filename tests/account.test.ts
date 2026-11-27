@@ -935,7 +935,20 @@ test("a mixed sync response is rejected before upload", async () => {
     calls.push(init?.method ?? "GET");
     return new Response(
       JSON.stringify({
-        entries: [storedEntry(validMap), { id: "broken" }],
+        entries: [
+          {
+            ...storedEntry(validMap),
+            points: [
+              {
+                id: "pin-1",
+                region: "neck",
+                structure: "Sternum",
+                position: [0, 1, 0],
+              },
+            ],
+          },
+          { id: "broken" },
+        ],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
@@ -1001,7 +1014,10 @@ test("a backup row with more pins than 500 still syncs", () => {
     structure: "Sternum",
     position: [0, 1, 0],
   }));
-  const other = { ...storedEntry(validMap), id: "other" };
+  const other = {
+    ...storedEntry({ ...validMap, regions: [] }),
+    id: "other",
+  };
   const rows = remoteEntries({ entries: [many, other] });
   assert.equal(rows.length, 2);
   assert.equal(rows[0]?.points?.length, 501);
@@ -1010,6 +1026,14 @@ test("a backup row with more pins than 500 still syncs", () => {
 
 test("duplicate sync ids are rejected before upload", () => {
   const row = storedEntry(validMap);
+  row.points = [
+    {
+      id: "pin-1",
+      region: "neck",
+      structure: "Sternum",
+      position: [0, 1, 0],
+    },
+  ];
   assert.throws(
     () => remoteEntries({ entries: [row, { ...row, note: "other note" }] }),
     (error: unknown) =>
@@ -1142,6 +1166,7 @@ test("a downloaded backup does not keep server comments, answers, or AI notes", 
 test("a downloaded backup does not keep server map details", () => {
   const local = storedEntry({
     ...validMap,
+    regions: [],
     title: "local-title",
     quality: "local-quality",
     activity: "local-activity",
@@ -1152,6 +1177,7 @@ test("a downloaded backup does not keep server map details", () => {
   });
   const incoming = storedEntry({
     ...validMap,
+    regions: [],
     title: "server-title",
     quality: "server-quality",
     activity: "server-activity",
@@ -1187,6 +1213,59 @@ test("a downloaded backup does not keep server map details", () => {
   assert.equal(rows[0]?.map.safety_message, null);
   assert.equal(rows[0]?.note, incoming.note);
   assert.equal(JSON.stringify(rows[0]).includes("server-"), false);
+});
+
+test("a downloaded region with no pins is not stored", () => {
+  const marker = storedEntry({ ...validMap, regions: ["neck"] });
+  assert.throws(
+    () => remoteEntries({ entries: [marker] }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+  const emptyPins = storedEntry({ ...validMap, regions: ["neck"] });
+  emptyPins.points = [];
+  assert.throws(
+    () => remoteEntries({ entries: [emptyPins] }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+  const extra = storedEntry({
+    ...validMap,
+    regions: ["neck", "left_shoulder"],
+  });
+  extra.points = [
+    {
+      id: "pin-1",
+      region: "neck",
+      structure: "Sternum",
+      position: [0, 1, 0],
+    },
+  ];
+  assert.throws(
+    () => remoteEntries({ entries: [extra] }),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "invalid",
+  );
+  const matched = storedEntry({
+    ...validMap,
+    regions: ["left_shoulder", "neck"],
+  });
+  matched.points = [
+    {
+      id: "pin-1",
+      region: "neck",
+      structure: "Sternum",
+      position: [0, 1, 0],
+    },
+    {
+      id: "pin-2",
+      region: "left_shoulder",
+      structure: "Deltoid",
+      position: [1, 1, 0],
+    },
+  ];
+  const rows = remoteEntries({ entries: [matched] });
+  assert.deepEqual(rows[0]?.map.regions, ["neck", "left_shoulder"]);
 });
 
 test("a later backup replaces the journal note and stays quiet when it is unchanged", () => {
@@ -1569,6 +1648,54 @@ test("a restored cloud row stays with that account when the upload fails", async
   );
 });
 
+test("deleting an account wipes a downloaded row the upload did not finish", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const cloud = entry("from-a", 1);
+  const local = entry("local-only", 1);
+  await assert.rejects(() =>
+    pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [local],
+      now: NOW,
+      store,
+      pull: async () => [cloud],
+      put: async () => {
+        throw new Error("down");
+      },
+    }),
+  );
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, ["from-a"]);
+  const remaining = [cloud, local].filter((row) => !wiped.includes(row.id));
+  grantOptIn(store, "user-b");
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: remaining,
+    now: NOW,
+    store,
+    pull: async () => [],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["local-only"]]);
+});
+
 test("the next account does not upload the previous account's entries", async () => {
   const store = memory();
   rememberSeenEntries(store, "user-a", ["from-a"]);
@@ -1779,6 +1906,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.ok(push > 0 && uploaded > push && claimedAfter > uploaded);
   const beforeUpload = sync.slice(push, uploaded);
   assert.equal(beforeUpload.includes("rememberSeenEntries("), true);
+  assert.equal(beforeUpload.includes("rememberDownloaded("), true);
   assert.equal(beforeUpload.includes("remote.map((entry) => entry.id)"), true);
   const enable = store.indexOf("export async function enableBackup");
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
@@ -1786,6 +1914,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.ok(enable > 0 && put > enable && claimed > put);
   const beforePut = store.slice(enable, put);
   assert.equal(beforePut.includes("rememberSeenEntries("), true);
+  assert.equal(beforePut.includes("rememberDownloaded("), true);
   assert.equal(beforePut.includes("merged.map((entry) => entry.id)"), true);
   assert.equal(store.includes("await onMerge?.(remote)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);

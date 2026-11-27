@@ -199,7 +199,7 @@ export function toBackupPayload(
     map: {
       title: "",
       summary: typeof entry.note === "string" ? entry.note : "",
-      regions: regionsForUpload(entry.map?.regions ?? [], points),
+      regions: regionsForUpload(points),
       quality: "",
       activity: "",
       duration: "",
@@ -211,11 +211,8 @@ export function toBackupPayload(
   };
 }
 
-function regionsForUpload(
-  listed: readonly string[],
-  points: readonly PainPoint[],
-): string[] {
-  const regions = [...listed];
+function regionsForUpload(points: readonly PainPoint[]): string[] {
+  const regions: string[] = [];
   for (const point of points) {
     if (!regions.includes(point.region)) regions.push(point.region);
   }

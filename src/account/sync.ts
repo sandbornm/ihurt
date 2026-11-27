@@ -127,8 +127,8 @@ function seenBook(store: KeyValueStore): Record<string, string[]> {
   }
 }
 
-// Backup claims an entry for this account. Sign-in alone does not.
-// A later account can still see it, and does not upload it.
+// A successful upload claims an entry for this account. Sign-in and a failed
+// upload do not. A later account can still see it, and does not upload it.
 export function rememberSeenEntries(
   store: KeyValueStore,
   uid: string,
@@ -337,6 +337,11 @@ export async function pushBackup<T extends BackupEntry>(input: {
   if (omitted.length > 0) return [];
   if (!current()) return [];
   await input.put(input.token, windowed);
+  rememberSeenEntries(
+    input.store,
+    input.uid,
+    windowed.map((entry) => entry.id),
+  );
   retainSynced(
     input.store,
     windowed.map((entry) => entry.id),

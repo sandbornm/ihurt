@@ -8,7 +8,7 @@ import { useI18n } from "../i18n/react";
 import { readDeletedIds } from "../notebook-storage.ts";
 import type { SavedMap } from "../types.ts";
 import { entriesForBackup, type BackupEntry } from "./backup.ts";
-import { rememberSeenEntries, withoutOtherAccountEntries } from "./sync.ts";
+import { withoutOtherAccountEntries } from "./sync.ts";
 import { AccountAuthError } from "./auth.ts";
 import {
   closeUpgrade,
@@ -67,13 +67,6 @@ export default function AccountButton({
   useEffect(() => {
     if (!ready) return;
     let cancel = false;
-    if (snapshot.session && snapshot.optedIn) {
-      rememberSeenEntries(
-        localStorage,
-        snapshot.session.uid,
-        entries.map((item) => item.id),
-      );
-    }
     void readDeletedIds().then((deleted) => {
       if (!cancel)
         pushBackupEntries(entries, deleted, onMerge, (ids) =>

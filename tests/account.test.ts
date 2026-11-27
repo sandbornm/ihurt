@@ -695,6 +695,38 @@ test("clearing every pin does not upload pins with an empty region list", () => 
   assert.equal(acceptStoredEntry(payload)?.id, "a");
 });
 
+test("a note with regions and no pins does not upload those regions", () => {
+  const payload = toBackupPayload({
+    id: "legacy",
+    created: new Date(NOW).toISOString(),
+    note: "imported",
+    map: {
+      regions: ["neck", "shoulder"],
+      title: "title-marker",
+      summary: "imported",
+    },
+  });
+  assert.deepEqual(payload.map.regions, []);
+  assert.deepEqual(payload.points, []);
+  assert.equal(payload.note, "imported");
+  assert.equal(payload.map.title, "");
+  const pinned = toBackupPayload({
+    id: "legacy",
+    created: new Date(NOW).toISOString(),
+    note: "imported",
+    points: [
+      {
+        id: "pin-1",
+        region: "neck",
+        structure: "Sternum",
+        position: [0, 1, 0],
+      },
+    ],
+    map: { regions: ["neck", "shoulder"], summary: "imported" },
+  });
+  assert.deepEqual(pinned.map.regions, ["neck"]);
+});
+
 test("a slow clock does not drop cloud entries dated ahead of this device", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -1421,6 +1453,49 @@ test("deleting an account releases entries it never backed up", async () => {
   );
 });
 
+test("a failed upload does not claim the entry for the next account", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  await assert.rejects(() =>
+    pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("local-only", 1)],
+      now: NOW,
+      store,
+      pull: async () => [],
+      put: async () => {
+        throw new Error("down");
+      },
+    }),
+  );
+  assert.deepEqual(
+    withoutOtherAccountEntries([entry("local-only", 1)], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["local-only"],
+  );
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("local-only", 1)],
+    now: NOW,
+    store,
+    pull: async () => [],
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["local-only"]]);
+  assert.deepEqual(
+    withoutOtherAccountEntries([entry("local-only", 1)], store, "user-b").map(
+      (row) => row.id,
+    ),
+    [],
+  );
+});
+
 test("the next account does not upload the previous account's entries", async () => {
   const store = memory();
   rememberSeenEntries(store, "user-a", ["from-a"]);
@@ -1623,10 +1698,16 @@ test("a later save applies the downloaded note before the next upload", () => {
     button.includes('deleteAccount((ids) => onRemove(ids, "account"))'),
     true,
   );
-  assert.equal(button.includes("rememberSeenEntries("), true);
-  const claim = button.indexOf("rememberSeenEntries(");
-  const guard = button.lastIndexOf("snapshot.optedIn", claim);
-  assert.ok(guard > 0 && claim - guard < 80);
+  assert.equal(button.includes("rememberSeenEntries("), false);
+  const sync = readFileSync(new URL("src/account/sync.ts", root), "utf8");
+  const push = sync.indexOf("export async function pushBackup");
+  const uploaded = sync.indexOf("await input.put(input.token, windowed)", push);
+  const claimedAfter = sync.indexOf("rememberSeenEntries(", uploaded);
+  assert.ok(push > 0 && uploaded > push && claimedAfter > uploaded);
+  assert.equal(
+    sync.slice(push, uploaded).includes("rememberSeenEntries("),
+    false,
+  );
   const enable = store.indexOf("export async function enableBackup");
   const put = store.indexOf("await api.putEntries(token, windowed)", enable);
   const claimed = store.indexOf("rememberSeenEntries(", put);

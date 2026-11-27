@@ -31,6 +31,7 @@ function messageKey(code: string) {
   if (code === "unconfigured") return "account.notConfigured" as const;
   if (code === "no-api") return "account.noApi" as const;
   if (code === "recent-login") return "account.recentLogin" as const;
+  if (code === "delete-partial") return "account.deletePartial" as const;
   if (code === "deleted") return "account.deleted" as const;
   return "account.error" as const;
 }
@@ -108,7 +109,7 @@ export default function AccountButton({
       )
     : "";
   const backupCount = entriesForBackup(entries, Date.now()).length;
-  const emailSignIn =
+  const hostedSignIn =
     typeof location === "undefined" || emailSignInAllowed(location.protocol);
   const title =
     step === "confirm-backup"
@@ -251,7 +252,7 @@ export default function AccountButton({
                 >
                   {t("account.google")}
                 </button>
-                {emailSignIn && (
+                {hostedSignIn && (
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -278,14 +279,16 @@ export default function AccountButton({
                   </button>
                 </form>
                 )}
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={snapshot.busy || snapshot.status !== "ready"}
-                  onClick={() => void run(() => signIn("passkey"))}
-                >
-                  {t("account.passkey")}
-                </button>
+                {hostedSignIn && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={snapshot.busy || snapshot.status !== "ready"}
+                    onClick={() => void run(() => signIn("passkey"))}
+                  >
+                    {t("account.passkey")}
+                  </button>
+                )}
               </>
             )}
             {snapshot.session && (
@@ -322,14 +325,16 @@ export default function AccountButton({
                     {t("account.turnOn")}
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={snapshot.busy}
-                  onClick={() => void run(enrollPasskey)}
-                >
-                  {t("account.passkeyAdd")}
-                </button>
+                {hostedSignIn && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={snapshot.busy}
+                    onClick={() => void run(enrollPasskey)}
+                  >
+                    {t("account.passkeyAdd")}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="secondary"

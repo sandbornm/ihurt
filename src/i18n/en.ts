@@ -878,6 +878,8 @@ export const en = {
   "account.error": "Something went wrong. Your journal is still on this device.",
   "account.recentLogin":
     "Sign in again, then delete the account. Nothing was removed.",
+  "account.deletePartial":
+    "Backed-up entries were removed. Sign-in is still on. Try deleting the account again.",
   "account.searchFailed":
     "The account service could not check source searches. The search was not sent.",
   "account.apple": "Sign in with Apple",

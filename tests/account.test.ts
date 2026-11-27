@@ -525,7 +525,7 @@ test("a missing cloud account still finishes local wipe and auth delete", async 
     api: {
       async deleteAccount() {
         done.push("api");
-        throw new AccountApiError(404, "missing");
+        throw new AccountApiError(404, "not_found");
       },
     },
     removeLocal: async (ids) => {
@@ -539,6 +539,110 @@ test("a missing cloud account still finishes local wipe and auth delete", async 
   assert.deepEqual(done, ["api", "local:synced", "auth"]);
   assert.deepEqual(readSyncedIds(store), []);
   assert.equal(optedIn(store, "user-a"), false);
+});
+
+test("an unknown 404 does not delete local entries", async () => {
+  const store = memory();
+  rememberSynced(store, ["synced"], "user-a");
+  grantOptIn(store, "user-a");
+  const done: string[] = [];
+  await assert.rejects(
+    () =>
+      deleteSignedInAccount({
+        uid: "user-a",
+        token: "token-a",
+        api: {
+          async deleteAccount() {
+            done.push("api");
+            throw new AccountApiError(404, "invalid");
+          },
+        },
+        removeLocal: async () => {
+          done.push("local");
+        },
+        deleteAuth: async () => {
+          done.push("auth");
+        },
+        store,
+      }),
+    (error: unknown) => accountDeleteStage(error) === "api",
+  );
+  assert.deepEqual(done, ["api"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["synced"]);
+  assert.equal(optedIn(store, "user-a"), true);
+});
+
+test("a later save keeps another device's newer note and new entry", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["a"], "user-a");
+  const localA = {
+    id: "a",
+    created: new Date(NOW - DAY).toISOString(),
+    note: "old-a",
+    noteUpdated: new Date(NOW - 2 * DAY).toISOString(),
+    pointsUpdated: new Date(NOW).toISOString(),
+    points: [{ id: "pin-new" }],
+  };
+  const remoteA = {
+    ...localA,
+    note: "new-a",
+    noteUpdated: new Date(NOW).toISOString(),
+    pointsUpdated: new Date(NOW - 2 * DAY).toISOString(),
+    points: [{ id: "pin-old" }],
+  };
+  const sent: { id: string; note?: string; points?: { id: string }[] }[][] = [];
+  const pushed = await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [
+      localA,
+      {
+        id: "c",
+        created: new Date(NOW).toISOString(),
+        note: "laptop-c",
+        noteUpdated: new Date(NOW).toISOString(),
+      },
+    ],
+    now: NOW,
+    store,
+    pull: async () => [
+      remoteA,
+      {
+        id: "b",
+        created: new Date(NOW).toISOString(),
+        note: "from-phone",
+        noteUpdated: new Date(NOW).toISOString(),
+      },
+    ],
+    put: async (_token, rows) => {
+      sent.push(rows);
+    },
+  });
+  const byId = new Map(pushed.map((row) => [row.id, row]));
+  assert.equal(byId.get("a")?.note, "new-a");
+  assert.deepEqual(byId.get("a")?.points, [{ id: "pin-new" }]);
+  assert.equal(byId.get("b")?.note, "from-phone");
+  assert.equal(byId.get("c")?.note, "laptop-c");
+  assert.equal(sent.length, 1);
+
+  const blocked: string[] = [];
+  await assert.rejects(() =>
+    pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("a", 1)],
+      now: NOW,
+      store,
+      pull: async () => {
+        throw new AccountApiError(500, "down");
+      },
+      put: async () => {
+        blocked.push("put");
+      },
+    }),
+  );
+  assert.deepEqual(blocked, []);
 });
 
 function storedEntry(map: unknown) {

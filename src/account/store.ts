@@ -267,6 +267,7 @@ export function pushBackupEntries(
         now: Date.now(),
         store: browserStore(),
         deletedIds,
+        pull: (next) => current.getEntries(next),
         put: (next, rows) => current.putEntries(next, rows),
       });
     })
@@ -307,6 +308,10 @@ export async function deleteAccount(onRemove: (ids: string[]) => Promise<void>) 
     }
     if (code === "email-sent") {
       setState({ ...state, busy: false, error: "", notice: "email-sent" });
+      throw error;
+    }
+    if (code === "delete-partial") {
+      setState({ ...state, busy: false, error: "delete-partial" });
       throw error;
     }
     setState({

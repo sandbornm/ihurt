@@ -64,6 +64,68 @@ export function backupRowsAfterMerge<T extends BackupEntry>(
   return [...byId.values()];
 }
 
+function readStamp(entry: BackupEntry): string | undefined {
+  const value = (entry as BackupEntry & { pointsUpdated?: unknown }).pointsUpdated;
+  return typeof value === "string" ? value : undefined;
+}
+
+function readNote(entry: BackupEntry): string | undefined {
+  const value = (entry as BackupEntry & { note?: unknown }).note;
+  return typeof value === "string" ? value : undefined;
+}
+
+// Notes follow noteUpdated. Pins follow pointsUpdated. A missing stamp is older.
+// Remote-only rows in the window stay, so another device's new entry is not dropped.
+export function mergeBackupWindow<T extends BackupEntry>(
+  local: readonly T[],
+  remote: readonly T[],
+  deleted: ReadonlySet<string>,
+  now: number,
+  days = BACKUP_DAYS,
+): T[] {
+  const byId = new Map<string, T>();
+  for (const entry of remote) {
+    if (!deleted.has(entry.id) && withinBackupWindow(entry, now, days)) {
+      byId.set(entry.id, entry);
+    }
+  }
+  for (const entry of local) {
+    if (deleted.has(entry.id) || !withinBackupWindow(entry, now, days)) continue;
+    const previous = byId.get(entry.id);
+    byId.set(entry.id, previous ? mergeBackupRow(entry, previous) : entry);
+  }
+  return [...byId.values()];
+}
+
+function mergeBackupRow<T extends BackupEntry>(local: T, remote: T): T {
+  const noteFromRemote = stampMs(remote.noteUpdated) > stampMs(local.noteUpdated);
+  const pinsFromRemote =
+    stampMs(readStamp(remote)) > stampMs(readStamp(local));
+  const row = { ...(noteFromRemote ? remote : local) } as T & {
+    note?: string;
+    points?: unknown;
+    pointsUpdated?: string;
+    map?: { regions?: unknown; summary?: string };
+  };
+  const pins = (pinsFromRemote ? remote : local) as typeof row;
+  const note = readNote(noteFromRemote ? remote : local);
+  if ("points" in pins) row.points = pins.points;
+  if (pins.pointsUpdated) row.pointsUpdated = pins.pointsUpdated;
+  else delete row.pointsUpdated;
+  if (row.map || pins.map) {
+    row.map = {
+      ...(row.map ?? {}),
+      ...(pins.map ?? {}),
+      ...(note !== undefined ? { summary: note } : {}),
+    };
+  }
+  if (note !== undefined) row.note = note;
+  const updated =
+    stampMs(remote.updated) > stampMs(local.updated) ? remote.updated : local.updated;
+  if (updated) row.updated = updated;
+  return row;
+}
+
 export function backupUploadSet<T extends BackupEntry>(
   local: readonly T[],
   remote: readonly T[],

@@ -1,4 +1,4 @@
-import { entriesForBackup, type BackupEntry } from "./backup.ts";
+import { entriesForBackup, mergeBackupWindow, type BackupEntry } from "./backup.ts";
 
 export const OPT_IN_KEY = "ihurt-sync-opt-in";
 export const OPT_IN_UID_KEY = "ihurt-sync-uid";
@@ -132,15 +132,22 @@ export async function pushBackup<T extends BackupEntry>(input: {
   now: number;
   store: KeyValueStore;
   put: (token: string, entries: T[]) => Promise<void>;
+  pull?: (token: string) => Promise<readonly T[]>;
   deletedIds?: readonly string[];
 }): Promise<T[]> {
   if (!optedIn(input.store, input.uid)) return [];
-  const windowed = entriesForBackup(input.entries, input.now);
   const deleted = new Set(input.deletedIds ?? []);
+  const remote = input.pull ? await input.pull(input.token) : [];
+  const windowed = input.pull
+    ? mergeBackupWindow(input.entries, remote, deleted, input.now)
+    : entriesForBackup(input.entries, input.now);
   const localIds = new Set(input.entries.map((entry) => entry.id));
-  const omitted = syncedIdsFor(input.store, input.uid).filter(
-    (id) => !localIds.has(id) && !deleted.has(id),
-  );
+  const remoteIds = new Set(remote.map((entry) => entry.id));
+  const omitted = syncedIdsFor(input.store, input.uid).filter((id) => {
+    if (deleted.has(id) || localIds.has(id) || remoteIds.has(id)) return false;
+    // A completed pull is the cloud window. An id on neither side is already gone.
+    return !input.pull;
+  });
   // A list from before the pull is missing account rows and is not a delete.
   // An entry still on this device but older than the backup window is not missing.
   if (omitted.length > 0) return [];
@@ -207,7 +214,8 @@ export async function deleteSignedInAccount(input: {
     await input.api.deleteAccount(input.token);
   } catch (error) {
     const status = (error as { status?: unknown } | null)?.status;
-    if (status !== 404) throw tagDeleteError(error, "api");
+    const code = (error as { code?: unknown } | null)?.code;
+    if (!(status === 404 && code === "not_found")) throw tagDeleteError(error, "api");
   }
   try {
     await input.removeLocal(ids);
@@ -217,7 +225,15 @@ export async function deleteSignedInAccount(input: {
   try {
     await input.deleteAuth();
   } catch (error) {
-    throw tagDeleteError(error, "auth");
+    const partial = tagDeleteError(error, "auth");
+    if (partial && typeof partial === "object") {
+      try {
+        Object.defineProperty(partial, "code", { value: "delete-partial" });
+      } catch {
+        // The stage is still auth. The caller keeps the sign-in.
+      }
+    }
+    throw partial;
   }
   clearOptIn(input.store);
   clearSynced(input.store, input.uid);

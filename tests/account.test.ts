@@ -23,6 +23,7 @@ import {
   entryKeptAfterRemoteDelete,
   entryKeptAfterRemove,
   remoteDeleteClosesEditor,
+  restoreClosesEditor,
   savedAfterBackupPull,
   toBackupPayload,
   withLocalPrivateFields,
@@ -1546,6 +1547,37 @@ test("account deletion does not keep an edited open entry", () => {
     entryKeptAfterRemove(typed, prior, "copy", "remote")?.id,
     "copy",
   );
+});
+
+test("a restore that skips one entry leaves the entry opened during the restore", () => {
+  const skipped = new Set<string>();
+  assert.equal(
+    restoreClosesEditor("entry-y", "entry-x", skipped, ["entry-x"]),
+    false,
+  );
+  assert.equal(
+    restoreClosesEditor("entry-x", "entry-x", skipped, ["entry-x"]),
+    true,
+  );
+  assert.equal(
+    restoreClosesEditor("entry-x", "entry-x", new Set(["entry-x"]), [
+      "entry-x",
+    ]),
+    false,
+  );
+  const root = new URL("../", import.meta.url);
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  const start = notebook.indexOf("onMerge={async (incoming)");
+  assert.ok(start > 0);
+  const block = notebook.slice(
+    start,
+    notebook.indexOf("onRemove={async", start),
+  );
+  const gate = block.indexOf("restoreClosesEditor(");
+  const keep = block.indexOf("entryKeptAfterRemove(", gate);
+  const blank = block.indexOf("blankEntry()", keep);
+  assert.ok(gate > 0 && keep > gate && blank > keep);
+  assert.equal(block.slice(gate, keep).includes("entryRef.current.id"), true);
 });
 
 test("a backup pull reads private fields from the stored row", () => {

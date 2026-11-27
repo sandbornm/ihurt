@@ -95,6 +95,7 @@ import {
   entryKeptAfterRemove,
   journalSignature,
   remoteDeleteClosesEditor,
+  restoreClosesEditor,
   savedAfterBackupPull,
 } from "./account/backup.ts";
 import { guardSourceSearch } from "./account/store.ts";
@@ -569,11 +570,45 @@ export default function Notebook({
                   await saveDraft(draftRef.current);
                 }
               } else if (
-                !kept.has(snapshot.id) &&
-                fresh.some((row) => row.id === snapshot.id)
+                restoreClosesEditor(
+                  entryRef.current.id,
+                  snapshot.id,
+                  kept,
+                  fresh.map((row) => row.id),
+                )
               ) {
-                setEntry(blankEntry());
-                setSelected(null);
+                const keptEdit = entryKeptAfterRemove(
+                  entryRef.current,
+                  snapshot,
+                  crypto.randomUUID(),
+                  "remote",
+                );
+                if (keptEdit) {
+                  const [row] = await storeEntries([keptEdit]);
+                  const storedEdit = row ?? keptEdit;
+                  setSaved((old) => [
+                    ...old.filter((item) => item.id !== storedEdit.id),
+                    storedEdit,
+                  ]);
+                  entryRef.current = storedEdit;
+                  draftRef.current = {
+                    ...draftRef.current,
+                    entry: storedEdit,
+                  };
+                  setEntry(storedEdit);
+                  await saveDraft(draftRef.current);
+                } else {
+                  const next = blankEntry();
+                  entryRef.current = next;
+                  draftRef.current = {
+                    ...draftRef.current,
+                    entry: next,
+                    selected: null,
+                  };
+                  setEntry(next);
+                  setSelected(null);
+                  await saveDraft(draftRef.current);
+                }
               }
               return stored;
             }}

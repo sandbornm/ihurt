@@ -352,6 +352,21 @@ export function remoteDeleteClosesEditor(
   return removedIds.includes(openId);
 }
 
+// The restore started on snapshotId. Close the editor only when that entry
+// was in the download, was not stored, and is still the open entry.
+export function restoreClosesEditor(
+  openId: string,
+  snapshotId: string,
+  keptIds: ReadonlySet<string>,
+  incomingIds: readonly string[],
+): boolean {
+  return (
+    openId === snapshotId &&
+    !keptIds.has(snapshotId) &&
+    incomingIds.includes(snapshotId)
+  );
+}
+
 // The open entry was deleted on another device. Keep a copy when this device
 // has edits that are not in the saved row from when the pull started.
 // The copy gets a new id so the deletion tombstone does not remove it.

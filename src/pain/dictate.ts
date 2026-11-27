@@ -53,10 +53,19 @@ export function speechKind(): SpeechKind {
   return chooseSpeech(!!nativeSpeech(), !!webCtor(), isNativeApp(), recorder);
 }
 
-/** On-device Apple speech, or the browser Web Speech API. Upload is separate. */
-export function liveSpeech(): NativeSpeech | null {
+/** On-device Apple speech, or the browser Web Speech API. Upload is separate.
+ * locale is the app language (for example es-MX), not the browser default. */
+export function liveSpeech(locale: string): NativeSpeech | null {
+  const speechLocale = locale || "en-US";
   const native = nativeSpeech();
-  if (native) return native;
+  if (native) {
+    return {
+      availability: (tag) => native.availability(tag ?? speechLocale),
+      start: (onText, onEnd) => native.start(onText, onEnd, speechLocale),
+      stop: () => native.stop(),
+      cancel: () => native.cancel(),
+    };
+  }
   const Ctor = webCtor();
   if (!Ctor) return null;
   let recognition: WebSpeech | undefined;
@@ -66,7 +75,7 @@ export function liveSpeech(): NativeSpeech | null {
     async start(onText, onEnd) {
       stopped = false;
       recognition = new Ctor();
-      recognition.lang = navigator.language || "en-US";
+      recognition.lang = speechLocale;
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.onresult = (event) => {
@@ -78,9 +87,7 @@ export function liveSpeech(): NativeSpeech | null {
       recognition.onerror = (event) => {
         if (stopped || event.error === "aborted") return;
         onEnd?.(
-          event.error === "not-allowed"
-            ? "Microphone permission is blocked. You can type instead."
-            : "Speech recognition stopped. You can type instead.",
+          event.error === "not-allowed" ? "mic-blocked" : "speech-stopped",
         );
       };
       recognition.onend = () => {

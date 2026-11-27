@@ -1004,13 +1004,15 @@ h1 > span {
 }
 .pain-suggest {
   margin-top: 12px;
-  border: 1px solid #6d805644;
-  border-radius: 10px;
-  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px 14px;
+  color: inherit;
 }
 .pain-suggest summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
 }
 .pain-suggest button {
   white-space: normal;
@@ -1035,17 +1037,18 @@ h1 > span {
 .pain-status,
 .pain-suggestion p,
 .pain-row span {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.45;
-  color: #c6d9b5;
+  color: var(--soft);
 }
 .pain-suggestion {
-  margin-top: 10px;
-  border-left: 2px solid #7ea2d6;
-  padding-left: 10px;
+  margin-top: 12px;
+  border-left: 3px solid var(--lime);
+  padding: 2px 0 2px 12px;
 }
 .pain-suggestion strong {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
 }
 .pain-advice {
   margin-top: 8px;

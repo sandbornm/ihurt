@@ -11,12 +11,15 @@ class ElevenLabsTranscriber:
     def __init__(self, settings: Settings):
         self.key = settings.elevenlabs_api_key
 
-    async def transcribe(self, audio: bytes) -> str:
+    async def transcribe(self, audio: bytes, *, language: str | None = None) -> str:
+        data = {"model_id": "scribe_v2", "tag_audio_events": "false", "diarize": "false"}
+        if language in ("en", "es"):
+            data["language_code"] = language
         async with httpx.AsyncClient(timeout=35, follow_redirects=False) as client:
             response = await client.post(
                 "https://api.elevenlabs.io/v1/speech-to-text",
                 headers={"xi-api-key": self.key},
-                data={"model_id": "scribe_v2", "tag_audio_events": "false", "diarize": "false"},
+                data=data,
                 files={"file": ("note.wav", audio, "audio/wav")},
             )
             response.raise_for_status()

@@ -1262,11 +1262,11 @@ export default function Notebook({
                         .filter(Boolean)
                         .join("\n\n");
                       if (next.length > 3000) {
-                        setToast("Shorten the note before adding these words.");
+                        setToast(t("notebook.toast.noteTooLong"));
                         return;
                       }
                       change({ note: next });
-                      setToast("Added your words to the note.");
+                      setToast(t("notebook.toast.wordsAdded"));
                     }}
                   />
                   <IntensityDial

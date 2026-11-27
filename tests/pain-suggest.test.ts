@@ -10,6 +10,7 @@ import {
   regionLabel,
   sideCopy,
   statedIntensity,
+  suggestionIsCurrent,
 } from "../src/pain/catalog.ts";
 import { chooseSpeech } from "../src/pain/dictate.ts";
 
@@ -82,6 +83,22 @@ test("statedIntensity keeps exact ratings and drops negated ones", () => {
   assert.equal(statedIntensity("sharp pain in my left shoulder"), null);
   assert.equal(statedIntensity("not 7/10"), null);
   assert.equal(statedIntensity("5/10 and also 8/10"), null);
+});
+
+test("a late suggestion is dropped when the text changes or the panel closes", () => {
+  const current = {
+    alive: true,
+    aborted: false,
+    run: 1,
+    currentRun: 1,
+    sent: "left shoulder",
+    latest: "left shoulder",
+  };
+  assert.equal(suggestionIsCurrent(current), true);
+  assert.equal(suggestionIsCurrent({ ...current, latest: "right knee" }), false);
+  assert.equal(suggestionIsCurrent({ ...current, currentRun: 2 }), false);
+  assert.equal(suggestionIsCurrent({ ...current, alive: false }), false);
+  assert.equal(suggestionIsCurrent({ ...current, aborted: true }), false);
 });
 
 test("speech uses Apple, then the browser, then an upload", () => {

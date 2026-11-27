@@ -146,6 +146,76 @@ export const en = {
     "Where it feels stiff, what brings it on, what changed…",
   "notebook.toast.voiceAdded":
     "Voice draft added. Review your entry, then save it.",
+  "notebook.toast.wordsAdded": "Added your words to the note.",
+  "notebook.toast.noteTooLong": "Shorten the note before adding these words.",
+  "pain.summary": "Pain suggestion",
+  "pain.intro":
+    "Optional. A suggestion stays separate from your notes until you use it.",
+  "pain.describe": "Describe the pain",
+  "pain.placeholder": "Sharp pain on the left shoulder when I lift my arm",
+  "pain.stopSpeech": "Stop speech",
+  "pain.startSpeech": "Start speech",
+  "pain.suggest": "Suggest",
+  "pain.addWords": "Add these words to your note",
+  "pain.speech.apple":
+    "Speech stays on this device. The words stay in this box until you ask for a suggestion.",
+  "pain.speech.web":
+    "This browser may send audio to its speech service. The words stay in this box until you ask for a suggestion.",
+  "pain.speech.upload":
+    "Stopping sends the recording to the transcription service. Then you can ask for a suggestion.",
+  "pain.speech.none":
+    "Type a description. Speech recognition is unavailable in this browser.",
+  "pain.providerFallback": "the transcription service",
+  "pain.recordConsent": "Send a recording to {provider} for a transcript.",
+  "pain.consent":
+    "Send this description to TypeSafe, a third party, for a suggestion.",
+  "pain.cost":
+    "A suggestion holds about {amount} on the daily budget. That estimate is not a spending limit.",
+  "pain.error.speechUnavailable":
+    "Speech recognition is unavailable. Type a description.",
+  "pain.error.speechStart":
+    "Speech recognition could not start. Type a description.",
+  "pain.error.transcriptionOff":
+    "Transcription is off on this server. Type a description, or turn on voice notes.",
+  "pain.error.recordConsent":
+    "Agree to send the recording for a transcript, or type instead.",
+  "pain.error.visitorMic":
+    "Complete the visitor check, then try the microphone again.",
+  "pain.error.mic": "The microphone could not start. Type a description.",
+  "pain.error.transcribe":
+    "The recording could not be transcribed. Type a description.",
+  "pain.error.micBlocked":
+    "Microphone permission is blocked. You can type instead.",
+  "pain.error.speechStopped":
+    "Speech recognition stopped. You can type instead.",
+  "pain.error.short": "Describe the pain in a few words.",
+  "pain.error.native":
+    "Suggestions run in the browser notebook with the local server. You can still add these words to your note.",
+  "pain.error.consent":
+    "Agree to send this description before asking for a suggestion.",
+  "pain.status.off": "Suggestions are off on this server.",
+  "pain.error.visitor": "Complete the visitor check, then try again.",
+  "pain.status.unreadable":
+    "The suggestion could not be read. Your notes are unchanged.",
+  "pain.status.empty":
+    "Nothing in that description was clear enough to suggest.",
+  "pain.error.request": "The suggestion could not be requested.",
+  "pain.heading": "AI suggestion",
+  "pain.scope":
+    "Side and pain level only. Place regions with the body map or your note.",
+  "pain.useStated": "Use stated level ({level}/10)",
+  "pain.bandOnly": "Band only. Set the reported intensity on the dial yourself.",
+  "pain.clear": "Clear suggestion",
+  "pain.side.left": "Left side",
+  "pain.side.right": "Right side",
+  "pain.side.both": "Both sides",
+  "pain.side.midline": "Midline",
+  "pain.level.none": "None",
+  "pain.level.mild": "Mild (2-3)",
+  "pain.level.moderate": "Moderate (4-5)",
+  "pain.level.severe": "Severe (6-7)",
+  "pain.level.very_severe": "Very severe (8-10)",
+  "pain.band": "AI band: {label}",
   "notebook.markHistory": "Undo map changes",
   "notebook.pinsHighlights": "Pins & highlights",
   "notebook.undoMark": "Undo last mark",

@@ -29,7 +29,7 @@ def test_transcription_consent_limits_and_errors_do_not_expose_content(tmp_path,
     settings = Settings(_env_file=None, database_path=tmp_path / "usage.sqlite3", session_secret="test-" * 10,
                         transcription_provider="elevenlabs", elevenlabs_api_key="test-not-a-real-key", daily_budget_usd=Decimal("0.03"))
     calls = []
-    async def transcribe(self, audio):
+    async def transcribe(self, audio, language=None):
         calls.append(audio)
         raise ValueError("PRIVATE PROVIDER ERROR")
     monkeypatch.setattr(ElevenLabsTranscriber, "transcribe", transcribe)

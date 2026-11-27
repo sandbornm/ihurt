@@ -283,14 +283,20 @@ def _noul(instructions: str, yes: str) -> dict:
     }
 
 
-def build_request(text: str, source: Catalog | None = None) -> dict:
+def build_request(text: str, source: Catalog | None = None, *, language: str = "en") -> dict:
     """Ask only for side and pain level. Regions come from the map provider."""
     source = source or catalog()
     if set(PAIN_LEVEL_CRITERIA) != set(PAIN_LEVEL_BANDS):
         raise RuntimeError("Pain level bands and criteria diverged.")
+    lang = "es" if str(language).lower().startswith("es") else "en"
+    note = (
+        "The person's description is in Spanish. "
+        if lang == "es"
+        else "The person's description is in English. "
+    )
     questions: dict[str, dict] = {
         "side": _choice(
-            "Which side does the person name for this pain? Choose unspecified when they do not name a side.",
+            note + "Which side does the person name for this pain? Choose unspecified when they do not name a side.",
             {
                 "left": "They say left.",
                 "right": "They say right.",
@@ -301,14 +307,14 @@ def build_request(text: str, source: Catalog | None = None) -> dict:
             "They do not name a side.",
         ),
         "pain_level": _choice(
-            "Which pain-level band matches what the person states? Use their words or a number they give. Choose unknown when they do not describe how strong it is.",
+            note + "Which pain-level band matches what the person states? Use their words or a number they give. Choose unknown when they do not describe how strong it is.",
             PAIN_LEVEL_CRITERIA,
             "unknown",
         ),
     }
     return {
         "model": JEV_MODEL,
-        "state": {"description": text.strip()[:MAX_STATE_CHARS]},
+        "state": {"description": text.strip()[:MAX_STATE_CHARS], "language": lang},
         "questions": questions,
     }
 
@@ -420,9 +426,19 @@ def parse_payload(payload, source: Catalog | None = None) -> dict:
     }
 
 
-async def post_systemone(client: httpx.AsyncClient, api_key: str, body: dict, *, retries: int = 2, sleep=asyncio.sleep):
+async def post_systemone(client: httpx.AsyncClient, api_key: str, body: dict, *, retries: int = 2, sleep=asyncio.sleep, paid_attempts: int = 1):
+    """POST one Jev request.
+
+    paid_attempts is how many HTTP calls the caller's budget hold covers.
+    The default is one call per hold. A retry is sent only when that hold
+    pays for another attempt, so a 429 or 5xx cannot spend a second call
+    against one reservation. A failed or unknown outcome does not refund the hold.
+    """
+    covered = paid_attempts if isinstance(paid_attempts, int) and paid_attempts > 0 else 1
+    extra = retries if isinstance(retries, int) and retries > 0 else 0
+    attempts = min(extra + 1, covered)
     delay = 0.2
-    for attempt in range(retries + 1):
+    for attempt in range(attempts):
         try:
             response = await client.post(
                 JEV_ENDPOINT,
@@ -430,7 +446,7 @@ async def post_systemone(client: httpx.AsyncClient, api_key: str, body: dict, *,
                 json=body,
             )
         except httpx.HTTPError:
-            if attempt >= retries:
+            if attempt >= attempts - 1:
                 raise JevError(0) from None
             await sleep(delay)
             delay = min(delay * 2, 5)
@@ -442,7 +458,7 @@ async def post_systemone(client: httpx.AsyncClient, api_key: str, body: dict, *,
                 raise JevError(502) from None
             return payload
         retryable = response.status_code == 429 or response.status_code >= 500
-        if not retryable or attempt >= retries:
+        if not retryable or attempt >= attempts - 1:
             raise JevError(response.status_code) from None
         header = response.headers.get("retry-after")
         try:
@@ -456,11 +472,18 @@ async def post_systemone(client: httpx.AsyncClient, api_key: str, body: dict, *,
     raise JevError(0)
 
 
-async def classify_pain(text: str, api_key: str, client: httpx.AsyncClient | None = None, *, retries: int = 2, sleep=asyncio.sleep):
+async def classify_pain(text: str, api_key: str, client: httpx.AsyncClient | None = None, *, retries: int = 2, sleep=asyncio.sleep, paid_attempts: int = 1, language: str = "en"):
     """Return a suggestion, or None when no key is configured. Never calls without a key."""
     if not api_key or not api_key.strip():
         return None
     if client is None:
         raise JevError(0)
-    payload = await post_systemone(client, api_key.strip(), build_request(text), retries=retries, sleep=sleep)
+    payload = await post_systemone(
+        client,
+        api_key.strip(),
+        build_request(text, language=language),
+        retries=retries,
+        sleep=sleep,
+        paid_attempts=paid_attempts,
+    )
     return parse_payload(payload)

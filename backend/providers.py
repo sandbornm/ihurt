@@ -121,8 +121,11 @@ class OpenAIProvider:
             result.urgent, result.safety_message, result.question = True, SAFETY_MESSAGE, None
         return result
 
-    async def transcribe(self, audio: bytes) -> str:
-        response = await self.client.audio.transcriptions.create(model=self.settings.openai_transcription_model, file=("note.wav", audio, "audio/wav"), response_format="json")
+    async def transcribe(self, audio: bytes, *, language: str | None = None) -> str:
+        kwargs = {}
+        if language in ("en", "es"):
+            kwargs["language"] = language
+        response = await self.client.audio.transcriptions.create(model=self.settings.openai_transcription_model, file=("note.wav", audio, "audio/wav"), response_format="json", **kwargs)
         return response.text[:3000]
 
 

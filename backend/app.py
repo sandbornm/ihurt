@@ -124,7 +124,7 @@ def create_app(settings: Settings | None = None, provider=None, jev_transport=No
             limits.mint_session(ip)
             owner = secrets.token_urlsafe(24)
             response.set_cookie("ihurt_visitor", signer.dumps(owner), max_age=86400, httponly=True, secure=settings.app_env == "production", samesite="strict")
-        return {"provider": settings.llm_provider, "providers": [{"id": key, "name": name, "available": key in providers} for key, name in [("demo", "Demo · no AI"), ("local", "Local model"), ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("grok", "Grok")]], "remaining": limits.remaining(owner, ip), "limit": settings.activities_per_day, "turn_limit": settings.turns_per_activity, "turnstile_site_key": settings.turnstile_site_key, "max_audio_seconds": settings.max_audio_seconds, "transcription_available": transcriber is not None, "transcription_provider": transcription_name, "pain_suggestions": bool(settings.typesafe_api_key)}
+        return {"provider": settings.llm_provider, "providers": [{"id": key, "name": name, "available": key in providers} for key, name in [("demo", "Demo · no AI"), ("local", "Local model"), ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("grok", "Grok")]], "remaining": limits.remaining(owner, ip), "limit": settings.activities_per_day, "turn_limit": settings.turns_per_activity, "turnstile_site_key": settings.turnstile_site_key, "max_audio_seconds": settings.max_audio_seconds, "transcription_available": transcriber is not None, "transcription_provider": transcription_name, "pain_suggestions": bool(settings.typesafe_api_key), "suggestion_hold_usd": format(settings.jev_reservation_usd, "f")}
 
     @app.post("/api/map")
     async def map_note(body: MapRequest, request: Request):
@@ -156,7 +156,7 @@ def create_app(settings: Settings | None = None, provider=None, jev_transport=No
                 limits.release(activity_id)
 
     @app.post("/api/transcribe")
-    async def transcribe(request: Request, audio: UploadFile = File(...), consent: bool = Form(False), request_id: str = Form(..., pattern=r"^[a-f0-9-]{36}$"), challenge_token: str = Form("", max_length=2048)):
+    async def transcribe(request: Request, audio: UploadFile = File(...), consent: bool = Form(False), request_id: str = Form(..., pattern=r"^[a-f0-9-]{36}$"), challenge_token: str = Form("", max_length=2048), language: str = Form("")):
         owner, ip = identity(request)
         if transcriber is None:
             raise HTTPException(400, "Voice transcription is off on this server. Type or paste a transcript instead.")
@@ -190,7 +190,7 @@ def create_app(settings: Settings | None = None, provider=None, jev_transport=No
         async with gate:
             limits.reserve(owner, ip, request_id, None, kind="audio", paid=True)
             try:
-                text = await asyncio.wait_for(transcriber.transcribe(cleaned.getvalue()), timeout=40)
+                text = await asyncio.wait_for(transcriber.transcribe(cleaned.getvalue(), language=language if language in ("en", "es") else None), timeout=40)
                 return {"text": text}
             except Exception:
                 raise HTTPException(502, "The recording could not be transcribed. You can type your note instead.") from None
@@ -212,7 +212,7 @@ def create_app(settings: Settings | None = None, provider=None, jev_transport=No
         async with gate:
             limits.reserve(owner, ip, body.request_id, None, kind="jev", paid=True)
             try:
-                raw = await asyncio.wait_for(classify_pain(text, settings.typesafe_api_key, jev_client), timeout=40)
+                raw = await asyncio.wait_for(classify_pain(text, settings.typesafe_api_key, jev_client, language=body.language, paid_attempts=1), timeout=40)
                 suggestion = None if raw is None else PainSuggestion.model_validate(raw).model_dump()
             except HTTPException:
                 raise

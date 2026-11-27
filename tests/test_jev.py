@@ -83,6 +83,11 @@ def test_request_asks_only_side_and_pain_level():
     body = build_request("x" * 5000)
     assert body["model"] == JEV_MODEL
     assert body["state"]["description"] == "x" * 4000
+    assert body["state"]["language"] == "en"
+    spanish = build_request("dolor en el hombro", language="es")
+    assert spanish["state"]["language"] == "es"
+    assert "Spanish" in spanish["questions"]["side"]["instructions"]
+    assert "Spanish" in spanish["questions"]["pain_level"]["instructions"]
     assert set(body["questions"]) == {"side", "pain_level"}
     assert all(question["type"] == "choice" for question in body["questions"].values())
     assert set(body["questions"]["pain_level"]["criteria"]) == {"none", "mild", "moderate", "severe", "very_severe", "unknown"}
@@ -151,7 +156,7 @@ def test_classify_sends_bearer_auth_and_retries_only_retryable_status():
 
     async def check():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            result = await classify_pain("Sharp pain in the left deltoid.", KEY, client, sleep=lambda delay: asyncio.sleep(0))
+            result = await classify_pain("Sharp pain in the left deltoid.", KEY, client, sleep=lambda delay: asyncio.sleep(0), paid_attempts=2)
         assert result["side"]["id"] == "right"
         assert result["pain_level"]["band"] == "severe"
         assert "regions" not in result
@@ -165,6 +170,28 @@ def test_classify_sends_bearer_auth_and_retries_only_retryable_status():
     assert seen["auth"] == f"Bearer {KEY}"
     assert seen["body"]["model"] == JEV_MODEL
     assert seen["calls"] == 2
+
+
+def test_one_hold_does_not_pay_for_a_retry():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(500)
+
+    async def check():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with pytest.raises(JevError) as error:
+                await classify_pain(
+                    "Sharp pain in the left deltoid.",
+                    KEY,
+                    client,
+                    sleep=lambda delay: asyncio.sleep(0),
+                )
+        assert error.value.status == 500
+
+    asyncio.run(check())
+    assert calls["n"] == 1
 
 
 def test_endpoint_without_a_key_returns_nothing(tmp_path):
@@ -228,6 +255,46 @@ def test_endpoint_hides_invalid_provider_output(tmp_path):
         assert "SECRET-BODY" not in response.text
         assert KEY not in response.text
         assert "place pins" in response.json()["detail"]
+
+
+def test_endpoint_keeps_one_call_inside_the_hold_and_sends_language(tmp_path):
+    calls = {"n": 0, "language": None}
+
+    def handler(request):
+        calls["n"] += 1
+        body = json.loads(request.content)
+        calls["language"] = body["state"]["language"]
+        if calls["n"] == 1:
+            return httpx.Response(500)
+        return httpx.Response(200, json=answered())
+
+    config = settings(tmp_path, typesafe_api_key=KEY, daily_budget_usd=Decimal("0.02"), jev_reservation_usd=Decimal("0.01"))
+    with TestClient(create_app(config, jev_transport=httpx.MockTransport(handler))) as client:
+        client.headers.update(ORIGIN)
+        session = client.get("/api/session").json()
+        assert session["suggestion_hold_usd"] == "0.01"
+        failed = client.post("/api/pain", json={"request_id": str(uuid.uuid4()), "text": "Dolor en el hombro izquierdo.", "consent": True, "language": "es"})
+        assert failed.status_code == 502
+        assert calls["n"] == 1
+        assert calls["language"] == "es"
+        second = client.post("/api/pain", json={"request_id": str(uuid.uuid4()), "text": "Left shoulder feels sharp.", "consent": True, "language": "en"})
+        assert second.status_code == 200
+        assert calls["n"] == 2
+        assert calls["language"] == "en"
+
+
+def test_unknown_jev_outcome_keeps_the_hold(tmp_path):
+    def handler(request):
+        raise httpx.ConnectError("down")
+
+    config = settings(tmp_path, typesafe_api_key=KEY, daily_budget_usd=Decimal("0.01"), jev_reservation_usd=Decimal("0.01"))
+    with TestClient(create_app(config, jev_transport=httpx.MockTransport(handler))) as client:
+        client.headers.update(ORIGIN)
+        client.get("/api/session")
+        failed = client.post("/api/pain", json={"request_id": str(uuid.uuid4()), "text": "Left shoulder feels sharp.", "consent": True})
+        assert failed.status_code == 502
+        blocked = client.post("/api/pain", json={"request_id": str(uuid.uuid4()), "text": "Left shoulder feels sharp.", "consent": True})
+        assert blocked.status_code == 429
 
 
 def test_suggestion_reservation_does_not_spend_an_activity(tmp_path):

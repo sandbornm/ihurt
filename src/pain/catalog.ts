@@ -1,4 +1,5 @@
 import data from "../../config/pain-regions.json" with { type: "json" };
+import { translate, type MessageKey } from "../i18n/index.ts";
 import { regions, type RegionId } from "../types.ts";
 
 const anatomyIds = new Set<string>(regions.map((region) => region.id));
@@ -70,12 +71,18 @@ const PAIN_LEVELS: Record<string, { label: string; value: number }> = {
   very_severe: { label: "Very severe (8-10)", value: 9 },
 };
 const SIDE_IDS = ["left", "right", "both", "midline", "unspecified"] as const;
-const SIDE_COPY: Record<(typeof SIDE_IDS)[number], string> = {
-  left: "Left side",
-  right: "Right side",
-  both: "Both sides",
-  midline: "Midline",
-  unspecified: "Side not stated",
+const SIDE_KEYS: Partial<Record<(typeof SIDE_IDS)[number], MessageKey>> = {
+  left: "pain.side.left",
+  right: "pain.side.right",
+  both: "pain.side.both",
+  midline: "pain.side.midline",
+};
+const LEVEL_KEYS: Record<string, MessageKey> = {
+  none: "pain.level.none",
+  mild: "pain.level.mild",
+  moderate: "pain.level.moderate",
+  severe: "pain.level.severe",
+  very_severe: "pain.level.very_severe",
 };
 const subByAnatomy = new Map<string, (typeof data.sub_locations)[number]>();
 for (const group of data.sub_locations) {
@@ -151,18 +158,45 @@ export function readSuggestion(value: unknown): PainSuggestion | null {
   };
 }
 
-export function sideCopy(id: string) {
+export function sideKey(id: string): MessageKey | null {
   if (id === "unspecified") return null;
-  return SIDE_IDS.some((item) => item === id)
-    ? SIDE_COPY[id as (typeof SIDE_IDS)[number]]
-    : null;
+  return SIDE_KEYS[id as (typeof SIDE_IDS)[number]] ?? null;
+}
+
+export function painLevelKey(level: PainLevel): MessageKey | null {
+  const known = PAIN_LEVELS[level.band];
+  const key = LEVEL_KEYS[level.band];
+  if (!known || !key || known.value !== level.value) return null;
+  return key;
+}
+
+/** English catalog lines for tests. The panel renders these keys with t(). */
+export function sideCopy(id: string) {
+  const key = sideKey(id);
+  return key ? translate("en", key) : null;
 }
 
 export function painLevelCopy(level: PainLevel) {
-  const known = PAIN_LEVELS[level.band];
-  if (!known || known.value !== level.value) return null;
-  // Band label only. The representative midpoint is not a reported intensity.
-  return `AI band: ${known.label}`;
+  const key = painLevelKey(level);
+  if (!key) return null;
+  return translate("en", "pain.band", { label: translate("en", key) });
+}
+
+/** A late response must not mark the body after the text changes or the panel closes. */
+export function suggestionIsCurrent(input: {
+  alive: boolean;
+  aborted: boolean;
+  run: number;
+  currentRun: number;
+  sent: string;
+  latest: string;
+}) {
+  return (
+    input.alive &&
+    !input.aborted &&
+    input.run === input.currentRun &&
+    input.sent === input.latest
+  );
 }
 
 /** Exact 0-10 from the person's words, or null when absent, negated, or ambiguous. */

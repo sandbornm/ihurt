@@ -57,6 +57,7 @@ function session(enabled) {
     transcription_available: false,
     transcription_provider: null,
     pain_suggestions: enabled,
+    suggestion_hold_usd: "0.01",
   };
 }
 
@@ -127,6 +128,12 @@ try {
   const atlas = page.locator('[data-atlas="z-anatomy"]');
   await atlas.waitFor();
   await page.getByText("Pain suggestion", { exact: true }).click();
+  await page
+    .getByText(
+      "A suggestion holds about $0.01 on the daily budget. That estimate is not a spending limit.",
+    )
+    .waitFor();
+  assert.equal(await page.getByText("$0.001").count(), 0);
   await page.getByRole("button", { name: "Start speech" }).click();
   await page.waitForFunction(
     () =>
@@ -139,6 +146,7 @@ try {
   await page.getByText("AI suggestion", { exact: true }).waitFor();
   assert.equal(painPosts.length, 1);
   assert.equal(painPosts[0].consent, true);
+  assert.equal(painPosts[0].language, "en");
   assert.match(painPosts[0].text, /left shoulder/);
   assert.equal(await page.getByText("PINNED SPOTS").count(), 0);
   await page.getByText("Right side", { exact: true }).waitFor();

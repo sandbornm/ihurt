@@ -173,7 +173,7 @@ def test_audio_is_validated_before_provider_call(settings, monkeypatch):
     settings.transcription_provider = "openai"
     class AudioProvider(DemoProvider):
         calls = 0
-        async def transcribe(self, audio):
+        async def transcribe(self, audio, language=None):
             self.calls += 1
             return "My shoulder feels tight."
     provider = AudioProvider()

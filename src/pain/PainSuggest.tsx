@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square } from "lucide-react";
 import { api } from "../api.ts";
+import { speechLocale } from "../i18n/index.ts";
+import { useI18n } from "../i18n/react.ts";
 import { isNativeApp } from "../platform/files.ts";
 import type { RegionId, Session } from "../types.ts";
 import VisitorCheck from "../VisitorCheck.tsx";
 import { localVoiceClient } from "../voice/client.ts";
 import { startRecording, toWav, type Recording } from "../voice/recording.ts";
 import {
-  painLevelCopy,
+  painLevelKey,
   plainText,
   readSuggestion,
-  sideCopy,
+  sideKey,
   statedIntensity,
+  suggestionIsCurrent,
   type PainSuggestion,
 } from "./catalog.ts";
 import { liveSpeech, speechKind } from "./dictate.ts";
@@ -27,6 +30,7 @@ export interface PainSuggestProps {
 }
 
 export default function PainSuggest(props: PainSuggestProps) {
+  const { t, lang, locale } = useI18n();
   const [text, setText] = useState("");
   const [consent, setConsent] = useState(false);
   const [recordConsent, setRecordConsent] = useState(false);
@@ -41,13 +45,20 @@ export default function PainSuggest(props: PainSuggestProps) {
   const [nonce, setNonce] = useState(0);
   const kind = speechKind();
   const generation = useRef(0);
-  // Each suggest() call and unmount bumps this so stale responses are dropped.
   const suggestRun = useRef(0);
   const latestText = useRef("");
   latestText.current = text;
+  const alive = useRef(true);
+  const inflight = useRef<AbortController | null>(null);
   const capture = useRef<Recording | null>(null);
-  const speech = useRef(liveSpeech());
+  const speech = useRef<ReturnType<typeof liveSpeech>>(null);
   const heard = useRef("");
+
+  function reportSpeech(message?: string) {
+    if (message === "mic-blocked") setError(t("pain.error.micBlocked"));
+    else if (message === "speech-stopped") setError(t("pain.error.speechStopped"));
+    else if (message) setError(message);
+  }
 
   function clearSuggestion() {
     setResult(null);
@@ -57,16 +68,19 @@ export default function PainSuggest(props: PainSuggestProps) {
 
   function updateDescription(value: string) {
     setText(value);
-    // Drop a finished or in-flight suggestion so "Use as level" cannot apply the old answer.
-    suggestRun.current++;
+    suggestRun.current += 1;
+    inflight.current?.abort();
     clearSuggestion();
     setStatus("");
+    setBusy(false);
   }
 
   useEffect(() => {
+    alive.current = true;
     return () => {
-      generation.current++;
-      suggestRun.current++;
+      alive.current = false;
+      suggestRun.current += 1;
+      inflight.current?.abort();
       capture.current?.cancel();
       void speech.current?.cancel().catch(() => {});
     };
@@ -76,6 +90,7 @@ export default function PainSuggest(props: PainSuggestProps) {
     if (isNativeApp()) return null;
     try {
       const next = await api<Session>("session");
+      if (!alive.current) return next;
       setSession(next);
       return next;
     } catch {
@@ -87,54 +102,54 @@ export default function PainSuggest(props: PainSuggestProps) {
     if (recording || busy) return;
     setError("");
     const current = ++generation.current;
+    const localeTag = speechLocale(lang);
     if (kind === "apple" || kind === "web") {
-      const dictator = speech.current ?? liveSpeech();
+      const dictator = liveSpeech(localeTag);
       speech.current = dictator;
       if (!dictator) {
-        setError("Speech recognition is unavailable. Type a description.");
+        setError(t("pain.error.speechUnavailable"));
         return;
       }
       try {
         let ended = false;
         await dictator.start(
           (value) => {
-            if (generation.current !== current) return;
+            if (generation.current !== current || !alive.current) return;
             heard.current = value.slice(0, 3000);
             updateDescription(value.slice(0, 3000));
           },
           (message) => {
             ended = true;
-            if (generation.current !== current) return;
+            if (generation.current !== current || !alive.current) return;
             setRecording(false);
-            if (message) setError(message);
+            reportSpeech(message);
           },
         );
-        if (!ended && generation.current === current) setRecording(true);
+        if (!ended && generation.current === current && alive.current) setRecording(true);
       } catch {
-        if (generation.current === current) {
+        if (generation.current === current && alive.current) {
           setRecording(false);
-          setError("Speech recognition could not start. Type a description.");
+          setError(t("pain.error.speechStart"));
         }
       }
       return;
     }
     if (kind !== "upload") {
-      setError("Speech recognition is unavailable. Type a description.");
+      setError(t("pain.error.speechUnavailable"));
       return;
     }
     const currentSession = session ?? (await loadSession());
+    if (!alive.current || generation.current !== current) return;
     if (!currentSession?.transcription_available) {
-      setError(
-        "Transcription is off on this server. Type a description, or turn on voice notes.",
-      );
+      setError(t("pain.error.transcriptionOff"));
       return;
     }
     if (!recordConsent) {
-      setError("Agree to send the recording for a transcript, or type instead.");
+      setError(t("pain.error.recordConsent"));
       return;
     }
     if (currentSession.turnstile_site_key && !token) {
-      setError("Complete the visitor check, then try the microphone again.");
+      setError(t("pain.error.visitorMic"));
       return;
     }
     try {
@@ -144,21 +159,21 @@ export default function PainSuggest(props: PainSuggestProps) {
         },
         Math.min(60, currentSession.max_audio_seconds || 60),
         (message) => {
-          if (generation.current !== current) return;
+          if (generation.current !== current || !alive.current) return;
           capture.current = null;
           setRecording(false);
           setError(message);
         },
       );
-      if (generation.current !== current) {
+      if (generation.current !== current || !alive.current) {
         next.cancel();
         return;
       }
       capture.current = next;
       setRecording(true);
     } catch {
-      if (generation.current === current)
-        setError("The microphone could not start. Type a description.");
+      if (generation.current === current && alive.current)
+        setError(t("pain.error.mic"));
     }
   }
 
@@ -166,16 +181,18 @@ export default function PainSuggest(props: PainSuggestProps) {
     if (kind === "apple" || kind === "web") {
       setRecording(false);
       await speech.current?.stop().catch(() => {});
-      if (heard.current) updateDescription(heard.current.slice(0, 3000));
+      if (heard.current && alive.current) updateDescription(heard.current.slice(0, 3000));
       return;
     }
     const pending = capture.current;
     if (!pending) return;
     setRecording(false);
     setBusy(true);
+    const controller = new AbortController();
+    inflight.current = controller;
     try {
       const blob = await pending.stop();
-      if (generation.current !== current) return;
+      if (generation.current !== current || !alive.current) return;
       const audio = await toWav(
         blob,
         Math.min(60, session?.max_audio_seconds || 60),
@@ -183,19 +200,19 @@ export default function PainSuggest(props: PainSuggestProps) {
       const transcript = await localVoiceClient.transcribe(
         audio,
         token,
-        new AbortController().signal,
+        controller.signal,
+        lang,
       );
-      if (generation.current === current) updateDescription(transcript.slice(0, 3000));
+      if (generation.current === current && alive.current && !controller.signal.aborted)
+        updateDescription(transcript.slice(0, 3000));
     } catch (caught) {
-      if (generation.current === current)
+      if (generation.current === current && alive.current && !controller.signal.aborted)
         setError(
-          caught instanceof Error
-            ? caught.message
-            : "The recording could not be transcribed. Type a description.",
+          caught instanceof Error ? caught.message : t("pain.error.transcribe"),
         );
     } finally {
       capture.current = null;
-      if (generation.current === current) {
+      if (generation.current === current && alive.current) {
         setBusy(false);
         setToken("");
         setNonce((value) => value + 1);
@@ -207,86 +224,109 @@ export default function PainSuggest(props: PainSuggestProps) {
     if (busy) return;
     const description = plainText(text);
     if (description.length < 3) {
-      setError("Describe the pain in a few words.");
+      setError(t("pain.error.short"));
       return;
     }
     if (isNativeApp()) {
-      setError(
-        "Suggestions run in the browser notebook with the local server. You can still add these words to your note.",
-      );
+      setError(t("pain.error.native"));
       return;
     }
     if (!consent) {
-      setError("Agree to send this description before asking for a suggestion.");
+      setError(t("pain.error.consent"));
       return;
     }
     const run = ++suggestRun.current;
-    const stale = () =>
-      suggestRun.current !== run || plainText(latestText.current) !== description;
+    const controller = new AbortController();
+    inflight.current?.abort();
+    inflight.current = controller;
+    const currentNow = () =>
+      suggestionIsCurrent({
+        alive: alive.current,
+        aborted: controller.signal.aborted,
+        run,
+        currentRun: suggestRun.current,
+        sent: description,
+        latest: plainText(latestText.current),
+      });
     setBusy(true);
     setError("");
     setStatus("");
     try {
       const current = (await loadSession()) ?? session;
-      if (stale()) return;
+      if (!currentNow()) return;
       if (!current?.pain_suggestions) {
         clearSuggestion();
-        setStatus("Suggestions are off on this server.");
+        setStatus(t("pain.status.off"));
         return;
       }
       if (current.turnstile_site_key && !token) {
-        setError("Complete the visitor check, then try again.");
+        setError(t("pain.error.visitor"));
         return;
       }
-      const response = await api<{ suggestion: unknown }>("pain", {
-        request_id: crypto.randomUUID(),
-        text: description,
-        consent: true,
-        challenge_token: token,
-      });
-      // The text changed or the panel closed while waiting: keep the new state, drop this answer.
-      if (stale()) return;
+      const response = await api<{ suggestion: unknown }>(
+        "pain",
+        {
+          request_id: crypto.randomUUID(),
+          text: description,
+          consent: true,
+          challenge_token: token,
+          language: lang,
+        },
+        controller.signal,
+      );
+      if (!currentNow()) return;
       if (response.suggestion == null) {
         clearSuggestion();
-        setStatus("Suggestions are off on this server.");
+        setStatus(t("pain.status.off"));
         return;
       }
       const parsed = readSuggestion(response.suggestion);
+      if (!currentNow()) return;
       if (!parsed) {
         clearSuggestion();
-        setStatus("The suggestion could not be read. Your notes are unchanged.");
+        setStatus(t("pain.status.unreadable"));
         return;
       }
       setResult(parsed);
       setSourceText(description);
-      // Regions stay with the main map provider; Jev only suggests side and level.
       props.onHighlight([]);
       const namedSide = parsed.side && parsed.side.id !== "unspecified";
       const empty = !namedSide && !parsed.pain_level;
-      setStatus(empty ? "Nothing in that description was clear enough to suggest." : "");
+      setStatus(empty ? t("pain.status.empty") : "");
     } catch (caught) {
-      if (stale()) return;
+      if (!currentNow()) return;
       clearSuggestion();
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "The suggestion could not be requested.",
+        caught instanceof Error ? caught.message : t("pain.error.request"),
       );
     } finally {
-      if (suggestRun.current === run) setBusy(false);
-      setToken("");
-      setNonce((value) => value + 1);
+      if (alive.current && suggestRun.current === run) {
+        setBusy(false);
+        setToken("");
+        setNonce((value) => value + 1);
+      }
     }
   }
 
   const speechNote =
     kind === "apple"
-      ? "Speech stays on this device. The words stay in this box until you ask for a suggestion."
+      ? t("pain.speech.apple")
       : kind === "web"
-        ? "This browser may send audio to its speech service. The words stay in this box until you ask for a suggestion."
+        ? t("pain.speech.web")
         : kind === "upload"
-          ? "Stopping sends the recording to the transcription service. Then you can ask for a suggestion."
-          : "Type a description. Speech recognition is unavailable in this browser.";
+          ? t("pain.speech.upload")
+          : t("pain.speech.none");
+  const hold = Number(session?.suggestion_hold_usd);
+  const holdLabel =
+    session?.suggestion_hold_usd && Number.isFinite(hold)
+      ? new Intl.NumberFormat(locale, {
+          style: "currency",
+          currency: "USD",
+        }).format(hold)
+      : "";
+  const stated = statedIntensity(sourceText);
+  const levelKey = result?.pain_level ? painLevelKey(result.pain_level) : null;
+  const shownSide = result?.side ? sideKey(result.side.id) : null;
 
   return (
     <details
@@ -295,12 +335,10 @@ export default function PainSuggest(props: PainSuggestProps) {
         if (event.currentTarget.open) void loadSession();
       }}
     >
-      <summary>Pain suggestion</summary>
-      <p className="pain-status">
-        Optional. A suggestion stays separate from your notes until you use it.
-      </p>
+      <summary>{t("pain.summary")}</summary>
+      <p className="pain-status">{t("pain.intro")}</p>
       <label className="field-label" htmlFor="pain-description">
-        Describe the pain
+        {t("pain.describe")}
       </label>
       <textarea
         id="pain-description"
@@ -308,13 +346,13 @@ export default function PainSuggest(props: PainSuggestProps) {
         rows={4}
         maxLength={3000}
         value={text}
-        placeholder="Sharp pain on the left shoulder when I lift my arm"
+        placeholder={t("pain.placeholder")}
         onChange={(event) => updateDescription(event.target.value)}
       />
       <div className="pain-actions">
         {recording ? (
           <button type="button" className="secondary" onClick={() => void finishRecording()}>
-            <Square size={14} /> Stop speech
+            <Square size={14} /> {t("pain.stopSpeech")}
           </button>
         ) : (
           <button
@@ -323,11 +361,11 @@ export default function PainSuggest(props: PainSuggestProps) {
             onClick={() => void listen()}
             disabled={busy || kind === "none"}
           >
-            <Mic size={14} /> Start speech
+            <Mic size={14} /> {t("pain.startSpeech")}
           </button>
         )}
         <button type="button" className="secondary" onClick={() => void suggest()} disabled={busy}>
-          Suggest
+          {t("pain.suggest")}
         </button>
         <button
           type="button"
@@ -335,7 +373,7 @@ export default function PainSuggest(props: PainSuggestProps) {
           disabled={!plainText(text)}
           onClick={() => props.onInsertText(plainText(text))}
         >
-          Add these words to your note
+          {t("pain.addWords")}
         </button>
       </div>
       <p className="pain-status">{speechNote}</p>
@@ -347,7 +385,9 @@ export default function PainSuggest(props: PainSuggestProps) {
             onChange={(event) => setRecordConsent(event.target.checked)}
           />
           <span>
-            Send a recording to {session?.transcription_provider ?? "the transcription service"} for a transcript.
+            {t("pain.recordConsent", {
+              provider: session?.transcription_provider ?? t("pain.providerFallback"),
+            })}
           </span>
         </label>
       )}
@@ -357,12 +397,10 @@ export default function PainSuggest(props: PainSuggestProps) {
           checked={consent}
           onChange={(event) => setConsent(event.target.checked)}
         />
-        <span>Send this description to TypeSafe for a suggestion.</span>
+        <span>{t("pain.consent")}</span>
       </label>
-      {session?.pain_suggestions && (
-        <p className="pain-status">
-          A short suggestion costs about $0.001. That estimate is not a spending limit.
-        </p>
+      {session?.pain_suggestions && holdLabel && (
+        <p className="pain-status">{t("pain.cost", { amount: holdLabel })}</p>
       )}
       {session?.turnstile_site_key && (
         <VisitorCheck siteKey={session.turnstile_site_key} nonce={nonce} onToken={setToken} />
@@ -379,15 +417,13 @@ export default function PainSuggest(props: PainSuggestProps) {
       )}
       {result && (
         <div className="pain-suggestion">
-          <strong>AI suggestion</strong>
-          <p className="pain-status">
-            Side and pain level only. Place regions with the body map or your note.
-          </p>
-          {result.side && sideCopy(result.side.id) && <p>{sideCopy(result.side.id)}</p>}
-          {result.pain_level && painLevelCopy(result.pain_level) && (
+          <strong>{t("pain.heading")}</strong>
+          <p className="pain-status">{t("pain.scope")}</p>
+          {shownSide && <p>{t(shownSide)}</p>}
+          {levelKey && (
             <div className="pain-row">
-              <span>{painLevelCopy(result.pain_level)}</span>
-              {statedIntensity(sourceText) != null ? (
+              <span>{t("pain.band", { label: t(levelKey) })}</span>
+              {stated != null ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -396,12 +432,10 @@ export default function PainSuggest(props: PainSuggestProps) {
                     props.onUseIntensity(exact);
                   }}
                 >
-                  {`Use stated level (${statedIntensity(sourceText)}/10)`}
+                  {t("pain.useStated", { level: stated })}
                 </button>
               ) : (
-                <span className="pain-status">
-                  Band only. Set the reported intensity on the dial yourself.
-                </span>
+                <span className="pain-status">{t("pain.bandOnly")}</span>
               )}
             </div>
           )}
@@ -413,7 +447,7 @@ export default function PainSuggest(props: PainSuggestProps) {
               setStatus("");
             }}
           >
-            Clear suggestion
+            {t("pain.clear")}
           </button>
         </div>
       )}

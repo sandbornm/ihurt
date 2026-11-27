@@ -117,6 +117,7 @@ class PainRequest(BaseModel):
     text: str = Field(min_length=3, max_length=3000)
     consent: bool = False
     challenge_token: str = Field(default="", max_length=2048)
+    language: Literal["en", "es"] = "en"
 
 
 class PainLabel(BaseModel):

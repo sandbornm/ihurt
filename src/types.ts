@@ -139,6 +139,7 @@ export interface Session {
   transcription_available: boolean;
   transcription_provider: "ElevenLabs" | "OpenAI" | null;
   pain_suggestions?: boolean;
+  suggestion_hold_usd?: string;
 }
 export interface SavedMap {
   research?: {

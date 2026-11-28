@@ -89,10 +89,11 @@ export function assertSyncEntryLimit(count: number) {
   if (count > SYNC_ENTRY_LIMIT) throw new AccountApiError(0, "too-many");
 }
 
-// A stored id is at most 100 characters. The widest character in that limit
-// is three UTF-8 bytes, which is what the next pull's deleted list can cost.
+// A stored id is at most 100 characters. JSON writes a control character as
+// \uXXXX, six bytes, which is wider than the three-byte UTF-8 form. The next
+// pull's deleted list is reserved at that escaped size.
 const STORED_ID_LIMIT = 100;
-const WIDEST_STORED_ID = "\uFFFF".repeat(STORED_ID_LIMIT);
+const WIDEST_STORED_ID = "\u0000".repeat(STORED_ID_LIMIT);
 
 // The upload is `revision` and `entries`. The next pull can add `deleted`,
 // up to one id per entry in the window. Leave that room or the pull is rejected.

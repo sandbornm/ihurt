@@ -1612,6 +1612,120 @@ test("a backup leaves room for 500 deleted ids", async () => {
   assert.deepEqual(calls, []);
 });
 
+test("a near-limit backup still fits when deleted ids are escaped", async () => {
+  const encoder = new TextEncoder();
+  const widest = [
+    "\u0000",
+    "\u0001",
+    "\u0002",
+    "\u0003",
+    "\u0004",
+    "\u0005",
+    "\u0006",
+    "\u0007",
+    "\u000b",
+    "\u000e",
+    "\u000f",
+    "\u0010",
+    "\u0011",
+    "\u0012",
+    "\u0013",
+    "\u0014",
+    "\u0015",
+    "\u0016",
+    "\u0017",
+    "\u0018",
+    "\u0019",
+    "\u001a",
+    "\u001b",
+    "\u001c",
+    "\u001d",
+    "\u001e",
+    "\u001f",
+  ];
+  const deleted = Array.from({ length: SYNC_ENTRY_LIMIT }, (_, index) => {
+    const chars = Array.from({ length: 100 }, () => "\u0000");
+    chars[0] = widest[index % widest.length]!;
+    chars[1] = widest[Math.floor(index / widest.length)]!;
+    return chars.join("");
+  });
+  assert.equal(new Set(deleted).size, SYNC_ENTRY_LIMIT);
+  for (const id of deleted)
+    assert.equal(encoder.encode(JSON.stringify(id)).byteLength, 602);
+  const listed = encoder.encode(
+    `,"deleted":${JSON.stringify(deleted)}`,
+  ).byteLength;
+  assert.equal(deletedListBytes(SYNC_ENTRY_LIMIT), listed);
+
+  const revision = "rev-1";
+  const created = "2026-11-27T00:00:00.000Z";
+  const maxNote = 30_000;
+  const room = ACCOUNT_RESPONSE_BYTES - listed;
+  const row = (index: number, note: string) => ({
+    id: `row-${index}`,
+    created,
+    note,
+  });
+  const full = (index: number) => row(index, "x".repeat(maxNote));
+  const within = (entries: { id: string; created: string; note: string }[]) =>
+    backupRequestBytes(entries, revision) <= room;
+  let low = 0;
+  let high = SYNC_ENTRY_LIMIT;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (within(Array.from({ length: mid }, (_, index) => full(index))))
+      low = mid;
+    else high = mid - 1;
+  }
+  const base = Array.from({ length: low }, (_, index) => full(index));
+  let best = base;
+  if (low < SYNC_ENTRY_LIMIT && within([...base, row(low, "")])) {
+    let noteLow = 0;
+    let noteHigh = maxNote;
+    while (noteLow < noteHigh) {
+      const mid = Math.ceil((noteLow + noteHigh) / 2);
+      if (within([...base, row(low, "x".repeat(mid))])) noteLow = mid;
+      else noteHigh = mid - 1;
+    }
+    best = [...base, row(low, "x".repeat(noteLow))];
+  }
+  const last = best[best.length - 1]!;
+  const grown =
+    last.note.length < maxNote
+      ? best.map((entry, index) =>
+          index === best.length - 1
+            ? { ...entry, note: `${entry.note}x` }
+            : entry,
+        )
+      : [...best, row(best.length, "x")];
+  assert.equal(within(best), true);
+  assert.equal(within(grown), false);
+
+  const payloads = best.map((entry) => toBackupPayload(entry));
+  const body = JSON.stringify({
+    revision,
+    entries: payloads,
+    deleted,
+  });
+  assert.ok(encoder.encode(body).byteLength <= ACCOUNT_RESPONSE_BYTES);
+  const api = createAccountApi("https://api.example", async () => {
+    return new Response(body, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  assert.ok(api);
+  const sync = await api.getEntries("token");
+  assert.equal(sync.revision, revision);
+  assert.equal(sync.entries.length, best.length);
+  assert.deepEqual(sync.deleted, deleted);
+  const upload = createAccountApi("https://api.example", async () => {
+    return new Response("{}", { status: 200 });
+  });
+  assert.ok(upload);
+  await upload.putEntries("token", best, revision);
+});
+
 test("a backup of more than 500 entries is refused before upload", async () => {
   const tooMany = Array.from({ length: SYNC_ENTRY_LIMIT + 1 }, (_, index) =>
     entry(`row-${index}`, 1),

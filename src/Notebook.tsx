@@ -99,7 +99,11 @@ import {
   restoreClosesEditor,
   savedAfterBackupPull,
 } from "./account/backup.ts";
-import { guardSourceSearch } from "./account/store.ts";
+import {
+  guardSourceSearch,
+  restoreCurrentEntry,
+  retireCurrentEntry,
+} from "./account/store.ts";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -459,6 +463,7 @@ export default function Notebook({
     setBusy(true);
     try {
       await removeEntry(item.id);
+      retireCurrentEntry(item.id);
       setSaved((old) => old.filter((e) => e.id !== item.id));
       setRemoved(item);
       setToast(t("notebook.toast.deleted"));
@@ -476,6 +481,7 @@ export default function Notebook({
     if (!removed) return;
     try {
       const [savedRow] = await storeEntries([removed]);
+      restoreCurrentEntry(removed.id);
       const saved = savedRow ?? removed;
       setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       setRemoved(null);

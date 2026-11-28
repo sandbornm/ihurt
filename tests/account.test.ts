@@ -67,9 +67,12 @@ import {
   pushBackup,
   readSyncedIds,
   downloadedIdsFor,
+  rememberDownloaded,
   rememberRemoteDeletes,
   rememberSeenEntries,
   rememberSynced,
+  restoreRetiredEntry,
+  retireEntry,
   removedIdsFor,
   syncedIdsFor,
   withoutOtherAccountEntries,
@@ -3372,6 +3375,51 @@ test("deleting an account releases entries it never backed up", async () => {
     ),
     ["local-only"],
   );
+});
+
+test("a re-imported entry stays after the account is deleted", async () => {
+  const store = memory();
+  rememberSynced(store, ["note"], "user-a");
+  rememberDownloaded(store, ["note"], "user-a");
+  retireEntry(store, "user-a", "note");
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), []);
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, []);
+  const again = memory();
+  rememberSynced(again, ["note"], "user-a");
+  retireEntry(again, "user-a", "note");
+  restoreRetiredEntry(again, "user-a", "note");
+  assert.deepEqual(backedIdsFor(again, "user-a"), ["note"]);
+  const root = new URL("../", import.meta.url);
+  const notebook = readFileSync(new URL("src/Notebook.tsx", root), "utf8");
+  const erase = notebook.slice(
+    notebook.indexOf("async function erase"),
+    notebook.indexOf("async function undoDelete"),
+  );
+  const undo = notebook.slice(
+    notebook.indexOf("async function undoDelete"),
+    notebook.indexOf("async function importFile"),
+  );
+  const imported = notebook.slice(
+    notebook.indexOf("async function importFile"),
+    notebook.indexOf("function backup"),
+  );
+  assert.equal(erase.includes("retireCurrentEntry("), true);
+  assert.equal(undo.includes("restoreCurrentEntry("), true);
+  assert.equal(imported.includes("retireCurrentEntry("), false);
+  assert.equal(imported.includes("restoreCurrentEntry("), false);
 });
 
 test("a failed upload does not claim the entry for the next account", async () => {

@@ -51,6 +51,8 @@ import {
   rememberSeenEntries,
   rememberSynced,
   rememberSyncedEdits,
+  restoreRetiredEntry,
+  retireEntry,
   syncedEditsFor,
   syncedIdsFor,
   withUploadLock,
@@ -463,6 +465,18 @@ export async function enableBackup(
       return { status: "limited" };
     throw error;
   }
+}
+
+export function retireCurrentEntry(id: string) {
+  const uid = state.session?.uid;
+  if (!uid) return;
+  retireEntry(browserStore(), uid, id);
+}
+
+export function restoreCurrentEntry(id: string) {
+  const uid = state.session?.uid;
+  if (!uid) return;
+  restoreRetiredEntry(browserStore(), uid, id);
 }
 
 export async function disableBackup() {

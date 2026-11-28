@@ -37,16 +37,57 @@ function idsOf(value: unknown): string[] {
   return value.filter((id): id is string => typeof id === "string");
 }
 
+type RetiredEntry = {
+  backed?: true;
+  downloaded?: true;
+  window?: true;
+  note?: string;
+  points?: string;
+};
+
 interface SyncedAccount {
   window: string[];
   backed: string[];
   removed: string[];
   downloaded: string[];
   edited: Record<string, SyncStamp>;
+  retired: Record<string, RetiredEntry>;
 }
 
 function emptyAccount(): SyncedAccount {
-  return { window: [], backed: [], removed: [], downloaded: [], edited: {} };
+  return {
+    window: [],
+    backed: [],
+    removed: [],
+    downloaded: [],
+    edited: {},
+    retired: {},
+  };
+}
+
+function retiredOf(value: unknown): Record<string, RetiredEntry> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const retired: Record<string, RetiredEntry> = {};
+  for (const [id, row] of Object.entries(value)) {
+    if (!row || typeof row !== "object") continue;
+    const source = row as {
+      backed?: unknown;
+      downloaded?: unknown;
+      window?: unknown;
+      note?: unknown;
+      points?: unknown;
+    };
+    const prior: RetiredEntry = {};
+    if (source.backed === true) prior.backed = true;
+    if (source.downloaded === true) prior.downloaded = true;
+    if (source.window === true) prior.window = true;
+    if (typeof source.note === "string" && source.note)
+      prior.note = source.note;
+    if (typeof source.points === "string" && source.points)
+      prior.points = source.points;
+    if (prior.backed || prior.downloaded || prior.window) retired[id] = prior;
+  }
+  return retired;
 }
 
 function editsOf(value: unknown): Record<string, SyncStamp> {
@@ -73,6 +114,7 @@ function accountOf(value: unknown): SyncedAccount {
       removed: [],
       downloaded: [],
       edited: {},
+      retired: {},
     };
   }
   if (!value || typeof value !== "object") return emptyAccount();
@@ -82,6 +124,7 @@ function accountOf(value: unknown): SyncedAccount {
     removed?: unknown;
     downloaded?: unknown;
     edited?: unknown;
+    retired?: unknown;
   };
   const window = idsOf(row.window);
   return {
@@ -90,6 +133,7 @@ function accountOf(value: unknown): SyncedAccount {
     removed: idsOf(row.removed),
     downloaded: idsOf(row.downloaded),
     edited: editsOf(row.edited),
+    retired: retiredOf(row.retired),
   };
 }
 
@@ -393,6 +437,7 @@ export function rememberSynced(
     removed: current.removed,
     downloaded: current.downloaded,
     edited: current.edited,
+    retired: current.retired,
   };
   writeBook(store, book);
 }
@@ -440,6 +485,74 @@ function retainSynced(
     removed: current.removed,
     downloaded: current.downloaded,
     edited,
+    retired: current.retired,
+  };
+  writeBook(store, book);
+}
+
+// The user deleted this row. The id may come back from an import, and that
+// copy was not backed up. Undo restores the claim for the same row.
+export function retireEntry(store: KeyValueStore, uid: string, id: string) {
+  const book = readBook(store);
+  const current = book[uid];
+  if (!current) return;
+  const inWindow = current.window.includes(id);
+  const inBacked = current.backed.includes(id);
+  const inDownloaded = current.downloaded.includes(id);
+  if (!inWindow && !inBacked && !inDownloaded) return;
+  const stamp = current.edited[id];
+  const retired = { ...current.retired };
+  retired[id] = {
+    ...(inBacked ? { backed: true as const } : {}),
+    ...(inDownloaded ? { downloaded: true as const } : {}),
+    ...(inWindow ? { window: true as const } : {}),
+    ...(stamp?.note ? { note: stamp.note } : {}),
+    ...(stamp?.points ? { points: stamp.points } : {}),
+  };
+  const edited = { ...current.edited };
+  delete edited[id];
+  book[uid] = {
+    ...current,
+    window: current.window.filter((item) => item !== id),
+    backed: current.backed.filter((item) => item !== id),
+    downloaded: current.downloaded.filter((item) => item !== id),
+    edited,
+    retired,
+  };
+  writeBook(store, book);
+}
+
+export function restoreRetiredEntry(
+  store: KeyValueStore,
+  uid: string,
+  id: string,
+) {
+  const book = readBook(store);
+  const current = book[uid];
+  const prior = current?.retired[id];
+  if (!current || !prior) return;
+  const retired = { ...current.retired };
+  delete retired[id];
+  const edited = { ...current.edited };
+  if (prior.note || prior.points) {
+    edited[id] = {
+      ...(prior.note ? { note: prior.note } : {}),
+      ...(prior.points ? { points: prior.points } : {}),
+    };
+  }
+  book[uid] = {
+    ...current,
+    window: prior.window
+      ? [...new Set([...current.window, id])]
+      : current.window,
+    backed: prior.backed
+      ? [...new Set([...current.backed, id])]
+      : current.backed,
+    downloaded: prior.downloaded
+      ? [...new Set([...current.downloaded, id])]
+      : current.downloaded,
+    edited,
+    retired,
   };
   writeBook(store, book);
 }

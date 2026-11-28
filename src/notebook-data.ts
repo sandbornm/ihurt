@@ -137,6 +137,9 @@ export function exportNotebook(entries: SavedMap[]) {
       related_reading: entry.references ?? [],
       ...(entry.ai ? { ai_notes: entry.ai } : {}),
       ...(entry.research ? { research: entry.research } : {}),
+      ...(entry.noteUpdated !== undefined
+        ? { noteUpdated: entry.noteUpdated }
+        : {}),
       ...(entry.pointsUpdated !== undefined
         ? { pointsUpdated: entry.pointsUpdated }
         : {}),
@@ -404,6 +407,10 @@ export function parseNotebook(content: string): SavedMap[] {
     }
     const ai = parseAI(e.ai_notes);
     if (ai) entry.ai = ai;
+    if (e.noteUpdated !== undefined) entry.noteUpdated = date(e.noteUpdated);
+    // An older file has updated and no noteUpdated. That updated time is the
+    // note stamp, so an offline edit still beats an older cloud note.
+    else entry.noteUpdated = entry.updated;
     if (e.pointsUpdated !== undefined)
       entry.pointsUpdated = date(e.pointsUpdated);
     return entry;

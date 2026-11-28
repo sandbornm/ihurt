@@ -97,6 +97,38 @@ test("many pins and a reviewed search description survive export and import", ()
   assert.throws(() => parseNotebook(stringifyNotebook([entry])));
 });
 
+test("an offline note edit keeps its time through an ihm import and an older cloud note", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const { mergeBackupWindow } = await import("../src/account/backup.ts");
+  const edited = finishEntry(exampleEntry());
+  edited.note = "typed offline";
+  edited.updated = "2026-09-13T12:00:00.000Z";
+  edited.noteUpdated = "2026-09-13T12:00:00.000Z";
+  const file = stringifyIhm(edited);
+  const exported = JSON.parse(file);
+  assert.equal(exported.entries[0].noteUpdated, edited.noteUpdated);
+  const imported = parseNotebook(file)[0];
+  assert.equal(imported.note, "typed offline");
+  assert.equal(imported.noteUpdated, edited.noteUpdated);
+  const cloud = {
+    id: imported.id,
+    created: imported.created,
+    updated: "2026-09-12T12:00:00.000Z",
+    noteUpdated: "2026-09-12T18:00:00.000Z",
+    note: "older cloud",
+  };
+  const now = Date.parse("2026-09-14T00:00:00.000Z");
+  const [merged] = mergeBackupWindow([imported], [cloud], new Set(), now);
+  assert.equal(merged.note, "typed offline");
+  assert.equal(merged.noteUpdated, edited.noteUpdated);
+  delete exported.entries[0].noteUpdated;
+  const legacy = parseNotebook(JSON.stringify(exported))[0];
+  assert.equal(legacy.note, "typed offline");
+  assert.equal(legacy.noteUpdated, edited.updated);
+  const [again] = mergeBackupWindow([legacy], [cloud], new Set(), now);
+  assert.equal(again.note, "typed offline");
+});
+
 test("ihm packages remain ordinary JSON with inert derived materials", async () => {
   const { stringifyIhm } = await import("../src/export.ts");
   const entry = finishEntry(exampleEntry());

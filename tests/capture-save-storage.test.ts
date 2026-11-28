@@ -974,9 +974,7 @@ test("a field edit during save on an imported entry keeps the merged note", asyn
     updated: "2026-01-01T00:00:00.000Z",
   });
   const [imported] = parseNotebook(stringifyNotebook([source]));
-  assert.equal(imported.noteUpdated, "2026-01-01T00:00:00.000Z");
-  // This check is the unstamped field edit. The import stamp is recorded above.
-  imported.noteUpdated = undefined;
+  assert.equal(imported.noteUpdated, undefined);
   assert.equal(imported.id, "imported-row");
   await fieldEditThenSecondSaveKeepsMergedNote(imported.id, {
     ...imported,

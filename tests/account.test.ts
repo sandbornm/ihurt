@@ -3959,6 +3959,47 @@ test("a pull that skips a deleted row does not claim the re-import", async () =>
   assert.equal(pull.includes("stored: stored.map((entry) => entry.id)"), true);
 });
 
+test("a skipped download does not keep the next account from backing up that id", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("kept", 1)],
+    now: NOW,
+    store,
+    deletedIds: ["note"],
+    pull: async () => ({
+      entries: [entry("note", 1), entry("kept", 1)],
+      deleted: [],
+      revision: "2",
+      stored: ["kept"],
+    }),
+    put: async () => {},
+  });
+  clearOptIn(store);
+  assert.deepEqual(
+    withoutOtherAccountEntries([entry("note", 1)], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["note"],
+  );
+  grantOptIn(store, "user-b");
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({ entries: [], deleted: [], revision: "1" }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["note"]]);
+});
+
 test("a failed upload does not claim the entry for the next account", async () => {
   const store = memory();
   grantOptIn(store, "user-a");

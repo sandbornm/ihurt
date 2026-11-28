@@ -124,9 +124,41 @@ test("an offline note edit keeps its time through an ihm import and an older clo
   delete exported.entries[0].noteUpdated;
   const legacy = parseNotebook(JSON.stringify(exported))[0];
   assert.equal(legacy.note, "typed offline");
-  assert.equal(legacy.noteUpdated, edited.updated);
+  assert.equal(legacy.noteUpdated, undefined);
   const [again] = mergeBackupWindow([legacy], [cloud], new Set(), now);
-  assert.equal(again.note, "typed offline");
+  assert.equal(again.note, "older cloud");
+  assert.equal(again.noteUpdated, cloud.noteUpdated);
+});
+
+test("a pin edit in a legacy map does not replace a newer cloud note", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const { mergeBackupWindow } = await import("../src/account/backup.ts");
+  const edited = finishEntry(exampleEntry());
+  const stale = edited.note;
+  const moved = [0.2, 2.4, -0.2] as [number, number, number];
+  edited.points![0].position = moved;
+  edited.updated = "2026-09-14T12:00:00.000Z";
+  edited.pointsUpdated = "2026-09-14T12:00:00.000Z";
+  const exported = JSON.parse(stringifyIhm(edited));
+  delete exported.entries[0].noteUpdated;
+  const imported = parseNotebook(JSON.stringify(exported))[0];
+  assert.equal(imported.note, stale);
+  assert.equal(imported.noteUpdated, undefined);
+  assert.equal(imported.pointsUpdated, edited.pointsUpdated);
+  const cloud = {
+    id: imported.id,
+    created: imported.created,
+    updated: "2026-09-13T12:00:00.000Z",
+    noteUpdated: "2026-09-13T12:00:00.000Z",
+    pointsUpdated: "2026-09-12T12:00:00.000Z",
+    note: "newer cloud",
+    points: finishEntry(exampleEntry()).points,
+  };
+  const now = Date.parse("2026-09-15T00:00:00.000Z");
+  const [merged] = mergeBackupWindow([imported], [cloud], new Set(), now);
+  assert.equal(merged.note, "newer cloud");
+  assert.equal(merged.noteUpdated, cloud.noteUpdated);
+  assert.deepEqual(merged.points?.[0].position, moved);
 });
 
 test("an offline pin edit keeps its time through an ihm import and an older cloud pin list", async () => {

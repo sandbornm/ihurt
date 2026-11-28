@@ -999,11 +999,6 @@ export async function pushBackup<T extends BackupEntry>(input: {
       // The pull can store these rows before this check. Sign-out during that
       // write still leaves them on the device, so they stay with this account.
       if (input.pull) {
-        rememberSeenEntries(
-          input.store,
-          input.uid,
-          mine.map((entry) => entry.id),
-        );
         const accepted = pulled.stored;
         const downloaded =
           accepted === undefined
@@ -1011,6 +1006,9 @@ export async function pushBackup<T extends BackupEntry>(input: {
             : mine
                 .map((entry) => entry.id)
                 .filter((id) => accepted.includes(id));
+        // A row the notebook rejected is not this account's. Recording it
+        // would hide a later re-import from the next account.
+        rememberSeenEntries(input.store, input.uid, downloaded);
         rememberDownloaded(input.store, downloaded, input.uid);
       }
       if (!current()) return [];

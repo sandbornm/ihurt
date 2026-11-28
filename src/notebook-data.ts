@@ -407,10 +407,9 @@ export function parseNotebook(content: string): SavedMap[] {
     }
     const ai = parseAI(e.ai_notes);
     if (ai) entry.ai = ai;
+    // A missing noteUpdated stays missing. A pin or context edit also
+    // advances updated, so that time is not a note stamp.
     if (e.noteUpdated !== undefined) entry.noteUpdated = date(e.noteUpdated);
-    // An older file has updated and no noteUpdated. That updated time is the
-    // note stamp, so an offline edit still beats an older cloud note.
-    else entry.noteUpdated = entry.updated;
     // A missing pointsUpdated stays missing. A note or context edit also
     // advances updated, so that time is not a pin stamp.
     if (e.pointsUpdated !== undefined)

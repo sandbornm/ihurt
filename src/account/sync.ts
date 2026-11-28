@@ -575,6 +575,18 @@ export function restoreRetiredEntry(
   writeBook(store, book);
 }
 
+// A delete can happen after sign-out. The journal stays, and so does every
+// account that once backed this id. Drop the claim from each of them, or a
+// later account deletion treats the re-import as a backed copy.
+export function retireEntryOwners(store: KeyValueStore, id: string) {
+  for (const uid of Object.keys(readBook(store))) retireEntry(store, uid, id);
+}
+
+export function restoreEntryOwners(store: KeyValueStore, id: string) {
+  for (const uid of Object.keys(readBook(store)))
+    restoreRetiredEntry(store, uid, id);
+}
+
 export function clearSynced(store: KeyValueStore, uid?: string) {
   if (!uid) {
     store.removeItem(SYNCED_IDS_KEY);

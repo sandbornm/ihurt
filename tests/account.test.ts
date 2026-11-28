@@ -72,8 +72,10 @@ import {
   rememberRemoteDeletes,
   rememberSeenEntries,
   rememberSynced,
+  restoreEntryOwners,
   restoreRetiredEntry,
   retireEntry,
+  retireEntryOwners,
   removedIdsFor,
   syncedIdsFor,
   withoutOtherAccountEntries,
@@ -3635,6 +3637,51 @@ test("a re-imported entry stays after the account is deleted", async () => {
   assert.equal(undo.includes("restoreCurrentEntry("), true);
   assert.equal(imported.includes("retireCurrentEntry("), false);
   assert.equal(imported.includes("restoreCurrentEntry("), false);
+});
+
+test("a delete while signed out releases the backup claim", async () => {
+  const store = memory();
+  rememberSynced(store, ["note"], "user-a");
+  rememberDownloaded(store, ["note"], "user-a");
+  rememberSynced(store, ["note"], "user-b");
+  retireEntryOwners(store, "note");
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), []);
+  assert.deepEqual(backedIdsFor(store, "user-b"), []);
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, []);
+  const again = memory();
+  rememberSynced(again, ["note"], "user-a");
+  rememberDownloaded(again, ["note"], "user-a");
+  retireEntryOwners(again, "note");
+  restoreEntryOwners(again, "note");
+  assert.deepEqual(backedIdsFor(again, "user-a"), ["note"]);
+  assert.deepEqual(downloadedIdsFor(again, "user-a"), ["note"]);
+  const root = new URL("../", import.meta.url);
+  const source = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const retire = source.slice(
+    source.indexOf("export function retireCurrentEntry"),
+    source.indexOf("export function restoreCurrentEntry"),
+  );
+  const restore = source.slice(
+    source.indexOf("export function restoreCurrentEntry"),
+    source.indexOf("export async function disableBackup"),
+  );
+  assert.equal(retire.includes("if (!uid) return"), false);
+  assert.equal(retire.includes("retireEntryOwners("), true);
+  assert.equal(restore.includes("if (!uid) return"), false);
+  assert.equal(restore.includes("restoreEntryOwners("), true);
 });
 
 test("a failed upload does not claim the entry for the next account", async () => {

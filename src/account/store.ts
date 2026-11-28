@@ -52,8 +52,8 @@ import {
   rememberSeenEntries,
   rememberSynced,
   rememberSyncedEdits,
-  restoreRetiredEntry,
-  retireEntry,
+  restoreEntryOwners,
+  retireEntryOwners,
   syncedEditsFor,
   syncedIdsFor,
   withUploadLock,
@@ -483,15 +483,11 @@ export async function enableBackup(
 }
 
 export function retireCurrentEntry(id: string) {
-  const uid = state.session?.uid;
-  if (!uid) return;
-  retireEntry(browserStore(), uid, id);
+  retireEntryOwners(browserStore(), id);
 }
 
 export function restoreCurrentEntry(id: string) {
-  const uid = state.session?.uid;
-  if (!uid) return;
-  restoreRetiredEntry(browserStore(), uid, id);
+  restoreEntryOwners(browserStore(), id);
 }
 
 export async function disableBackup() {

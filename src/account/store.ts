@@ -23,6 +23,7 @@ import {
   entriesForBackup,
   idsDeletedOnServer,
   mergeBackupWindow,
+  remoteDeletesStillPending,
   type BackupEntry,
 } from "./backup.ts";
 import {
@@ -311,22 +312,28 @@ export async function enableBackup(
           const priorRemoved = new Set(
             removedIdsFor(browserStore(), session.uid),
           );
+          const clock = backupClock(Date.now(), remote);
+          const gone = remoteDeletesStillPending(
+            idsDeletedOnServer(
+              syncedIdsFor(browserStore(), session.uid),
+              kept,
+              sync.deleted,
+              deletedNow,
+              clock,
+            ),
+            priorRemoved,
+          );
+          const goneIds = new Set(gone);
+          // The server still names these rows. The marker stays until the
+          // upload and the local removal both finish. Any other still-local
+          // marker is a restore, so that row can be uploaded.
           releaseRemoteDeletes(
             browserStore(),
-            [...priorRemoved].filter((id) =>
-              kept.some((entry) => entry.id === id),
+            [...priorRemoved].filter(
+              (id) => kept.some((entry) => entry.id === id) && !goneIds.has(id),
             ),
             session.uid,
           );
-          const clock = backupClock(Date.now(), remote);
-          const gone = idsDeletedOnServer(
-            syncedIdsFor(browserStore(), session.uid),
-            kept,
-            sync.deleted,
-            deletedNow,
-            clock,
-          ).filter((id) => !priorRemoved.has(id));
-          const goneIds = new Set(gone);
           const owned = withoutOtherAccountEntries(
             kept.filter((entry) => !goneIds.has(entry.id)),
             browserStore(),
@@ -341,7 +348,6 @@ export async function enableBackup(
             setState({ ...state, busy: false });
             return { status: "refresh", ids: localIds };
           }
-          rememberRemoteDeletes(browserStore(), gone, session.uid);
           // The cloud note is not written yet. The upload carries the merge,
           // and the journal changes only after that upload is accepted.
           // A row another account already claimed stays in the replacement
@@ -407,7 +413,11 @@ export async function enableBackup(
               .map((entry) => entry.id);
             rememberSeenEntries(browserStore(), session.uid, claimed);
             rememberSynced(browserStore(), claimed, session.uid);
-            if (gone.length > 0) await onRemove?.(gone);
+            if (gone.length > 0) {
+              await onRemove?.(gone);
+              if (onRemove)
+                rememberRemoteDeletes(browserStore(), gone, session.uid);
+            }
             if (
               state.session?.uid !== session.uid ||
               backupEpoch(browserStore()) !== epoch ||

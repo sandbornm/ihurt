@@ -92,6 +92,17 @@ export function idsDeletedOnServer<T extends BackupEntry>(
   });
 }
 
+// A failed activation can mark a remote delete before this device removes the
+// local row. That marker must not hide a delete the server still names, or
+// the next replacement uploads the row again.
+export function remoteDeletesStillPending(
+  serverGone: readonly string[],
+  priorRemoved: ReadonlySet<string>,
+): string[] {
+  const marked = serverGone.filter((id) => priorRemoved.has(id));
+  return [...new Set([...serverGone, ...marked])];
+}
+
 // The confirm screen and the upload have to name the same rows. A row saved
 // in another tab changes the snapshot, so the first click shows that count
 // again instead of sending it.

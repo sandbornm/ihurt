@@ -28,6 +28,7 @@ import {
   entriesForBackup,
   FREE_SEARCHES,
   idsDeletedOnServer,
+  remoteDeletesStillPending,
   mergeBackupWindow,
   entryKeptAfterRemoteDelete,
   entryKeptAfterRemove,
@@ -2899,6 +2900,33 @@ test("an undo on another device clears the remote delete", async () => {
   });
   assert.deepEqual(undone, [["gone", "keep"]]);
   assert.deepEqual(removedIdsFor(store, "user-a"), []);
+});
+
+test("a remote delete stays deleted when backup activation fails", () => {
+  assert.deepEqual(
+    remoteDeletesStillPending(["gone", "other"], new Set(["gone"])),
+    ["gone", "other"],
+  );
+  const enable = readFileSync(
+    new URL("../src/account/store.ts", import.meta.url),
+    "utf8",
+  );
+  const start = enable.indexOf("export async function enableBackup");
+  const putAt = enable.indexOf(
+    "await api.putEntries(token, windowed, sync.revision)",
+    start,
+  );
+  const removeAt = enable.indexOf("await onRemove?.(gone)", putAt);
+  const markedAt = enable.indexOf("rememberRemoteDeletes(", removeAt);
+  assert.ok(putAt > start && removeAt > putAt && markedAt > removeAt);
+  assert.equal(
+    enable.slice(start, putAt).includes("rememberRemoteDeletes("),
+    false,
+  );
+  assert.equal(
+    enable.slice(start, putAt).includes("!priorRemoved.has("),
+    false,
+  );
 });
 
 test("a delete during backup enable is left out of the first upload", () => {

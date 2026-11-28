@@ -194,6 +194,24 @@ export function clearOptIn(store: KeyValueStore) {
   store.removeItem(OPT_IN_UID_KEY);
 }
 
+// Backup turns off before Firebase sign-out so an in-flight upload stops.
+// If that sign-out fails, the account is still here, so backup comes back.
+export async function signOutAccount(input: {
+  store: KeyValueStore;
+  uid: string | null;
+  signOut: () => Promise<void>;
+}): Promise<void> {
+  const wasOn = input.uid !== null && optedIn(input.store, input.uid);
+  nextBackupEpoch(input.store);
+  clearOptIn(input.store);
+  try {
+    await input.signOut();
+  } catch (error) {
+    if (input.uid && wasOn) grantOptIn(input.store, input.uid);
+    throw error;
+  }
+}
+
 type DeletingBook = Record<string, Record<string, number>>;
 
 function readDeleting(store: KeyValueStore): DeletingBook {
@@ -985,6 +1003,9 @@ export async function pushBackup<T extends BackupEntry>(input: {
         try {
           await input.put(input.token, windowed, pulled.revision);
         } catch (error) {
+          // Backup was turned off, or sign-out started, after this request
+          // was sent. The caller aborts it. Do not keep the rows as synced.
+          if (!current()) return [];
           // The other device wrote this snapshot first. Pull that list and
           // merge again. The rejected body is not the cloud copy.
           if (isBackupConflict(error) && attempt + 1 < SYNC_UPLOAD_ATTEMPTS)

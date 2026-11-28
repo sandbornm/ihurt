@@ -59,6 +59,7 @@ import {
   accountDeleteStage,
   backedIdsFor,
   clearOptIn,
+  signOutAccount,
   accountDeleting,
   claimUpload,
   deleteSignedInAccount,
@@ -1407,6 +1408,106 @@ test("turning backup off during the pull skips the upload", async () => {
   release();
   assert.deepEqual(await pending, []);
   assert.deepEqual(sent, []);
+});
+
+test("a failed sign-out keeps backup on for the next save", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  await assert.rejects(
+    () =>
+      signOutAccount({
+        store,
+        uid: "user-a",
+        signOut: async () => {
+          throw new Error("firebase");
+        },
+      }),
+    (error: unknown) => error instanceof Error && error.message === "firebase",
+  );
+  assert.equal(optedIn(store, "user-a"), true);
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["note"]]);
+  const root = new URL("../", import.meta.url);
+  const source = readFileSync(new URL("src/account/store.ts", root), "utf8");
+  const signOut = source.slice(
+    source.indexOf("export async function signOut"),
+    source.indexOf("export async function enableBackup"),
+  );
+  assert.equal(signOut.includes("signOutAccount("), true);
+  assert.equal(signOut.includes("cancelRequests("), true);
+  assert.equal(signOut.includes("session: null"), true);
+  const failure = signOut.slice(signOut.indexOf("} catch"));
+  assert.equal(failure.includes("session: null"), false);
+  const disable = source.slice(
+    source.indexOf("export async function disableBackup"),
+    source.indexOf("export function pushBackupEntries"),
+  );
+  assert.equal(disable.includes("cancelRequests("), true);
+});
+
+test("an upload already in flight stops when backup turns off", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  let rejectPut: (error: unknown) => void = () => {};
+  const gate = new Promise<void>((_resolve, reject) => {
+    rejectPut = reject;
+  });
+  const pending = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({ entries: [], deleted: [], revision: "rev-1" }),
+    put: async () => {
+      clearOptIn(store);
+      nextBackupEpoch(store);
+      await gate;
+    },
+  });
+  rejectPut(new AccountApiError(0, "cancelled"));
+  assert.deepEqual(await pending, []);
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+
+  let signal: AbortSignal | undefined;
+  const api = createAccountApi("https://api.example", (_url, init) => {
+    signal = init?.signal ?? undefined;
+    return new Promise((_resolve, reject) => {
+      const abort = init?.signal;
+      if (!abort) {
+        reject(new Error("missing signal"));
+        return;
+      }
+      abort.addEventListener("abort", () => {
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+      });
+    });
+  });
+  assert.ok(api);
+  const upload = api.putEntries("token", [entry("note", 1)], "rev-1");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  api.cancelRequests();
+  await assert.rejects(
+    Promise.race([
+      upload,
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error("still in flight")), 1000);
+      }),
+    ]),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "cancelled",
+  );
+  assert.equal(signal?.aborted, true);
 });
 
 test("a note stored from a pull stays with that account after sign-out", async () => {
@@ -4019,7 +4120,23 @@ test("account events are an action name and nothing else", async () => {
     '{"event":"sign_in"}',
     '{"event":"upgrade_sheet"}',
   ]);
+  const calls: string[] = [];
+  const fetchImpl: typeof fetch = async (url) => {
+    calls.push(String(url));
+    return new Response(null, { status: 204 });
+  };
+  createAnalytics("http://analytics.example/collect", fetchImpl).record(
+    "sync_on",
+  );
+  createAnalytics("https://analytics.test/collect", fetchImpl).record(
+    "sign_out",
+  );
+  createAnalytics("http://127.0.0.1:9/collect", fetchImpl).record("sync_off");
   await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls, [
+    "https://analytics.test/collect",
+    "http://127.0.0.1:9/collect",
+  ]);
   for (const body of bodies) {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     assert.deepEqual(Object.keys(parsed), ["event"]);
@@ -4170,6 +4287,18 @@ test("config comes from env and the test runtime stays on loopback", async () =>
       apiBase: "https://api.ihurt.app",
       analyticsEndpoint: "",
     },
+  );
+  assert.equal(
+    readAccountConfig({
+      VITE_ANALYTICS_ENDPOINT: "http://analytics.example/collect",
+    }).analyticsEndpoint,
+    "",
+  );
+  assert.equal(
+    readAccountConfig({
+      VITE_ANALYTICS_ENDPOINT: "https://analytics.test/collect",
+    }).analyticsEndpoint,
+    "https://analytics.test/collect",
   );
   assert.equal(readAccountConfig({}).firebase, null);
   const iosEnv = {

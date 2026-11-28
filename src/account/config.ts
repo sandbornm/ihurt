@@ -1,3 +1,5 @@
+import { allowedAnalyticsUrl } from "./analytics.ts";
+
 // Build-time public settings. Secrets stay out of Git. The website key is
 // restricted to https://ihurt.app. The iOS shell calls Firebase from
 // capacitor://localhost, so it uses a separate key. That key has no HTTP
@@ -52,7 +54,8 @@ export function readAccountConfig(
   return {
     firebase,
     apiBase: clean(env.VITE_IHURT_API_BASE),
-    analyticsEndpoint: clean(env.VITE_ANALYTICS_ENDPOINT),
+    analyticsEndpoint:
+      allowedAnalyticsUrl(clean(env.VITE_ANALYTICS_ENDPOINT)) ?? "",
   };
 }
 

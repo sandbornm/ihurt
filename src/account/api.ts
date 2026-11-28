@@ -42,6 +42,7 @@ export interface AccountApi {
   }>;
   deleteAccount(token: string): Promise<void>;
   useSearch(token: string): Promise<{ remaining: number }>;
+  cancelRequests(): void;
 }
 
 export function accountApiOrigin(value: string): string | null {
@@ -307,6 +308,13 @@ export function createAccountApi(
   const origin = accountApiOrigin(base);
   if (!origin) return null;
 
+  let flight = new AbortController();
+
+  function cancelRequests() {
+    flight.abort();
+    flight = new AbortController();
+  }
+
   async function request(
     path: string,
     token: string,
@@ -318,6 +326,11 @@ export function createAccountApi(
       () => controller.abort(new AccountApiError(0, "network")),
       timeoutMs,
     );
+    const parent = flight;
+    const onParent = () =>
+      controller.abort(new AccountApiError(0, "cancelled"));
+    if (parent.signal.aborted) onParent();
+    else parent.signal.addEventListener("abort", onParent, { once: true });
     let response: Response;
     try {
       try {
@@ -334,6 +347,7 @@ export function createAccountApi(
           signal: controller.signal,
         });
       } catch (error) {
+        if (parent.signal.aborted) throw new AccountApiError(0, "cancelled");
         if (error instanceof AccountApiError) throw error;
         throw new AccountApiError(0, "network");
       }
@@ -355,8 +369,12 @@ export function createAccountApi(
         );
       }
       return data;
+    } catch (error) {
+      if (parent.signal.aborted) throw new AccountApiError(0, "cancelled");
+      throw error;
     } finally {
       clearTimeout(timer);
+      parent.signal.removeEventListener("abort", onParent);
     }
   }
 
@@ -389,5 +407,6 @@ export function createAccountApi(
         throw new AccountApiError(200, "invalid");
       return { remaining };
     },
+    cancelRequests,
   };
 }

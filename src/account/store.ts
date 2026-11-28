@@ -42,6 +42,7 @@ import {
   nextBackupEpoch,
   optedIn,
   partitionAccountEntries,
+  signOutAccount,
   pushBackup,
   releaseRemoteDeletes,
   releaseUpload,
@@ -236,19 +237,33 @@ export async function signIn(
 }
 
 export async function signOut() {
-  nextBackupEpoch(browserStore());
-  clearOptIn(browserStore());
   if (!client) return;
-  await client.signOut();
-  analytics.record("sign_out");
-  setState({
-    ...state,
-    session: null,
-    optedIn: false,
-    remaining: null,
-    notice: "",
-    error: "",
-  });
+  const session = state.session;
+  api?.cancelRequests();
+  try {
+    await signOutAccount({
+      store: browserStore(),
+      uid: session?.uid ?? null,
+      signOut: () => client!.signOut(),
+    });
+    analytics.record("sign_out");
+    setState({
+      ...state,
+      session: null,
+      optedIn: false,
+      remaining: null,
+      notice: "",
+      error: "",
+    });
+  } catch (error) {
+    const code = error instanceof AccountAuthError ? error.code : "error";
+    setState({
+      ...state,
+      error: code === "cancelled" ? "" : code,
+      optedIn: session ? optedIn(browserStore(), session.uid) : false,
+    });
+    throw error;
+  }
 }
 
 export async function enableBackup(
@@ -481,6 +496,7 @@ export function restoreCurrentEntry(id: string) {
 
 export async function disableBackup() {
   nextBackupEpoch(browserStore());
+  api?.cancelRequests();
   const session = state.session;
   if (!session) return;
   clearOptIn(browserStore());

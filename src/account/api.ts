@@ -89,23 +89,56 @@ export function assertSyncEntryLimit(count: number) {
   if (count > SYNC_ENTRY_LIMIT) throw new AccountApiError(0, "too-many");
 }
 
-// Walk the payload and stop once it passes the pull cap. One oversized note
-// must not stringify the rest of the journal or leave the device.
-export function assertBackupPayload(
+// A stored id is at most 100 characters. The widest character in that limit
+// is three UTF-8 bytes, which is what the next pull's deleted list can cost.
+const STORED_ID_LIMIT = 100;
+const WIDEST_STORED_ID = "\uFFFF".repeat(STORED_ID_LIMIT);
+
+// The upload is `revision` and `entries`. The next pull can add `deleted`,
+// up to one id per entry in the window. Leave that room or the pull is rejected.
+export function deletedListBytes(count: number): number {
+  if (count <= 0) return 0;
+  const encoder = new TextEncoder();
+  const id = encoder.encode(JSON.stringify(WIDEST_STORED_ID)).byteLength;
+  return (
+    encoder.encode(',"deleted":[').byteLength +
+    count * id +
+    (count - 1) +
+    encoder.encode("]").byteLength
+  );
+}
+
+export function backupRequestBytes(
   entries: readonly BackupEntry[],
   revision: string,
-) {
+): number {
   const encoder = new TextEncoder();
   const bytes = (value: string) => encoder.encode(value).byteLength;
   let total = bytes(`{"revision":${JSON.stringify(revision)},"entries":[`);
   for (let index = 0; index < entries.length; index += 1) {
     if (index > 0) total += 1;
     total += bytes(JSON.stringify(toBackupPayload(entries[index]!)));
-    if (total > ACCOUNT_RESPONSE_BYTES)
-      throw new AccountApiError(0, "too-large");
+  }
+  return total + bytes("]}");
+}
+
+// Walk the payload and stop once it passes the pull cap. One oversized note
+// must not stringify the rest of the journal or leave the device.
+export function assertBackupPayload(
+  entries: readonly BackupEntry[],
+  revision: string,
+) {
+  const room = ACCOUNT_RESPONSE_BYTES - deletedListBytes(SYNC_ENTRY_LIMIT);
+  const encoder = new TextEncoder();
+  const bytes = (value: string) => encoder.encode(value).byteLength;
+  let total = bytes(`{"revision":${JSON.stringify(revision)},"entries":[`);
+  for (let index = 0; index < entries.length; index += 1) {
+    if (index > 0) total += 1;
+    total += bytes(JSON.stringify(toBackupPayload(entries[index]!)));
+    if (total > room) throw new AccountApiError(0, "too-large");
   }
   total += bytes("]}");
-  if (total > ACCOUNT_RESPONSE_BYTES) throw new AccountApiError(0, "too-large");
+  if (total > room) throw new AccountApiError(0, "too-large");
 }
 // The local research request uses the same bound. A fetch or a body that never
 // finishes must release backup and deletion instead of holding them open.
@@ -158,6 +191,7 @@ export function remoteSync(value: unknown): {
     if (
       typeof id !== "string" ||
       !id ||
+      id.length > STORED_ID_LIMIT ||
       present.has(id) ||
       deleted.includes(id)
     )

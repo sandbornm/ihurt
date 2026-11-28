@@ -451,6 +451,7 @@ const lockQueues = new Map<string, Promise<unknown>>();
 const TAB_LOCK_KEY = "ihurt-tab-locks";
 const TAB_LOCK_WAIT_MS = 15_000;
 const TAB_LOCK_PAUSE_MS = 20;
+const TAB_LOCK_RENEW_MS = 1000;
 
 type TabLock = { id: string; expires: number };
 
@@ -522,9 +523,22 @@ async function withStorageLock<T>(
       writeTabLocks(store, book);
       await new Promise((resolve) => setTimeout(resolve, TAB_LOCK_PAUSE_MS));
       if (readTabLocks(store)[name]?.id === id) {
+        const renew = () => {
+          try {
+            const current = readTabLocks(store);
+            if (current[name]?.id !== id) return;
+            current[name] = { id, expires: Date.now() + UPLOAD_LEASE_MS };
+            writeTabLocks(store, current);
+          } catch {
+            // A missed refresh leaves the previous lease. Releasing still
+            // happens when the request finishes.
+          }
+        };
+        const renewal = setInterval(renew, TAB_LOCK_RENEW_MS);
         try {
           return await fn();
         } finally {
+          clearInterval(renewal);
           const latest = readTabLocks(store);
           if (latest[name]?.id === id) {
             delete latest[name];
@@ -766,10 +780,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
       if (drop.length > 0) await input.forget?.(drop);
       if (!current()) return [];
       const windowed = input.pull
-        ? [
-            ...mergeBackupWindow(entries, mine, deleted, clock),
-            ...held.filter((entry) => !deleted.has(entry.id)),
-          ]
+        ? [...mergeBackupWindow(entries, mine, deleted, clock), ...held]
         : entriesForBackup(entries, input.now);
       const localIds = new Set(entries.map((entry) => entry.id));
       const remoteIds = new Set(remote.map((entry) => entry.id));

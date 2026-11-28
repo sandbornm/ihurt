@@ -358,12 +358,11 @@ export async function enableBackup(
             browserStore(),
             session.uid,
           );
-          const heldKept = held.filter((entry) => !blocked.has(entry.id));
           const windowed = entriesForBackup(
-            [...mergeBackupWindow(owned, mine, blocked, clock), ...heldKept],
+            [...mergeBackupWindow(owned, mine, blocked, clock), ...held],
             clock,
             BACKUP_DAYS,
-            new Set([...mine, ...heldKept].map((entry) => entry.id)),
+            new Set([...mine, ...held].map((entry) => entry.id)),
           );
           try {
             assertSyncEntryLimit(windowed.length);
@@ -409,7 +408,7 @@ export async function enableBackup(
               session.uid,
             );
             const claimed = windowed
-              .filter((entry) => !heldKept.some((row) => row.id === entry.id))
+              .filter((entry) => !held.some((row) => row.id === entry.id))
               .map((entry) => entry.id);
             rememberSeenEntries(browserStore(), session.uid, claimed);
             rememberSynced(browserStore(), claimed, session.uid);

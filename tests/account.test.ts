@@ -5,7 +5,9 @@ import {
   ACCOUNT_RESPONSE_BYTES,
   AccountApiError,
   accountApiOrigin,
+  backupRequestBytes,
   createAccountApi,
+  deletedListBytes,
   remoteEntries,
   remoteSync,
   SYNC_ENTRY_LIMIT,
@@ -1571,6 +1573,42 @@ test("a backup larger than 10 MB is refused before the request", async () => {
   assert.equal(button.includes('code === "too-large"'), true);
 });
 
+test("a backup leaves room for 500 deleted ids", async () => {
+  const calls: string[] = [];
+  const api = createAccountApi("https://api.example", async () => {
+    calls.push("fetch");
+    return new Response("{}", { status: 200 });
+  });
+  const reserve = deletedListBytes(SYNC_ENTRY_LIMIT);
+  const room = ACCOUNT_RESPONSE_BYTES - reserve;
+  assert.ok(reserve > SYNC_ENTRY_LIMIT * 100);
+  assert.ok(room > 0);
+  let low = 0;
+  let high = room;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    const request = backupRequestBytes(
+      [{ id: "big", note: "x".repeat(mid) }],
+      "rev-1",
+    );
+    if (request <= room) low = mid;
+    else high = mid - 1;
+  }
+  const note = "x".repeat(low);
+  const tight = note + "x";
+  assert.ok(
+    backupRequestBytes([{ id: "big", note: tight }], "rev-1") <=
+      ACCOUNT_RESPONSE_BYTES,
+  );
+  assert.ok(backupRequestBytes([{ id: "big", note: tight }], "rev-1") > room);
+  await assert.rejects(
+    api.putEntries("token", [{ id: "big", note: tight }], "rev-1"),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "too-large",
+  );
+  assert.deepEqual(calls, []);
+});
+
 test("a backup of more than 500 entries is refused before upload", async () => {
   const tooMany = Array.from({ length: SYNC_ENTRY_LIMIT + 1 }, (_, index) =>
     entry(`row-${index}`, 1),
@@ -2465,6 +2503,93 @@ test("account deletion waits for an upload when web locks are missing", async ()
   }
 });
 
+test("a slow upload keeps the fallback lock past the lease", async () => {
+  const nav = globalThis.navigator as Navigator & { locks?: unknown };
+  const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");
+  const previousStorage = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "localStorage",
+  );
+  const realNow = Date.now;
+  let now = NOW;
+  Date.now = () => now;
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    get: () => undefined,
+  });
+  const data = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+      removeItem: (key: string) => data.delete(key),
+    },
+  });
+  let releasePut: (() => void) | null = null;
+  let firstPutStarted = false;
+  let deleted = false;
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note-a"], "user-a");
+  try {
+    const uploading = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("note-a", 1)],
+      now: NOW,
+      store,
+      pull: async () => ({
+        entries: [entry("note-a", 1)],
+        deleted: [],
+        revision: "1",
+      }),
+      put: () =>
+        new Promise<void>((resolve) => {
+          firstPutStarted = true;
+          releasePut = resolve;
+        }),
+    });
+    for (let attempt = 0; attempt < 40 && !firstPutStarted; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(firstPutStarted, true);
+    now += 10 * 60 * 1000;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const book = JSON.parse(data.get("ihurt-tab-locks") ?? "{}") as {
+      "ihurt-backup-uploads"?: { expires?: number };
+    };
+    assert.ok((book["ihurt-backup-uploads"]?.expires ?? 0) > now);
+    const removing = deleteSignedInAccount({
+      uid: "user-a",
+      token: "token-a",
+      api: {
+        async deleteAccount() {
+          deleted = true;
+        },
+      },
+      removeLocal: async () => undefined,
+      confirmRecentLogin: async () => undefined,
+      deleteAuth: async () => undefined,
+      settleUploads: async () => undefined,
+      sameAccount: () => true,
+      store,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(deleted, false);
+    releasePut?.();
+    await uploading;
+    await removing;
+    assert.equal(deleted, true);
+  } finally {
+    Date.now = realNow;
+    if (previousLocks) Object.defineProperty(nav, "locks", previousLocks);
+    else delete (nav as { locks?: unknown }).locks;
+    if (previousStorage)
+      Object.defineProperty(globalThis, "localStorage", previousStorage);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
 test("a backup still blocks deletion after the upload lease", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -2731,6 +2856,30 @@ test("a shared map stays with the account that already claimed it", async () => 
     enable.slice(start, putAt).includes("partitionAccountEntries("),
     true,
   );
+});
+
+test("another account's delete does not drop a shared cloud row", async () => {
+  const store = memory();
+  grantOptIn(store, "user-b");
+  rememberSeenEntries(store, "user-a", ["shared"]);
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [entry("from-b", 1)],
+    now: NOW,
+    store,
+    deletedIds: ["shared"],
+    pull: async () => ({
+      entries: [entry("shared", 2), entry("from-b", 1)],
+      deleted: [],
+      revision: "live",
+    }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent[0]?.slice().sort(), ["from-b", "shared"]);
 });
 
 test("a stale snapshot does not replace a newer upload", async () => {

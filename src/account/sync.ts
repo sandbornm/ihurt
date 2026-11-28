@@ -8,8 +8,11 @@ import {
   backupClock,
   entriesForBackup,
   idsDeletedOnServer,
+  localEditAfterSync,
   mergeBackupWindow,
+  syncStampOf,
   type BackupEntry,
+  type SyncStamp,
 } from "./backup.ts";
 
 export const OPT_IN_KEY = "ihurt-sync-opt-in";
@@ -39,16 +42,38 @@ interface SyncedAccount {
   backed: string[];
   removed: string[];
   downloaded: string[];
+  edited: Record<string, SyncStamp>;
 }
 
 function emptyAccount(): SyncedAccount {
-  return { window: [], backed: [], removed: [], downloaded: [] };
+  return { window: [], backed: [], removed: [], downloaded: [], edited: {} };
+}
+
+function editsOf(value: unknown): Record<string, SyncStamp> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const edited: Record<string, SyncStamp> = {};
+  for (const [id, row] of Object.entries(value)) {
+    if (!row || typeof row !== "object") continue;
+    const note = (row as { note?: unknown }).note;
+    const points = (row as { points?: unknown }).points;
+    const stamp: SyncStamp = {};
+    if (typeof note === "string" && note) stamp.note = note;
+    if (typeof points === "string" && points) stamp.points = points;
+    if (stamp.note || stamp.points) edited[id] = stamp;
+  }
+  return edited;
 }
 
 function accountOf(value: unknown): SyncedAccount {
   if (Array.isArray(value)) {
     const ids = idsOf(value);
-    return { window: [...ids], backed: [...ids], removed: [], downloaded: [] };
+    return {
+      window: [...ids],
+      backed: [...ids],
+      removed: [],
+      downloaded: [],
+      edited: {},
+    };
   }
   if (!value || typeof value !== "object") return emptyAccount();
   const row = value as {
@@ -56,6 +81,7 @@ function accountOf(value: unknown): SyncedAccount {
     backed?: unknown;
     removed?: unknown;
     downloaded?: unknown;
+    edited?: unknown;
   };
   const window = idsOf(row.window);
   return {
@@ -63,6 +89,7 @@ function accountOf(value: unknown): SyncedAccount {
     backed: [...new Set([...idsOf(row.backed), ...window])],
     removed: idsOf(row.removed),
     downloaded: idsOf(row.downloaded),
+    edited: editsOf(row.edited),
   };
 }
 
@@ -365,23 +392,54 @@ export function rememberSynced(
     backed: [...new Set([...current.backed, ...window])],
     removed: current.removed,
     downloaded: current.downloaded,
+    edited: current.edited,
   };
+  writeBook(store, book);
+}
+
+export function syncedEditsFor(
+  store: KeyValueStore,
+  uid: string,
+): Record<string, SyncStamp> {
+  return readBook(store)[uid]?.edited ?? {};
+}
+
+export function rememberSyncedEdits(
+  store: KeyValueStore,
+  entries: readonly BackupEntry[],
+  uid: string,
+) {
+  if (entries.length === 0) return;
+  const book = readBook(store);
+  const current = book[uid] ?? emptyAccount();
+  const edited = { ...current.edited };
+  for (const entry of entries) {
+    const stamp = syncStampOf(entry);
+    if (stamp.note || stamp.points) edited[entry.id] = stamp;
+  }
+  book[uid] = { ...current, edited };
   writeBook(store, book);
 }
 
 function retainSynced(
   store: KeyValueStore,
-  ids: readonly string[],
+  entries: readonly BackupEntry[],
   uid: string,
 ) {
   const book = readBook(store);
   const current = book[uid] ?? emptyAccount();
-  const window = [...new Set(ids)];
+  const window = [...new Set(entries.map((entry) => entry.id))];
+  const edited = { ...current.edited };
+  for (const entry of entries) {
+    const stamp = syncStampOf(entry);
+    if (stamp.note || stamp.points) edited[entry.id] = stamp;
+  }
   book[uid] = {
     window,
     backed: [...new Set([...current.backed, ...window])],
     removed: current.removed,
     downloaded: current.downloaded,
+    edited,
   };
   writeBook(store, book);
 }
@@ -754,13 +812,18 @@ export async function pushBackup<T extends BackupEntry>(input: {
       if (!current()) return [];
       const priorRemoved = removedIdsFor(input.store, input.uid);
       const pulledIds = new Set(remote.map((entry) => entry.id));
+      const serverDeleted = new Set(pulled.deleted);
+      const edits = syncedEditsFor(input.store, input.uid);
       // A pull that returns the id, or a local row whose tombstone is gone, is a
-      // restore. An id still tombstoned stays deleted.
-      const revived = priorRemoved.filter(
-        (id) =>
-          pulledIds.has(id) ||
-          (entries.some((entry) => entry.id === id) && !deleted.has(id)),
-      );
+      // restore. An id the server still names in `deleted` stays deleted unless
+      // this device saved a newer note or pin list after the last upload.
+      const revived = priorRemoved.filter((id) => {
+        const entry = entries.find((row) => row.id === id);
+        if (entry && localEditAfterSync(entry, edits[id], input.now))
+          return true;
+        if (serverDeleted.has(id)) return false;
+        return pulledIds.has(id) || (entry !== undefined && !deleted.has(id));
+      });
       releaseRemoteDeletes(input.store, revived, input.uid);
       const alreadyRemoved = new Set(priorRemoved);
       // An empty 200 is not a generation. A note missing from that list is not
@@ -776,6 +839,8 @@ export async function pushBackup<T extends BackupEntry>(input: {
             pulled.deleted,
             deleted,
             clock,
+            undefined,
+            edits,
           ).filter((id) => !alreadyRemoved.has(id))
         : [];
       rememberRemoteDeletes(input.store, remoteGone, input.uid);
@@ -819,11 +884,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
           input.uid,
           claimed.map((entry) => entry.id),
         );
-        retainSynced(
-          input.store,
-          claimed.map((entry) => entry.id),
-          input.uid,
-        );
+        retainSynced(input.store, claimed, input.uid);
         return windowed;
       } finally {
         await releaseUpload(input.store, input.uid, upload);

@@ -3205,6 +3205,77 @@ test("an undo on another device clears the remote delete", async () => {
   assert.deepEqual(removedIdsFor(store, "user-a"), []);
 });
 
+test("a leftover local copy does not restore a named remote delete", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["gone", "keep"], "user-a");
+  rememberRemoteDeletes(store, ["gone"], "user-a");
+  const sent: string[][] = [];
+  const forgotten: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("gone", 1), entry("keep", 1)],
+    now: NOW,
+    store,
+    deletedIds: [],
+    pull: async () => ({
+      entries: [entry("keep", 1)],
+      deleted: ["gone"],
+      revision: "2",
+    }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push([...ids].sort());
+    },
+  });
+  assert.deepEqual(sent, [["keep"]]);
+  assert.deepEqual(forgotten, [["gone"]]);
+  assert.deepEqual(removedIdsFor(store, "user-a"), ["gone"]);
+});
+
+test("a newer saved note survives a remote delete", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const older = new Date(NOW - DAY).toISOString();
+  const newer = new Date(NOW).toISOString();
+  const first = { ...entry("note", 1), note: "first", noteUpdated: older };
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [first],
+    now: NOW,
+    store,
+    pull: async () => ({ entries: [first], deleted: [], revision: "1" }),
+    put: async () => undefined,
+  });
+  const saved = { ...first, note: "typed offline", noteUpdated: newer };
+  const sent: { id: string; note?: string }[][] = [];
+  const forgotten: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [saved],
+    now: NOW,
+    store,
+    pull: async () => ({
+      entries: [],
+      deleted: ["note"],
+      revision: "2",
+    }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => ({ id: row.id, note: row.note })));
+    },
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(sent, [[{ id: "note", note: "typed offline" }]]);
+});
+
 test("a remote delete stays deleted when backup activation fails", () => {
   assert.deepEqual(
     remoteDeletesStillPending(["gone", "other"], new Set(["gone"])),

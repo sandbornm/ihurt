@@ -77,6 +77,7 @@ export function idsDeletedOnServer<T extends BackupEntry>(
   deleted: ReadonlySet<string>,
   now: number,
   days = BACKUP_DAYS,
+  syncedEdits: Readonly<Record<string, SyncStamp>> = {},
 ): string[] {
   const named = new Set(namedDeleted);
   const localById = new Map(local.map((entry) => [entry.id, entry]));
@@ -88,7 +89,11 @@ export function idsDeletedOnServer<T extends BackupEntry>(
   return [...candidates].filter((id) => {
     if (!named.has(id) || deleted.has(id)) return false;
     const entry = localById.get(id);
-    return entry !== undefined && withinBackupWindow(entry, now, days);
+    if (entry === undefined || !withinBackupWindow(entry, now, days))
+      return false;
+    // A save made after the last upload is this device's newer copy. The
+    // other device's delete removed the older one and does not drop this one.
+    return !localEditAfterSync(entry, syncedEdits[id], now);
   });
 }
 
@@ -146,6 +151,38 @@ export function entriesForBackup<T extends BackupEntry>(
   return entries.filter(
     (entry) => keep.has(entry.id) || withinBackupWindow(entry, now, days),
   );
+}
+
+export type SyncStamp = { note?: string; points?: string };
+
+// The last upload recorded these stamps. A later note or pin stamp is work
+// this device has not sent. A missing record is not a newer edit.
+export function localEditAfterSync(
+  entry: BackupEntry,
+  synced: SyncStamp | undefined,
+  now: number,
+): boolean {
+  if (!synced) return false;
+  const note = revisionStamp(entry.noteUpdated, now);
+  const pointsValue = (entry as { pointsUpdated?: unknown }).pointsUpdated;
+  const points = revisionStamp(
+    typeof pointsValue === "string" ? pointsValue : undefined,
+    now,
+  );
+  return (
+    stampMs(note) > stampMs(revisionStamp(synced.note, now)) ||
+    stampMs(points) > stampMs(revisionStamp(synced.points, now))
+  );
+}
+
+export function syncStampOf(entry: BackupEntry): SyncStamp {
+  const pointsValue = (entry as { pointsUpdated?: unknown }).pointsUpdated;
+  const note = typeof entry.noteUpdated === "string" ? entry.noteUpdated : "";
+  const points = typeof pointsValue === "string" ? pointsValue : "";
+  return {
+    ...(note ? { note } : {}),
+    ...(points ? { points } : {}),
+  };
 }
 
 function stampMs(value: string | undefined): number {

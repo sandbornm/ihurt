@@ -50,6 +50,8 @@ import {
   rememberDownloaded,
   rememberSeenEntries,
   rememberSynced,
+  rememberSyncedEdits,
+  syncedEditsFor,
   syncedIdsFor,
   withUploadLock,
   withoutOtherAccountEntries,
@@ -320,6 +322,8 @@ export async function enableBackup(
               sync.deleted,
               deletedNow,
               clock,
+              undefined,
+              syncedEditsFor(browserStore(), session.uid),
             ),
             priorRemoved,
           );
@@ -412,6 +416,11 @@ export async function enableBackup(
               .map((entry) => entry.id);
             rememberSeenEntries(browserStore(), session.uid, claimed);
             rememberSynced(browserStore(), claimed, session.uid);
+            rememberSyncedEdits(
+              browserStore(),
+              windowed.filter((entry) => claimed.some((id) => id === entry.id)),
+              session.uid,
+            );
             if (gone.length > 0) {
               await onRemove?.(gone);
               if (onRemove)

@@ -67,9 +67,10 @@ export function backupClock<T extends BackupEntry>(
 
 // A missing id is not a delete. Another device can upload an older full list
 // and leave this device's note out. Only an id the server names in `deleted`
-// is removed, and only while it is still inside the backup window. A new local
-// row was never uploaded, so it is not in `synced`. A row older than the
-// window stays on this device.
+// is removed, and only while it is still inside the backup window. `synced`
+// is the ids this account already uploaded, backed up, or downloaded. An
+// imported note that was never one of those stays, even when the cloud list
+// names the same id. A row older than the window stays on this device.
 export function idsDeletedOnServer<T extends BackupEntry>(
   synced: readonly string[],
   local: readonly T[],
@@ -81,11 +82,14 @@ export function idsDeletedOnServer<T extends BackupEntry>(
 ): string[] {
   const named = new Set(namedDeleted);
   const localById = new Map(local.map((entry) => [entry.id, entry]));
-  // A named delete applies to a row this device has, including one it only
-  // downloaded. Leaving it out of the next replacement is what keeps a
-  // conflict retry from putting the row back.
-  const candidates = new Set<string>(synced);
-  for (const entry of local) candidates.add(entry.id);
+  // A named delete applies to a row this account already has, including one
+  // it only downloaded. Leaving it out of the next replacement is what keeps
+  // a conflict retry from putting the row back.
+  const owned = new Set(synced);
+  const candidates = new Set<string>();
+  for (const entry of local) {
+    if (owned.has(entry.id)) candidates.add(entry.id);
+  }
   return [...candidates].filter((id) => {
     if (!named.has(id) || deleted.has(id)) return false;
     const entry = localById.get(id);

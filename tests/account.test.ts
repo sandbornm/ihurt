@@ -3247,6 +3247,26 @@ test("a delete on another device is not uploaded again", async () => {
     ),
     ["gone"],
   );
+  assert.deepEqual(
+    idsDeletedOnServer(
+      ["gone"],
+      [entry("gone", 1), entry("imported", 1)],
+      ["gone", "imported"],
+      new Set(),
+      NOW,
+    ),
+    ["gone"],
+  );
+  assert.deepEqual(
+    idsDeletedOnServer(
+      ["downloaded-note"],
+      [entry("downloaded-note", 1)],
+      ["downloaded-note"],
+      new Set(),
+      NOW,
+    ),
+    ["downloaded-note"],
+  );
   assert.deepEqual(remoteSync({ entries: [], revision: "1" }), {
     entries: [],
     deleted: [],
@@ -3498,6 +3518,34 @@ test("an undo on another device clears the remote delete", async () => {
   });
   assert.deepEqual(undone, [["gone", "keep"]]);
   assert.deepEqual(removedIdsFor(store, "user-a"), []);
+});
+
+test("an imported note that matches a cloud tombstone stays", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberDownloaded(store, ["cloud"], "user-a");
+  const sent: string[][] = [];
+  const forgotten: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("imported", 1), entry("cloud", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({
+      entries: [],
+      deleted: ["imported", "cloud"],
+      revision: "1",
+    }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id).sort());
+    },
+    forget: async (ids) => {
+      forgotten.push([...ids].sort());
+    },
+  });
+  assert.deepEqual(forgotten, [["cloud"]]);
+  assert.deepEqual(sent, [["imported"]]);
 });
 
 test("a leftover local copy does not restore a named remote delete", async () => {
@@ -3781,6 +3829,50 @@ test("undo after deleting a re-import does not restore the old backup claim", as
     store,
   });
   assert.deepEqual(wiped, []);
+});
+
+test("a pull that skips a deleted row does not claim the re-import", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note", "kept"], "user-a");
+  retireEntry(store, "user-a", "note");
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("kept", 1)],
+    now: NOW,
+    store,
+    deletedIds: ["note"],
+    pull: async () => ({
+      entries: [entry("note", 1), entry("kept", 1)],
+      deleted: [],
+      revision: "2",
+      stored: ["kept"],
+    }),
+    put: async () => {},
+  });
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), ["kept"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["kept"]);
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, ["kept"]);
+  const wiring = readFileSync(
+    new URL("../src/account/store.ts", import.meta.url),
+    "utf8",
+  );
+  const pull = wiring.slice(wiring.indexOf("pull: async"));
+  assert.equal(pull.includes("const stored = await onMerge?.(mine)"), true);
+  assert.equal(pull.includes("stored: stored.map((entry) => entry.id)"), true);
 });
 
 test("a failed upload does not claim the entry for the next account", async () => {

@@ -382,6 +382,16 @@ export function syncedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.window ?? [];
 }
 
+// Remote deletes apply to these ids. A local note that is not here was never
+// uploaded or downloaded by this account, so a cloud tombstone does not remove it.
+export function claimedIdsFor(store: KeyValueStore, uid: string): string[] {
+  const account = readBook(store)[uid];
+  if (!account) return [];
+  return [
+    ...new Set([...account.window, ...account.backed, ...account.downloaded]),
+  ];
+}
+
 export function backedIdsFor(store: KeyValueStore, uid: string): string[] {
   return readBook(store)[uid]?.backed ?? [];
 }
@@ -870,14 +880,21 @@ function pulledWindow<T extends { id: string }>(
         entries: readonly T[];
         deleted?: readonly string[];
         revision?: string;
+        stored?: readonly string[];
       },
-): { entries: readonly T[]; deleted: readonly string[]; revision?: string } {
+): {
+  entries: readonly T[];
+  deleted: readonly string[];
+  revision?: string;
+  stored?: readonly string[];
+} {
   if (Array.isArray(value))
     return { entries: value, deleted: [], revision: undefined };
   const window = value as {
     entries: readonly T[];
     deleted?: readonly string[];
     revision?: unknown;
+    stored?: unknown;
   };
   return {
     entries: window.entries,
@@ -888,6 +905,13 @@ function pulledWindow<T extends { id: string }>(
       typeof window.revision === "string" && window.revision
         ? window.revision
         : undefined,
+    ...(Array.isArray(window.stored)
+      ? {
+          stored: window.stored.filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+        }
+      : {}),
   };
 }
 
@@ -904,6 +928,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
         entries: readonly T[];
         deleted?: readonly string[];
         revision?: string;
+        stored?: readonly string[];
       }
   >;
   deletedIds?: Snapshot<string>;
@@ -944,11 +969,14 @@ export async function pushBackup<T extends BackupEntry>(input: {
           input.uid,
           mine.map((entry) => entry.id),
         );
-        rememberDownloaded(
-          input.store,
-          mine.map((entry) => entry.id),
-          input.uid,
-        );
+        const accepted = pulled.stored;
+        const downloaded =
+          accepted === undefined
+            ? mine.map((entry) => entry.id)
+            : mine
+                .map((entry) => entry.id)
+                .filter((id) => accepted.includes(id));
+        rememberDownloaded(input.store, downloaded, input.uid);
       }
       if (!current()) return [];
       // The list and the tombstones passed in may be from before this pull.
@@ -984,7 +1012,7 @@ export async function pushBackup<T extends BackupEntry>(input: {
       const clock = backupClock(input.now, remote);
       const remoteGone = input.pull
         ? idsDeletedOnServer(
-            syncedIdsFor(input.store, input.uid),
+            claimedIdsFor(input.store, input.uid),
             entries,
             pulled.deleted,
             deleted,

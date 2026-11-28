@@ -54,6 +54,7 @@ import {
   rememberSyncedEdits,
   restoreEntryOwners,
   retireEntryOwners,
+  claimedIdsFor,
   syncedEditsFor,
   syncedIdsFor,
   withUploadLock,
@@ -334,7 +335,7 @@ export async function enableBackup(
           const clock = backupClock(Date.now(), remote);
           const gone = remoteDeletesStillPending(
             idsDeletedOnServer(
-              syncedIdsFor(browserStore(), session.uid),
+              claimedIdsFor(browserStore(), session.uid),
               kept,
               sync.deleted,
               deletedNow,
@@ -565,8 +566,10 @@ export function pushBackupEntries(
           if (revived.length > 0)
             releaseRemoteDeletes(browserStore(), revived, uid);
           const { mine } = partitionAccountEntries(remote, browserStore(), uid);
-          await onMerge?.(mine);
-          return sync;
+          const stored = await onMerge?.(mine);
+          return Array.isArray(stored)
+            ? { ...sync, stored: stored.map((entry) => entry.id) }
+            : sync;
         },
         put: (next, rows, revision) =>
           current.putEntries(next, rows, revision ?? ""),

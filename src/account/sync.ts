@@ -41,6 +41,7 @@ type RetiredEntry = {
   backed?: true;
   downloaded?: true;
   window?: true;
+  seen?: true;
   note?: string;
   points?: string;
 };
@@ -74,6 +75,7 @@ function retiredOf(value: unknown): Record<string, RetiredEntry> {
       backed?: unknown;
       downloaded?: unknown;
       window?: unknown;
+      seen?: unknown;
       note?: unknown;
       points?: unknown;
     };
@@ -81,11 +83,13 @@ function retiredOf(value: unknown): Record<string, RetiredEntry> {
     if (source.backed === true) prior.backed = true;
     if (source.downloaded === true) prior.downloaded = true;
     if (source.window === true) prior.window = true;
+    if (source.seen === true) prior.seen = true;
     if (typeof source.note === "string" && source.note)
       prior.note = source.note;
     if (typeof source.points === "string" && source.points)
       prior.points = source.points;
-    if (prior.backed || prior.downloaded || prior.window) retired[id] = prior;
+    if (prior.backed || prior.downloaded || prior.window || prior.seen)
+      retired[id] = prior;
   }
   return retired;
 }
@@ -337,6 +341,34 @@ export function rememberSeenEntries(
   store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
 }
 
+function releaseSeenEntry(
+  store: KeyValueStore,
+  uid: string,
+  id: string,
+): boolean {
+  const book = seenBook(store);
+  const list = book[uid];
+  if (!list?.includes(id)) return false;
+  const next = list.filter((item) => item !== id);
+  if (next.length === 0) delete book[uid];
+  else book[uid] = next;
+  store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
+  return true;
+}
+
+function restoreSeenEntry(store: KeyValueStore, uid: string, id: string) {
+  const book = seenBook(store);
+  for (const owner of Object.keys(book)) {
+    if (owner === uid) continue;
+    const list = book[owner]?.filter((item) => item !== id) ?? [];
+    if (list.length === 0) delete book[owner];
+    else book[owner] = list;
+  }
+  const list = book[uid] ?? [];
+  if (!list.includes(id)) book[uid] = [...list, id];
+  store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
+}
+
 export function clearSeenEntries(store: KeyValueStore, uid: string) {
   const book = seenBook(store);
   if (!(uid in book)) return;
@@ -521,6 +553,7 @@ function retainSynced(
 // The user deleted this row. The id may come back from an import, and that
 // copy was not backed up. Undo restores the claim for the same row.
 export function retireEntry(store: KeyValueStore, uid: string, id: string) {
+  const wasSeen = releaseSeenEntry(store, uid, id);
   const book = readBook(store);
   const current = book[uid];
   if (!current) return;
@@ -543,6 +576,7 @@ export function retireEntry(store: KeyValueStore, uid: string, id: string) {
     ...(inBacked ? { backed: true as const } : {}),
     ...(inDownloaded ? { downloaded: true as const } : {}),
     ...(inWindow ? { window: true as const } : {}),
+    ...(wasSeen ? { seen: true as const } : {}),
     ...(stamp?.note ? { note: stamp.note } : {}),
     ...(stamp?.points ? { points: stamp.points } : {}),
   };
@@ -577,6 +611,7 @@ export function restoreRetiredEntry(
       ...(prior.points ? { points: prior.points } : {}),
     };
   }
+  if (prior.seen) restoreSeenEntry(store, uid, id);
   book[uid] = {
     ...current,
     window: prior.window
@@ -1026,7 +1061,13 @@ export async function pushBackup<T extends BackupEntry>(input: {
         ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
       ].filter((id) => entries.some((entry) => entry.id === id));
       for (const id of drop) deleted.add(id);
-      if (drop.length > 0) await input.forget?.(drop);
+      if (drop.length > 0 && input.forget) {
+        await input.forget(drop);
+        // The local row is gone. Drop this account's claim too, or a later
+        // re-import is removed when the account is deleted. The server
+        // tombstone in `removed` stays.
+        for (const id of drop) retireEntry(input.store, input.uid, id);
+      }
       if (!current()) return [];
       const windowed = input.pull
         ? [...mergeBackupWindow(entries, mine, deleted, clock), ...held]

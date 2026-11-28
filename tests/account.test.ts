@@ -3548,6 +3548,49 @@ test("an imported note that matches a cloud tombstone stays", async () => {
   assert.deepEqual(sent, [["imported"]]);
 });
 
+test("a remote delete does not keep the backup claim for a re-import", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note"], "user-a");
+  rememberDownloaded(store, ["note"], "user-a");
+  rememberSeenEntries(store, "user-a", ["note"]);
+  const forgotten: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({
+      entries: [],
+      deleted: ["note"],
+      revision: "2",
+    }),
+    put: async () => {},
+    forget: async (ids) => {
+      forgotten.push(ids);
+    },
+  });
+  assert.deepEqual(forgotten, [["note"]]);
+  assert.deepEqual(removedIdsFor(store, "user-a"), ["note"]);
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), []);
+  clearOptIn(store);
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, []);
+});
+
 test("a leftover local copy does not restore a named remote delete", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -3805,6 +3848,47 @@ test("a delete while signed out releases the backup claim", async () => {
   assert.equal(retire.includes("retireEntryOwners("), true);
   assert.equal(restore.includes("if (!uid) return"), false);
   assert.equal(restore.includes("restoreEntryOwners("), true);
+});
+
+test("a retired note can be backed up by the next account", async () => {
+  const store = memory();
+  rememberSynced(store, ["note"], "user-a");
+  rememberSeenEntries(store, "user-a", ["note"]);
+  retireEntryOwners(store, "note");
+  assert.deepEqual(
+    withoutOtherAccountEntries([entry("note", 1)], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["note"],
+  );
+  grantOptIn(store, "user-b");
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({ entries: [], deleted: [], revision: "1" }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent, [["note"]]);
+  restoreEntryOwners(store, "note");
+  const again: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({ entries: [], deleted: [], revision: "2" }),
+    put: async (_token, rows) => {
+      again.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(again, [[]]);
 });
 
 test("undo after deleting a re-import does not restore the old backup claim", async () => {

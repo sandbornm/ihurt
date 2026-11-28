@@ -53,6 +53,7 @@ import {
   rememberSynced,
   rememberSyncedEdits,
   restoreEntryOwners,
+  retireEntry,
   retireEntryOwners,
   claimedIdsFor,
   syncedEditsFor,
@@ -441,8 +442,11 @@ export async function enableBackup(
             );
             if (gone.length > 0) {
               await onRemove?.(gone);
-              if (onRemove)
+              if (onRemove) {
                 rememberRemoteDeletes(browserStore(), gone, session.uid);
+                for (const id of gone)
+                  retireEntry(browserStore(), session.uid, id);
+              }
             }
             if (
               state.session?.uid !== session.uid ||

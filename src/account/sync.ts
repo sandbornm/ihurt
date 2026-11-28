@@ -697,15 +697,19 @@ function liveClaims(claims: Record<string, number> | undefined, now: number) {
 // Holding the lock until the request finishes also keeps deletion from treating
 // a slow PUT as done when its timestamp passes the lease: a closed document
 // drops the lock, and a request that is still running does not.
-// Safari Lockdown Mode has no Web Locks. A per-tab queue would let a delete
-// run while another tab's PUT is still sending the journal. The fallback is a
-// lock record in localStorage, which both tabs can see. The in-memory queue
-// remains only when this realm has no storage at all.
+// Safari Lockdown Mode has no Web Locks. IndexedDB takes that fallback in one
+// readwrite transaction, so the record is claimed before another tab can
+// replace it. localStorage is the fallback when this realm has no IndexedDB.
+// The in-memory queue remains when this realm has no storage at all.
 let holdingUpload = 0;
 const lockQueues = new Map<string, Promise<unknown>>();
 const TAB_LOCK_KEY = "ihurt-tab-locks";
+const TAB_LOCK_DB = "ihurt-tab-locks";
+const TAB_LOCK_STORE = "locks";
 const TAB_LOCK_PAUSE_MS = 20;
 const TAB_LOCK_RENEW_MS = 1000;
+let lockDbPromise: Promise<IDBDatabase> | null = null;
+let lockDbFactory: IDBFactory | null = null;
 
 type TabLock = { id: string; expires: number };
 
@@ -813,10 +817,157 @@ async function withStorageLock<T>(
   }
 }
 
+function indexedLockAvailable(): boolean {
+  const factory = globalThis.indexedDB;
+  return Boolean(factory && typeof factory.open === "function");
+}
+
+function lockDatabase(): Promise<IDBDatabase> {
+  const factory = globalThis.indexedDB;
+  if (!factory || typeof factory.open !== "function")
+    return Promise.reject(new Error("IndexedDB is unavailable."));
+  if (lockDbPromise && lockDbFactory === factory) return lockDbPromise;
+  lockDbFactory = factory;
+  const pending = new Promise<IDBDatabase>((resolve, reject) => {
+    const open = factory.open(TAB_LOCK_DB, 1);
+    const fail = (error: unknown) => {
+      if (lockDbPromise === pending) lockDbPromise = null;
+      reject(
+        error instanceof Error ? error : new Error("The tab lock failed."),
+      );
+    };
+    open.onupgradeneeded = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains(TAB_LOCK_STORE))
+        db.createObjectStore(TAB_LOCK_STORE);
+    };
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => fail(open.error);
+    open.onblocked = () => fail(new Error("The tab lock database is blocked."));
+  });
+  lockDbPromise = pending;
+  return pending;
+}
+
+function readLockValue(value: unknown): TabLock | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const id = (value as { id?: unknown }).id;
+  const expires = (value as { expires?: unknown }).expires;
+  if (typeof id === "string" && typeof expires === "number")
+    return { id, expires };
+  return null;
+}
+
+// `undefined` leaves the record. `null` deletes it. A lock replaces it.
+// The get and the write stay in this transaction, so another tab's
+// transaction sees the result only after this one commits.
+function updateIndexedLock(
+  name: string,
+  edit: (current: TabLock | null) => TabLock | null | undefined,
+): Promise<TabLock | null> {
+  return lockDatabase().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (error: Error) => {
+          if (settled) return;
+          settled = true;
+          reject(error);
+        };
+        let tx: IDBTransaction;
+        try {
+          tx = db.transaction(TAB_LOCK_STORE, "readwrite");
+        } catch (error) {
+          finish(
+            error instanceof Error ? error : new Error("The tab lock failed."),
+          );
+          return;
+        }
+        const store = tx.objectStore(TAB_LOCK_STORE);
+        const get = store.get(name);
+        let result: TabLock | null = null;
+        get.onerror = () => finish(new Error("Could not read the tab lock."));
+        get.onsuccess = () => {
+          try {
+            const current = readLockValue(get.result);
+            const next = edit(current);
+            if (next === undefined) {
+              result = current;
+              return;
+            }
+            result = next;
+            if (next) store.put(next, name);
+            else store.delete(name);
+          } catch (error) {
+            try {
+              tx.abort();
+            } catch {
+              // The transaction is already finishing.
+            }
+            finish(
+              error instanceof Error
+                ? error
+                : new Error("The tab lock failed."),
+            );
+          }
+        };
+        tx.oncomplete = () => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+        tx.onabort = () =>
+          finish(
+            tx.error ?? new Error("The tab lock transaction was aborted."),
+          );
+        tx.onerror = () =>
+          finish(tx.error ?? new Error("The tab lock transaction failed."));
+      }),
+  );
+}
+
+async function claimIndexedLock(name: string, id: string): Promise<boolean> {
+  const row = await updateIndexedLock(name, (current) => {
+    if (current && current.id !== id && current.expires > Date.now())
+      return undefined;
+    return { id, expires: Date.now() + UPLOAD_LEASE_MS };
+  });
+  return row?.id === id;
+}
+
+async function withIndexedLock<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const id = crypto.randomUUID();
+  for (;;) {
+    // A failed transaction stays failed. Falling through to localStorage
+    // would let this tab enter beside a tab that already holds the lock.
+    if (await claimIndexedLock(name, id)) {
+      const renewal = setInterval(() => {
+        void updateIndexedLock(name, (current) => {
+          if (current?.id !== id) return undefined;
+          return { id, expires: Date.now() + UPLOAD_LEASE_MS };
+        }).catch(() => undefined);
+      }, TAB_LOCK_RENEW_MS);
+      try {
+        return await fn();
+      } finally {
+        clearInterval(renewal);
+        await updateIndexedLock(name, (current) =>
+          current?.id === id ? null : undefined,
+        ).catch(() => undefined);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, TAB_LOCK_PAUSE_MS));
+  }
+}
+
 function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
   const locks = globalThis.navigator?.locks;
   // The lock is held until the callback's promise settles. The DOM type omits that.
   if (locks?.request) return locks.request(name, () => fn()) as Promise<T>;
+  if (indexedLockAvailable()) return withIndexedLock(name, fn);
   if (tabLockStore()) return withStorageLock(name, fn);
   return withLocalLock(name, fn);
 }

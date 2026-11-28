@@ -2885,6 +2885,183 @@ test("a slow upload keeps the fallback lock past the lease", async () => {
   }
 });
 
+test("a fallback lock claim cannot overwrite a lock that already won", async () => {
+  const nav = globalThis.navigator as Navigator & { locks?: unknown };
+  const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");
+  const previousDb = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+  const previousStorage = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "localStorage",
+  );
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    get: () => undefined,
+  });
+  const data = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+      removeItem: (key: string) => data.delete(key),
+    },
+  });
+  const records = new Map<string, { id?: string }>();
+  const log: string[] = [];
+  let chain = Promise.resolve();
+  const db = {
+    objectStoreNames: {
+      contains: (name: string) => name === "locks",
+    },
+    createObjectStore() {},
+    transaction() {
+      const ops: Array<() => void> = [];
+      const tx = {
+        objectStore() {
+          return {
+            get(key: string) {
+              const request: {
+                result?: { id?: string };
+                onsuccess: (() => void) | null;
+              } = { onsuccess: null };
+              ops.push(() => {
+                request.result = records.get(key);
+                log.push(
+                  request.result?.id ? `get:${request.result.id}` : "get:empty",
+                );
+                request.onsuccess?.();
+              });
+              return request;
+            },
+            put(value: { id?: string }, key: string) {
+              ops.push(() => {
+                records.set(key, value);
+                log.push(`put:${value.id ?? ""}`);
+              });
+            },
+            delete(key: string) {
+              ops.push(() => {
+                records.delete(key);
+                log.push("delete");
+              });
+            },
+          };
+        },
+        error: null,
+        oncomplete: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        onabort: null as (() => void) | null,
+      };
+      chain = chain.then(async () => {
+        let index = 0;
+        while (index < ops.length) {
+          ops[index]?.();
+          index += 1;
+        }
+        tx.oncomplete?.();
+      });
+      return tx;
+    },
+    close() {},
+  };
+  Object.defineProperty(globalThis, "indexedDB", {
+    configurable: true,
+    value: {
+      open() {
+        const request: {
+          result?: typeof db;
+          error: null;
+          onupgradeneeded: (() => void) | null;
+          onsuccess: (() => void) | null;
+          onerror: (() => void) | null;
+        } = {
+          error: null,
+          onupgradeneeded: null,
+          onsuccess: null,
+          onerror: null,
+        };
+        queueMicrotask(() => {
+          request.result = db;
+          request.onupgradeneeded?.();
+          request.onsuccess?.();
+        });
+        return request;
+      },
+    },
+  });
+  const store = memory();
+  grantOptIn(store, "user-a");
+  let releasePut: (() => void) | null = null;
+  let active = 0;
+  let maxActive = 0;
+  const sent: string[][] = [];
+  const enter = () => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+  };
+  let first = Promise.resolve();
+  let second = Promise.resolve();
+  try {
+    first = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("held", 1)],
+      now: NOW,
+      store,
+      pull: async () => ({ entries: [], deleted: [], revision: "1" }),
+      put: async (_token, rows) => {
+        enter();
+        sent.push(rows.map((row) => row.id));
+        await new Promise<void>((resolve) => {
+          releasePut = resolve;
+          setTimeout(resolve, 2000);
+        });
+        active -= 1;
+      },
+    });
+    for (let attempt = 0; attempt < 40 && sent.length === 0; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    second = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("held", 1), entry("later", 1)],
+      now: NOW,
+      store,
+      pull: async () => ({ entries: [], deleted: [], revision: "1" }),
+      put: async (_token, rows) => {
+        enter();
+        sent.push(rows.map((row) => row.id));
+        active -= 1;
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    assert.equal(maxActive, 1);
+    assert.equal(data.has("ihurt-tab-locks:ihurt-backup-uploads"), false);
+    assert.equal(log[0], "get:empty");
+    assert.equal(log[1]?.startsWith("put:"), true);
+    assert.ok(log.slice(2).some((line) => line.startsWith("get:")));
+    assert.equal(
+      log.slice(2).some((line) => line === "get:empty"),
+      false,
+    );
+    releasePut?.();
+    releasePut = null;
+    await first;
+    await second;
+    assert.deepEqual(sent, [["held"], ["held", "later"]]);
+  } finally {
+    releasePut?.();
+    await Promise.allSettled([first, second]);
+    if (previousLocks) Object.defineProperty(nav, "locks", previousLocks);
+    else delete (nav as { locks?: unknown }).locks;
+    if (previousDb) Object.defineProperty(globalThis, "indexedDB", previousDb);
+    else delete (globalThis as { indexedDB?: unknown }).indexedDB;
+    if (previousStorage)
+      Object.defineProperty(globalThis, "localStorage", previousStorage);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
 test("a fallback delete lock does not erase a live upload lock", async () => {
   const nav = globalThis.navigator as Navigator & { locks?: unknown };
   const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");

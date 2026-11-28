@@ -922,15 +922,22 @@ function pulledWindow<T extends { id: string }>(
   deleted: readonly string[];
   revision?: string;
   stored?: readonly string[];
+  applied: boolean;
 } {
+  // An array is the caller's snapshot. It has no separate stored list.
   if (Array.isArray(value))
-    return { entries: value, deleted: [], revision: undefined };
+    return { entries: value, deleted: [], revision: undefined, applied: true };
   const window = value as {
     entries: readonly T[];
     deleted?: readonly string[];
     revision?: unknown;
     stored?: unknown;
   };
+  const reported = Array.isArray(window.stored)
+    ? window.stored.filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      )
+    : undefined;
   return {
     entries: window.entries,
     deleted: (window.deleted ?? []).filter(
@@ -940,13 +947,8 @@ function pulledWindow<T extends { id: string }>(
       typeof window.revision === "string" && window.revision
         ? window.revision
         : undefined,
-    ...(Array.isArray(window.stored)
-      ? {
-          stored: window.stored.filter(
-            (id): id is string => typeof id === "string" && id.length > 0,
-          ),
-        }
-      : {}),
+    applied: reported !== undefined,
+    ...(reported !== undefined ? { stored: reported } : {}),
   };
 }
 
@@ -985,7 +987,12 @@ export async function pushBackup<T extends BackupEntry>(input: {
       if (!current()) return [];
       const pulled = input.pull
         ? pulledWindow(await input.pull(input.token))
-        : { entries: [] as T[], deleted: [] as string[], revision: undefined };
+        : {
+            entries: [] as T[],
+            deleted: [] as string[],
+            revision: undefined,
+            applied: false,
+          };
       const remote = pulled.entries;
       // A row already claimed by another account stays in the replacement so
       // this upload does not delete that account's cloud copy. It is not
@@ -997,8 +1004,10 @@ export async function pushBackup<T extends BackupEntry>(input: {
       );
       const heldIds = new Set(held.map((entry) => entry.id));
       // The pull can store these rows before this check. Sign-out during that
-      // write still leaves them on the device, so they stay with this account.
-      if (input.pull) {
+      // write still leaves them on the device, so a reported list stays with
+      // this account. A body with no list was not applied. Claiming it would
+      // let a later remote delete, or Delete account, remove the local note.
+      if (input.pull && (pulled.applied || current())) {
         const accepted = pulled.stored;
         const downloaded =
           accepted === undefined
@@ -1054,18 +1063,13 @@ export async function pushBackup<T extends BackupEntry>(input: {
             edits,
           ).filter((id) => !alreadyRemoved.has(id))
         : [];
-      rememberRemoteDeletes(input.store, remoteGone, input.uid);
+      // Leave these ids out of the replacement. The local row stays until
+      // that upload is accepted, so a conflict can still copy pin comments
+      // and the other device-only fields from it.
       const drop = [
         ...new Set([...removedIdsFor(input.store, input.uid), ...remoteGone]),
       ].filter((id) => entries.some((entry) => entry.id === id));
       for (const id of drop) deleted.add(id);
-      if (drop.length > 0 && input.forget) {
-        await input.forget(drop);
-        // The local row is gone. Drop this account's claim too, or a later
-        // re-import is removed when the account is deleted. The server
-        // tombstone in `removed` stays.
-        for (const id of drop) retireEntry(input.store, input.uid, id);
-      }
       if (!current()) return [];
       const windowed = input.pull
         ? [...mergeBackupWindow(entries, mine, deleted, clock), ...held]
@@ -1098,6 +1102,14 @@ export async function pushBackup<T extends BackupEntry>(input: {
             continue;
           throw error;
         }
+        if (drop.length > 0 && input.forget) {
+          await input.forget(drop);
+          // The local row is gone. Drop this account's claim too, or a later
+          // re-import is removed when the account is deleted. The server
+          // tombstone in `removed` stays.
+          rememberRemoteDeletes(input.store, remoteGone, input.uid);
+          for (const id of drop) retireEntry(input.store, input.uid, id);
+        } else rememberRemoteDeletes(input.store, remoteGone, input.uid);
         const claimed = windowed.filter((entry) => !heldIds.has(entry.id));
         rememberSeenEntries(
           input.store,

@@ -555,13 +555,15 @@ export function pushBackupEntries(
         pull: async (next) => {
           const sync = await current.getEntries(next);
           const remote = sync.entries;
-          if (backupEpoch(browserStore()) !== epoch) return sync;
+          // The snapshot was not written. An empty stored list is not a claim.
+          if (backupEpoch(browserStore()) !== epoch)
+            return { ...sync, stored: [] };
           if (
             state.session?.uid !== uid ||
             !optedIn(browserStore(), uid) ||
             accountDeleting(browserStore(), uid)
           )
-            return sync;
+            return { ...sync, stored: [] };
           const revived = removedIdsFor(browserStore(), uid).filter((id) =>
             remote.some((entry) => entry.id === id),
           );
@@ -571,9 +573,11 @@ export function pushBackupEntries(
             releaseRemoteDeletes(browserStore(), revived, uid);
           const { mine } = partitionAccountEntries(remote, browserStore(), uid);
           const stored = await onMerge?.(mine);
+          // Sign-out during the write still reports the rows that landed.
+          // A pull that did not report them is not a download.
           return Array.isArray(stored)
             ? { ...sync, stored: stored.map((entry) => entry.id) }
-            : sync;
+            : { ...sync, stored: [] };
         },
         put: (next, rows, revision) =>
           current.putEntries(next, rows, revision ?? ""),

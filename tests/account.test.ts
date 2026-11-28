@@ -4000,6 +4000,172 @@ test("a skipped download does not keep the next account from backing up that id"
   assert.deepEqual(sent, [["note"]]);
 });
 
+test("a pull discarded by sign-out does not claim the snapshot", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const cloud = entry("cloud-note", 1);
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("local", 1)],
+    now: NOW,
+    store,
+    epoch: backupEpoch(store),
+    pull: async () => {
+      clearOptIn(store);
+      nextBackupEpoch(store);
+      return { entries: [cloud], deleted: [], revision: "2" };
+    },
+    put: async () => {
+      throw new Error("uploaded");
+    },
+  });
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), []);
+  assert.deepEqual(
+    withoutOtherAccountEntries([cloud], store, "user-b").map((row) => row.id),
+    ["cloud-note"],
+  );
+  const wiring = readFileSync(
+    new URL("../src/account/store.ts", import.meta.url),
+    "utf8",
+  );
+  const pull = wiring.slice(wiring.indexOf("pull: async"));
+  assert.equal(pull.includes("return { ...sync, stored: [] }"), true);
+});
+
+test("rows stored before sign-out stay with that account", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  const cloud = entry("cloud-note", 1);
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("local", 1)],
+    now: NOW,
+    store,
+    epoch: backupEpoch(store),
+    pull: async () => {
+      clearOptIn(store);
+      nextBackupEpoch(store);
+      return {
+        entries: [cloud],
+        deleted: [],
+        revision: "2",
+        stored: ["cloud-note"],
+      };
+    },
+    put: async () => {
+      throw new Error("uploaded");
+    },
+  });
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), ["cloud-note"]);
+});
+
+test("a rejected upload keeps a pin comment on a remotely deleted note", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note"], "user-a");
+  const pin = {
+    id: "pin",
+    region: "neck" as const,
+    structure: "Sternum",
+    position: [0, 1, 0] as [number, number, number],
+    comment: "slept on it",
+  };
+  const map = {
+    regions: ["neck"],
+    summary: "kept",
+    title: "Neck",
+    quality: "",
+    activity: "tennis",
+    duration: "",
+    intensity: null,
+    question: null,
+    urgent: false,
+    safety_message: null,
+  };
+  const local = {
+    ...entry("note", 1),
+    note: "kept",
+    points: [pin],
+    map,
+    provider: "Your notes",
+    answers: [],
+  };
+  let journal = [local];
+  const incoming = {
+    ...entry("note", 1),
+    note: "rewritten",
+    points: [
+      {
+        id: "pin",
+        region: "neck" as const,
+        structure: "Sternum",
+        position: [0, 1, 0] as [number, number, number],
+      },
+    ],
+    map: { ...map, summary: "rewritten", activity: "", title: "" },
+  };
+  let attempt = 0;
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: () => journal,
+    now: NOW,
+    store,
+    pull: async () => {
+      attempt += 1;
+      if (attempt === 1)
+        return { entries: [], deleted: ["note"], revision: "1" };
+      return { entries: [incoming], deleted: [], revision: "2" };
+    },
+    put: async (_token, rows, revision) => {
+      if (revision === "1") throw new AccountApiError(409, "conflict");
+      sent.push(rows.map((row) => row.id));
+    },
+    forget: async (ids) => {
+      journal = journal.filter((row) => !ids.includes(row.id));
+    },
+  });
+  assert.deepEqual(sent, [["note"]]);
+  const restored = withLocalPrivateFields(
+    journal.find((row) => row.id === "note"),
+    incoming,
+  );
+  assert.equal(restored.points?.[0]?.comment, "slept on it");
+  assert.equal(restored.map.activity, "tennis");
+  assert.deepEqual(removedIdsFor(store, "user-a"), []);
+});
+
+test("a failed upload does not remove a note another device deleted", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note"], "user-a");
+  let journal = [entry("note", 1)];
+  await assert.rejects(() =>
+    pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: () => journal,
+      now: NOW,
+      store,
+      pull: async () => ({ entries: [], deleted: ["note"], revision: "1" }),
+      put: async () => {
+        throw new Error("down");
+      },
+      forget: async (ids) => {
+        journal = journal.filter((row) => !ids.includes(row.id));
+      },
+    }),
+  );
+  assert.deepEqual(
+    journal.map((row) => row.id),
+    ["note"],
+  );
+  assert.deepEqual(removedIdsFor(store, "user-a"), []);
+});
+
 test("a failed upload does not claim the entry for the next account", async () => {
   const store = memory();
   grantOptIn(store, "user-a");

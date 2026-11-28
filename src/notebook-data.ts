@@ -411,11 +411,10 @@ export function parseNotebook(content: string): SavedMap[] {
     // An older file has updated and no noteUpdated. That updated time is the
     // note stamp, so an offline edit still beats an older cloud note.
     else entry.noteUpdated = entry.updated;
+    // A missing pointsUpdated stays missing. A note or context edit also
+    // advances updated, so that time is not a pin stamp.
     if (e.pointsUpdated !== undefined)
       entry.pointsUpdated = date(e.pointsUpdated);
-    // An older file has updated and no pointsUpdated. That updated time is
-    // the pin stamp, so an offline pin edit still beats an older cloud list.
-    else entry.pointsUpdated = entry.updated;
     return entry;
   });
   if (new Set(entries.map((e) => e.id)).size !== entries.length)

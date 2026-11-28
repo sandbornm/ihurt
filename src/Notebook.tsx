@@ -554,18 +554,22 @@ export default function Notebook({
             entries={saved}
             ready={hydrated}
             onMerge={async (incoming) => {
-              const snapshot = entryRef.current;
+              const open = entryRef.current;
+              // The draft can hold note and pin edits that were never saved.
+              // Compare with the last saved row, or those edits look unchanged
+              // and the pull writes the saved row back over the draft.
+              const committed = saved.find((row) => row.id === open.id) ?? open;
               const deleted = new Set(await readDeletedIds());
               const fresh = incoming.filter((row) => !deleted.has(row.id));
               if (fresh.length === 0) return [];
               const stored = await restoreBackupEntries(fresh);
               const kept = new Set(stored.map((row) => row.id));
               setSaved((old) => savedAfterBackupPull(old, fresh, stored));
-              const restored = stored.find((row) => row.id === snapshot.id);
+              const restored = stored.find((row) => row.id === open.id);
               if (restored) {
                 const next = editorAfterSave(
                   entryRef.current,
-                  snapshot,
+                  committed,
                   restored,
                 );
                 if (
@@ -579,14 +583,14 @@ export default function Notebook({
               } else if (
                 restoreClosesEditor(
                   entryRef.current.id,
-                  snapshot.id,
+                  open.id,
                   kept,
                   fresh.map((row) => row.id),
                 )
               ) {
                 const keptEdit = entryKeptAfterRemove(
                   entryRef.current,
-                  snapshot,
+                  open,
                   crypto.randomUUID(),
                   "remote",
                 );

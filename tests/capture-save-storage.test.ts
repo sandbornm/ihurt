@@ -2,8 +2,9 @@
 // order they are opened, and a throw inside a request rolls the transaction
 // back. That is enough to replay the capture-save races against the real
 // notebook-storage functions.
-import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
 
 function clone<T>(value: T): T {
   return value === undefined ? value : structuredClone(value);
@@ -2900,5 +2901,51 @@ test("a restored cloud note replaces the open editor unless it changed during th
   assert.deepEqual(
     kept.points?.map((point) => point.id),
     ["pin-cloud"],
+  );
+});
+
+test("a backup pull keeps note and pin edits that were not saved yet", () => {
+  const committed = entry("open", "saved note", {
+    noteUpdated: T1,
+    updated: T1,
+    points: [],
+  });
+  const dirty = {
+    ...committed,
+    note: "typed before the pull",
+    noteUpdated: T2,
+    updated: T2,
+    pointsUpdated: T2,
+    points: [samplePoint],
+    map: neckMap("typed before the pull", ["neck"]),
+  };
+  const restored = entry("open", "saved note", {
+    noteUpdated: T1,
+    updated: T1,
+    points: [],
+    map: { ...committed.map, summary: "saved note" },
+  });
+  const next = editorAfterSave(dirty, committed, restored);
+  assert.equal(next.note, "typed before the pull");
+  assert.deepEqual(
+    next.points?.map((point) => point.id),
+    ["pin-1"],
+  );
+  const notebook = readFileSync(
+    new URL("../src/Notebook.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = notebook.indexOf("onMerge={async (incoming)");
+  const block = notebook.slice(
+    start,
+    notebook.indexOf("onRemove={async", start),
+  );
+  assert.equal(block.includes("saved.find((row) => row.id === open.id)"), true);
+  const call = block.slice(block.indexOf("editorAfterSave("));
+  assert.equal(
+    call.startsWith(
+      "editorAfterSave(\n                  entryRef.current,\n                  committed,",
+    ),
+    true,
   );
 });

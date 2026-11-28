@@ -85,8 +85,17 @@ function recentEnough(idToken: string): boolean {
   return stamp > 0 && Date.now() - stamp < RECENT_LOGIN_MS;
 }
 
-// A bad code or a mismatched address must not block the other sign-in methods.
-// The query is cleared either way so a reload does not retry the same link.
+function emailLinkRetryable(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  const text = `${typeof code === "string" ? code : ""} ${
+    error instanceof Error ? error.message : ""
+  }`;
+  return text.includes("network-request-failed");
+}
+
+// A bad code or a mismatched address is cleared so a reload does not retry it.
+// A network error leaves the address and the link, because that code can still
+// be valid.
 export async function completeEmailLink(input: {
   isLink: boolean;
   email: string | null;
@@ -98,13 +107,16 @@ export async function completeEmailLink(input: {
   if (!input.isLink || !input.email) return false;
   try {
     await input.signIn(input.email, input.href);
-    return true;
-  } catch {
+  } catch (error) {
+    if (!emailLinkRetryable(error)) {
+      input.clearEmail();
+      input.clearQuery();
+    }
     return false;
-  } finally {
-    input.clearEmail();
-    input.clearQuery();
   }
+  input.clearEmail();
+  input.clearQuery();
+  return true;
 }
 
 function storage(): Storage | null {

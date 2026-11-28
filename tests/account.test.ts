@@ -4506,6 +4506,21 @@ test("config comes from env and the test runtime stays on loopback", async () =>
   });
   assert.equal(failed, false);
   assert.deepEqual(cleared, ["email", "query"]);
+  const retry: string[] = [];
+  const network = new Error("network-request-failed");
+  Object.assign(network, { code: "auth/network-request-failed" });
+  const again = await completeEmailLink({
+    isLink: true,
+    email: "person@example.com",
+    href: "https://ihurt.app/?oobCode=still-good",
+    signIn: async () => {
+      throw network;
+    },
+    clearEmail: () => retry.push("email"),
+    clearQuery: () => retry.push("query"),
+  });
+  assert.equal(again, false);
+  assert.deepEqual(retry, []);
   assert.deepEqual(
     readAccountConfig({
       VITE_FIREBASE_API_KEY: "public",

@@ -4166,6 +4166,74 @@ test("a failed upload does not remove a note another device deleted", async () =
   assert.deepEqual(removedIdsFor(store, "user-a"), []);
 });
 
+test("a delete during an in-flight upload does not restore the backup claim", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note"], "user-a");
+  rememberSeenEntries(store, "user-a", ["note"]);
+  let tombstones: string[] = [];
+  let releasePut = () => {};
+  const gate = new Promise<void>((resolve) => {
+    releasePut = resolve;
+  });
+  let putStarted = () => {};
+  const started = new Promise<void>((resolve) => {
+    putStarted = resolve;
+  });
+  const pending = pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [entry("note", 1)],
+    now: NOW,
+    store,
+    deletedIds: () => tombstones,
+    pull: async () => ({ entries: [], deleted: [], revision: "1" }),
+    put: async () => {
+      putStarted();
+      await gate;
+    },
+  });
+  await started;
+  tombstones = ["note"];
+  retireEntryOwners(store, "note");
+  releasePut();
+  await pending;
+  await pushBackup({
+    uid: "user-a",
+    token: "token-a",
+    entries: [],
+    now: NOW,
+    store,
+    deletedIds: ["note"],
+    pull: async () => ({ entries: [], deleted: [], revision: "2" }),
+    put: async () => {},
+  });
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), []);
+  restoreEntryOwners(store, "note");
+  assert.deepEqual(backedIdsFor(store, "user-a"), ["note"]);
+  retireEntryOwners(store, "note");
+  assert.deepEqual(
+    withoutOtherAccountEntries([entry("note", 1)], store, "user-b").map(
+      (row) => row.id,
+    ),
+    ["note"],
+  );
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, []);
+});
+
 test("a failed upload does not claim the entry for the next account", async () => {
   const store = memory();
   grantOptIn(store, "user-a");

@@ -1110,7 +1110,19 @@ export async function pushBackup<T extends BackupEntry>(input: {
           rememberRemoteDeletes(input.store, remoteGone, input.uid);
           for (const id of drop) retireEntry(input.store, input.uid, id);
         } else rememberRemoteDeletes(input.store, remoteGone, input.uid);
-        const claimed = windowed.filter((entry) => !heldIds.has(entry.id));
+        // The user can delete this entry while the PUT is still sending.
+        // That retirement already ran. This success must not put the id
+        // back on the backup list or the seen list.
+        const deletedNow = new Set(await snapshotOf(input.deletedIds));
+        const retiredNow = new Set(
+          Object.keys(readBook(input.store)[input.uid]?.retired ?? {}),
+        );
+        const claimed = windowed.filter(
+          (entry) =>
+            !heldIds.has(entry.id) &&
+            !deletedNow.has(entry.id) &&
+            !retiredNow.has(entry.id),
+        );
         rememberSeenEntries(
           input.store,
           input.uid,

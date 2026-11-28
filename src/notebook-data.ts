@@ -4,6 +4,7 @@ import {
   type SavedMap,
   type RegionId,
   type PainPoint,
+  type HurtMap,
 } from "./types.ts";
 import { language, t } from "./i18n/index.ts";
 import provenance from "../public/models/sources.json" with { type: "json" };
@@ -136,6 +137,9 @@ export function exportNotebook(entries: SavedMap[]) {
       related_reading: entry.references ?? [],
       ...(entry.ai ? { ai_notes: entry.ai } : {}),
       ...(entry.research ? { research: entry.research } : {}),
+      ...(entry.noteUpdated !== undefined
+        ? { noteUpdated: entry.noteUpdated }
+        : {}),
       ...(entry.pointsUpdated !== undefined
         ? { pointsUpdated: entry.pointsUpdated }
         : {}),
@@ -403,6 +407,11 @@ export function parseNotebook(content: string): SavedMap[] {
     }
     const ai = parseAI(e.ai_notes);
     if (ai) entry.ai = ai;
+    // A missing noteUpdated stays missing. A pin or context edit also
+    // advances updated, so that time is not a note stamp.
+    if (e.noteUpdated !== undefined) entry.noteUpdated = date(e.noteUpdated);
+    // A missing pointsUpdated stays missing. A note or context edit also
+    // advances updated, so that time is not a pin stamp.
     if (e.pointsUpdated !== undefined)
       entry.pointsUpdated = date(e.pointsUpdated);
     return entry;
@@ -410,4 +419,140 @@ export function parseNotebook(content: string): SavedMap[] {
   if (new Set(entries.map((e) => e.id)).size !== entries.length)
     throw new Error(t("data.err.duplicate"));
   return entries;
+}
+
+const ANSWER_KEYS = [
+  "location",
+  "quality",
+  "intensity",
+  "duration",
+  "activity",
+  "spread",
+] as const;
+
+function parseAnswer(value: unknown): SavedMap["answers"][number] {
+  const answer = object(value);
+  const key = text(answer.key, 30);
+  if (!(ANSWER_KEYS as readonly string[]).includes(key))
+    throw new Error(t("data.err.answer"));
+  return {
+    key: key as SavedMap["answers"][number]["key"],
+    text: text(answer.text, 2000),
+  };
+}
+
+function parseQuestion(value: unknown): HurtMap["question"] {
+  if (value == null) return null;
+  const question = object(value);
+  const key = text(question.key, 30);
+  if (!(ANSWER_KEYS as readonly string[]).includes(key))
+    throw new Error(t("data.err.answer"));
+  return {
+    key: key as SavedMap["answers"][number]["key"],
+    prompt: text(question.prompt, 500),
+    options: array(question.options, 12).map((option) => text(option, 200)),
+  };
+}
+
+function parseMapUpdated(value: unknown): NonNullable<SavedMap["mapUpdated"]> {
+  const row = object(value);
+  const stamps: NonNullable<SavedMap["mapUpdated"]> = {};
+  for (const [key, stamp] of Object.entries(row)) {
+    if (
+      ![
+        "title",
+        "quality",
+        "intensity",
+        "activity",
+        "duration",
+        "question",
+        "urgent",
+        "safety_message",
+      ].includes(key)
+    )
+      throw new Error(t("data.err.object"));
+    stamps[key as keyof typeof stamps] = date(stamp);
+  }
+  return stamps;
+}
+
+function parseStoredResearch(
+  value: unknown,
+): NonNullable<SavedMap["research"]> {
+  const research = object(value);
+  return {
+    activity: text(research.activity, 200),
+    ...(research.description !== undefined
+      ? { description: text(research.description, 4000) }
+      : {}),
+    ...(typeof research.version === "string"
+      ? { version: text(research.version, 80) }
+      : {}),
+    regions: array(research.regions, 23).map(region),
+    checked: date(research.checked),
+    references: parseReferences(research.references ?? []),
+  };
+}
+
+// A backup row is untrusted. Drop it unless it has the same shape the notebook
+// reads, including a region list, so a partial map cannot be stored.
+export function acceptStoredEntry(value: unknown): SavedMap | null {
+  try {
+    const row = object(value);
+    const map = object(row.map);
+    const entry: SavedMap = {
+      id: text(row.id, 100),
+      created: date(row.created),
+      note: text(row.note, 30000),
+      provider: text(row.provider, 100),
+      answers: array(row.answers, 40).map(parseAnswer),
+      map: {
+        title: text(map.title, 500),
+        summary: text(map.summary, 30000),
+        regions: array(map.regions, 23).map(region),
+        quality: text(map.quality, 500),
+        activity: text(map.activity, 500),
+        duration: text(map.duration, 500),
+        intensity: intensity(map.intensity),
+        question: parseQuestion(map.question),
+        urgent: map.urgent === true,
+        safety_message:
+          map.safety_message == null ? null : text(map.safety_message, 2000),
+      },
+    };
+    if (!entry.id) return null;
+    if (row.updated !== undefined) entry.updated = date(row.updated);
+    if (row.noteUpdated !== undefined)
+      entry.noteUpdated = date(row.noteUpdated);
+    if (row.pointsUpdated !== undefined)
+      entry.pointsUpdated = date(row.pointsUpdated);
+    if (row.aiUpdated !== undefined) entry.aiUpdated = date(row.aiUpdated);
+    if (row.mapUpdated !== undefined)
+      entry.mapUpdated = parseMapUpdated(row.mapUpdated);
+    if (row.points !== undefined) {
+      // The sync response is byte-limited. Pin lists have no count quota, the
+      // same as an import, so a local entry can be restored after upload.
+      entry.points = array(row.points, Infinity).map(parsePoint);
+      if (
+        new Set(entry.points.map((point) => point.id)).size !==
+        entry.points.length
+      )
+        return null;
+      if (
+        entry.points.some((point) => !entry.map.regions.includes(point.region))
+      )
+        return null;
+    }
+    if (row.references !== undefined)
+      entry.references = parseReferences(row.references);
+    if (row.research !== undefined)
+      entry.research = parseStoredResearch(row.research);
+    if (row.ai !== undefined) {
+      const ai = parseAI(row.ai);
+      if (ai) entry.ai = ai;
+    }
+    return entry;
+  } catch {
+    return null;
+  }
 }

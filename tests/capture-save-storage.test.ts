@@ -2,8 +2,9 @@
 // order they are opened, and a throw inside a request rolls the transaction
 // back. That is enough to replay the capture-save races against the real
 // notebook-storage functions.
-import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
 
 function clone<T>(value: T): T {
   return value === undefined ? value : structuredClone(value);
@@ -197,7 +198,11 @@ globalThis.indexedDB = {
 const {
   loadNotebook,
   storeEntries,
+  restoreBackupEntries,
   removeEntry,
+  dropEntry,
+  readBackupSnapshot,
+  clearDeletedIds,
   saveDraft,
   saveResearch,
   editorAfterSave,
@@ -2719,3 +2724,228 @@ for (const legacy of [true, false]) {
     assert.equal(row?.research?.description, "stiff");
   });
 }
+
+test("a remote delete does not tombstone an id another account imported", async () => {
+  const shared = entry("shared-import", "from the file");
+  await storeEntries([shared, entry("only-b", "b")]);
+  await dropEntry("shared-import");
+  const afterDrop = await readBackupSnapshot();
+  assert.equal(afterDrop.deletedIds.includes("shared-import"), false);
+  assert.equal(
+    afterDrop.entries.some((item) => item.id === "shared-import"),
+    false,
+  );
+  const restored = await restoreBackupEntries([shared]);
+  assert.deepEqual(
+    restored.map((item) => item.id),
+    ["shared-import"],
+  );
+  await removeEntry("only-b");
+  const userDeleted = await readBackupSnapshot();
+  assert.equal(userDeleted.deletedIds.includes("only-b"), true);
+  const blocked = await restoreBackupEntries([entry("only-b", "back")]);
+  assert.deepEqual(blocked, []);
+});
+
+test("a local delete during a pull is not restored", async () => {
+  const row = entry("reimported", "again");
+  await storeEntries([row]);
+  await removeEntry("reimported");
+  const restored = await restoreBackupEntries([row]);
+  assert.deepEqual(restored, []);
+  const snapshot = await readBackupSnapshot();
+  assert.equal(snapshot.deletedIds.includes("reimported"), true);
+  assert.equal(
+    snapshot.entries.some((item) => item.id === "reimported"),
+    false,
+  );
+});
+
+test("a restored cloud row can be stored after its remote delete", async () => {
+  const row = entry("undo-remote", "back", {
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+  });
+  await storeEntries([row]);
+  await removeEntry("undo-remote");
+  await clearDeletedIds(["undo-remote"]);
+  const restored = await restoreBackupEntries([row]);
+  assert.deepEqual(
+    restored.map((item) => item.id),
+    ["undo-remote"],
+  );
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.some((item) => item.id === "undo-remote"),
+    true,
+  );
+});
+
+test("a backup snapshot sees a delete that landed before the upload", async () => {
+  await storeEntries([
+    entry("keep-snap", "keep", { noteUpdated: "2026-01-02T00:00:00.000Z" }),
+    entry("gone-snap", "gone", { noteUpdated: "2026-01-02T00:00:00.000Z" }),
+  ]);
+  await removeEntry("gone-snap");
+  const snapshot = await readBackupSnapshot();
+  assert.equal(
+    snapshot.entries.some((item) => item.id === "keep-snap"),
+    true,
+  );
+  assert.equal(
+    snapshot.entries.some((item) => item.id === "gone-snap"),
+    false,
+  );
+  assert.equal(snapshot.deletedIds.includes("gone-snap"), true);
+});
+
+test("a backup restore leaves a deleted entry deleted", async () => {
+  const row = entry("backup-tomb", "gone", {
+    noteUpdated: "2026-01-02T00:00:00.000Z",
+  });
+  await storeEntries([row]);
+  await removeEntry("backup-tomb");
+  const restored = await restoreBackupEntries([
+    entry("backup-tomb", "from cloud", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+    }),
+    entry("backup-keep", "stays", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+    }),
+  ]);
+  assert.deepEqual(
+    restored.map((item) => item.id),
+    ["backup-keep"],
+  );
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.some((item) => item.id === "backup-tomb"),
+    false,
+  );
+  assert.equal(
+    loaded.entries.some((item) => item.id === "backup-keep"),
+    true,
+  );
+  assert.equal(await saveResearch("backup-tomb", research), undefined);
+});
+
+test("a backup restore keeps answers saved while the pull was in flight", async () => {
+  const id = "answers-during-pull";
+  await storeEntries([
+    entry(id, "local note", {
+      updated: "2026-01-02T00:00:00.000Z",
+      noteUpdated: "2026-01-02T00:00:00.000Z",
+      answers: [{ key: "quality", text: "saved-during-pull" }],
+    }),
+  ]);
+  const cloud = entry(id, "cloud note", {
+    updated: "2026-01-03T00:00:00.000Z",
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+    answers: [{ key: "quality", text: "from-the-server" }],
+  });
+  const stale = entry(id, "local note", {
+    answers: [{ key: "quality", text: "before-the-pull" }],
+  });
+  const restored = await restoreBackupEntries([
+    { ...cloud, answers: stale.answers },
+    entry("new-from-cloud", "cloud only", {
+      noteUpdated: "2026-01-03T00:00:00.000Z",
+      answers: [{ key: "quality", text: "from-the-server" }],
+    }),
+  ]);
+  const kept = restored.find((row) => row.id === id);
+  assert.equal(kept?.answers[0]?.text, "saved-during-pull");
+  assert.equal(kept?.note, "cloud note");
+  assert.equal(
+    restored.find((row) => row.id === "new-from-cloud")?.answers.length,
+    0,
+  );
+  const loaded = await loadNotebook();
+  assert.equal(
+    loaded.entries.find((row) => row.id === id)?.answers[0]?.text,
+    "saved-during-pull",
+  );
+});
+
+test("a restored cloud note replaces the open editor unless it changed during the pull", () => {
+  const snapshot = entry("open", "local note", {
+    noteUpdated: "2026-01-02T00:00:00.000Z",
+    updated: "2026-01-02T00:00:00.000Z",
+    points: [],
+  });
+  const restored = entry("open", "cloud note", {
+    noteUpdated: "2026-01-03T00:00:00.000Z",
+    updated: "2026-01-03T00:00:00.000Z",
+    pointsUpdated: "2026-01-03T00:00:00.000Z",
+    points: [{ id: "pin-cloud", region: "neck", position: [0, 1, 0] }],
+    map: {
+      ...snapshot.map,
+      title: "kept-title",
+      regions: ["neck"],
+      summary: "cloud note",
+    },
+  });
+  const unchanged = editorAfterSave(snapshot, snapshot, restored);
+  assert.equal(unchanged.note, "cloud note");
+  assert.equal(unchanged.map.title, "kept-title");
+  assert.deepEqual(
+    unchanged.points?.map((point) => point.id),
+    ["pin-cloud"],
+  );
+  const typed = {
+    ...snapshot,
+    note: "typed during pull",
+    noteUpdated: "2026-01-04T00:00:00.000Z",
+  };
+  const kept = editorAfterSave(typed, snapshot, restored);
+  assert.equal(kept.note, "typed during pull");
+  assert.deepEqual(
+    kept.points?.map((point) => point.id),
+    ["pin-cloud"],
+  );
+});
+
+test("a backup pull keeps note and pin edits that were not saved yet", () => {
+  const committed = entry("open", "saved note", {
+    noteUpdated: T1,
+    updated: T1,
+    points: [],
+  });
+  const dirty = {
+    ...committed,
+    note: "typed before the pull",
+    noteUpdated: T2,
+    updated: T2,
+    pointsUpdated: T2,
+    points: [samplePoint],
+    map: neckMap("typed before the pull", ["neck"]),
+  };
+  const restored = entry("open", "saved note", {
+    noteUpdated: T1,
+    updated: T1,
+    points: [],
+    map: { ...committed.map, summary: "saved note" },
+  });
+  const next = editorAfterSave(dirty, committed, restored);
+  assert.equal(next.note, "typed before the pull");
+  assert.deepEqual(
+    next.points?.map((point) => point.id),
+    ["pin-1"],
+  );
+  const notebook = readFileSync(
+    new URL("../src/Notebook.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = notebook.indexOf("onMerge={async (incoming)");
+  const block = notebook.slice(
+    start,
+    notebook.indexOf("onRemove={async", start),
+  );
+  assert.equal(block.includes("saved.find((row) => row.id === open.id)"), true);
+  const call = block.slice(block.indexOf("editorAfterSave("));
+  assert.equal(
+    call.startsWith(
+      "editorAfterSave(\n                  entryRef.current,\n                  committed,",
+    ),
+    true,
+  );
+});

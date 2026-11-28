@@ -97,6 +97,137 @@ test("many pins and a reviewed search description survive export and import", ()
   assert.throws(() => parseNotebook(stringifyNotebook([entry])));
 });
 
+test("an offline note edit keeps its time through an ihm import and an older cloud note", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const { mergeBackupWindow } = await import("../src/account/backup.ts");
+  const edited = finishEntry(exampleEntry());
+  edited.note = "typed offline";
+  edited.updated = "2026-09-13T12:00:00.000Z";
+  edited.noteUpdated = "2026-09-13T12:00:00.000Z";
+  const file = stringifyIhm(edited);
+  const exported = JSON.parse(file);
+  assert.equal(exported.entries[0].noteUpdated, edited.noteUpdated);
+  const imported = parseNotebook(file)[0];
+  assert.equal(imported.note, "typed offline");
+  assert.equal(imported.noteUpdated, edited.noteUpdated);
+  const cloud = {
+    id: imported.id,
+    created: imported.created,
+    updated: "2026-09-12T12:00:00.000Z",
+    noteUpdated: "2026-09-12T18:00:00.000Z",
+    note: "older cloud",
+  };
+  const now = Date.parse("2026-09-14T00:00:00.000Z");
+  const [merged] = mergeBackupWindow([imported], [cloud], new Set(), now);
+  assert.equal(merged.note, "typed offline");
+  assert.equal(merged.noteUpdated, edited.noteUpdated);
+  delete exported.entries[0].noteUpdated;
+  const legacy = parseNotebook(JSON.stringify(exported))[0];
+  assert.equal(legacy.note, "typed offline");
+  assert.equal(legacy.noteUpdated, undefined);
+  const [again] = mergeBackupWindow([legacy], [cloud], new Set(), now);
+  assert.equal(again.note, "older cloud");
+  assert.equal(again.noteUpdated, cloud.noteUpdated);
+});
+
+test("a pin edit in a legacy map does not replace a newer cloud note", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const { mergeBackupWindow } = await import("../src/account/backup.ts");
+  const edited = finishEntry(exampleEntry());
+  const stale = edited.note;
+  const moved = [0.2, 2.4, -0.2] as [number, number, number];
+  edited.points![0].position = moved;
+  edited.updated = "2026-09-14T12:00:00.000Z";
+  edited.pointsUpdated = "2026-09-14T12:00:00.000Z";
+  const exported = JSON.parse(stringifyIhm(edited));
+  delete exported.entries[0].noteUpdated;
+  const imported = parseNotebook(JSON.stringify(exported))[0];
+  assert.equal(imported.note, stale);
+  assert.equal(imported.noteUpdated, undefined);
+  assert.equal(imported.pointsUpdated, edited.pointsUpdated);
+  const cloud = {
+    id: imported.id,
+    created: imported.created,
+    updated: "2026-09-13T12:00:00.000Z",
+    noteUpdated: "2026-09-13T12:00:00.000Z",
+    pointsUpdated: "2026-09-12T12:00:00.000Z",
+    note: "newer cloud",
+    points: finishEntry(exampleEntry()).points,
+  };
+  const now = Date.parse("2026-09-15T00:00:00.000Z");
+  const [merged] = mergeBackupWindow([imported], [cloud], new Set(), now);
+  assert.equal(merged.note, "newer cloud");
+  assert.equal(merged.noteUpdated, cloud.noteUpdated);
+  assert.deepEqual(merged.points?.[0].position, moved);
+});
+
+test("an offline pin edit keeps its time through an ihm import and an older cloud pin list", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const { mergeBackupWindow } = await import("../src/account/backup.ts");
+  const edited = finishEntry(exampleEntry());
+  const moved = [0.2, 2.4, -0.2] as [number, number, number];
+  edited.points![0].position = moved;
+  edited.updated = "2026-09-13T12:00:00.000Z";
+  edited.pointsUpdated = "2026-09-13T12:00:00.000Z";
+  const file = stringifyIhm(edited);
+  const exported = JSON.parse(file);
+  assert.equal(exported.entries[0].pointsUpdated, edited.pointsUpdated);
+  const stamped = parseNotebook(file)[0];
+  assert.equal(stamped.pointsUpdated, edited.pointsUpdated);
+  const cloud = {
+    id: stamped.id,
+    created: stamped.created,
+    updated: "2026-09-12T12:00:00.000Z",
+    noteUpdated: "2026-09-12T12:00:00.000Z",
+    pointsUpdated: "2026-09-12T18:00:00.000Z",
+    note: "older cloud",
+    points: finishEntry(exampleEntry()).points,
+  };
+  const now = Date.parse("2026-09-14T00:00:00.000Z");
+  const [merged] = mergeBackupWindow([stamped], [cloud], new Set(), now);
+  assert.deepEqual(merged.points?.[0].position, moved);
+  assert.equal(merged.pointsUpdated, edited.pointsUpdated);
+  delete exported.entries[0].pointsUpdated;
+  const legacy = parseNotebook(JSON.stringify(exported))[0];
+  assert.equal(legacy.pointsUpdated, undefined);
+  const [kept] = mergeBackupWindow([legacy], [cloud], new Set(), now);
+  assert.deepEqual(kept.points?.[0].position, cloud.points?.[0].position);
+  assert.equal(kept.pointsUpdated, cloud.pointsUpdated);
+});
+
+test("a note edit in a legacy map does not replace a newer cloud pin list", async () => {
+  const { stringifyIhm } = await import("../src/export.ts");
+  const { mergeBackupWindow } = await import("../src/account/backup.ts");
+  const edited = finishEntry(exampleEntry());
+  const stale = [...edited.points![0].position] as [number, number, number];
+  edited.note = "typed later";
+  edited.updated = "2026-09-14T12:00:00.000Z";
+  edited.noteUpdated = "2026-09-14T12:00:00.000Z";
+  const exported = JSON.parse(stringifyIhm(edited));
+  delete exported.entries[0].pointsUpdated;
+  const imported = parseNotebook(JSON.stringify(exported))[0];
+  assert.deepEqual(imported.points![0].position, stale);
+  assert.equal(imported.pointsUpdated, undefined);
+  assert.equal(imported.note, "typed later");
+  const moved = [0.2, 2.4, -0.2] as [number, number, number];
+  const cloudPins = structuredClone(imported.points)!;
+  cloudPins[0].position = moved;
+  const cloud = {
+    id: imported.id,
+    created: imported.created,
+    updated: "2026-09-13T12:00:00.000Z",
+    noteUpdated: "2026-09-12T12:00:00.000Z",
+    pointsUpdated: "2026-09-13T12:00:00.000Z",
+    note: "older cloud",
+    points: cloudPins,
+  };
+  const now = Date.parse("2026-09-15T00:00:00.000Z");
+  const [merged] = mergeBackupWindow([imported], [cloud], new Set(), now);
+  assert.deepEqual(merged.points?.[0].position, moved);
+  assert.equal(merged.pointsUpdated, cloud.pointsUpdated);
+  assert.equal(merged.note, "typed later");
+});
+
 test("ihm packages remain ordinary JSON with inert derived materials", async () => {
   const { stringifyIhm } = await import("../src/export.ts");
   const entry = finishEntry(exampleEntry());

@@ -6,6 +6,7 @@ import type {
   MapDetail,
 } from "./types";
 import { t } from "./i18n/index.ts";
+import { withLocalPrivateFields } from "./account/backup.ts";
 export interface Draft {
   entry: SavedMap;
   selected: RegionId | null;
@@ -96,6 +97,64 @@ function deletedIds(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((id): id is string => typeof id === "string")
     : [];
+}
+
+// Ids the user deleted on this device. Sync must not restore them.
+export function readDeletedIds(): Promise<string[]> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction("settings", "readonly");
+        const request = tx.objectStore("settings").get(DELETED_IDS);
+        request.onsuccess = () => resolve(deletedIds(request.result));
+        request.onerror = () => reject(request.error);
+      }),
+  );
+}
+
+// Entries and tombstones from one read, so a delete that lands before the
+// backup upload is in this pair.
+export function readBackupSnapshot(): Promise<{
+  entries: SavedMap[];
+  deletedIds: string[];
+}> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["entries", "settings"], "readonly");
+        const entriesRequest = tx.objectStore("entries").getAll();
+        const tomb = tx.objectStore("settings").get(DELETED_IDS);
+        let entries: SavedMap[] = [];
+        let deleted: string[] = [];
+        let done = 0;
+        const finish = () => {
+          if (++done !== 2) return;
+          entries = (entriesRequest.result ?? []) as SavedMap[];
+          deleted = deletedIds(tomb.result);
+        };
+        entriesRequest.onsuccess = finish;
+        tomb.onsuccess = finish;
+        tx.oncomplete = () => resolve({ entries, deletedIds: deleted });
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      }),
+  );
+}
+
+// Clears named user-delete tombstones. A backup pull must not call this.
+// A delete made while that pull was running has to stay deleted.
+export function clearDeletedIds(ids: readonly string[]): Promise<void> {
+  const drop = new Set(ids);
+  if (drop.size === 0) return Promise.resolve();
+  return mutate(["settings"], (tx) => {
+    const current = tx.objectStore("settings").get(DELETED_IDS);
+    current.onsuccess = () => {
+      const existing = deletedIds(current.result);
+      const next = existing.filter((id) => !drop.has(id));
+      if (next.length !== existing.length)
+        tx.objectStore("settings").put(next, DELETED_IDS);
+    };
+  });
 }
 
 // Missing on rows saved before versions existed. Older than any stamped search.
@@ -207,7 +266,7 @@ export function entryReferences(
 // on the row and on that research list. The row time is the later stamp.
 // Notes and pins each follow incomingWins: equal stamps keep stored.
 // saveResearch and editorAfterSave settle a tie the same way.
-function keepLandedResearch(
+export function keepLandedResearch(
   existing: SavedMap | undefined,
   entry: SavedMap,
   tie: UnstampedTie = "stored",
@@ -730,6 +789,52 @@ export const saveDraft = (draft: Draft) =>
   mutate(["settings"], (tx) => {
     tx.objectStore("settings").put(draft, "draft");
   });
+// A backup restore must not undo a delete. Tombstones are read in this
+// transaction, and a matching id is left deleted. Import and undo still use
+// storeEntries, which clears a tombstone on purpose.
+export function restoreBackupEntries(entries: SavedMap[]): Promise<SavedMap[]> {
+  return open().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["entries", "settings"], "readwrite");
+        const merged: SavedMap[] = [];
+        tx.oncomplete = () => resolve(merged);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+        try {
+          const store = tx.objectStore("entries");
+          const tomb = tx.objectStore("settings").get(DELETED_IDS);
+          tomb.onsuccess = () => {
+            const ids = new Set(deletedIds(tomb.result));
+            for (const entry of entries) {
+              if (ids.has(entry.id)) continue;
+              const current = store.get(entry.id);
+              current.onsuccess = () => {
+                const existing = current.result as SavedMap | undefined;
+                // Answers have no stamp. Read them from the stored row in
+                // this transaction, so a save made while the pull was in
+                // flight is not replaced by the list the pull started with.
+                const row = keepLandedResearch(
+                  existing,
+                  withLocalPrivateFields(existing, entry),
+                );
+                merged.push(row);
+                store.put(row);
+              };
+            }
+          };
+        } catch (error) {
+          try {
+            tx.abort();
+          } catch {
+            // Already aborting.
+          }
+          reject(error);
+        }
+      }),
+  );
+}
+
 export function storeEntries(entries: SavedMap[]): Promise<SavedMap[]> {
   return open().then(
     (db) =>
@@ -778,6 +883,14 @@ export const removeEntry = (id: string) =>
       if (!ids.includes(id)) ids.push(id);
       tx.objectStore("settings").put(ids, DELETED_IDS);
     };
+  });
+
+// A remote or account removal takes the row off this device. It is not the
+// user's delete, so the id stays restorable for another account that imported
+// the same entry.
+export const dropEntry = (id: string) =>
+  mutate(["entries"], (tx) => {
+    tx.objectStore("entries").delete(id);
   });
 
 // editor is the open entry, when it is this one. Another tab may have saved a

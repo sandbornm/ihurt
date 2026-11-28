@@ -121,7 +121,7 @@ try {
     const info = page.getByRole("dialog", { name: "Your notebook, your data" });
     await context.setOffline(true);
     await info
-      .getByText("iHurt has no accounts or analytics.", { exact: false })
+      .getByText("Sign-in is optional.", { exact: false })
       .waitFor();
     await info
       .getByText("Anatomy credits and licenses", { exact: true })

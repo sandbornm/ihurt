@@ -10,6 +10,7 @@ import {
   createAppleIntelligence,
   type AppleIntelligenceBridge,
 } from "./on-device-ai";
+import { configureNativeAppleSignIn } from "../account/auth.ts";
 
 // Only the standalone app entry imports native packages. Website consumers of
 // Notebook keep the browser adapter without depending on Capacitor.
@@ -32,6 +33,14 @@ export function initializeNativeApp() {
       registerPlugin<AppleIntelligenceBridge>("AppleIntelligence"),
     ),
   );
+  const appleSignIn = registerPlugin<{
+    signIn(): Promise<{ idToken?: string; nonce?: string }>;
+  }>("AppleSignIn");
+  configureNativeAppleSignIn(async () => {
+    const result = await appleSignIn.signIn();
+    if (!result.idToken || !result.nonce) throw new Error("apple-failed");
+    return { idToken: result.idToken, nonce: result.nonce };
+  });
   configureNativeExports({
     async write(file, path) {
       const result = await Filesystem.writeFile({

@@ -63,7 +63,10 @@ import {
   saveDraft,
   saveResearch,
   storeEntries,
+  restoreBackupEntries,
   removeEntry,
+  dropEntry,
+  readDeletedIds,
   editorAfterSave,
   withStampedResearch,
   entryReferences,
@@ -88,6 +91,19 @@ import { bodyAnchors, muscleGroups } from "./anatomy/landmarks";
 import { useI18n } from "./i18n/react";
 import { formatDate, type MessageKey } from "./i18n";
 import LanguageSetting from "./i18n/LanguageSetting";
+import AccountButton from "./account/AccountButton";
+import {
+  entryKeptAfterRemove,
+  journalSignature,
+  remoteDeleteClosesEditor,
+  restoreClosesEditor,
+  savedAfterBackupPull,
+} from "./account/backup.ts";
+import {
+  guardSourceSearch,
+  restoreCurrentEntry,
+  retireCurrentEntry,
+} from "./account/store.ts";
 const Anatomy = lazy(() => import("./anatomy/Anatomy"));
 const BodyReference = lazy(() => import("./anatomy/BodyReference"));
 void import("./anatomy/Anatomy");
@@ -110,6 +126,7 @@ export default function Notebook({
   Research?: ComponentType<{
     entry: SavedMap;
     sources: string[];
+    beforeSearch: () => Promise<boolean>;
     onSave: (research: NonNullable<SavedMap["research"]>) => Promise<void>;
   }>;
 }) {
@@ -176,6 +193,8 @@ export default function Notebook({
       "notebook.status.opening",
     ),
     [removed, setRemoved] = useState<SavedMap | null>(null);
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
   const draftRef = useRef<Draft>({
     entry,
     selected,
@@ -444,6 +463,7 @@ export default function Notebook({
     setBusy(true);
     try {
       await removeEntry(item.id);
+      retireCurrentEntry(item.id);
       setSaved((old) => old.filter((e) => e.id !== item.id));
       setRemoved(item);
       setToast(t("notebook.toast.deleted"));
@@ -461,6 +481,7 @@ export default function Notebook({
     if (!removed) return;
     try {
       const [savedRow] = await storeEntries([removed]);
+      restoreCurrentEntry(removed.id);
       const saved = savedRow ?? removed;
       setSaved((old) => [...old.filter((e) => e.id !== saved.id), saved]);
       setRemoved(null);
@@ -529,6 +550,114 @@ export default function Notebook({
           iHurt<span className="brand-period">.</span>
         </a>
         <div className="top-actions">
+          <AccountButton
+            entries={saved}
+            ready={hydrated}
+            onMerge={async (incoming) => {
+              const open = entryRef.current;
+              // The draft can hold note and pin edits that were never saved.
+              // Compare with the last saved row, or those edits look unchanged
+              // and the pull writes the saved row back over the draft.
+              const committed = saved.find((row) => row.id === open.id) ?? open;
+              const deleted = new Set(await readDeletedIds());
+              const fresh = incoming.filter((row) => !deleted.has(row.id));
+              if (fresh.length === 0) return [];
+              const stored = await restoreBackupEntries(fresh);
+              const kept = new Set(stored.map((row) => row.id));
+              setSaved((old) => savedAfterBackupPull(old, fresh, stored));
+              const restored = stored.find((row) => row.id === open.id);
+              if (restored) {
+                const next = editorAfterSave(
+                  entryRef.current,
+                  committed,
+                  restored,
+                );
+                if (
+                  journalSignature(next) !== journalSignature(entryRef.current)
+                ) {
+                  entryRef.current = next;
+                  draftRef.current = { ...draftRef.current, entry: next };
+                  setEntry(next);
+                  await saveDraft(draftRef.current);
+                }
+              } else if (
+                restoreClosesEditor(
+                  entryRef.current.id,
+                  open.id,
+                  kept,
+                  fresh.map((row) => row.id),
+                )
+              ) {
+                const keptEdit = entryKeptAfterRemove(
+                  entryRef.current,
+                  open,
+                  crypto.randomUUID(),
+                  "remote",
+                );
+                if (keptEdit) {
+                  const [row] = await storeEntries([keptEdit]);
+                  const storedEdit = row ?? keptEdit;
+                  setSaved((old) => [
+                    ...old.filter((item) => item.id !== storedEdit.id),
+                    storedEdit,
+                  ]);
+                  entryRef.current = storedEdit;
+                  draftRef.current = {
+                    ...draftRef.current,
+                    entry: storedEdit,
+                  };
+                  setEntry(storedEdit);
+                  await saveDraft(draftRef.current);
+                } else {
+                  const next = blankEntry();
+                  entryRef.current = next;
+                  draftRef.current = {
+                    ...draftRef.current,
+                    entry: next,
+                    selected: null,
+                  };
+                  setEntry(next);
+                  setSelected(null);
+                  await saveDraft(draftRef.current);
+                }
+              }
+              return stored;
+            }}
+            onRemove={async (ids, reason) => {
+              for (const id of ids) await dropEntry(id);
+              setSaved((old) => old.filter((item) => !ids.includes(item.id)));
+              if (!remoteDeleteClosesEditor(entryRef.current.id, ids)) return;
+              const kept = entryKeptAfterRemove(
+                entryRef.current,
+                saved.find((item) => item.id === entryRef.current.id),
+                crypto.randomUUID(),
+                reason,
+              );
+              if (kept) {
+                const [row] = await storeEntries([kept]);
+                const stored = row ?? kept;
+                setSaved((old) => [
+                  ...old.filter((item) => item.id !== stored.id),
+                  stored,
+                ]);
+                entryRef.current = stored;
+                draftRef.current = { ...draftRef.current, entry: stored };
+                setEntry(stored);
+                await saveDraft(draftRef.current);
+                return;
+              }
+              const next = blankEntry();
+              entryRef.current = next;
+              draftRef.current = {
+                ...draftRef.current,
+                entry: next,
+                selected: null,
+              };
+              setEntry(next);
+              setSelected(null);
+              await saveDraft(draftRef.current);
+            }}
+          />
           <LanguageSetting />
           <ThemeToggle />
           <button
@@ -1363,6 +1492,7 @@ export default function Notebook({
                       key={entry.id}
                       entry={currentEntry()}
                       sources={readingSources}
+                      beforeSearch={guardSourceSearch}
                       onSave={async (research) => {
                         // The latest editor, which the autosave has not
                         // written yet. The search merges against it, and the

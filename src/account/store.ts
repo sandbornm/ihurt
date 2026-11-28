@@ -572,8 +572,13 @@ export async function deleteAccount(
       deleteAuth: () => auth.deleteUser(),
       settleUploads: () => pushChain,
       sameAccount: () => state.session?.uid === session.uid,
+      sessionUid: () => state.session?.uid ?? null,
       store: browserStore(),
     });
+    if (state.session && state.session?.uid !== session.uid) {
+      setState({ ...state, busy: false, error: "" });
+      return;
+    }
     analytics.record("account_delete");
     setState({
       ...state,

@@ -2469,7 +2469,7 @@ test("account deletion waits for an upload when web locks are missing", async ()
     for (let attempt = 0; attempt < 40 && !firstPutStarted; attempt += 1)
       await new Promise((resolve) => setTimeout(resolve, 5));
     assert.equal(firstPutStarted, true);
-    assert.equal(data.has("ihurt-tab-locks"), true);
+    assert.equal(data.has("ihurt-tab-locks:ihurt-backup-uploads"), true);
     const removing = deleteSignedInAccount({
       uid: "user-a",
       token: async () => "token-a",
@@ -2555,10 +2555,10 @@ test("a slow upload keeps the fallback lock past the lease", async () => {
     assert.equal(firstPutStarted, true);
     now += 10 * 60 * 1000;
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    const book = JSON.parse(data.get("ihurt-tab-locks") ?? "{}") as {
-      "ihurt-backup-uploads"?: { expires?: number };
-    };
-    assert.ok((book["ihurt-backup-uploads"]?.expires ?? 0) > now);
+    const row = JSON.parse(
+      data.get("ihurt-tab-locks:ihurt-backup-uploads") ?? "{}",
+    ) as { expires?: number };
+    assert.ok((row.expires ?? 0) > now);
     const removing = deleteSignedInAccount({
       uid: "user-a",
       token: "token-a",
@@ -2588,6 +2588,160 @@ test("a slow upload keeps the fallback lock past the lease", async () => {
       Object.defineProperty(globalThis, "localStorage", previousStorage);
     else delete (globalThis as { localStorage?: unknown }).localStorage;
   }
+});
+
+test("a fallback delete lock does not erase a live upload lock", async () => {
+  const nav = globalThis.navigator as Navigator & { locks?: unknown };
+  const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");
+  const previousStorage = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "localStorage",
+  );
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    get: () => undefined,
+  });
+  const data = new Map<string, string>();
+  const upload = {
+    id: "upload-tab",
+    expires: Date.now() + 120_000,
+  };
+  let planted = false;
+  let uploadSurvived = false;
+  const storage = {
+    getItem(key: string) {
+      if (!planted && key.includes("ihurt-account-deleting-lock")) {
+        planted = true;
+        data.set(
+          key.replace("ihurt-account-deleting-lock", "ihurt-backup-uploads"),
+          JSON.stringify(upload),
+        );
+        return null;
+      }
+      if (!planted && key === "ihurt-tab-locks") {
+        planted = true;
+        data.set(key, JSON.stringify({ "ihurt-backup-uploads": upload }));
+        return "{}";
+      }
+      return data.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      data.set(key, value);
+      if (!planted || uploadSurvived) return;
+      uploadSurvived = [...data.entries()].some(([name, value]) => {
+        if (!name.includes("ihurt-backup-uploads")) return false;
+        try {
+          const row = JSON.parse(value) as {
+            id?: string;
+            "ihurt-backup-uploads"?: { id?: string };
+          };
+          return (
+            row.id === "upload-tab" ||
+            row["ihurt-backup-uploads"]?.id === "upload-tab"
+          );
+        } catch {
+          return false;
+        }
+      });
+      if (uploadSurvived) {
+        for (const name of [...data.keys()]) {
+          if (name.includes("ihurt-backup-uploads")) data.delete(name);
+        }
+      }
+    },
+    removeItem(key: string) {
+      data.delete(key);
+    },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: storage,
+  });
+  const store = memory();
+  grantOptIn(store, "user-a");
+  let deleted = false;
+  try {
+    await deleteSignedInAccount({
+      uid: "user-a",
+      token: "token-a",
+      api: {
+        async deleteAccount() {
+          deleted = true;
+        },
+      },
+      removeLocal: async () => undefined,
+      confirmRecentLogin: async () => undefined,
+      deleteAuth: async () => undefined,
+      settleUploads: async () => undefined,
+      sameAccount: () => true,
+      store,
+    });
+    assert.equal(planted, true);
+    assert.equal(uploadSurvived, true);
+    assert.equal(deleted, true);
+  } finally {
+    if (previousLocks) Object.defineProperty(nav, "locks", previousLocks);
+    else delete (nav as { locks?: unknown }).locks;
+    if (previousStorage)
+      Object.defineProperty(globalThis, "localStorage", previousStorage);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
+test("a sign-in during auth deletion keeps the new account", async () => {
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["from-a"], "user-a");
+  let account: string | null = "user-a";
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    api: { async deleteAccount() {} },
+    removeLocal: async () => undefined,
+    confirmRecentLogin: async () => undefined,
+    settleUploads: async () => undefined,
+    sameAccount: () => true,
+    sessionUid: () => account,
+    deleteAuth: async () => {
+      account = "user-b";
+      grantOptIn(store, "user-b");
+    },
+    store,
+  });
+  assert.equal(optedIn(store, "user-b"), true);
+  assert.deepEqual(syncedIdsFor(store, "user-a"), []);
+  account = "user-a";
+  grantOptIn(store, "user-a");
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    api: { async deleteAccount() {} },
+    removeLocal: async () => undefined,
+    confirmRecentLogin: async () => undefined,
+    settleUploads: async () => undefined,
+    sameAccount: () => true,
+    sessionUid: () => account,
+    deleteAuth: async () => {
+      account = null;
+    },
+    store,
+  });
+  assert.equal(optedIn(store, "user-a"), false);
+  const root = new URL("../", import.meta.url);
+  const accountStore = readFileSync(
+    new URL("src/account/store.ts", root),
+    "utf8",
+  );
+  const deletion = accountStore.slice(
+    accountStore.indexOf("export async function deleteAccount"),
+    accountStore.indexOf("export function openUpgrade"),
+  );
+  const tail = deletion.slice(
+    deletion.indexOf("sameAccount: () => state.session?.uid === session.uid"),
+  );
+  const recheck = tail.indexOf("state.session?.uid !== session.uid");
+  const published = tail.indexOf("session: null");
+  assert.ok(recheck > 0 && published > recheck);
 });
 
 test("a backup still blocks deletion after the upload lease", async () => {

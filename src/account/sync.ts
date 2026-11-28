@@ -467,31 +467,38 @@ function tabLockStore(): KeyValueStore | null {
   return storage;
 }
 
-function readTabLocks(store: KeyValueStore): Record<string, TabLock> {
+function tabLockKey(name: string): string {
+  return `${TAB_LOCK_KEY}:${name}`;
+}
+
+function readNamedLock(store: KeyValueStore, name: string): TabLock | null {
   try {
-    const parsed = JSON.parse(store.getItem(TAB_LOCK_KEY) ?? "{}") as unknown;
+    const parsed = JSON.parse(
+      store.getItem(tabLockKey(name)) ?? "null",
+    ) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-      return {};
-    const book: Record<string, TabLock> = {};
-    for (const [name, row] of Object.entries(parsed)) {
-      if (!row || typeof row !== "object") continue;
-      const id = (row as { id?: unknown }).id;
-      const expires = (row as { expires?: unknown }).expires;
-      if (typeof id === "string" && typeof expires === "number")
-        book[name] = { id, expires };
-    }
-    return book;
+      return null;
+    const id = (parsed as { id?: unknown }).id;
+    const expires = (parsed as { expires?: unknown }).expires;
+    if (typeof id === "string" && typeof expires === "number")
+      return { id, expires };
+    return null;
   } catch {
-    return {};
+    return null;
   }
 }
 
-function writeTabLocks(store: KeyValueStore, book: Record<string, TabLock>) {
-  if (Object.keys(book).length === 0) {
-    store.removeItem(TAB_LOCK_KEY);
+function writeNamedLock(
+  store: KeyValueStore,
+  name: string,
+  lock: TabLock | null,
+) {
+  const key = tabLockKey(name);
+  if (!lock) {
+    store.removeItem(key);
     return;
   }
-  store.setItem(TAB_LOCK_KEY, JSON.stringify(book));
+  store.setItem(key, JSON.stringify(lock));
 }
 
 function withLocalLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -516,19 +523,21 @@ async function withStorageLock<T>(
   const id = crypto.randomUUID();
   const deadline = Date.now() + TAB_LOCK_WAIT_MS;
   while (Date.now() <= deadline) {
-    const book = readTabLocks(store);
-    const current = book[name];
+    const current = readNamedLock(store, name);
     if (!current || current.expires <= Date.now()) {
-      book[name] = { id, expires: Date.now() + UPLOAD_LEASE_MS };
-      writeTabLocks(store, book);
+      writeNamedLock(store, name, {
+        id,
+        expires: Date.now() + UPLOAD_LEASE_MS,
+      });
       await new Promise((resolve) => setTimeout(resolve, TAB_LOCK_PAUSE_MS));
-      if (readTabLocks(store)[name]?.id === id) {
+      if (readNamedLock(store, name)?.id === id) {
         const renew = () => {
           try {
-            const current = readTabLocks(store);
-            if (current[name]?.id !== id) return;
-            current[name] = { id, expires: Date.now() + UPLOAD_LEASE_MS };
-            writeTabLocks(store, current);
+            if (readNamedLock(store, name)?.id !== id) return;
+            writeNamedLock(store, name, {
+              id,
+              expires: Date.now() + UPLOAD_LEASE_MS,
+            });
           } catch {
             // A missed refresh leaves the previous lease. Releasing still
             // happens when the request finishes.
@@ -539,11 +548,8 @@ async function withStorageLock<T>(
           return await fn();
         } finally {
           clearInterval(renewal);
-          const latest = readTabLocks(store);
-          if (latest[name]?.id === id) {
-            delete latest[name];
-            writeTabLocks(store, latest);
-          }
+          if (readNamedLock(store, name)?.id === id)
+            writeNamedLock(store, name, null);
         }
       }
     }
@@ -874,6 +880,7 @@ export async function deleteSignedInAccount(input: {
   confirmRecentLogin?: () => Promise<void>;
   settleUploads?: () => Promise<void>;
   sameAccount?: () => boolean;
+  sessionUid?: () => string | null;
   store: KeyValueStore;
 }): Promise<void> {
   if (!input.api) {
@@ -937,9 +944,13 @@ export async function deleteSignedInAccount(input: {
       }
       throw partial;
     }
-    clearOptIn(input.store);
     clearSynced(input.store, input.uid);
     clearSeenEntries(input.store, input.uid);
+    // The Firebase user is gone. A null session is this sign-out. Another
+    // account already signed in keeps its backup flag, which is global.
+    const nextUid = input.sessionUid?.() ?? null;
+    if (nextUid && nextUid !== input.uid) return;
+    clearOptIn(input.store);
   } finally {
     await clearAccountDeleting(input.store, input.uid, deletionId);
   }

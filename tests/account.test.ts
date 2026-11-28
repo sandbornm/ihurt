@@ -63,6 +63,7 @@ import {
   optedIn,
   pushBackup,
   readSyncedIds,
+  downloadedIdsFor,
   rememberRemoteDeletes,
   rememberSeenEntries,
   rememberSynced,
@@ -1539,6 +1540,36 @@ test("a mixed sync response is rejected before upload", async () => {
   assert.deepEqual(calls, ["GET"]);
 });
 
+test("a backup larger than 10 MB is refused before the request", async () => {
+  const calls: string[] = [];
+  const api = createAccountApi("https://api.example", async () => {
+    calls.push("fetch");
+    return new Response("{}", { status: 200 });
+  });
+  await assert.rejects(
+    api.putEntries(
+      "token",
+      [{ id: "big", note: "x".repeat(ACCOUNT_RESPONSE_BYTES) }],
+      "rev-1",
+    ),
+    (error: unknown) =>
+      error instanceof AccountApiError && error.code === "too-large",
+  );
+  assert.deepEqual(calls, []);
+  const root = new URL("../", import.meta.url);
+  const en = readFileSync(new URL("src/i18n/en.ts", root), "utf8");
+  const es = readFileSync(new URL("src/i18n/es.ts", root), "utf8");
+  assert.equal(en.includes(`"account.tooLarge"`), true);
+  assert.equal(es.includes(`"account.tooLarge"`), true);
+  assert.equal(en.includes("10 MB"), true);
+  assert.equal(es.includes("10 MB"), true);
+  const button = readFileSync(
+    new URL("src/account/AccountButton.tsx", root),
+    "utf8",
+  );
+  assert.equal(button.includes('code === "too-large"'), true);
+});
+
 test("a backup of more than 500 entries is refused before upload", async () => {
   const tooMany = Array.from({ length: SYNC_ENTRY_LIMIT + 1 }, (_, index) =>
     entry(`row-${index}`, 1),
@@ -2352,6 +2383,87 @@ test("a second tab keeps the entry the first tab uploaded", async () => {
   assert.deepEqual(again, [["from-a", "from-b"]]);
 });
 
+test("account deletion waits for an upload when web locks are missing", async () => {
+  const nav = globalThis.navigator as Navigator & { locks?: unknown };
+  const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");
+  const previousStorage = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "localStorage",
+  );
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    get: () => undefined,
+  });
+  const data = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+      removeItem: (key: string) => data.delete(key),
+    },
+  });
+  let releasePut: (() => void) | null = null;
+  let firstPutStarted = false;
+  let deleted = false;
+  const store = memory();
+  grantOptIn(store, "user-a");
+  rememberSynced(store, ["note-a"], "user-a");
+  try {
+    const uploading = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("note-a", 1)],
+      now: NOW,
+      store,
+      pull: async () => ({
+        entries: [entry("note-a", 1)],
+        deleted: [],
+        revision: "1",
+      }),
+      put: () =>
+        new Promise<void>((resolve) => {
+          firstPutStarted = true;
+          releasePut = resolve;
+        }),
+    });
+    for (let attempt = 0; attempt < 40 && !firstPutStarted; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(firstPutStarted, true);
+    assert.equal(data.has("ihurt-tab-locks"), true);
+    const removing = deleteSignedInAccount({
+      uid: "user-a",
+      token: async () => "token-a",
+      api: {
+        deleteAccount: async () => {
+          deleted = true;
+        },
+        getEntries: async () => ({ entries: [], deleted: [], revision: "1" }),
+        putEntries: async () => undefined,
+        getSearchAllowance: async () => ({ remaining: 5, limit: 5 }),
+      },
+      removeLocal: async () => undefined,
+      confirmRecentLogin: async () => undefined,
+      deleteAuth: async () => undefined,
+      settleUploads: async () => undefined,
+      sameAccount: () => true,
+      store,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(deleted, false);
+    releasePut?.();
+    await uploading;
+    await removing;
+    assert.equal(deleted, true);
+  } finally {
+    if (previousLocks) Object.defineProperty(nav, "locks", previousLocks);
+    else delete (nav as { locks?: unknown }).locks;
+    if (previousStorage)
+      Object.defineProperty(globalThis, "localStorage", previousStorage);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
 test("a backup still blocks deletion after the upload lease", async () => {
   const store = memory();
   grantOptIn(store, "user-a");
@@ -2577,6 +2689,49 @@ test("a delete on another device is not uploaded again", async () => {
   );
 });
 
+test("a shared map stays with the account that already claimed it", async () => {
+  const store = memory();
+  grantOptIn(store, "user-b");
+  rememberSeenEntries(store, "user-a", ["shared"]);
+  const sent: string[][] = [];
+  await pushBackup({
+    uid: "user-b",
+    token: "token-b",
+    entries: [entry("from-b", 1)],
+    now: NOW,
+    store,
+    pull: async () => ({
+      entries: [entry("shared", 2), entry("from-b", 1)],
+      deleted: [],
+      revision: "live",
+    }),
+    put: async (_token, rows) => {
+      sent.push(rows.map((row) => row.id));
+    },
+  });
+  assert.deepEqual(sent[0]?.slice().sort(), ["from-b", "shared"]);
+  assert.deepEqual(downloadedIdsFor(store, "user-b"), ["from-b"]);
+  const enable = readFileSync(
+    new URL("../src/account/store.ts", import.meta.url),
+    "utf8",
+  );
+  const start = enable.indexOf("export async function enableBackup");
+  const putAt = enable.indexOf(
+    "await api.putEntries(token, windowed, sync.revision)",
+    start,
+  );
+  const mergeAt = enable.indexOf("await onMerge(mine)", putAt);
+  assert.equal(putAt > start && mergeAt > putAt, true);
+  assert.equal(
+    enable.slice(start, putAt).includes("await onMerge(remote)"),
+    false,
+  );
+  assert.equal(
+    enable.slice(start, putAt).includes("partitionAccountEntries("),
+    true,
+  );
+});
+
 test("a stale snapshot does not replace a newer upload", async () => {
   let revision = "1";
   let cloud = [entry("keep", 1)];
@@ -2768,7 +2923,7 @@ test("a delete during backup enable is left out of the first upload", () => {
   const enable = store.slice(
     store.indexOf("export async function enableBackup"),
   );
-  const mergeAt = enable.indexOf("const merged = await onMerge(remote)");
+  const mergeAt = enable.indexOf("const merged = await onMerge(mine)");
   const snapAt = enable.indexOf("await readBackupSnapshot()");
   const putAt = enable.indexOf("await api.putEntries");
   assert.ok(snapAt > 0 && putAt > snapAt && mergeAt > putAt);
@@ -2779,14 +2934,14 @@ test("a delete during backup enable is left out of the first upload", () => {
   );
   assert.equal(button.includes("backupRowsAfterMerge(entries"), false);
   const pullAt = store.indexOf("const sync = await current.getEntries(next)");
-  const mergeCall = store.indexOf("await onMerge?.(remote)", pullAt);
+  const mergeCall = store.indexOf("await onMerge?.(mine)", pullAt);
   assert.ok(pullAt > 0 && mergeCall > pullAt);
   const laterPull = store.slice(pullAt, mergeCall);
   assert.equal(laterPull.includes("releaseRemoteDeletes("), true);
   assert.equal(laterPull.includes("clearDeletedIds("), false);
   const enablePull = enable.slice(
     enable.indexOf("const sync = await api.getEntries"),
-    enable.indexOf("const merged = await onMerge(remote)"),
+    enable.indexOf("const merged = await onMerge(mine)"),
   );
   assert.equal(enablePull.includes("releaseRemoteDeletes("), true);
   assert.equal(enablePull.includes("clearDeletedIds("), false);
@@ -3153,7 +3308,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(beforeUpload.includes("rememberDownloaded("), true);
   assert.equal(beforeUpload.includes("withUploadLock("), true);
   assert.equal(beforeUpload.includes("claimUpload("), true);
-  assert.equal(beforeUpload.includes("remote.map((entry) => entry.id)"), true);
+  assert.equal(beforeUpload.includes("mine.map((entry) => entry.id)"), true);
   const pullAt = beforeUpload.indexOf("await input.pull");
   const claimedAt = beforeUpload.indexOf("rememberSeenEntries(");
   const abortAt = beforeUpload.indexOf("if (!current()) return []", pullAt);
@@ -3182,7 +3337,7 @@ test("a later save applies the downloaded note before the next upload", () => {
   assert.equal(beforePut.includes("claimUpload("), true);
   assert.equal(beforePut.includes("await readBackupSnapshot()"), true);
   const afterPut = store.slice(put);
-  const mergedAt = afterPut.indexOf("const merged = await onMerge(remote)");
+  const mergedAt = afterPut.indexOf("const merged = await onMerge(mine)");
   const claimedMerge = afterPut.indexOf("rememberSeenEntries(", mergedAt);
   const downloadedMerge = afterPut.indexOf("rememberDownloaded(", claimedMerge);
   const optIn = afterPut.indexOf("grantOptIn(", downloadedMerge);
@@ -3192,12 +3347,9 @@ test("a later save applies the downloaded note before the next upload", () => {
       downloadedMerge > claimedMerge &&
       optIn > downloadedMerge,
   );
-  const mapped = afterPut.indexOf(
-    "merged.map((entry) => entry.id)",
-    mergedAt,
-  );
+  const mapped = afterPut.indexOf("merged.map((entry) => entry.id)", mergedAt);
   assert.ok(mapped > claimedMerge && mapped < downloadedMerge);
-  assert.equal(store.includes("await onMerge?.(remote)"), true);
+  assert.equal(store.includes("await onMerge?.(mine)"), true);
   assert.equal(store.includes("idsDeletedOnServer("), true);
   assert.equal(store.includes("rememberRemoteDeletes("), true);
   assert.equal(store.includes("settleUploads: () => pushChain"), true);

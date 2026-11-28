@@ -255,16 +255,36 @@ export function clearSeenEntries(store: KeyValueStore, uid: string) {
   store.setItem(SEEN_ENTRIES_KEY, JSON.stringify(book));
 }
 
-export function withoutOtherAccountEntries<T extends { id: string }>(
-  entries: readonly T[],
-  store: KeyValueStore,
-  uid: string,
-): T[] {
+function otherAccountIds(store: KeyValueStore, uid: string): Set<string> {
   const owned = new Set<string>();
   for (const [account, list] of Object.entries(seenBook(store))) {
     if (account === uid) continue;
     for (const id of list) owned.add(id);
   }
+  return owned;
+}
+
+export function partitionAccountEntries<T extends { id: string }>(
+  entries: readonly T[],
+  store: KeyValueStore,
+  uid: string,
+): { mine: T[]; held: T[] } {
+  const other = otherAccountIds(store, uid);
+  const mine: T[] = [];
+  const held: T[] = [];
+  for (const entry of entries) {
+    if (other.has(entry.id)) held.push(entry);
+    else mine.push(entry);
+  }
+  return { mine, held };
+}
+
+export function withoutOtherAccountEntries<T extends { id: string }>(
+  entries: readonly T[],
+  store: KeyValueStore,
+  uid: string,
+): T[] {
+  const owned = otherAccountIds(store, uid);
   if (owned.size === 0) return [...entries];
   return entries.filter((entry) => !owned.has(entry.id));
 }
@@ -422,13 +442,58 @@ function liveClaims(claims: Record<string, number> | undefined, now: number) {
 // Holding the lock until the request finishes also keeps deletion from treating
 // a slow PUT as done when its timestamp passes the lease: a closed document
 // drops the lock, and a request that is still running does not.
+// Safari Lockdown Mode has no Web Locks. A per-tab queue would let a delete
+// run while another tab's PUT is still sending the journal. The fallback is a
+// lock record in localStorage, which both tabs can see. The in-memory queue
+// remains only when this realm has no storage at all.
 let holdingUpload = 0;
 const lockQueues = new Map<string, Promise<unknown>>();
+const TAB_LOCK_KEY = "ihurt-tab-locks";
+const TAB_LOCK_WAIT_MS = 15_000;
+const TAB_LOCK_PAUSE_MS = 20;
 
-function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
-  const locks = globalThis.navigator?.locks;
-  // The lock is held until the callback's promise settles. The DOM type omits that.
-  if (locks) return locks.request(name, () => fn()) as Promise<T>;
+type TabLock = { id: string; expires: number };
+
+function tabLockStore(): KeyValueStore | null {
+  const storage = globalThis.localStorage;
+  if (
+    !storage ||
+    typeof storage.getItem !== "function" ||
+    typeof storage.setItem !== "function" ||
+    typeof storage.removeItem !== "function"
+  )
+    return null;
+  return storage;
+}
+
+function readTabLocks(store: KeyValueStore): Record<string, TabLock> {
+  try {
+    const parsed = JSON.parse(store.getItem(TAB_LOCK_KEY) ?? "{}") as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
+    const book: Record<string, TabLock> = {};
+    for (const [name, row] of Object.entries(parsed)) {
+      if (!row || typeof row !== "object") continue;
+      const id = (row as { id?: unknown }).id;
+      const expires = (row as { expires?: unknown }).expires;
+      if (typeof id === "string" && typeof expires === "number")
+        book[name] = { id, expires };
+    }
+    return book;
+  } catch {
+    return {};
+  }
+}
+
+function writeTabLocks(store: KeyValueStore, book: Record<string, TabLock>) {
+  if (Object.keys(book).length === 0) {
+    store.removeItem(TAB_LOCK_KEY);
+    return;
+  }
+  store.setItem(TAB_LOCK_KEY, JSON.stringify(book));
+}
+
+function withLocalLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
   const previous = lockQueues.get(name) ?? Promise.resolve();
   const run = previous.then(fn, fn);
   lockQueues.set(
@@ -439,6 +504,48 @@ function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
     ),
   );
   return run;
+}
+
+async function withStorageLock<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const store = tabLockStore();
+  if (!store) return withLocalLock(name, fn);
+  const id = crypto.randomUUID();
+  const deadline = Date.now() + TAB_LOCK_WAIT_MS;
+  while (Date.now() <= deadline) {
+    const book = readTabLocks(store);
+    const current = book[name];
+    if (!current || current.expires <= Date.now()) {
+      book[name] = { id, expires: Date.now() + UPLOAD_LEASE_MS };
+      writeTabLocks(store, book);
+      await new Promise((resolve) => setTimeout(resolve, TAB_LOCK_PAUSE_MS));
+      if (readTabLocks(store)[name]?.id === id) {
+        try {
+          return await fn();
+        } finally {
+          const latest = readTabLocks(store);
+          if (latest[name]?.id === id) {
+            delete latest[name];
+            writeTabLocks(store, latest);
+          }
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, TAB_LOCK_PAUSE_MS));
+  }
+  const error = new Error("locks");
+  Object.defineProperty(error, "code", { value: "locks" });
+  throw error;
+}
+
+function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  const locks = globalThis.navigator?.locks;
+  // The lock is held until the callback's promise settles. The DOM type omits that.
+  if (locks?.request) return locks.request(name, () => fn()) as Promise<T>;
+  if (tabLockStore()) return withStorageLock(name, fn);
+  return withLocalLock(name, fn);
 }
 
 export function withUploadLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -592,17 +699,26 @@ export async function pushBackup<T extends BackupEntry>(input: {
         ? pulledWindow(await input.pull(input.token))
         : { entries: [] as T[], deleted: [] as string[], revision: undefined };
       const remote = pulled.entries;
+      // A row already claimed by another account stays in the replacement so
+      // this upload does not delete that account's cloud copy. It is not
+      // merged into this journal and it is not claimed for this account.
+      const { mine, held } = partitionAccountEntries(
+        remote,
+        input.store,
+        input.uid,
+      );
+      const heldIds = new Set(held.map((entry) => entry.id));
       // The pull can store these rows before this check. Sign-out during that
       // write still leaves them on the device, so they stay with this account.
       if (input.pull) {
         rememberSeenEntries(
           input.store,
           input.uid,
-          remote.map((entry) => entry.id),
+          mine.map((entry) => entry.id),
         );
         rememberDownloaded(
           input.store,
-          remote.map((entry) => entry.id),
+          mine.map((entry) => entry.id),
           input.uid,
         );
       }
@@ -650,7 +766,10 @@ export async function pushBackup<T extends BackupEntry>(input: {
       if (drop.length > 0) await input.forget?.(drop);
       if (!current()) return [];
       const windowed = input.pull
-        ? mergeBackupWindow(entries, remote, deleted, clock)
+        ? [
+            ...mergeBackupWindow(entries, mine, deleted, clock),
+            ...held.filter((entry) => !deleted.has(entry.id)),
+          ]
         : entriesForBackup(entries, input.now);
       const localIds = new Set(entries.map((entry) => entry.id));
       const remoteIds = new Set(remote.map((entry) => entry.id));
@@ -677,14 +796,15 @@ export async function pushBackup<T extends BackupEntry>(input: {
             continue;
           throw error;
         }
+        const claimed = windowed.filter((entry) => !heldIds.has(entry.id));
         rememberSeenEntries(
           input.store,
           input.uid,
-          windowed.map((entry) => entry.id),
+          claimed.map((entry) => entry.id),
         );
         retainSynced(
           input.store,
-          windowed.map((entry) => entry.id),
+          claimed.map((entry) => entry.id),
           input.uid,
         );
         return windowed;

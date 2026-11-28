@@ -34,6 +34,7 @@ function messageKey(code: string) {
   if (code === "delete-partial") return "account.deletePartial" as const;
   if (code === "deleted") return "account.deleted" as const;
   if (code === "too-many") return "account.tooMany" as const;
+  if (code === "too-large") return "account.tooLarge" as const;
   return "account.error" as const;
 }
 

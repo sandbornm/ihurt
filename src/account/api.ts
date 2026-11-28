@@ -88,6 +88,25 @@ function requireRevision(value: unknown, status: number): string {
 export function assertSyncEntryLimit(count: number) {
   if (count > SYNC_ENTRY_LIMIT) throw new AccountApiError(0, "too-many");
 }
+
+// Walk the payload and stop once it passes the pull cap. One oversized note
+// must not stringify the rest of the journal or leave the device.
+export function assertBackupPayload(
+  entries: readonly BackupEntry[],
+  revision: string,
+) {
+  const encoder = new TextEncoder();
+  const bytes = (value: string) => encoder.encode(value).byteLength;
+  let total = bytes(`{"revision":${JSON.stringify(revision)},"entries":[`);
+  for (let index = 0; index < entries.length; index += 1) {
+    if (index > 0) total += 1;
+    total += bytes(JSON.stringify(toBackupPayload(entries[index]!)));
+    if (total > ACCOUNT_RESPONSE_BYTES)
+      throw new AccountApiError(0, "too-large");
+  }
+  total += bytes("]}");
+  if (total > ACCOUNT_RESPONSE_BYTES) throw new AccountApiError(0, "too-large");
+}
 // The local research request uses the same bound. A fetch or a body that never
 // finishes must release backup and deletion instead of holding them open.
 export const ACCOUNT_REQUEST_MS = 135_000;
@@ -315,8 +334,10 @@ export function createAccountApi(
     },
     async putEntries(token, entries, revision) {
       assertSyncEntryLimit(entries.length);
+      const generation = requireRevision(revision, 0);
+      assertBackupPayload(entries, generation);
       await request("/v1/sync", token, "PUT", {
-        revision: requireRevision(revision, 0),
+        revision: generation,
         entries: entries.map((entry) => toBackupPayload(entry)),
       });
     },

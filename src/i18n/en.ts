@@ -877,6 +877,8 @@ export const en = {
     "Something went wrong. Your journal is still on this device.",
   "account.tooMany":
     "Cloud backup copies up to 500 entries from the last 90 days. Nothing was copied. Your journal stays on this device.",
+  "account.tooLarge":
+    "Cloud backup copies up to 10 MB from the last 90 days. Nothing was copied. Your journal stays on this device.",
   "account.recentLogin":
     "Sign in again, then delete the account. Nothing was removed.",
   "account.deletePartial":

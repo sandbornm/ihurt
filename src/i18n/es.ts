@@ -910,6 +910,8 @@ export const es: Messages = {
   "account.error": "Algo salió mal. Tu cuaderno sigue en este dispositivo.",
   "account.tooMany":
     "La copia en la nube copia hasta 500 entradas de los últimos 90 días. No se copió nada. Tu cuaderno se queda en este dispositivo.",
+  "account.tooLarge":
+    "La copia en la nube copia hasta 10 MB de los últimos 90 días. No se copió nada. Tu cuaderno se queda en este dispositivo.",
   "account.recentLogin":
     "Vuelve a iniciar sesión y luego elimina la cuenta. No se eliminó nada.",
   "account.deletePartial":

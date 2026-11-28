@@ -40,6 +40,7 @@ import {
   grantOptIn,
   nextBackupEpoch,
   optedIn,
+  partitionAccountEntries,
   pushBackup,
   releaseRemoteDeletes,
   releaseUpload,
@@ -343,20 +344,20 @@ export async function enableBackup(
           rememberRemoteDeletes(browserStore(), gone, session.uid);
           // The cloud note is not written yet. The upload carries the merge,
           // and the journal changes only after that upload is accepted.
+          // A row another account already claimed stays in the replacement
+          // unchanged. It is not written into this journal.
+          const blocked = new Set([...deletedNow, ...gone]);
+          const { mine, held } = partitionAccountEntries(
+            remote,
+            browserStore(),
+            session.uid,
+          );
+          const heldKept = held.filter((entry) => !blocked.has(entry.id));
           const windowed = entriesForBackup(
-            withoutOtherAccountEntries(
-              mergeBackupWindow(
-                owned,
-                remote,
-                new Set([...deletedNow, ...gone]),
-                clock,
-              ),
-              browserStore(),
-              session.uid,
-            ),
+            [...mergeBackupWindow(owned, mine, blocked, clock), ...heldKept],
             clock,
             BACKUP_DAYS,
-            new Set(remote.map((entry) => entry.id)),
+            new Set([...mine, ...heldKept].map((entry) => entry.id)),
           );
           try {
             assertSyncEntryLimit(windowed.length);
@@ -386,7 +387,7 @@ export async function enableBackup(
               setState({ ...state, busy: false });
               return;
             }
-            const merged = await onMerge(remote);
+            const merged = await onMerge(mine);
             if (!Array.isArray(merged)) {
               setState({ ...state, busy: false, error: "error" });
               return;
@@ -401,16 +402,11 @@ export async function enableBackup(
               merged.map((entry) => entry.id),
               session.uid,
             );
-            rememberSeenEntries(
-              browserStore(),
-              session.uid,
-              windowed.map((entry) => entry.id),
-            );
-            rememberSynced(
-              browserStore(),
-              windowed.map((entry) => entry.id),
-              session.uid,
-            );
+            const claimed = windowed
+              .filter((entry) => !heldKept.some((row) => row.id === entry.id))
+              .map((entry) => entry.id);
+            rememberSeenEntries(browserStore(), session.uid, claimed);
+            rememberSynced(browserStore(), claimed, session.uid);
             if (gone.length > 0) await onRemove?.(gone);
             if (
               state.session?.uid !== session.uid ||
@@ -442,7 +438,10 @@ export async function enableBackup(
         ? error.code || "error"
         : "error";
     setState({ ...state, busy: false, error: code });
-    if (error instanceof AccountApiError && error.code === "too-many")
+    if (
+      error instanceof AccountApiError &&
+      (error.code === "too-many" || error.code === "too-large")
+    )
       return { status: "limited" };
     throw error;
   }
@@ -521,7 +520,8 @@ export function pushBackupEntries(
           // account's remote-delete marker is released.
           if (revived.length > 0)
             releaseRemoteDeletes(browserStore(), revived, uid);
-          await onMerge?.(remote);
+          const { mine } = partitionAccountEntries(remote, browserStore(), uid);
+          await onMerge?.(mine);
           return sync;
         },
         put: (next, rows, revision) =>

@@ -517,7 +517,16 @@ export function retireEntry(store: KeyValueStore, uid: string, id: string) {
   const inWindow = current.window.includes(id);
   const inBacked = current.backed.includes(id);
   const inDownloaded = current.downloaded.includes(id);
-  if (!inWindow && !inBacked && !inDownloaded) return;
+  if (!inWindow && !inBacked && !inDownloaded) {
+    // This copy was never claimed. A retirement left by an older copy of the
+    // same id must not come back when this delete is undone.
+    if (!current.retired[id]) return;
+    const retired = { ...current.retired };
+    delete retired[id];
+    book[uid] = { ...current, retired };
+    writeBook(store, book);
+    return;
+  }
   const stamp = current.edited[id];
   const retired = { ...current.retired };
   retired[id] = {
@@ -650,7 +659,6 @@ function liveClaims(claims: Record<string, number> | undefined, now: number) {
 let holdingUpload = 0;
 const lockQueues = new Map<string, Promise<unknown>>();
 const TAB_LOCK_KEY = "ihurt-tab-locks";
-const TAB_LOCK_WAIT_MS = 15_000;
 const TAB_LOCK_PAUSE_MS = 20;
 const TAB_LOCK_RENEW_MS = 1000;
 
@@ -722,8 +730,10 @@ async function withStorageLock<T>(
   const store = tabLockStore();
   if (!store) return withLocalLock(name, fn);
   const id = crypto.randomUUID();
-  const deadline = Date.now() + TAB_LOCK_WAIT_MS;
-  while (Date.now() <= deadline) {
+  // A live request renews this lease, and the request itself can run for
+  // longer than a fixed wait. Stay queued until that lease is released or
+  // expires. A tab that is gone stops renewing, so the lease runs out.
+  for (;;) {
     const current = readNamedLock(store, name);
     if (!current || current.expires <= Date.now()) {
       writeNamedLock(store, name, {
@@ -756,9 +766,6 @@ async function withStorageLock<T>(
     }
     await new Promise((resolve) => setTimeout(resolve, TAB_LOCK_PAUSE_MS));
   }
-  const error = new Error("locks");
-  Object.defineProperty(error, "code", { value: "locks" });
-  throw error;
 }
 
 function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {

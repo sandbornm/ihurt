@@ -2723,6 +2723,81 @@ test("account deletion waits for an upload when web locks are missing", async ()
   }
 });
 
+test("a second tab waits out a fallback lock held longer than 15 seconds", async () => {
+  const nav = globalThis.navigator as Navigator & { locks?: unknown };
+  const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");
+  const previousStorage = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "localStorage",
+  );
+  const realNow = Date.now;
+  let now = NOW;
+  Date.now = () => now;
+  Object.defineProperty(nav, "locks", {
+    configurable: true,
+    get: () => undefined,
+  });
+  const data = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+      removeItem: (key: string) => data.delete(key),
+    },
+  });
+  let releasePut: (() => void) | null = null;
+  let firstPutStarted = false;
+  const sent: string[][] = [];
+  const store = memory();
+  grantOptIn(store, "user-a");
+  try {
+    const first = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("held", 1)],
+      now: NOW,
+      store,
+      pull: async () => ({ entries: [], deleted: [], revision: "rev-1" }),
+      put: async (_token, rows) => {
+        firstPutStarted = true;
+        sent.push(rows.map((row) => row.id));
+        await new Promise<void>((resolve) => {
+          releasePut = resolve;
+        });
+      },
+    });
+    for (let attempt = 0; attempt < 40 && !firstPutStarted; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(firstPutStarted, true);
+    const second = pushBackup({
+      uid: "user-a",
+      token: "token-a",
+      entries: [entry("held", 1), entry("saved-later", 1)],
+      now: NOW,
+      store,
+      pull: async () => ({ entries: [], deleted: [], revision: "rev-1" }),
+      put: async (_token, rows) => {
+        sent.push(rows.map((row) => row.id));
+      },
+    });
+    now += 20_000;
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.deepEqual(sent, [["held"]]);
+    releasePut?.();
+    await first;
+    await second;
+    assert.deepEqual(sent[1], ["held", "saved-later"]);
+  } finally {
+    Date.now = realNow;
+    if (previousLocks) Object.defineProperty(nav, "locks", previousLocks);
+    else delete (nav as { locks?: unknown }).locks;
+    if (previousStorage)
+      Object.defineProperty(globalThis, "localStorage", previousStorage);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
 test("a slow upload keeps the fallback lock past the lease", async () => {
   const nav = globalThis.navigator as Navigator & { locks?: unknown };
   const previousLocks = Object.getOwnPropertyDescriptor(nav, "locks");
@@ -3682,6 +3757,30 @@ test("a delete while signed out releases the backup claim", async () => {
   assert.equal(retire.includes("retireEntryOwners("), true);
   assert.equal(restore.includes("if (!uid) return"), false);
   assert.equal(restore.includes("restoreEntryOwners("), true);
+});
+
+test("undo after deleting a re-import does not restore the old backup claim", async () => {
+  const store = memory();
+  rememberSynced(store, ["note"], "user-a");
+  rememberDownloaded(store, ["note"], "user-a");
+  retireEntryOwners(store, "note");
+  retireEntryOwners(store, "note");
+  restoreEntryOwners(store, "note");
+  assert.deepEqual(backedIdsFor(store, "user-a"), []);
+  assert.deepEqual(downloadedIdsFor(store, "user-a"), []);
+  const wiped: string[] = [];
+  await deleteSignedInAccount({
+    uid: "user-a",
+    token: "token-a",
+    confirmRecentLogin: async () => {},
+    api: { async deleteAccount() {} },
+    removeLocal: async (ids) => {
+      wiped.push(...ids);
+    },
+    deleteAuth: async () => {},
+    store,
+  });
+  assert.deepEqual(wiped, []);
 });
 
 test("a failed upload does not claim the entry for the next account", async () => {
